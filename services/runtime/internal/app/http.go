@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,7 @@ func (a *Application) Handler() http.Handler {
 		respond(w, 200, check)
 	})
 	internal.HandleFunc("GET /internal/measurements/latest", a.latestHTTP)
+	internal.HandleFunc("GET /internal/measurements/latest-batch", a.latestBatchHTTP)
 	internal.HandleFunc("GET /internal/telemetry/committed-status", a.committedStatus)
 	internal.HandleFunc("POST /internal/locations/resolve", a.resolveLocation)
 	internal.HandleFunc("POST /internal/locations/read", a.readLocation)
@@ -138,12 +140,8 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 	unlock := a.lockDevice(r.URL.Query().Get("device_uuid"))
 	defer unlock()
 	org, id := r.URL.Query().Get("organization_uuid"), r.URL.Query().Get("device_uuid")
-	a.mu.Lock()
-	d, exists := a.definitions[id]
-	compatible := a.compatible[id]
-	activeSince := a.activeSince[id]
-	a.mu.Unlock()
-	if !exists {
+	state := a.latestState(id)
+	if !state.exists {
 		configuration := r.URL.Query().Get("configuration_uuid")
 		if configuration == "" {
 			respond(w, 200, map[string]any{"data": []devices.Reading{}, "presence": "unknown"})
@@ -154,39 +152,150 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, 503, map[string]string{"message": "measurement storage unavailable"})
 			return
 		}
-		for i := range readings {
-			readings[i].Quality = "inactive"
-			readings[i].Diagnostic = "Ingestion is disabled; retained last valid reading."
-		}
-		respond(w, 200, map[string]any{"data": readings, "presence": "unknown", "processing": "inactive"})
+		respond(w, 200, map[string]any{"data": inactiveReadings(readings), "presence": "unknown", "processing": "inactive"})
 		return
 	}
-	if d.OrganizationUUID != org {
+	if state.definition.OrganizationUUID != org {
 		respond(w, 404, map[string]string{"message": "device not found"})
 		return
 	}
-	carried, e := a.Store.LatestAcross(r.Context(), org, id, d.ConfigurationUUID)
+	carried, e := a.Store.LatestAcross(r.Context(), org, id, state.definition.ConfigurationUUID)
 	if e != nil {
 		respond(w, 503, map[string]string{"message": "measurement storage is unavailable"})
 		return
 	}
-	_, _, online := a.Engine.Snapshot(d.Source)
-	presence := "offline"
-	if online {
-		presence = "online"
-	}
-	profile, e := devices.ParseProfile(d)
+	_, _, online := a.Engine.Snapshot(state.definition.Source)
+	readings, e := latestReadings(state, online, carried)
 	if e != nil {
 		respond(w, 503, map[string]string{"message": "profile unavailable"})
 		return
+	}
+	respond(w, 200, map[string]any{"data": readings, "presence": presenceWord(online), "configuration_uuid": state.definition.ConfigurationUUID})
+}
+
+// latestBatchHTTP answers the latest values of up to 100 devices of one organization
+// from one storage query, each device downgraded exactly as latestHTTP downgrades it
+// and with its presence from the Sparkplug engine. The per-device fence is not taken:
+// a plant's snapshot is a read, and holding a hundred fences for one query would
+// stall ingestion for every device in it (spec 030, research R8). A device the
+// runtime no longer serves keeps every retained reading, marked inactive.
+func (a *Application) latestBatchHTTP(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	org := q.Get("organization_uuid")
+	ids, ok := batchDevices(q)
+	if org == "" || !ok {
+		respond(w, 422, map[string]string{"message": "name 1 to 100 distinct devices"})
+		return
+	}
+	states := map[string]latestState{}
+	for _, id := range ids {
+		states[id] = a.latestState(id)
+		if states[id].exists && states[id].definition.OrganizationUUID != org {
+			respond(w, 404, map[string]string{"message": "device not found"})
+			return
+		}
+	}
+	carried, e := a.Store.LatestBatch(r.Context(), org, ids)
+	if e != nil {
+		respond(w, 503, map[string]string{"message": "measurement storage is unavailable"})
+		return
+	}
+	data := map[string]any{}
+	for _, id := range ids {
+		state := states[id]
+		if !state.exists {
+			readings := []devices.Reading{}
+			for _, c := range carried[id] {
+				readings = append(readings, c.Reading)
+			}
+			data[id] = map[string]any{"data": inactiveReadings(readings), "presence": "unknown", "processing": "inactive"}
+			continue
+		}
+		_, _, online := a.Engine.Snapshot(state.definition.Source)
+		readings, e := latestReadings(state, online, carried[id])
+		if e != nil {
+			respond(w, 503, map[string]string{"message": "profile unavailable"})
+			return
+		}
+		data[id] = map[string]any{"data": readings, "presence": presenceWord(online), "configuration_uuid": state.definition.ConfigurationUUID}
+	}
+	respond(w, 200, map[string]any{"data": data})
+}
+
+var uuidShape = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// batchDevices reads `devices` as a comma list, repeated, or as `devices[]`: 1 to 100
+// distinct UUIDs.
+func batchDevices(q url.Values) ([]string, bool) {
+	ids := []string{}
+	seen := map[string]bool{}
+	for _, key := range []string{"devices", "devices[]"} {
+		for _, raw := range q[key] {
+			for _, id := range strings.Split(raw, ",") {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					continue
+				}
+				if seen[id] || !uuidShape.MatchString(id) {
+					return nil, false
+				}
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids, len(ids) >= 1 && len(ids) <= 100
+}
+
+// latestState is what the runtime holds in memory for a device at the moment of a
+// latest read.
+type latestState struct {
+	definition  devices.Definition
+	exists      bool
+	compatible  bool
+	activeSince time.Time
+}
+
+func (a *Application) latestState(id string) latestState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	d, exists := a.definitions[id]
+	return latestState{definition: d, exists: exists, compatible: a.compatible[id], activeSince: a.activeSince[id]}
+}
+
+func presenceWord(online bool) string {
+	if online {
+		return "online"
+	}
+	return "offline"
+}
+
+// inactiveReadings marks the retained readings of a device whose ingestion is
+// disabled.
+func inactiveReadings(readings []devices.Reading) []devices.Reading {
+	for i := range readings {
+		readings[i].Quality = "inactive"
+		readings[i].Diagnostic = "Ingestion is disabled; retained last valid reading."
+	}
+	return readings
+}
+
+// latestReadings applies the latest read's downgrades to a device's carried
+// readings. A new configuration starts with no latest rows, so the previous
+// configuration's value is kept, marked stale, while the parameter keeps its data
+// type and unit, and parameters the new configuration no longer has are dropped. A
+// good value is stale until a compatible source session has reported since
+// activation, and once the parameter's freshness interval has elapsed.
+func latestReadings(state latestState, online bool, carried []storage.CarriedReading) ([]devices.Reading, error) {
+	d := state.definition
+	profile, e := devices.ParseProfile(d)
+	if e != nil {
+		return nil, e
 	}
 	params := map[string]devices.Parameter{}
 	for _, p := range profile.Parameters {
 		params[p.UUID] = p
 	}
-	// A new configuration starts with no latest rows. Keep showing the previous
-	// configuration's value, marked stale, while the parameter keeps its data
-	// type and unit; drop parameters the new configuration no longer has.
 	readings := []devices.Reading{}
 	for _, c := range carried {
 		if c.ConfigurationUUID != d.ConfigurationUUID {
@@ -204,10 +313,10 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 	for i := range readings {
 		p := params[readings[i].ParameterUUID]
 		if readings[i].Quality == "good" {
-			if readings[i].ReceivedAt.Before(activeSince) {
+			if readings[i].ReceivedAt.Before(state.activeSince) {
 				readings[i].Quality = "stale"
 				readings[i].Diagnostic = "Retained reading; waiting for telemetry after activation."
-			} else if !online || !compatible {
+			} else if !online || !state.compatible {
 				readings[i].Quality = "stale"
 				readings[i].Diagnostic = "Waiting for a current compatible source session."
 			} else if p.Reporting != nil && p.Reporting.StaleAfterSeconds > 0 && time.Since(readings[i].ReceivedAt) > time.Duration(p.Reporting.StaleAfterSeconds)*time.Second {
@@ -216,7 +325,7 @@ func (a *Application) latestHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	respond(w, 200, map[string]any{"data": readings, "presence": presence, "configuration_uuid": d.ConfigurationUUID})
+	return readings, nil
 }
 func (a *Application) historyHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
