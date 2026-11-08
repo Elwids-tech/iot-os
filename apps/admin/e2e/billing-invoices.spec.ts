@@ -18,6 +18,8 @@ const harbour = "11111111-1111-4111-8111-111111111111"
 const draftUuid = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
 const inAFortnight = new Date(Date.now() + 14 * 86400_000).toISOString()
 
+type Payment = { uuid: string; method: string; amount: number; attempt: number; status: string; failure_reason: string | null; note: string | null; at: string }
+
 type Line = { id: number; position: number; kind: string; description: string; quantity: number; unit_price: number | null; amount: number; period_start: string | null; period_end: string | null; note: string | null }
 
 function paginated<T>(items: T[], url: URL) {
@@ -41,8 +43,8 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, json: body })
 }
 
-/** The mocked API, plus the request bodies the tests assert on. */
-async function mockApi(page: Page) {
+/** The mocked API, plus the request bodies the tests assert on. `issued` starts with INV-0001 issued, its card charge still processing. */
+async function mockApi(page: Page, { issued = false, pastDue = false }: { issued?: boolean; pastDue?: boolean } = {}) {
   const sent: { method: string; path: string; body: unknown }[] = []
   let settings = {
     legal_name: null as string | null,
@@ -69,7 +71,19 @@ async function mockApi(page: Page) {
     credit_notes: { uuid: string; number: string; invoice: { uuid: string; number: string }; currency: string; amount: number; applied: number; reason: string; issued_at: string }[]
     history: { at: string; action: string; actor: typeof actor | null; description: string | null; amount: number | null; note: string | null; number: string | null }[]
     payment_status: string
-  } = null
+    payments: Payment[]
+  } = issued
+    ? {
+        status: "issued",
+        number: "INV-0001",
+        payment_status: "pending",
+        credit_notes: [],
+        lines: [{ id: 1, position: 1, kind: "base_price", description: "Starter · October 2026", quantity: 31, unit_price: null, amount: 2000, period_start: "2026-10-01", period_end: "2026-10-31", note: null }],
+        history: [{ at: "2026-11-08T10:05:00Z", action: "issued", actor, description: null, amount: null, note: null, number: "INV-0001" }],
+        payments: [{ uuid: "aaaa0000-0000-4000-8000-000000000001", method: "card", amount: 2000, attempt: 1, status: "pending", failure_reason: null, note: null, at: "2026-11-08T10:05:00Z" }],
+      }
+    : null
+  let pastDueSince = pastDue ? "2026-11-23T09:00:00Z" : null
 
   const prices = () => ({ currency: "USD", current, next })
   const planDetail = () => ({
@@ -106,6 +120,8 @@ async function mockApi(page: Page) {
     prices: prices(),
     price_overrides: overrides,
     billing_details: details,
+    payment_method: { brand: "visa", last_four: "4242", expires: "2030-12" },
+    past_due_since: pastDueSince,
     usage: [],
     owners: [],
     organizations: [],
@@ -118,7 +134,7 @@ async function mockApi(page: Page) {
   }
   const summary = () => {
     const { subtotal, tax, total } = totals()
-    const credited = invoice!.credit_notes.reduce((sum, note) => sum + note.applied, 0)
+    const credited = invoice!.credit_notes.reduce((sum, note) => sum + note.applied, 0) + invoice!.payments.filter((payment) => payment.status === "succeeded").reduce((sum, payment) => sum + payment.amount, 0)
     return {
       uuid: draftUuid,
       number: invoice!.number,
@@ -149,6 +165,7 @@ async function mockApi(page: Page) {
     lines: invoice!.lines,
     usage: [{ organization_uuid: "22222222-2222-4222-8222-222222222222", organization_name: "Harbour East", kind: "alerts", count: 102 }],
     credit_notes: invoice!.credit_notes,
+    payments: invoice!.payments,
     history: invoice!.history,
   })
 
@@ -165,7 +182,10 @@ async function mockApi(page: Page) {
     if (path === "/api/v1/me") return json(route, { data: superAdmin })
     if (path === "/api/v1/admin/users") return json(route, paginated([], url))
     if (path === "/api/v1/admin/organizations" && method === "GET") return json(route, paginated([], url))
-    if (path === "/api/v1/admin/billing-accounts" && method === "GET") return json(route, paginated([], url))
+    if (path === "/api/v1/admin/billing-accounts" && method === "GET") {
+      const row = { uuid: harbour, name: "Harbour Depot", contact_email: null, organization_limit: 1, plan: null, organizations_count: 0, owners: [], created_at: "2026-10-01T08:00:00Z", past_due_since: pastDueSince }
+      return json(route, paginated(url.searchParams.get("past_due") === "1" && !pastDueSince ? [] : [row], url))
+    }
     if (path === "/api/v1/admin/billing-plans" && method === "GET") return json(route, paginated([], url))
 
     if (path === "/api/v1/admin/billing/settings") {
@@ -217,6 +237,7 @@ async function mockApi(page: Page) {
         number: null,
         payment_status: "pending",
         credit_notes: [],
+        payments: [],
         lines: [
           { id: 1, position: 1, kind: "base_price", description: "Starter · 9–31 Oct 2026 · 23 of 31 days at $20.00 a month", quantity: 23, unit_price: null, amount: 1484, period_start: "2026-10-09", period_end: "2026-10-31", note: null },
           { id: 2, position: 2, kind: "alert_overage", description: "Alerts over the allowance", quantity: 2, unit_price: 50, amount: 100, period_start: null, period_end: null, note: null },
@@ -235,6 +256,22 @@ async function mockApi(page: Page) {
     if (path === `/api/v1/admin/billing/invoices/${draftUuid}/issue`) {
       Object.assign(invoice!, { status: "issued", number: "INV-0001" })
       invoice!.history.unshift({ at, action: "issued", actor, description: null, amount: null, note: null, number: "INV-0001" })
+      return json(route, { data: detail() })
+    }
+    if (path === `/api/v1/admin/billing/invoices/${draftUuid}/payments`) {
+      const values = body as { amount: number; note: string | null }
+      invoice!.payments.push({ uuid: "aaaa0000-0000-4000-8000-000000000009", method: "outside", amount: values.amount, attempt: 0, status: "succeeded", failure_reason: null, note: values.note, at })
+      if (summary().outstanding <= 0) {
+        invoice!.payment_status = "paid_outside"
+        pastDueSince = null
+      }
+      invoice!.history.unshift({ at, action: "payment_recorded", actor, description: null, amount: values.amount, note: values.note, number: null })
+      return json(route, { data: detail() }, 201)
+    }
+    if (path === `/api/v1/admin/billing/invoices/${draftUuid}/reconcile`) {
+      invoice!.payments = invoice!.payments.map((payment) => (payment.status === "pending" ? { ...payment, status: "failed", failure_reason: "Your card was declined." } : payment))
+      invoice!.payment_status = "failed"
+      invoice!.history.unshift({ at, action: "payment_failed", actor: null, description: null, amount: 2000, note: "Your card was declined.", number: null })
       return json(route, { data: detail() })
     }
     if (path === `/api/v1/admin/billing/invoices/${draftUuid}/credit-notes`) {
@@ -380,6 +417,48 @@ test("drafts a waiting account's invoice anyway, adjusts it, issues it and credi
   await expect(page.getByText("Credit note CN-0001 issued for $5.00")).toBeVisible()
   expect(sent.at(-1)?.body).toEqual({ amount: 500, reason: "Partial outage" })
   await expect(page.getByRole("row", { name: /CN-0001 \$5\.00 \$5\.00 Partial outage/ })).toBeVisible()
+})
+
+test("checks a processing charge with Stripe, records a bank transfer and clears past due", async ({ page }) => {
+  const { sent } = await mockApi(page, { issued: true, pastDue: true })
+  await page.goto("/billing-accounts")
+  await expect(page.getByRole("row", { name: /Harbour Depot Past due/ })).toBeVisible()
+  await page.getByRole("button", { name: "Filters" }).click()
+  await page.getByRole("combobox", { name: "Payment" }).click()
+  await page.getByRole("option", { name: "Past due" }).click()
+  await expect(page).toHaveURL(/payment=past_due/)
+
+  await page.goto(`/billing-accounts/${harbour}`)
+  await expect(page.getByText("Past due").first()).toBeVisible()
+  await expect(page.getByRole("region", { name: "Payment method" })).toContainText("Visa•••• 4242")
+
+  await page.goto(`/billing/invoices/${draftUuid}`)
+  const payments = page.getByRole("region", { name: "Payments" })
+  await expect(payments.getByRole("row", { name: /Card, charged at issue \$20\.00 Processing/ })).toBeVisible()
+  await page.getByRole("button", { name: "Check with Stripe" }).click()
+  await expect(page.getByText("Checked with Stripe: payment failed")).toBeVisible()
+  expect(sent.at(-1)).toMatchObject({ method: "POST", path: `/api/v1/admin/billing/invoices/${draftUuid}/reconcile` })
+  await expect(payments.getByRole("row", { name: /Failed Your card was declined\./ })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Check with Stripe" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Record payment" }).click()
+  const record = page.getByRole("dialog", { name: "Record a payment on INV-0001" })
+  await expect(record.getByRole("textbox", { name: "Amount (USD)" })).toHaveValue("20.00")
+  await record.getByRole("textbox", { name: "Amount (USD)" }).fill("25")
+  await record.getByRole("button", { name: "Record payment" }).click()
+  await expect(record.getByText("Enter an amount above 0 and up to $20.00, what is still owed.")).toBeVisible()
+  await record.getByRole("textbox", { name: "Amount (USD)" }).fill("20")
+  await record.getByRole("textbox", { name: "Note" }).fill("Bank transfer 1234")
+  await record.getByRole("button", { name: "Record payment" }).click()
+  await expect(page.getByText("Payment of $20.00 recorded")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ amount: 2000, note: "Bank transfer 1234" })
+  await expect(payments.getByRole("row", { name: /Recorded by hand \$20\.00 Succeeded Bank transfer 1234/ })).toBeVisible()
+  await expect(page.getByText("Paid another way").first()).toBeVisible()
+  await expect(page.getByRole("button", { name: "Record payment" })).toBeDisabled()
+  await expect(page.getByRole("region", { name: "History" }).getByText("Recorded a payment of $20.00: Bank transfer 1234")).toBeVisible()
+
+  await page.goto("/settings/billing")
+  await expect(page.getByRole("group", { name: "Card payments" })).toContainText("Off")
 })
 
 test("invoice pages fit a phone without sideways scrolling", async ({ page }) => {

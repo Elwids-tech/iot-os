@@ -110,6 +110,7 @@ async function setup(page: Page) {
           ],
           usage: [{ organization_uuid: org, organization_name: "Corner Shop", kind: "alerts", count: 1002 }],
           credit_notes: [creditNote],
+          payments: [],
           history: [],
         },
       })

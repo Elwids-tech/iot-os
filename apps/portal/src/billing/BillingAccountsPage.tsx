@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { CreditNote, InvoiceSummary, OwnedBillingAccount, PriceKind } from "@iot-os/api-client"
+import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem } from "@iot-os/ui/components/dropdown-menu"
@@ -17,10 +18,13 @@ import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { formatDay, formatMonth, paymentState } from "@iot-os/ui/lib/invoices"
 import { formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
-import { Building2Icon, PlusIcon, ReceiptTextIcon, WalletIcon } from "lucide-react"
+import { Building2Icon, PlusIcon, ReceiptTextIcon, TriangleAlertIcon, WalletIcon } from "lucide-react"
+import { toast } from "sonner"
 import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
 import { InvoiceDetail } from "./InvoiceDetail"
+import { cardName, PaymentMethodPanel } from "./PaymentMethodPanel"
+import { payable, payOnline } from "./payments"
 import {
   allowanceLabels,
   allowanceValue,
@@ -39,15 +43,29 @@ const EXPLANATION =
 
 const priceKinds: PriceKind[] = ["base_price", "alert_overage_price", "data_point_overage_price"]
 
+/** Back from Stripe, the page asks again until Stripe's event arrives, up to this many times. */
+const CONFIRM_ATTEMPTS = 20
+
 /**
  * The billing accounts the signed-in person owns (spec 023): the chosen one's plan,
  * allowances and prices, its usage by month with each organization's share (spec 028
- * US4, spec 029 US5), its issued invoices and credit notes (spec 029 US6), and the
- * organizations it pays for.
+ * US4, spec 029 US5), its card, issued invoices and credit notes, paid online on
+ * Stripe's pages (spec 029 US6, US7), and the organizations it pays for. Back from
+ * Stripe (`card=saved`, `paid=1`), it asks again until Stripe's event has arrived.
  */
 export default function BillingAccountsPage() {
   const state = useUrlState()
-  const accounts = useQuery({ queryKey: billingAccountsKey, queryFn: () => api.ownedBillingAccounts() })
+  const queryClient = useQueryClient()
+  const savingCard = state.get("card") === "saved"
+  const paying = state.get("paid") === "1" ? state.get("invoice") : ""
+  const accounts = useQuery({
+    queryKey: billingAccountsKey,
+    queryFn: () => api.ownedBillingAccounts(),
+    refetchInterval: (query) => {
+      const shown = query.state.data?.find((item) => item.uuid === state.get("account")) ?? query.state.data?.[0]
+      return savingCard && shown && !shown.payment_method && query.state.dataUpdateCount < CONFIRM_ATTEMPTS ? 2000 : false
+    },
+  })
   const [search, setSearch] = useState("")
   const [creating, setCreating] = useState(false)
   const account = accounts.data?.find((item) => item.uuid === state.get("account")) ?? accounts.data?.[0]
@@ -55,8 +73,29 @@ export default function BillingAccountsPage() {
     queryKey: ownedInvoicesKey(account?.uuid ?? ""),
     queryFn: () => api.ownedInvoices(account?.uuid ?? ""),
     enabled: Boolean(account),
+    refetchInterval: (query) => {
+      const invoice = query.state.data?.invoices.find((item) => item.uuid === paying)
+      return invoice && payable(invoice) && query.state.dataUpdateCount < CONFIRM_ATTEMPTS ? 2000 : false
+    },
   })
   const openInvoice = state.get("invoice") || null
+  const paid = invoices.data?.invoices.find((item) => item.uuid === paying && !payable(item))
+
+  // Once Stripe's event has arrived, say so and forget the return marker.
+  useEffect(() => {
+    if (savingCard && account?.payment_method) {
+      toast.success(`${cardName(account.payment_method)} saved`)
+      state.set({ card: null })
+    }
+  }, [savingCard, account?.payment_method, state])
+  useEffect(() => {
+    if (paid) {
+      toast.success(`Payment received for ${paid.number}`)
+      state.set({ paid: null })
+      // The open invoice too, which was loaded before Stripe's event arrived.
+      void queryClient.invalidateQueries({ queryKey: ownedInvoicesKey(paid.billing_account.uuid) })
+    }
+  }, [paid, state, queryClient])
 
   const columns = useMemo<DataColumn<AccountOrganization>[]>(
     () => [
@@ -136,8 +175,26 @@ export default function BillingAccountsPage() {
         value: (invoice) => invoice.due_at ?? "",
         cell: (invoice) => (invoice.due_at ? formatDay(invoice.due_at) : "—"),
       },
+      ...(account?.payments_enabled
+        ? [
+            {
+              id: "pay",
+              header: "Pay",
+              align: "end" as const,
+              hideable: false,
+              value: (invoice: InvoiceSummary) => (payable(invoice) ? invoice.outstanding : 0),
+              cell: (invoice: InvoiceSummary) =>
+                payable(invoice) ? (
+                  <Button size="sm" variant="outline" onClick={() => void payOnline(account.uuid, invoice)}>
+                    Pay {formatMoney(invoice.outstanding, invoice.currency)}
+                    <span className="sr-only"> for {invoice.number}</span>
+                  </Button>
+                ) : null,
+            } satisfies DataColumn<InvoiceSummary>,
+          ]
+        : []),
     ],
-    [state],
+    [state, account],
   )
 
   const creditColumns = useMemo<DataColumn<CreditNote>[]>(
@@ -243,6 +300,16 @@ export default function BillingAccountsPage() {
       }
     >
       <p className="text-body text-muted-foreground">{EXPLANATION}</p>
+      {account.past_due_since ? (
+        <Alert>
+          <TriangleAlertIcon />
+          <AlertTitle>An invoice is unpaid past its due date</AlertTitle>
+          <AlertDescription>
+            Nothing is restricted, and every device and dashboard keeps working.{" "}
+            {account.payments_enabled ? "Pay it below, or replace the card if it was declined." : "Pay it as agreed with the platform operator."}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {accounts.data && accounts.data.length > 1 ? (
         <SearchableSelect
           label="Billing account"
@@ -311,6 +378,7 @@ export default function BillingAccountsPage() {
           ) : null}
         </PanelContent>
       </Panel>
+      <PaymentMethodPanel account={account} saving={savingCard} />
       <UsagePanel
         key={account.uuid}
         id="billing-usage"
@@ -342,6 +410,9 @@ export default function BillingAccountsPage() {
             rowActions={(invoice) => (
               <>
                 <DropdownMenuItem onSelect={() => state.set({ invoice: invoice.uuid })}>View</DropdownMenuItem>
+                {account.payments_enabled && payable(invoice) ? (
+                  <DropdownMenuItem onSelect={() => void payOnline(account.uuid, invoice)}>Pay online</DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem asChild>
                   <a href={api.ownedInvoiceDocumentUrl(account.uuid, invoice.uuid, "pdf")} download>
                     Download PDF
@@ -418,7 +489,12 @@ export default function BillingAccountsPage() {
         </PanelContent>
       </Panel>
       {creating ? <NewOrganizationDialog account={account} onClose={() => setCreating(false)} /> : null}
-      <InvoiceDetail accountUuid={account.uuid} invoiceUuid={openInvoice} onClose={() => state.set({ invoice: null })} />
+      <InvoiceDetail
+        accountUuid={account.uuid}
+        invoiceUuid={openInvoice}
+        paymentsEnabled={account.payments_enabled}
+        onClose={() => state.set({ invoice: null, paid: null })}
+      />
     </EntityPage>
   )
 }

@@ -104,15 +104,22 @@ allowance changes as updates; the plan's page shows its own history.
   invoice has **Credit note** instead, up to what is not yet credited.
 - **Settings → Billing** holds the operator's details and number prefixes (a stale save
   says someone else saved and offers to load their version), the deployment's currency
-  read-only, and the tax rates with **Add tax rate**, **Edit** and **Archive**.
-  Percentages take up to two decimals and are stored as basis points.
+  and whether card payments are on, both read-only, and the tax rates with **Add tax
+  rate**, **Edit** and **Archive**. Percentages take up to two decimals and are stored
+  as basis points.
+- **Payments** (spec 029 US7). The account list marks accounts **Past due** and filters
+  them (Payment: Past due); the account's page shows the mark with since when, and a
+  **Payment method** panel with the card's brand, last four digits and expiry. An issued
+  invoice's page has a **Payments** panel (card charges by attempt, Checkout payments and
+  payments recorded by hand, each with its status and the card issuer's reason or the
+  note), **Record payment** (up to what is still owed, with a note) and, while a card or
+  Checkout payment is still processing, **Check with Stripe**.
 - **New organization** with a new billing account can start it on a plan.
 
 Money is formatted with `formatMoney` from `@iot-os/ui/lib/money` in the reader's
 locale and typed in major units (`parseMoney`); invoice months, due days and the
-`payment` and `invoice` status domains come from `@iot-os/ui/lib/invoices` and the
-kit's status vocabulary. Card payments, and the "Payments on/off" line in Settings →
-Billing, arrive with PRs 11 and 12.
+`payment`, `invoice` and `invoice_payment` status domains come from
+`@iot-os/ui/lib/invoices` and the kit's status vocabulary.
 
 ## Usage
 
@@ -359,8 +366,17 @@ In the portal, an owner's **Billing accounts** page shows the plan's prices on t
 **Plan** panel ("from {month}" when they change next month), an **Invoices** panel of
 issued invoices with their payment status and due date, and a **Credit notes** panel
 when there are any. Opening an invoice (`?invoice={uuid}`, so a link can open it)
-shows its lines, totals, credit notes and usage in a sheet, with the PDF to print or
-keep and the CSV.
+shows its lines, totals, credit notes, payments and usage in a sheet, with the PDF to
+print or keep and the CSV.
+
+With card payments on, the page also has a **Card** panel (**Add card** or **Replace
+card**, which open Stripe's page, and **Remove**, which asks first), a **Pay** button on
+each invoice still owed (awaiting payment or failed), and **Pay** in the invoice's sheet,
+focused when an email's link opens an unpaid invoice. Back from Stripe (`card=saved`,
+`paid=1`), the page asks again every two seconds, up to 20 times, until Stripe's event
+has arrived, then says the card was saved or the payment received. A past due account
+shows a notice that nothing is restricted. With payments off there is no Card panel or
+Pay button.
 
 ## Card payments
 

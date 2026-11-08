@@ -39,6 +39,9 @@ describe("status vocabulary", () => {
     expect(statusOf("pending", "payment")).toEqual({ tone: "info", label: "Awaiting payment" })
     expect(statusOf("failed", "payment").tone).toBe("critical")
     expect(statusOf("paid_outside", "payment")).toEqual({ tone: "good", label: "Paid another way" })
+    expect(statusOf("past_due", "payment").tone).toBe("warning")
+    expect(statusOf("pending", "invoice_payment")).toEqual({ tone: "info", label: "Processing" })
+    expect(statusOf("failed", "invoice_payment").tone).toBe("critical")
   })
 
   it("reads an alert activation as a warning, unlike a runtime's", () => {

@@ -254,6 +254,15 @@ export function BillingSettingsPage() {
                     value={settings.currency}
                     help="Every price and invoice is in the deployment's currency, set when it is installed."
                   />
+                  <ValueField
+                    label="Card payments"
+                    value={settings.payments_enabled ? "On" : "Off"}
+                    help={
+                      settings.payments_enabled
+                        ? "Owners save a card and pay on Stripe's pages, and issued invoices are charged to the saved card."
+                        : "The deployment has no Stripe keys, so owners pay another way and you record their payments on each invoice."
+                    }
+                  />
                 </FieldGroup>
               </PanelContent>
               <PanelFooter className="flex flex-wrap items-center gap-3">
