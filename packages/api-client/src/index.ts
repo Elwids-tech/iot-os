@@ -37,6 +37,19 @@ import type {
   OwnerOrganization,
   Usage,
 } from "./billing"
+import type {
+  BillingSettings,
+  BillingSettingsValues,
+  CreditNote,
+  InvoiceDetail,
+  InvoiceStatus,
+  InvoiceSummary,
+  PaymentStatus,
+  PlanPriceValues,
+  PriceKind,
+  TaxRate,
+  WaitingInvoice,
+} from "./billing"
 export * from "./dashboards"
 export * from "./devices"
 export * from "./firmware"
@@ -1108,6 +1121,154 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  /** Sets a plan's prices from next month; `effective_from` says from when. */
+  async setPlanPrices(planUuid: string, values: PlanPriceValues): Promise<{ plan: BillingPlanDetail; effective_from: string }> {
+    return this.request<ApiResponse<BillingPlanDetail> & { effective_from: string }>(
+      `/api/v1/admin/billing-plans/${encodeURIComponent(planUuid)}/prices`,
+      { method: "PUT", body: JSON.stringify(values) },
+    ).then((response) => ({ plan: response.data, effective_from: response.effective_from }))
+  }
+
+  /** Overrides one price for this account from next month, with a note; `value: null` goes back to the plan's. */
+  async overridePrice(
+    billingAccountUuid: string,
+    price: PriceKind,
+    values: { value: number | null; note: string | null },
+  ): Promise<{ account: BillingAccountDetail; effective_from: string }> {
+    return this.request<ApiResponse<BillingAccountDetail> & { effective_from: string }>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/prices/${price}`,
+      { method: "PUT", body: JSON.stringify(values) },
+    ).then((response) => ({ account: response.data, effective_from: response.effective_from }))
+  }
+
+  async updateBillingDetails(
+    billingAccountUuid: string,
+    values: { billing_address: string | null; tax_number: string | null; tax_rate_uuid: string | null },
+  ): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/billing-details`,
+      { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async billingSettings(): Promise<BillingSettings> {
+    return this.request<ApiResponse<BillingSettings>>("/api/v1/admin/billing/settings").then((response) => response.data)
+  }
+
+  /** Saves the operator's details; a stale `revision` answers 409. */
+  async updateBillingSettings(values: BillingSettingsValues): Promise<BillingSettings> {
+    return this.request<ApiResponse<BillingSettings>>("/api/v1/admin/billing/settings", {
+      method: "PUT",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  /** Current rates first, then archived, by name. */
+  async taxRates(): Promise<TaxRate[]> {
+    return this.request<ApiResponse<TaxRate[]>>("/api/v1/admin/billing/tax-rates").then((response) => response.data)
+  }
+
+  async createTaxRate(values: { name: string; basis_points: number }): Promise<TaxRate> {
+    return this.request<ApiResponse<TaxRate>>("/api/v1/admin/billing/tax-rates", {
+      method: "POST",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  async updateTaxRate(rateUuid: string, values: { name?: string; basis_points?: number }): Promise<TaxRate> {
+    return this.request<ApiResponse<TaxRate>>(`/api/v1/admin/billing/tax-rates/${encodeURIComponent(rateUuid)}`, {
+      method: "PATCH",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  /** Archived rates stay on the accounts that have them and cannot be newly chosen. */
+  async archiveTaxRate(rateUuid: string): Promise<TaxRate> {
+    return this.request<ApiResponse<TaxRate>>(`/api/v1/admin/billing/tax-rates/${encodeURIComponent(rateUuid)}/archive`, {
+      method: "POST",
+    }).then((response) => response.data)
+  }
+
+  /** Invoices, newest month first. `month` is `YYYY-MM`, `account` a billing account's uuid. */
+  async adminInvoices(
+    query: Pick<DirectoryQuery, "page" | "perPage"> & { status?: InvoiceStatus; month?: string; account?: string; paymentStatus?: PaymentStatus } = {},
+  ): Promise<PaginatedResponse<InvoiceSummary>> {
+    const { status, month, account, paymentStatus, ...directory } = query
+    let path = directoryQuery(directory)
+    path = withParameter(path, "status", status)
+    path = withParameter(path, "month", month)
+    path = withParameter(path, "account", account)
+    path = withParameter(path, "payment_status", paymentStatus)
+    return this.request<PaginatedResponse<InvoiceSummary>>(`/api/v1/admin/billing/invoices${path}`)
+  }
+
+  /** Accounts whose invoice for a month (`YYYY-MM`, last month by default) waits for final usage. */
+  async waitingInvoices(month?: string): Promise<WaitingInvoice[]> {
+    return this.request<ApiResponse<WaitingInvoice[]>>(
+      `/api/v1/admin/billing/invoices/waiting${withParameter("", "month", month)}`,
+    ).then((response) => response.data)
+  }
+
+  /** Drafts a month's invoice now (`YYYY-MM`), before usage is final; 409 when one exists. */
+  async draftInvoice(billingAccountUuid: string, values: { month: string; note: string }): Promise<InvoiceDetail> {
+    return this.request<ApiResponse<InvoiceDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices`,
+      { method: "POST", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  async adminInvoice(invoiceUuid: string): Promise<InvoiceDetail> {
+    return this.request<ApiResponse<InvoiceDetail>>(`/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}`).then(
+      (response) => response.data,
+    )
+  }
+
+  /** Rebuilds a draft from the records, keeping adjustments; 409 once issued. */
+  async recalculateInvoice(invoiceUuid: string): Promise<InvoiceDetail> {
+    return this.invoiceAction(invoiceUuid, "recalculate")
+  }
+
+  /** A charge, or a credit with a negative `amount`, on a draft. */
+  async addInvoiceAdjustment(invoiceUuid: string, values: { description: string; amount: number; note: string }): Promise<InvoiceDetail> {
+    return this.invoiceAction(invoiceUuid, "adjustments", values)
+  }
+
+  async removeInvoiceAdjustment(invoiceUuid: string, lineId: number): Promise<InvoiceDetail> {
+    return this.request<ApiResponse<InvoiceDetail>>(
+      `/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}/adjustments/${lineId}`,
+      { method: "DELETE" },
+    ).then((response) => response.data)
+  }
+
+  /** Numbers and fixes the invoice and emails it to the billing contact and owners. */
+  async issueInvoice(invoiceUuid: string): Promise<InvoiceDetail> {
+    return this.invoiceAction(invoiceUuid, "issue")
+  }
+
+  /** A credit note on an issued invoice, up to the part not yet credited. */
+  async issueCreditNote(invoiceUuid: string, values: { amount: number; reason: string }): Promise<CreditNote> {
+    return this.request<ApiResponse<CreditNote>>(
+      `/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}/credit-notes`,
+      { method: "POST", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  /** Where an administrator downloads an invoice as PDF or CSV (session cookie). */
+  adminInvoiceDocumentUrl(invoiceUuid: string, format: "pdf" | "csv"): string {
+    return `${this.baseUrl}/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}.${format}`
+  }
+
+  adminCreditNotePdfUrl(creditNoteUuid: string): string {
+    return `${this.baseUrl}/api/v1/admin/billing/credit-notes/${encodeURIComponent(creditNoteUuid)}.pdf`
+  }
+
+  private async invoiceAction(invoiceUuid: string, action: string, body?: unknown): Promise<InvoiceDetail> {
+    return this.request<ApiResponse<InvoiceDetail>>(
+      `/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}/${action}`,
+      { method: "POST", ...(body === undefined ? {} : { body: JSON.stringify(body) }) },
+    ).then((response) => response.data)
+  }
+
   async createBillingAccount(values: BillingAccountValues): Promise<BillingAccountDetail> {
     return this.request<ApiResponse<BillingAccountDetail>>("/api/v1/admin/billing-accounts", {
       method: "POST",
@@ -1199,6 +1360,29 @@ export class ApiClient {
       `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/organizations`,
       { method: "POST", body: JSON.stringify(values) },
     ).then((response) => response.data)
+  }
+
+  /** An owned account's issued invoices and credit notes; drafts are never listed. */
+  async ownedInvoices(billingAccountUuid: string): Promise<{ invoices: InvoiceSummary[]; credit_notes: CreditNote[] }> {
+    return this.request<ApiResponse<{ invoices: InvoiceSummary[]; credit_notes: CreditNote[] }>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices`,
+    ).then((response) => response.data)
+  }
+
+  /** One issued invoice; a draft or another account's answers 404. */
+  async ownedInvoice(billingAccountUuid: string, invoiceUuid: string): Promise<InvoiceDetail> {
+    return this.request<ApiResponse<InvoiceDetail>>(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}`,
+    ).then((response) => response.data)
+  }
+
+  /** Where an owner downloads an issued invoice as PDF or CSV (session cookie). */
+  ownedInvoiceDocumentUrl(billingAccountUuid: string, invoiceUuid: string, format: "pdf" | "csv"): string {
+    return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}.${format}`
+  }
+
+  ownedCreditNotePdfUrl(billingAccountUuid: string, creditNoteUuid: string): string {
+    return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/credit-notes/${encodeURIComponent(creditNoteUuid)}.pdf`
   }
 
   async adminOrganizationDeletion(organizationUuid: string): Promise<OrganizationDeletion> {

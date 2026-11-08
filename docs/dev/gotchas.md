@@ -205,6 +205,17 @@ Things that have cost time before. Add to this list when something surprises you
   passes its tests and finds nothing on a real database (the integration location
   bindings did until this was fixed). Seed `succeeded` in new tests.
 
+## Billing
+
+- **Issued invoices and credit notes never change.** `Invoice` and `CreditNote` refuse
+  writes in `updating` once issued, except an invoice's `payment_status`. A correction is
+  a credit note; what is still owed is derived (`Invoice::outstanding()`), never stored.
+- **Money is integers in minor units.** Never store or compute amounts as floats; use
+  `Billing\Support\Money` (half-up division, two-decimal display). Prices change only
+  from the first day of a month, so tests set them while time is in the month before.
+- **Draft from the locked account row.** A caller's `BillingAccount` model can hold an
+  old tax rate; the drafter re-reads the row under its lock before computing tax.
+
 ## NATS JetStream
 
 - **Updating a stream NATS recovered rewrites its creation time.** After a restart, a

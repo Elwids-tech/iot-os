@@ -10,6 +10,7 @@ use Database\Factories\BillingAccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -19,7 +20,9 @@ use Illuminate\Support\Str;
 /**
  * The payer of record for one or more organizations (spec 023, ADR-026). It groups
  * organizations for billing and grants no access to them. Its limits come from its
- * plan and overrides (ADR-035), resolved by `Allowances`.
+ * plan and overrides (ADR-035), resolved by `Allowances`. Its billing details (address,
+ * tax number, tax rate) go on its invoices (spec 029 FR-029); only `BillingDetails`
+ * writes them.
  */
 #[Fillable(['name', 'contact_email', 'notes'])]
 final class BillingAccount extends Model
@@ -70,6 +73,22 @@ final class BillingAccount extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(BillingAccountAssignment::class);
+    }
+
+    /**
+     * @return BelongsTo<TaxRate, $this>
+     */
+    public function taxRate(): BelongsTo
+    {
+        return $this->belongsTo(TaxRate::class, 'billing_tax_rate_id');
+    }
+
+    /**
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
     }
 
     /**

@@ -3624,7 +3624,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The billing account still has organizations; move them before deleting it. Nothing was deleted.",
+            "description": "The billing account still has organizations, which must be moved first, or it has issued invoices, which are kept for good (spec 029 FR-037). Nothing was deleted.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3894,6 +3894,161 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing-accounts/{billingAccount}/billing-details": {
+      "patch": {
+        "operationId": "v1.admin.billing-accounts.billing-details.update",
+        "tags": [
+          "PlatformBillingAccountPrice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBillingDetailsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/invoices": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.invoices.store",
+        "summary": "Drafts now, before usage is final, with a note; the draft says it may be incomplete",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftInvoiceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The account already has an invoice for that month. Nothing was drafted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing-accounts/{billingAccount}/owners/{user}": {
       "put": {
         "operationId": "v1.admin.billing-accounts.owners.update",
@@ -4083,6 +4238,88 @@
                 }
               }
             }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/prices/{price}": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.prices.update",
+        "tags": [
+          "PlatformBillingAccountPrice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "price",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:base_price|alert_overage_price|data_point_overage_price)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverridePriceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
@@ -4653,6 +4890,83 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing-plans/{billingPlan}/prices": {
+      "put": {
+        "operationId": "v1.admin.billing-plans.prices.update",
+        "summary": "Sets the plan's prices from next month (spec 029 FR-027, FR-028); the response says from when",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlanPricesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    },
+                    "effective_from": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "effective_from"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing-plans/{billingPlan}/restore": {
       "post": {
         "operationId": "v1.admin.billing-plans.restore",
@@ -4681,6 +4995,1352 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/credit-notes/{creditNote}.pdf": {
+      "get": {
+        "operationId": "v1.admin.billing.credit-notes.pdf",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "creditNote",
+            "in": "path",
+            "required": true,
+            "description": "The credit note UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices": {
+      "get": {
+        "operationId": "v1.admin.billing.invoices.index",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "draft",
+                "issued",
+                null
+              ]
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "A UTC month as `YYYY-MM`.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "description": "A billing account's uuid.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "payment_status",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PaymentStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated set of `InvoiceResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InvoiceResource"
+                      }
+                    },
+                    "links": {
+                      "type": "object",
+                      "properties": {
+                        "first": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "last": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "prev": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "first",
+                        "last",
+                        "prev",
+                        "next"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "from": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "links": {
+                          "type": "array",
+                          "description": "Generated paginator links.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "label",
+                              "active"
+                            ]
+                          }
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Base path for paginator generated URLs."
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "description": "Number of items shown per page.",
+                          "minimum": 0
+                        },
+                        "to": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Number of the last item in the slice.",
+                          "minimum": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of items being paginated.",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "from",
+                        "last_page",
+                        "links",
+                        "path",
+                        "per_page",
+                        "to",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/waiting": {
+      "get": {
+        "operationId": "v1.admin.billing.invoices.waiting",
+        "summary": "Accounts whose invoice for an ended month waits for final usage (FR-033)",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts whose invoice for the month waits for final usage; empty once usage is final.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WaitingInvoice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}": {
+      "get": {
+        "operationId": "v1.admin.billing.invoices.show",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}.csv": {
+      "get": {
+        "operationId": "v1.admin.billing.invoices.csv",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}.pdf": {
+      "get": {
+        "operationId": "v1.admin.billing.invoices.pdf",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}/adjustments": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.adjustments.store",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddAdjustmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is issued and cannot change; correct it with a credit note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}/adjustments/{line}": {
+      "delete": {
+        "operationId": "v1.admin.billing.invoices.adjustments.destroy",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "line",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is issued and cannot change; correct it with a credit note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}/credit-notes": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.credit-notes.store",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueCreditNoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`CreditNoteResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CreditNoteResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is a draft; adjust it instead of crediting it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}/issue": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.issue",
+        "summary": "Numbers and fixes the invoice, then emails it (FR-034, FR-036)",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is already issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/invoices/{invoice}/recalculate": {
+      "post": {
+        "operationId": "v1.admin.billing.invoices.recalculate",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "description": "The invoice UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The invoice is issued and cannot change; correct it with a credit note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/settings": {
+      "get": {
+        "operationId": "v1.admin.billing.settings.show",
+        "tags": [
+          "PlatformBillingSettings"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "legal_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "address": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tax_registration_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "invoice_footer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "invoice_prefix": {
+                          "type": "string"
+                        },
+                        "credit_note_prefix": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "legal_name",
+                        "address",
+                        "tax_registration_number",
+                        "invoice_footer",
+                        "invoice_prefix",
+                        "credit_note_prefix",
+                        "revision",
+                        "currency",
+                        "updated_at"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "put": {
+        "operationId": "v1.admin.billing.settings.update",
+        "tags": [
+          "PlatformBillingSettings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBillingSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "legal_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "address": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tax_registration_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "invoice_footer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "invoice_prefix": {
+                          "type": "string"
+                        },
+                        "credit_note_prefix": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "legal_name",
+                        "address",
+                        "tax_registration_number",
+                        "invoice_footer",
+                        "invoice_prefix",
+                        "credit_note_prefix",
+                        "revision",
+                        "currency",
+                        "updated_at"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Someone changed the settings since `revision` was read. Nothing was changed; read them again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/tax-rates": {
+      "get": {
+        "operationId": "v1.admin.billing.tax-rates.index",
+        "tags": [
+          "PlatformTaxRate"
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `TaxRateResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TaxRateResource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "post": {
+        "operationId": "v1.admin.billing.tax-rates.store",
+        "tags": [
+          "PlatformTaxRate"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`TaxRateResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TaxRateResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/tax-rates/{taxRate}": {
+      "patch": {
+        "operationId": "v1.admin.billing.tax-rates.update",
+        "tags": [
+          "PlatformTaxRate"
+        ],
+        "parameters": [
+          {
+            "name": "taxRate",
+            "in": "path",
+            "required": true,
+            "description": "The tax rate UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`TaxRateResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TaxRateResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing/tax-rates/{taxRate}/archive": {
+      "post": {
+        "operationId": "v1.admin.billing.tax-rates.archive",
+        "tags": [
+          "PlatformTaxRate"
+        ],
+        "parameters": [
+          {
+            "name": "taxRate",
+            "in": "path",
+            "required": true,
+            "description": "The tax rate UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`TaxRateResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TaxRateResource"
                     }
                   },
                   "required": [
@@ -7579,6 +9239,339 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/credit-notes/{creditNote}.pdf": {
+      "get": {
+        "operationId": "v1.billing-accounts.credit-notes.pdf",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "creditNote",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/invoices": {
+      "get": {
+        "operationId": "v1.billing-accounts.invoices.index",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "invoices": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/InvoiceResource"
+                          }
+                        },
+                        "credit_notes": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CreditNoteResource"
+                          }
+                        }
+                      },
+                      "required": [
+                        "invoices",
+                        "credit_notes"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/invoices/{invoice}": {
+      "get": {
+        "operationId": "v1.billing-accounts.invoices.show",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`InvoiceDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/invoices/{invoice}.csv": {
+      "get": {
+        "operationId": "v1.billing-accounts.invoices.csv",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/invoices/{invoice}.pdf": {
+      "get": {
+        "operationId": "v1.billing-accounts.invoices.pdf",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "invoice",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "security": [
@@ -29126,6 +31119,31 @@
           }
         }
       },
+      "AddAdjustmentRequest": {
+        "type": "object",
+        "description": "A charge or credit on a draft (spec 029 FR-034): what the customer reads, the amount in\nminor units (negative for a credit, never 0), and an administrator's note.",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "description",
+          "amount",
+          "note"
+        ],
+        "title": "AddAdjustmentRequest"
+      },
       "AdminTicketResource": {
         "type": "object",
         "properties": {
@@ -30141,6 +32159,160 @@
               "$ref": "#/components/schemas/AllowanceResource"
             }
           },
+          "prices": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the account pays on its plan, overrides included; null without a plan (spec 029 FR-030).",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              },
+              "next": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              }
+            },
+            "required": [
+              "currency",
+              "current",
+              "next"
+            ]
+          },
+          "price_overrides": {
+            "type": "array",
+            "description": "Each overridden price this month (`value`) and next (`next_value`); null is the plan's price.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "price": {
+                  "type": "string",
+                  "enum": [
+                    "base_price",
+                    "alert_overage_price",
+                    "data_point_overage_price"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "next_value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "next_note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "price",
+                "value",
+                "note",
+                "next_value",
+                "next_note"
+              ]
+            }
+          },
+          "billing_details": {
+            "type": "object",
+            "properties": {
+              "billing_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tax_number": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tax_rate": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaxRateResource"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "billing_address",
+              "tax_number",
+              "tax_rate"
+            ]
+          },
           "usage": {
             "type": "array",
             "items": {
@@ -30176,6 +32348,9 @@
           "created_at",
           "plan_assignment",
           "allowances",
+          "prices",
+          "price_overrides",
+          "billing_details",
           "usage",
           "owners",
           "organizations",
@@ -30753,6 +32928,58 @@
           }
         }
       },
+      "CreditNoteResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "invoice": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "number": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "number"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer"
+          },
+          "applied": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "number",
+          "invoice",
+          "currency",
+          "amount",
+          "applied",
+          "reason",
+          "issued_at"
+        ],
+        "title": "CreditNoteResource"
+      },
       "DashboardRevisionSummary": {
         "type": "object",
         "description": "One saved version of a dashboard. The 50 most recent are kept.",
@@ -31037,6 +33264,25 @@
             "const": "profile.draft_conflict"
           }
         }
+      },
+      "DraftInvoiceRequest": {
+        "type": "object",
+        "description": "Draft an account's invoice for a month now, before its usage is final (spec 029\nFR-033): the month and why. The draft is marked possibly incomplete.",
+        "properties": {
+          "month": {
+            "type": "string",
+            "description": "A UTC month as `YYYY-MM`, this month or earlier."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "month",
+          "note"
+        ],
+        "title": "DraftInvoiceRequest"
       },
       "ErrorMessage": {
         "type": "object",
@@ -31966,6 +34212,447 @@
           }
         }
       },
+      "InvoiceDetailResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "description": "The first day of the UTC month, `YYYY-MM-DD`."
+          },
+          "billing_account": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
+          },
+          "usage_incomplete": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "integer"
+          },
+          "tax": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "credit_applied": {
+            "type": "integer"
+          },
+          "amount_due": {
+            "type": "integer"
+          },
+          "outstanding": {
+            "type": "integer"
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid",
+              "failed",
+              "credited",
+              "paid_outside"
+            ]
+          },
+          "drafted_at": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_rate_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_basis_points": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "operator_details": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The operator's details as issued; null on a draft.",
+            "properties": {
+              "legal_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tax_registration_number": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "invoice_footer": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "legal_name",
+              "address",
+              "tax_registration_number",
+              "invoice_footer"
+            ]
+          },
+          "account_details": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "contact_email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "billing_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tax_number": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "contact_email",
+              "billing_address",
+              "tax_number"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "base_price",
+                    "trial",
+                    "alert_overage",
+                    "data_point_overage",
+                    "adjustment",
+                    "credit"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "unit_price": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "amount": {
+                  "type": "integer"
+                },
+                "period_start": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "period_end": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "position",
+                "kind",
+                "description",
+                "quantity",
+                "unit_price",
+                "amount",
+                "period_start",
+                "period_end",
+                "note"
+              ]
+            }
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "organization_uuid": {
+                  "type": "string"
+                },
+                "organization_name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "alerts",
+                    "sms",
+                    "data_points"
+                  ]
+                },
+                "count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "organization_uuid",
+                "organization_name",
+                "kind",
+                "count"
+              ]
+            }
+          },
+          "credit_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditNoteResource"
+            }
+          }
+        },
+        "required": [
+          "uuid",
+          "number",
+          "status",
+          "month",
+          "billing_account",
+          "usage_incomplete",
+          "currency",
+          "subtotal",
+          "tax",
+          "total",
+          "credit_applied",
+          "amount_due",
+          "outstanding",
+          "due_at",
+          "payment_status",
+          "drafted_at",
+          "issued_at",
+          "draft_note",
+          "tax_rate_name",
+          "tax_basis_points",
+          "operator_details",
+          "account_details",
+          "lines",
+          "usage",
+          "credit_notes"
+        ],
+        "title": "InvoiceDetailResource"
+      },
+      "InvoiceResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued"
+            ]
+          },
+          "month": {
+            "type": "string",
+            "description": "The first day of the UTC month, `YYYY-MM-DD`."
+          },
+          "billing_account": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
+          },
+          "usage_incomplete": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "integer"
+          },
+          "tax": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "credit_applied": {
+            "type": "integer"
+          },
+          "amount_due": {
+            "type": "integer"
+          },
+          "outstanding": {
+            "type": "integer"
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid",
+              "failed",
+              "credited",
+              "paid_outside"
+            ]
+          },
+          "drafted_at": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "number",
+          "status",
+          "month",
+          "billing_account",
+          "usage_incomplete",
+          "currency",
+          "subtotal",
+          "tax",
+          "total",
+          "credit_applied",
+          "amount_due",
+          "outstanding",
+          "due_at",
+          "payment_status",
+          "drafted_at",
+          "issued_at"
+        ],
+        "title": "InvoiceResource"
+      },
+      "IssueCreditNoteRequest": {
+        "type": "object",
+        "description": "A credit note against an issued invoice (spec 029 FR-035): an amount in minor units,\nabove 0 and up to the part of the invoice not yet credited, and the reason.",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "amount",
+          "reason"
+        ],
+        "title": "IssueCreditNoteRequest"
+      },
       "LocationBindingVersion": {
         "type": "object",
         "description": "An approved, immutable location binding and the version that carries it.",
@@ -32658,6 +35345,31 @@
         ],
         "title": "OverrideAllowanceRequest"
       },
+      "OverridePriceRequest": {
+        "type": "object",
+        "description": "One account's price from next month (spec 029 FR-028), in minor units, and why; null\ngoes back to the plan's price.",
+        "properties": {
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "OverridePriceRequest"
+      },
       "OwnedBillingAccountResource": {
         "type": "object",
         "properties": {
@@ -32734,6 +35446,91 @@
             "items": {
               "$ref": "#/components/schemas/UsageResource"
             }
+          },
+          "prices": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the account pays on its plan, overrides included; null without a plan (spec 029 FR-030).",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              },
+              "next": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              }
+            },
+            "required": [
+              "currency",
+              "current",
+              "next"
+            ]
+          },
+          "latest_invoice": {
+            "anyOf": [
+              {
+                "description": "The latest issued invoice; drafts are never shown to owners.",
+                "$ref": "#/components/schemas/InvoiceResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -32744,7 +35541,9 @@
           "organizations",
           "plan",
           "allowances",
-          "usage"
+          "usage",
+          "prices",
+          "latest_invoice"
         ],
         "title": "OwnedBillingAccountResource"
       },
@@ -32767,6 +35566,18 @@
           "slug"
         ],
         "title": "OwnerOrganizationResource"
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "description": "Whether an issued invoice is settled (spec 029 US6 and US7): `credited` when credit notes left nothing to pay, `paid_outside` when an administrator recorded a payment made another way. The only thing that changes on an issued invoice.\n",
+        "enum": [
+          "pending",
+          "paid",
+          "failed",
+          "credited",
+          "paid_outside"
+        ],
+        "title": "PaymentStatus"
       },
       "PlanAllowanceResource": {
         "type": "object",
@@ -32905,6 +35716,77 @@
               "null"
             ]
           },
+          "prices": {
+            "type": "object",
+            "description": "This month's prices and next month's when a change waits, in minor units (spec 029 FR-027).",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              },
+              "next": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              }
+            },
+            "required": [
+              "currency",
+              "current",
+              "next"
+            ]
+          },
           "accounts": {
             "type": "array",
             "items": {
@@ -32953,6 +35835,7 @@
           "accounts_count",
           "ever_assigned",
           "created_at",
+          "prices",
           "accounts",
           "history"
         ],
@@ -32999,6 +35882,77 @@
               "string",
               "null"
             ]
+          },
+          "prices": {
+            "type": "object",
+            "description": "This month's prices and next month's when a change waits, in minor units (spec 029 FR-027).",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              },
+              "next": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "effective_from": {
+                    "type": "string"
+                  },
+                  "base_price": {
+                    "type": "integer"
+                  },
+                  "alert_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_overage_price": {
+                    "type": "integer"
+                  },
+                  "data_point_block_size": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "effective_from",
+                  "base_price",
+                  "alert_overage_price",
+                  "data_point_overage_price",
+                  "data_point_block_size"
+                ]
+              }
+            },
+            "required": [
+              "currency",
+              "current",
+              "next"
+            ]
           }
         },
         "required": [
@@ -33010,7 +35964,8 @@
           "allowances",
           "accounts_count",
           "ever_assigned",
-          "created_at"
+          "created_at",
+          "prices"
         ],
         "title": "PlanResource"
       },
@@ -33523,6 +36478,39 @@
           "plan_uuid"
         ],
         "title": "SetBillingAccountPlanRequest"
+      },
+      "SetPlanPricesRequest": {
+        "type": "object",
+        "description": "A plan's prices from next month (spec 029 FR-027, FR-028), in the currency's minor\nunits: the monthly base price, the price per alert over the allowance, and the price\nper block of data points over it, with the block size.",
+        "properties": {
+          "base_price": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "alert_overage_price": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "data_point_overage_price": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "data_point_block_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "base_price",
+          "alert_overage_price",
+          "data_point_overage_price",
+          "data_point_block_size"
+        ],
+        "title": "SetPlanPricesRequest"
       },
       "SiteList": {
         "type": "object",
@@ -34304,6 +37292,58 @@
           "is_platform_administrator"
         ],
         "title": "SyncPlatformUserRoleRequest"
+      },
+      "TaxRateRequest": {
+        "type": "object",
+        "description": "A named tax rate (spec 029 FR-029): a unique name and basis points from 0 to 10,000\n(0% to 100%). Editing sends only what changes.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "basis_points": {
+            "type": "integer",
+            "description": "Hundredths of a percent: 1500 is 15%.",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "name",
+          "basis_points"
+        ],
+        "title": "TaxRateRequest"
+      },
+      "TaxRateResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "basis_points": {
+            "type": "integer"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "basis_points",
+          "archived",
+          "archived_at"
+        ],
+        "title": "TaxRateResource"
       },
       "TelemetryHistory": {
         "type": "object",
@@ -35306,6 +38346,98 @@
         },
         "title": "UpdateBillingAccountRequest"
       },
+      "UpdateBillingDetailsRequest": {
+        "type": "object",
+        "description": "A billing account's details for its invoices (spec 029 FR-029): address, optional tax\nnumber, and a tax rate by uuid or null for none.",
+        "properties": {
+          "billing_address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "tax_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "tax_rate_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "billing_address",
+          "tax_number",
+          "tax_rate_uuid"
+        ],
+        "title": "UpdateBillingDetailsRequest"
+      },
+      "UpdateBillingSettingsRequest": {
+        "type": "object",
+        "description": "The operator's billing details and number prefixes (spec 029 FR-029), with the revision\nthey were read at: a stale one answers 409.",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "legal_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "tax_registration_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "invoice_footer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "invoice_prefix": {
+            "type": "string",
+            "description": "Letters, digits and `-`, `_` or `/`, up to 16; numbers continue across a change.",
+            "pattern": "^[A-Za-z0-9_\\/-]+$",
+            "maxLength": 16
+          },
+          "credit_note_prefix": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_\\/-]+$",
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "revision",
+          "legal_name",
+          "address",
+          "tax_registration_number",
+          "invoice_footer",
+          "invoice_prefix",
+          "credit_note_prefix"
+        ],
+        "title": "UpdateBillingSettingsRequest"
+      },
       "UpdateDeviceProfileRequest": {
         "type": "object",
         "properties": {
@@ -35929,6 +39061,46 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "WaitingInvoice": {
+        "type": "object",
+        "required": [
+          "billing_account",
+          "month",
+          "waiting_since",
+          "overdue"
+        ],
+        "properties": {
+          "billing_account": {
+            "type": "object",
+            "required": [
+              "uuid",
+              "name"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "month": {
+            "type": "string",
+            "description": "The first day of the UTC month, `YYYY-MM-DD`."
+          },
+          "waiting_since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The month's end; the invoice waits for the runtime to report usage up to it."
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Waiting longer than `BILLING_INVOICE_WAIT_DAYS`, so an administrator may draft it anyway (spec 029 FR-033)."
           }
         }
       },

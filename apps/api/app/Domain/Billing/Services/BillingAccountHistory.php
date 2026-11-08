@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Services;
 
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
+use App\Domain\Billing\Support\Money;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -42,6 +43,8 @@ final class BillingAccountHistory
         'billing_account.plan_removed' => 'updated',
         'billing_account.allowance_overridden' => 'updated',
         'billing_account.allowance_override_removed' => 'updated',
+        'billing_account.price_overridden' => 'updated',
+        'billing_account.billing_details_updated' => 'updated',
     ];
 
     /**
@@ -103,7 +106,14 @@ final class BillingAccountHistory
                         'billing_account.owner_added', 'billing_account.owner_removed' => [
                             'user' => ['id' => (int) ($details['user_id'] ?? 0), 'name' => (string) ($details['user_name'] ?? '')],
                         ],
-                        'billing_account.updated' => ['changes' => $this->changes($details['changes'] ?? [])],
+                        'billing_account.updated', 'billing_account.billing_details_updated' => ['changes' => $this->changes($details['changes'] ?? [])],
+                        'billing_account.price_overridden' => ['changes' => [
+                            new BillingAccountChange(
+                                (string) ($details['price'] ?? ''),
+                                self::priceText($details['from'] ?? null),
+                                self::priceText($details['to'] ?? null).' from '.CarbonImmutable::parse((string) ($details['effective_from'] ?? 'now'))->format('j M Y'),
+                            ),
+                        ]],
                         'billing_account.plan_assigned', 'billing_account.plan_removed' => ['changes' => [
                             new BillingAccountChange('plan', $details['from']['name'] ?? null, $details['to']['name'] ?? null),
                         ]],
@@ -178,6 +188,12 @@ final class BillingAccountHistory
     private static function allowanceText(mixed $value): string
     {
         return $value === null ? 'Unlimited' : (string) $value;
+    }
+
+    /** A price override as text: an amount, or the plan's price when there is none. */
+    private static function priceText(mixed $value): string
+    {
+        return $value === null ? 'the plan price' : Money::format((int) $value);
     }
 
     /**

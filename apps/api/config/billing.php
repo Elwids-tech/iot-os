@@ -31,4 +31,15 @@ return [
     | change and 7 days before it ends.
     */
     'retention_grace_days' => (int) env('BILLING_RETENTION_GRACE_DAYS', 30),
+
+    /*
+    | Invoices (spec 029 US6, research R11 and R13). Amounts are integers in the minor
+    | units of this one currency (ISO 4217, two decimal places); it also configures card
+    | payments, so it must not change once invoices exist. Invoices are due this many
+    | days after issue, and accounts whose usage is still not final this many days after
+    | a month ends are listed for an administrator to draft anyway.
+    */
+    'currency' => strtoupper((string) env('BILLING_CURRENCY', 'USD')),
+    'invoice_due_days' => (int) env('BILLING_INVOICE_DUE_DAYS', 14),
+    'invoice_wait_days' => (int) env('BILLING_INVOICE_WAIT_DAYS', 3),
 ];

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Services;
 
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Enums\PriceKind;
 use App\Domain\Billing\Models\BillingPlan;
+use App\Domain\Billing\Support\Money;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ final class PlanHistory
         'billing_plan.updated' => 'updated',
         'billing_plan.archived' => 'archived',
         'billing_plan.restored' => 'restored',
+        'billing_plan.prices_set' => 'updated',
     ];
 
     /**
@@ -69,6 +72,19 @@ final class PlanHistory
 
         foreach ($details['changes'] ?? [] as $field => $change) {
             $list[] = new BillingAccountChange((string) $field, BillingAccountChange::text($change['from'] ?? null), BillingAccountChange::text($change['to'] ?? null));
+        }
+
+        // Prices set for next month (spec 029 FR-028): each price that changes, and from when.
+        if (isset($details['effective_from']) && is_array($details['from'] ?? null) && is_array($details['to'] ?? null)) {
+            $from = CarbonImmutable::parse((string) $details['effective_from'])->format('j M Y');
+            foreach ([...PriceKind::values(), 'data_point_block_size'] as $field) {
+                $before = (int) ($details['from'][$field] ?? 0);
+                $after = (int) ($details['to'][$field] ?? 0);
+                if ($before !== $after) {
+                    $text = $field === 'data_point_block_size' ? number_format(...) : Money::format(...);
+                    $list[] = new BillingAccountChange($field, $text($before), $text($after).' from '.$from);
+                }
+            }
         }
 
         // PostgreSQL's jsonb reorders object keys, so allowances are listed in the enum's order.

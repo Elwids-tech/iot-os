@@ -1,4 +1,5 @@
-# Billing accounts (spec 023, ADR-026), plans and allowances (specs 028 and 029, ADR-035).
+# Billing accounts (spec 023, ADR-026), plans and allowances (specs 028 and 029, ADR-035),
+# prices, tax and invoices (spec 029 US6).
 #
 # Statuses the code returns that inference misses. Request and response bodies are
 # inferred from the form requests and resources.
@@ -44,11 +45,48 @@ components:
                     type: integer
                   to_days:
                     type: integer
+    WaitingInvoice:
+      type: object
+      required: [billing_account, month, waiting_since, overdue]
+      properties:
+        billing_account:
+          type: object
+          required: [uuid, name]
+          properties:
+            uuid:
+              type: string
+              format: uuid
+            name:
+              type: string
+        month:
+          type: string
+          description: The first day of the UTC month, `YYYY-MM-DD`.
+        waiting_since:
+          type: string
+          format: date-time
+          description: The month's end; the invoice waits for the runtime to report usage up to it.
+        overdue:
+          type: boolean
+          description: Waiting longer than `BILLING_INVOICE_WAIT_DAYS`, so an administrator may draft it anyway (spec 029 FR-033).
 operations:
+  GET /v1/admin/billing/invoices/waiting:
+    responses:
+      '200':
+        description: Accounts whose invoice for the month waits for final usage; empty once usage is final.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/WaitingInvoice'
   DELETE /v1/admin/billing-accounts/{billingAccount}:
     responses:
       '409':
-        description: The billing account still has organizations; move them before deleting it. Nothing was deleted.
+        description: The billing account still has organizations, which must be moved first, or it has issued invoices, which are kept for good (spec 029 FR-037). Nothing was deleted.
         content:
           application/json:
             schema:
@@ -103,3 +141,59 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/RetentionNeedsConfirmation'
+  PUT /v1/admin/billing/settings:
+    responses:
+      '409':
+        description: Someone changed the settings since `revision` was read. Nothing was changed; read them again.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing-accounts/{billingAccount}/invoices:
+    responses:
+      '409':
+        description: The account already has an invoice for that month. Nothing was drafted.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing/invoices/{invoice}/recalculate:
+    responses:
+      '409':
+        description: The invoice is issued and cannot change; correct it with a credit note.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing/invoices/{invoice}/adjustments:
+    responses:
+      '409':
+        description: The invoice is issued and cannot change; correct it with a credit note.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  DELETE /v1/admin/billing/invoices/{invoice}/adjustments/{line}:
+    responses:
+      '409':
+        description: The invoice is issued and cannot change; correct it with a credit note.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing/invoices/{invoice}/issue:
+    responses:
+      '409':
+        description: The invoice is already issued.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/admin/billing/invoices/{invoice}/credit-notes:
+    responses:
+      '409':
+        description: The invoice is a draft; adjust it instead of crediting it.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'

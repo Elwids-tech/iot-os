@@ -93,6 +93,8 @@ export type BillingPlan = {
   /** Whether any account was ever on it; such a plan cannot be deleted, only archived. */
   ever_assigned: boolean
   created_at: string | null
+  /** This month's prices, and next month's when a change waits. */
+  prices: PriceSummary
 }
 
 /** A plan's page: the accounts on it now (up to 100) and its latest history. */
@@ -199,6 +201,10 @@ export type BillingAccountDetail = {
   allowances: Allowance[]
   /** This month's usage, with each organization's share. */
   usage: Usage[]
+  /** What the account pays on its plan, overrides included; null without a plan. */
+  prices: PriceSummary | null
+  price_overrides: PriceOverride[]
+  billing_details: BillingDetails
   owners: BillingAccountOwner[]
   organizations: BillingAccountOrganization[]
   history: BillingAccountHistoryEntry[]
@@ -226,6 +232,10 @@ export type OwnedBillingAccount = {
   allowances: Allowance[]
   /** This month's usage, with each organization's share. */
   usage: Usage[]
+  /** What the account pays on its plan, overrides included; null without a plan. */
+  prices: PriceSummary | null
+  /** The latest issued invoice; owners never see drafts. */
+  latest_invoice: InvoiceSummary | null
 }
 
 /** The organization an owner just created; reload the session for its capabilities. */
@@ -246,4 +256,158 @@ export type RetentionNeedsConfirmation = {
     deletion_from: string
     organizations: { uuid: string; name: string; from_days: number; to_days: number }[]
   }
+}
+
+/** What a plan charges (spec 029 FR-027); an account can override each from next month. */
+export type PriceKind = "base_price" | "alert_overage_price" | "data_point_overage_price"
+
+/**
+ * One month's prices, integers in the currency's minor units: the monthly base price, the
+ * price per alert over the allowance, and the price per block of data points over it.
+ */
+export type Prices = {
+  /** The first day of the UTC month they apply from, `YYYY-MM-DD`. */
+  effective_from: string
+  base_price: number
+  alert_overage_price: number
+  data_point_overage_price: number
+  data_point_block_size: number
+}
+
+/** This month's prices, and next month's when a change waits (null otherwise). */
+export type PriceSummary = {
+  currency: string
+  current: Prices
+  next: Prices | null
+}
+
+/** An account's override of one price this month (`value`) and next (`next_value`); null is the plan's price. */
+export type PriceOverride = {
+  price: PriceKind
+  value: number | null
+  note: string | null
+  next_value: number | null
+  next_note: string | null
+}
+
+/** The plan's prices from next month. */
+export type PlanPriceValues = Omit<Prices, "effective_from">
+
+/** A named tax rate; `basis_points` is hundredths of a percent (1500 is 15%). */
+export type TaxRate = {
+  uuid: string
+  name: string
+  basis_points: number
+  archived: boolean
+  archived_at: string | null
+}
+
+/** A billing account's details for its invoices. */
+export type BillingDetails = {
+  billing_address: string | null
+  tax_number: string | null
+  tax_rate: TaxRate | null
+}
+
+/**
+ * The operator's billing details and number prefixes. Send `revision` back when saving:
+ * a stale one answers 409. `currency` is the deployment's and read-only.
+ */
+export type BillingSettings = {
+  legal_name: string | null
+  address: string | null
+  tax_registration_number: string | null
+  invoice_footer: string | null
+  invoice_prefix: string
+  credit_note_prefix: string
+  revision: number
+  currency: string
+  updated_at: string | null
+}
+
+export type BillingSettingsValues = Omit<BillingSettings, "currency" | "updated_at">
+
+export type InvoiceStatus = "draft" | "issued"
+
+/** `credited` when credit notes left nothing to pay; `paid_outside` when a payment made another way was recorded. */
+export type PaymentStatus = "pending" | "paid" | "failed" | "credited" | "paid_outside"
+
+export type InvoiceLineKind = "base_price" | "trial" | "alert_overage" | "data_point_overage" | "adjustment" | "credit"
+
+/**
+ * An invoice in a list. Amounts are integers in the minor units of `currency`;
+ * `outstanding` is what is still owed after credit notes and payment.
+ */
+export type InvoiceSummary = {
+  uuid: string
+  /** Null until issued. */
+  number: string | null
+  status: InvoiceStatus
+  /** The first day of the UTC month, `YYYY-MM-DD`. */
+  month: string
+  billing_account: { uuid: string; name: string }
+  /** Drafted before the month's usage was final. */
+  usage_incomplete: boolean
+  currency: string
+  subtotal: number
+  tax: number
+  total: number
+  credit_applied: number
+  amount_due: number
+  outstanding: number
+  due_at: string | null
+  payment_status: PaymentStatus
+  drafted_at: string
+  issued_at: string | null
+}
+
+/** One invoice line; `amount` is negative for credit, `unit_price` null where a line has none. */
+export type InvoiceLine = {
+  id: number
+  position: number
+  kind: InvoiceLineKind
+  description: string
+  quantity: number
+  unit_price: number | null
+  amount: number
+  period_start: string | null
+  period_end: string | null
+  /** Owners never see an adjustment's note. */
+  note: string | null
+}
+
+/** A credit note: `applied` was taken off its invoice, the rest of `amount` became account credit. */
+export type CreditNote = {
+  uuid: string
+  number: string
+  invoice: { uuid: string; number: string }
+  currency: string
+  amount: number
+  applied: number
+  reason: string
+  issued_at: string
+}
+
+/**
+ * An invoice with its lines, each organization's usage and its credit notes. Issued
+ * invoices carry the details they were issued with; drafts show today's.
+ */
+export type InvoiceDetail = InvoiceSummary & {
+  /** Why it was drafted early; administrators only. */
+  draft_note: string | null
+  tax_rate_name: string | null
+  tax_basis_points: number | null
+  operator_details: { legal_name: string | null; address: string | null; tax_registration_number: string | null; invoice_footer: string | null } | null
+  account_details: { name: string; contact_email: string | null; billing_address: string | null; tax_number: string | null }
+  lines: InvoiceLine[]
+  usage: { organization_uuid: string; organization_name: string; kind: "alerts" | "sms" | "data_points"; count: number }[]
+  credit_notes: CreditNote[]
+}
+
+/** An account whose invoice for an ended month waits for final usage; `overdue` after three days. */
+export type WaitingInvoice = {
+  billing_account: { uuid: string; name: string }
+  month: string
+  waiting_since: string
+  overdue: boolean
 }
