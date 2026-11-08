@@ -83,7 +83,10 @@ allowance changes as updates; the plan's page shows its own history.
 - **A billing account's page** has a **Plan** panel (change or remove the plan) and an
   **Allowances** panel listing each kind with its value, where it comes from
   (override, plan or default) and the override's note, with **Override** and
-  **Remove override**. The account list has a Plan column and filter.
+  **Remove override**. Its **Usage** panel has a month picker (this UTC month and the
+  eleven before it), a meter per allowance and each organization's share. The account
+  list has a Plan column and filter, and a Usage filter: **80% or more used** or
+  **Used up**, the device limit included.
 - **New organization** with a new billing account can start it on a plan.
 
 ## Usage
@@ -227,6 +230,24 @@ naming the account, the allowance, what is used and left, and linking to
 | Members with `Device.manage` | `organizations/{uuid}/usage` | This month: their organization's own counts, and the account's allowance, what is left and the overage; never the account's name, its other organizations or prices |
 | Other members | | Nothing (403) |
 
+In the apps (spec 029 US5):
+
+- **Meters.** `AllowanceMeter` in `@iot-os/ui` shows a count, of how much or
+  **Unlimited**, what is left or the overage, a bar and a `usage` status: within the
+  allowance under 80%, **80% or more used**, **Used up**, and for devices **Over the
+  limit**. Data points read **Provisional** with when the runtime last reported (late
+  after five minutes, the API's `stale`) until their month is **Final**. `UsagePanel`
+  combines the meters, a month picker and each organization's share; the admin
+  account page and the portal's Billing accounts page both use it.
+- **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
+  a **Plan** panel (the plan and since when, each allowance, retention included), the
+  **Usage** panel and its **Organizations**.
+- **Managers** see **Settings → Usage**, shown only with `Device.manage`: their
+  organization's active devices, data points, alerts and SMS this month, what is left
+  of each on the account (never its own count), and its retention with where it comes
+  from and any pending reduction. **Settings → Notifications** shows the alert and SMS
+  allowances the same way above its workflows. The Help guide is `billing-usage`.
+
 ## Retention
 
 An organization's telemetry retention follows its billing account when it has no
@@ -355,9 +376,12 @@ Owner and manager routes:
 | `GET billing-accounts/{uuid}/usage?month=YYYY-MM` | An owned account's usage for a month; 404 otherwise |
 | `GET billing-accounts/{uuid}/invoices` | Issued invoices and credit notes |
 | `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf` | Issued only; a draft or another account's answers 404 |
-| `GET organizations/{uuid}/usage` | This month's usage as a manager sees it; needs `Device.manage` |
+| `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,
 plus `peak_this_month` and `over_limit` for `devices` and `final`, `reported_at` and
 `stale` for `data_points`. The manager's leaves out `organizations` and
-`peak_this_month`, and its `count` is the organization's own.
+`peak_this_month`, and its `count` is the organization's own. It also carries
+`retention`: `{days, source, pending_reduction}`, where `source` is `organization`,
+`billing_account`, `platform` or `default` and `pending_reduction` is `{days, from}`
+while a billing change's grace runs. An owner's account `plan` carries `since`.

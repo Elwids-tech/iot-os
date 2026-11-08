@@ -228,7 +228,8 @@ export type OwnedBillingAccount = {
   organization_limit: number | null
   organizations_count: number
   organizations: { uuid: string; name: string; created_at: string | null; member: boolean }[]
-  plan: { uuid: string; name: string } | null
+  /** `since` is when the account went onto the plan. */
+  plan: { uuid: string; name: string; since: string } | null
   allowances: Allowance[]
   /** This month's usage, with each organization's share. */
   usage: Usage[]
@@ -410,4 +411,14 @@ export type WaitingInvoice = {
   month: string
   waiting_since: string
   overdue: boolean
+}
+
+/**
+ * The organization's telemetry retention as a manager sees it (spec 029 FR-024): its days,
+ * where they come from, and a shorter period a billing change has pending from `from`.
+ */
+export type OrganizationRetention = {
+  days: number
+  source: "organization" | "billing_account" | "platform" | "default"
+  pending_reduction: { days: number; from: string } | null
 }

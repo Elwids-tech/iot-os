@@ -19,7 +19,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A billing account as its owner sees it in the portal: its organizations, whether the
  * owner is a member of each, and the limit (spec 023 US3): the `organizations`
- * allowance, null when unlimited (ADR-035). Its plan, allowances and this month's usage
+ * allowance, null when unlimited (ADR-035). Its plan and since when, allowances and this month's usage
  * with each organization's share (spec 028 FR-021) leave SMS out when the deployment
  * cannot send it. Owners see their own prices and latest issued invoice (spec 029 FR-030,
  * FR-036).
@@ -58,6 +58,7 @@ final class OwnedBillingAccountResource extends JsonResource
             'plan' => $this->resource->openPlanAssignment === null ? null : [
                 'uuid' => (string) $this->resource->openPlanAssignment->plan->uuid,
                 'name' => (string) $this->resource->openPlanAssignment->plan->name,
+                'since' => $this->resource->openPlanAssignment->started_at->toIso8601String(),
             ],
             'allowances' => AllowanceResource::collection(array_map(fn (ResolvedAllowance $allowance): AllowanceResource => new AllowanceResource($allowance), $allowances)),
             'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $usage)),

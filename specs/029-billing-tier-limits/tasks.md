@@ -776,41 +776,89 @@ the apps.
 
 **Independent Test**: quickstart section 4.
 
-- [ ] T064 [P] [US5] `packages/ui/src/components/allowance-meter.tsx`: props `label`,
+- [X] T064 [P] [US5] `packages/ui/src/components/allowance-meter.tsx`: props `label`,
   `count`, `allowance` (null = Unlimited), `overage`, `kind` (`monthly` | `level`),
   `freshness?` (`{reportedAt, final}`). It shows count, of-allowance or "Unlimited",
   and left or overage; the status comes from `statusOf` (ok under 80%, warning at
   80%, critical when used up); "Provisional" or "Last reported" comes via
   `Freshness`. Add a story in `apps/storybook/src/stories/AllowanceMeter.stories.tsx`
   with unlimited, 50%, 85%, over and stale states. `check-ui` passes.
-- [ ] T065 [028-US4] `apps/admin/src/pages/BillingAccountPage.tsx`: a **Usage** Panel
+
+  As built (PR 7): the story is `apps/storybook/src/components/AllowanceMeter.stories.tsx`,
+  where the kit's stories live. The status is a `usage` domain in `statusOf` (within,
+  near, used up, over the limit, unlimited) from `allowanceUse`. A `detail` slot shows
+  this month's device peak. `UsagePanel`, `UsageMeters`, `UsageShares` and
+  `UsageMonthSelect` in `usage-overview.tsx` (with a story) carry the month picker and
+  organizations' shares that T065 and T066 both need.
+- [X] T065 [028-US4] `apps/admin/src/pages/BillingAccountPage.tsx`: a **Usage** Panel
   with a month picker, `AllowanceMeter` per kind, and an organizations `DataTable`
   (name, alerts, SMS, devices, data points). The Billing accounts list gains the
   "80% or more used" filter, which covers the device limit too.
-- [ ] T066 [028-US4] `apps/portal/src/billing/BillingAccountsPage.tsx`: the selected
+
+  As built (PR 7): the panel is the kit's `UsagePanel`. The month picker offers this UTC
+  month and the eleven before it. The list's Usage filter also offers **Used up**
+  (`usage_at_least=100`).
+- [X] T066 [028-US4] `apps/portal/src/billing/BillingAccountsPage.tsx`: the selected
   account becomes an `EntityPage` with Panels **Plan** (name and since when),
   **Usage** (`AllowanceMeter`s, organizations' shares, month picker) and
   **Organizations** (the existing table). It keeps `?account=`.
-- [ ] T067 [US5] `apps/portal/src/settings/Usage.tsx` and a `usage` section in
+
+  As built (PR 7): the owner's account `plan` gains `since`. The Plan panel lists the
+  allowances, so the retention period shows there (FR-023).
+- [X] T067 [US5] `apps/portal/src/settings/Usage.tsx` and a `usage` section in
   `settings/Settings.tsx`, spread in only when
   `useDeviceOrganization().capabilities.manage`. It shows this organization's devices,
   data points, alerts, SMS and retention with source, and what is left on the account,
   from `organizationUsage`. There is no account name.
-- [ ] T068 [028-US4] `NotificationsList` in `apps/portal/src/alerts/NotificationSettings.tsx`
+
+  As built (PR 7): `organizationUsage` returns `{usage, retention}`; the manager
+  response gains `retention` (days, source and pending reduction). The section shows
+  the organization's own count and what is left on the account, never the account's
+  count.
+- [X] T068 [028-US4] `NotificationsList` in `apps/portal/src/alerts/NotificationSettings.tsx`
   (the **Settings → Notifications** section): a Panel above the list with the alert
   and SMS allowances and this organization's usage, from the same endpoint (028
   FR-022). SMS is hidden when the response omits it.
-- [ ] T069 [P] [US5] Help: `apps/api/resources/help/billing-usage.md` (front block
+
+  As built (PR 7): the Panel shares `OrganizationAllowances` with Settings → Usage, and
+  notes that SMS stops at its allowance only when SMS is present.
+- [X] T069 [P] [US5] Help: `apps/api/resources/help/billing-usage.md` (front block
   with `contexts` for the usage settings page) and an entry in `contexts.json`; a
   paragraph in `apps/api/resources/help/alert-notifications.md` about the alert
   allowance. Set `helpContext` on the Usage section.
-- [ ] T070 [P] Playwright: `apps/portal/e2e/billing-usage.spec.ts` (owner panels,
+
+  As built (PR 7): the context is `billing.usage`, from the `settings/usage` path
+  (embedded settings sections take their help context from the path, not a prop).
+- [X] T070 [P] Playwright: `apps/portal/e2e/billing-usage.spec.ts` (owner panels,
   manager Settings → Usage without the account name, the section hidden without
   `Device.manage`, the stale freshness note) and admin Usage panel cases in
   `apps/admin/e2e/billing-accounts.spec.ts`.
-- [ ] T071 Verify: `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/admin
+
+  As built (PR 7): six portal cases (owner panels and an earlier month, the stale note,
+  manager Settings → Usage with axe, hidden without `Device.manage`, the Notifications
+  panel with and without SMS, axe and phone width) and two admin cases (the Usage
+  panel and an earlier month, the 80% filter). The existing billing cases moved to the
+  entity page.
+- [X] T071 Verify: `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/admin
   lint`, unit and e2e tests. Rebuild `admin` and `portal`, then run quickstart section
   4 as owner, manager and member.
+
+  As built (PR 7): lint, kit and portal unit tests, the portal's mocked specs against a
+  build (172) and admin e2e (58) pass, as do both PHP suites. The API family, admin and
+  portal were rebuilt (the runtime too, see below), and quickstart section 4 ran
+  headless against the stack:
+  - The owner saw the plan with its start, the allowances, the meters (alerts used up
+    with 2 of overage, devices with their peak, data points provisional and freshly
+    reported) and the organization's share. October came from the picker.
+  - The same person as a manager saw Settings → Usage and the Notifications panel with
+    the organization's counts, what is left on the account, and 400 days from the
+    deployment default; SMS was absent because the stack has no SMS provider.
+  - A member without `Device.manage` saw neither section, the direct address said so,
+    and the API answered 403.
+  - The admin account page matched, and the 80% filter listed the account.
+  Checking found the runtime rebuilt for PR 8 lacked PR 6's counting; it was rebuilt
+  from this branch, and counting and reports resumed. The forked-process tests now
+  start late children at once instead of failing on a busy machine.
 
 ---
 

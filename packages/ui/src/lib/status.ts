@@ -194,6 +194,14 @@ const domains = {
     plan: { tone: "muted", label: "Plan" },
     default: { tone: "muted", label: "Default" },
   },
+  /** How much of an allowance is used this month, or of the device limit now (specs 028, 029). */
+  usage: {
+    within: { tone: "good", label: "Within allowance" },
+    near: { tone: "warning", label: "80% or more used" },
+    used_up: { tone: "critical", label: "Used up" },
+    over_limit: { tone: "critical", label: "Over the limit" },
+    unlimited: { tone: "muted", label: "Unlimited" },
+  },
   /** How a billing account is on its plan (spec 029). */
   plan_assignment: {
     paid: { tone: "good", label: "Paid" },

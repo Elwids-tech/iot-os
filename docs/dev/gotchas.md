@@ -247,6 +247,13 @@ Things that have cost time before. Add to this list when something surprises you
   shell's variables over `--env-file`, so an `OPENAI_API_KEY` exported in your
   profile silently replaces the one in `.env` on rebuild. Compare env hashes first and
   run compose with `env -u OPENAI_API_KEY` when they differ.
+- **A runtime built from an older branch silently drops newer runtime work.** A
+  feature branch cut before a runtime change merged still builds and runs, but without
+  it: after one rebuild the runtime stored readings and counted none, the usage pages
+  showed data points "last reported" hours ago, and nothing was logged. Rebuild
+  `runtime` only from a branch that contains main, and check a feature you rely on
+  after the rebuild (for usage, a `usage.data_points.v1` row in `device_runtime.outbox`
+  within a minute).
 - **Check which files the running stack was started with before rebuilding.**
   The stack may have been started from another worktree, or with extra overlays
   (monitoring, adapters) and env files that no longer exist. Read the labels:
@@ -600,7 +607,9 @@ Things that have cost time before. Add to this list when something surprises you
   worktree's `vite preview` often holds the port, so a local run tests that build and
   times out on missing elements. Build this checkout's portal, serve it on another port
   (`vite preview --port 4183 --strictPort`) and run with
-  `STUDIO_BASE_URL=http://127.0.0.1:4183`.
+  `STUDIO_BASE_URL=http://127.0.0.1:4183`. Use a build, as CI does, not the Vite dev
+  server: dev builds print ECharts warnings that the dashboard and adapter specs count
+  as page errors. Leave out `studio.spec.ts`, which needs a live API.
 - **An open dialog hides the page behind it from role queries.** Radix marks the rest
   of the page `aria-hidden`, so `expect(getByRole("row", …)).toHaveCount(0)` passes
   while a confirm dialog is still open, before its request is sent. Wait for something

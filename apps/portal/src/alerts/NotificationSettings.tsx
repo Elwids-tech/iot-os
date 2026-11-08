@@ -42,6 +42,7 @@ import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
+import { OrganizationAllowances, useOrganizationUsage } from "../settings/Usage";
 
 /** Settings → Notifications and its per-workflow pages. */
 export const notificationsPath = (org: string) => `/organizations/${org}/settings/notifications`;
@@ -67,6 +68,8 @@ export function NotificationsList() {
     })),
   });
   const email = new Map(rows.map((workflow, index) => [workflow.uuid, settings[index]?.data]));
+  // The alert and SMS allowances (spec 028 FR-022); SMS is absent where the deployment cannot send it.
+  const usage = useOrganizationUsage();
   const denied = !organization.isPending && !capabilities.manage;
   const base = notificationsPath(org);
   const columns: DataColumn<WorkflowListItem>[] = [
@@ -136,6 +139,21 @@ export function NotificationsList() {
           description="You need device management access in this organization."
         />
       ) : (
+        <>
+        {usage.data ? (
+          <Panel aria-labelledby="notification-allowances">
+            <PanelHeader>
+              <PanelTitle id="notification-allowances">Allowances</PanelTitle>
+            </PanelHeader>
+            <PanelContent className="flex flex-col gap-3">
+              <OrganizationAllowances usage={usage.data.usage} kinds={["alerts", "sms"]} />
+              <FieldDescription>
+                Alerts past the allowance still fire and notify; they count as overage.
+                {usage.data.usage.some((item) => item.kind === "sms") ? " SMS stops once its allowance is used up." : ""}
+              </FieldDescription>
+            </PanelContent>
+          </Panel>
+        ) : null}
         <DataTable
           id="notification-workflows"
           label="Workflows"
@@ -165,6 +183,7 @@ export function NotificationsList() {
             />
           }
         />
+        </>
       )}
     </CollectionPage>
   );
