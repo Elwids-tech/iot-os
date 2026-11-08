@@ -36,6 +36,11 @@ COPY deploy/docker/api/development.ini /usr/local/etc/php/conf.d/development.ini
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
     && chmod -R ug+rw storage bootstrap/cache
 
+# The development server is single-threaded per worker; an open telemetry stream
+# (spec 030) would otherwise block every other request. `artisan serve` honours the
+# worker count only with --no-reload (otherwise it warns and starts one server).
+ENV PHP_CLI_SERVER_WORKERS=8
+
 EXPOSE 8000
 
-CMD ["sh", "-lc", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000"]
+CMD ["sh", "-lc", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000 --no-reload"]

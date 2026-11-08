@@ -110,6 +110,9 @@ export function OrganizationsPage() {
                 Available permissions
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={`/organizations/${encodeURIComponent(organization.uuid)}/streams`}>Telemetry streams</Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link to={`/roles?organization=${encodeURIComponent(organization.uuid)}`}>Roles</Link>

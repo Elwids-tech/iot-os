@@ -34,11 +34,11 @@ final class ContractCoverageTest extends TestCase
     public function test_an_empty_record_misses_every_integration_pair(): void
     {
         $this->onlyIntegrationDescribed();
-        // 19 operations need a 2xx, 401, 403 and 404; the 7 with a body or a required
-        // query parameter also need a 422.
+        // 20 operations need a 2xx, 401, 403 and 404; the 7 with a body or a required
+        // query parameter also need a 422 (the telemetry stream's parameters are optional).
         $this->artisan('contract:coverage', ['--file' => $this->record([])])
             ->expectsOutputToContain('contract G4: '.self::LOCATION_MAP.' 422: never checked by the suite')
-            ->expectsOutputToContain('87 required pairs, 87 never checked.')
+            ->expectsOutputToContain('91 required pairs, 91 never checked.')
             ->assertExitCode(1);
     }
 

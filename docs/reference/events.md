@@ -213,6 +213,14 @@ for trusted services (it mixes organizations), not a tenant API.
   Deduplicate by `event_id`; a crash between broker acceptance and marking the row
   published can redeliver.
 - Historical readings carry `historical: true` and must not count as live evidence.
+- The application telemetry stream ([integrations](../features/integrations.md#the-telemetry-stream),
+  spec 030) is a projection of this feed: `telemetry-stream.v1` drops `telemetry_id`,
+  `organization_uuid`, the adapter provenance, `timestamp_source` and `diagnostic`
+  and carries the outbox `sequence` as its position. The runtime publishes each event
+  to its in-process broadcaster after the relay has published and acknowledged it, and
+  a resumed stream is caught up from `telemetry_outbox` by organization, device and
+  sequence (index `telemetry_outbox_org_sequence`), so the outbox's retention is the
+  stream's resume window. No JetStream consumer is created per stream.
 - Backlog: `GET /internal/telemetry/committed-status` (runtime bearer token)
   returns `pending`, `oldest_age_seconds` and `publication_failures_since_start`.
 - Example consumer: `go run ./cmd/committed-consumer -durable <name> -state

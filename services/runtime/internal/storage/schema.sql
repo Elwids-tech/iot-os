@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS device_runtime.telemetry_outbox (
 );
 CREATE INDEX IF NOT EXISTS telemetry_outbox_pending ON device_runtime.telemetry_outbox(sequence) WHERE published_at IS NULL;
 CREATE INDEX IF NOT EXISTS telemetry_outbox_device_latest ON device_runtime.telemetry_outbox(organization_uuid, (event->>'device_uuid'), sequence DESC);
+-- The telemetry stream's head, floor and catch-up read an organization's rows by
+-- sequence across devices (spec 030, research R3).
+CREATE INDEX IF NOT EXISTS telemetry_outbox_org_sequence ON device_runtime.telemetry_outbox(organization_uuid, sequence);
 
 -- V2 DAG state is isolated from the original geofence evaluator.
 CREATE TABLE IF NOT EXISTS device_runtime.dag_executions (

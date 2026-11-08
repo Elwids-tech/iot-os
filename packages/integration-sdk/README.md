@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.5.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.6.0.tgz
 ```
 
 ```ts
@@ -144,6 +144,55 @@ for (const entry of snapshot.data) {
 A device outside the grant refuses the whole request with 404; more than 100 devices
 or a repeated device is a 422, which the client also rejects before sending.
 
+## The telemetry stream (0.6.0)
+
+`telemetryStream({ devices?, after?, signal?, maxRetryMs? })` follows the granted
+devices' readings as the platform commits them, as an async iterator over a
+server-sent event stream (`GET telemetry/stream`, abilities `telemetry:stream` and
+`telemetry:read`). It yields three event types and nothing else:
+
+| Event | Fields | Meaning |
+| --- | --- | --- |
+| `open` | `position`, `devices`, `openedAt` | Sent once per connection, first: where the stream starts (the position resumed from, or the current head) and how many devices it carries |
+| `reading` | `position`, `eventId`, `deviceUuid`, `configurationUuid`, `generation`, `readings[]` | One committed event of one granted device, in storage order; `readings[]` items carry `parameter_uuid`, `key`, `data_type`, `unit`, `value`, `quality`, `observed_at`, `received_at` and `historical` |
+| `reset` | `position` | The position resumed from is no longer retained; `position` is the current head |
+
+```ts
+for await (const event of client.telemetryStream({ devices, signal })) {
+  switch (event.type) {
+    case 'open':    snapshot = await client.latestQuery(devices); break // then apply readings
+    case 'reading': apply(event); last = event.position; break
+    case 'reset':   snapshot = await client.latestQuery(devices); break // the iterator continues from event.position
+  }
+}
+```
+
+**Resume and reset.** Positions are opaque strings: compare them for equality, never
+compute with them. The iterator remembers the last `reading` position and reconnects
+with it (`Last-Event-ID`) after the platform's hourly `closed` (`lifetime`), after a
+`grant_changed` or `credentials_changed` close, after a dropped connection or a 503,
+so the join is gapless: every retained event after the position arrives first, then
+live ones. Pass `after` to resume a position you stored. When that position is older
+than what the platform retains (eight days, or the organization's retention when
+shorter), the iterator yields `reset` with the current head, takes it as its position
+and reconnects: take a new snapshot (`latestQuery`) and apply readings from there. The
+same event can arrive again only across a reconnection from an older position;
+deduplicate by `eventId` when it matters.
+
+**Order of work.** Open the stream, and take the snapshot after the `open` (or
+`reset`) position arrives; readings with a greater position then update it. A
+reading of the same device with a later `received_at` only ever has a greater
+position within one connection.
+
+**Failures and limits.** Reconnects back off from 1 s to 30 s and give up with
+`IotTransportError` after `maxRetryMs` of consecutive failures (default 300 000;
+`0` retries for ever). 401, 403, 404 (a device in `devices` is not granted), 422
+(more than 1000 devices, a repeat, or a position the platform never issued) and 429
+(the application already holds 2 open streams, or the organization 10; see
+`retryAfterSeconds`) are thrown as `IotApiError`. Aborting `signal` ends the
+iteration quietly. Opening a stream counts as one request against the per-minute
+limit; data on an open stream does not. `examples/stream.mjs` prints a stream.
+
 ## Location map and geofences
 
 `locationMap({deviceUuids, trailWindow, includeTrails, geofenceUuid})` needs
@@ -174,3 +223,23 @@ const sites = await client.sites() // needs entities:read
 grant can now be a scope of sites instead of a device list, so an application
 follows a plant as devices are added; see
 [grants by site](../../docs/features/integrations.md#grants-by-site).
+
+## Changelog
+
+### 0.6.0
+
+Additions, for applications that follow a plant (spec 030); nothing from 0.5 changed:
+
+- `device()` carries `profile`, `site` and `parameters`; `sites()` lists the
+  organization's sites with `granted_devices_count` (`entities:read`).
+- `latestQuery(deviceUuids)` reads the latest values of 1 to 100 granted devices in one
+  request (`telemetry-latest-batch.v1`).
+- `telemetryStream(options)` follows readings as server-sent events with resume, reset
+  and reconnection (`telemetry:stream`).
+- Every 0.5 method keeps its signature, validators and errors; the test suite checks
+  each against its contract example.
+
+### 0.5.0 and earlier
+
+Raw records and paired location fixes (0.5.0), telemetry reads (0.4.0), webhook
+verification (0.3.0), durable alert events (0.2.0), devices and alerts (0.1.0).

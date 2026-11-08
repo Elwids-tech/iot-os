@@ -9,6 +9,7 @@ use App\Domain\Integrations\Http\LocationController;
 use App\Domain\Integrations\Http\ReadController;
 use App\Domain\Integrations\Http\SiteReadController;
 use App\Domain\Integrations\Http\TelemetryController;
+use App\Domain\Integrations\Http\TelemetryStreamController;
 use App\Domain\Integrations\Http\WebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,7 @@ Route::prefix('integration/v1/organizations/{organization}')->whereUuid(['organi
     Route::post('geofences/{uuid}/activations/{batch}/items/{item}/retry', [GeospatialController::class, 'retry'])->whereNumber('item')->middleware(AuthenticateApplication::class.':geofences:activate');
     Route::get('devices/{uuid}/telemetry/latest', [TelemetryController::class, 'latest'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::post('telemetry/latest/query', [TelemetryController::class, 'latestBatch'])->middleware(AuthenticateApplication::class.':telemetry:read');
+    Route::get('telemetry/stream', [TelemetryStreamController::class, 'stream'])->middleware(AuthenticateApplication::class.':telemetry:stream');
     Route::get('devices/{uuid}/telemetry/history', [TelemetryController::class, 'history'])->middleware(AuthenticateApplication::class.':telemetry:read');
     Route::get('devices', [ReadController::class, 'devices'])->middleware(AuthenticateApplication::class.':devices:read');
     Route::get('devices/{uuid}', [ReadController::class, 'device'])->middleware(AuthenticateApplication::class.':devices:read');

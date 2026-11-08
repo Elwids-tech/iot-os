@@ -66,6 +66,7 @@ func (a *Application) Handler() http.Handler {
 	internal.HandleFunc("GET /internal/measurements/latest", a.latestHTTP)
 	internal.HandleFunc("GET /internal/measurements/latest-batch", a.latestBatchHTTP)
 	internal.HandleFunc("GET /internal/telemetry/committed-status", a.committedStatus)
+	internal.HandleFunc("GET /internal/telemetry/stream", a.telemetryStreamHTTP)
 	internal.HandleFunc("POST /internal/locations/resolve", a.resolveLocation)
 	internal.HandleFunc("POST /internal/locations/read", a.readLocation)
 	internal.HandleFunc("POST /internal/locations/map", a.locationMap)
@@ -101,12 +102,12 @@ func (a *Application) Handler() http.Handler {
 // statusHTTP reports each subsystem separately so the portal can explain partial
 // outages instead of treating the whole runtime as unavailable.
 func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
-	storageState, messaging := "ok", "ok"
-	if a.Store.Pool.Ping(r.Context()) != nil {
-		storageState = "unavailable"
+	storageState, messaging := "unavailable", "disconnected"
+	if a.Store != nil && a.Store.Pool.Ping(r.Context()) == nil {
+		storageState = "ok"
 	}
-	if !a.NATS.IsConnected() {
-		messaging = "disconnected"
+	if a.NATS != nil && a.NATS.IsConnected() {
+		messaging = "ok"
 	}
 	a.mu.Lock()
 	connected, total := 0, len(a.brokers)
@@ -117,10 +118,14 @@ func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Unlock()
 	deadLetters := map[string]any{"since_start": a.deadLetters.Load(), "retained": nil}
-	if info, err := a.JS.StreamInfo(DeadLetterStream); err == nil {
-		deadLetters["retained"] = info.State.Msgs
+	if a.JS != nil {
+		if info, err := a.JS.StreamInfo(DeadLetterStream); err == nil {
+			deadLetters["retained"] = info.State.Msgs
+		}
 	}
-	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters})
+	// Telemetry streams (spec 030): open now, and subscribers closed for falling behind.
+	streams := map[string]any{"open": a.streamsOpen.Load(), "dropped": a.broadcaster.Dropped()}
+	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters, "streams": streams})
 }
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))

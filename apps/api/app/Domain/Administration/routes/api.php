@@ -11,6 +11,7 @@ use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationDeletionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationPermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationRoleController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationStreamController;
 use App\Domain\Administration\Http\Controllers\PlatformRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformRolePermissionController;
 use App\Domain\Administration\Http\Controllers\PlatformTeamController;
@@ -64,6 +65,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::get('organizations/{organization}/roles', [PlatformOrganizationRoleController::class, 'index'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('organizations.roles.index');
+            Route::get('organizations/{organization}/integration-streams', [PlatformOrganizationStreamController::class, 'index'])
+                ->whereUuid('organization')
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.integration-streams.index');
             Route::delete('invitations/{invitation}', [PlatformInvitationController::class, 'destroy'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('invitations.destroy');

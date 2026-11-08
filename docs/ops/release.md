@@ -267,6 +267,41 @@ Local packaging checks: `tooling/release/verify_local.py` (disposable Compose
 rehearsal including restore) and `tooling/release/verify_mosquitto.py`
 ([broker](broker.md)).
 
+## Telemetry streams and the API pool
+
+An application telemetry stream ([integrations](../features/integrations.md#the-telemetry-stream))
+occupies one PHP-FPM worker for up to `IOT_STREAM_LIFETIME_SECONDS` (default 3600).
+The release sizes the api container for that, in
+[`php-fpm.release.conf`](../../deploy/docker/api/php-fpm.release.conf) and
+[`compose.yml`](../../deploy/release/compose.yml):
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `pm.max_children` | 24 | `IOT_STREAMS_MAX_OPEN` (10) streams plus 14 workers for requests |
+| `pm.start_servers`, `pm.min_spare_servers`, `pm.max_spare_servers` | 4, 2, 8 | Idle workers are cheap; streams are started on demand |
+| `request_terminate_timeout` | 0 | A stream ends on its lifetime, its re-check or a shutdown, not on a timer |
+| api `mem_limit` | 768 MiB | 24 workers at about 25 MiB each, plus opcache and the master |
+| `max_input_vars` | 2500 | A stream may name 1000 devices as `devices[]` |
+| nginx `fastcgi_read_timeout` | 150 s | Above the 60 s keepalive, so a quiet stream is not cut |
+| nginx `large_client_header_buffers` | 4 × 64 KiB | 1000 UUIDs in one query string |
+
+To allow more open streams, raise `IOT_STREAMS_MAX_OPEN` and `pm.max_children`
+together (keep at least 14 workers for requests) and add about 25 MiB of `mem_limit`
+per worker; the per-application (`IOT_STREAMS_PER_APPLICATION`, 2) and
+per-organization (`IOT_STREAMS_PER_ORGANIZATION`, 10) limits are environment variables
+too. Record the api container's memory at the cap after the change, as spec 030's
+quickstart run 6 does.
+
+`iot_integration_streams_open{organization="<slug>"}` on `/internal/ops/metrics` is
+the number of open streams per organization (a session row not closed and touched
+within 90 s), `iot_integration_streams_open_total` their sum and
+`iot_integration_streams_limit` the deployment cap: when the total approaches the
+limit, new streams are refused with 429 and the pool is nearly full of streams. The
+admin app lists each organization's open streams (application, opened, last seen,
+devices, last position) under **Telemetry streams** in the organization's menu; the
+runtime's `GET /internal/status` adds `streams.open` and `streams.dropped` (subscribers
+closed for falling behind, which resume by catch-up).
+
 ## Production
 
 Use a separate host, database, domain, secrets and Restic repository with the same

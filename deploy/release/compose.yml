@@ -109,6 +109,9 @@ services:
     networks: [private, edge]
   api:
     <<: *api
+    # 24 PHP-FPM workers (deploy/docker/api/php-fpm.release.conf), ten of them
+    # possibly held by telemetry streams (spec 030, docs/ops/release.md).
+    mem_limit: 768m
   api-web:
     <<: *service
     image: ${API_WEB_IMAGE:?}

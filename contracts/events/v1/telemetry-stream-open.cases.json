@@ -1,0 +1,53 @@
+[
+  {
+    "description": "a fresh stream for an organization with no retained events opens at position 0 and carries a whole site of devices",
+    "valid": true,
+    "data": {
+      "schema_version": "telemetry-stream-open.v1",
+      "position": "0",
+      "devices": 400,
+      "opened_at": "2026-11-07T09:41:58.123456Z"
+    }
+  },
+  {
+    "description": "a negative device count",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/devices"
+    },
+    "data": {
+      "schema_version": "telemetry-stream-open.v1",
+      "position": "42",
+      "devices": -1,
+      "opened_at": "2026-09-06T00:00:00Z"
+    }
+  },
+  {
+    "description": "a position that is not a decimal string",
+    "valid": false,
+    "error": {
+      "keyword": "type",
+      "instance_location": "/position"
+    },
+    "data": {
+      "schema_version": "telemetry-stream-open.v1",
+      "position": 42,
+      "devices": 2,
+      "opened_at": "2026-09-06T00:00:00Z"
+    }
+  },
+  {
+    "description": "missing opened_at",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "schema_version": "telemetry-stream-open.v1",
+      "position": "42",
+      "devices": 2
+    }
+  }
+]

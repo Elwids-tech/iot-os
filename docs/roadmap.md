@@ -150,8 +150,13 @@ Grouped by area. Links point at the decision or doc that explains the item.
   Twin Studio connector. Then partner applications acting for a person
   ([ADR-033](adr/ADR-033-partner-applications-act-for-a-person.md)) and organization
   variables as automation inputs ([ADR-034](adr/ADR-034-organization-variables.md)).
-  Follow-up once streams multiply: move the SSE relay out of PHP-FPM into a dedicated
-  streaming process behind the same authentication.
+  Grants by site, the batch latest read and the stream shipped in November 2026
+  ([the telemetry stream](features/integrations.md#the-telemetry-stream)). Two
+  follow-ups once streams multiply: a dedicated streaming process (the relay holds one
+  PHP-FPM worker per stream for up to an hour; move it out of the pool behind the same
+  authentication), and multi-instance fan-out (the runtime's broadcaster is
+  in-process; a second runtime instance needs the fan-out behind a JetStream consumer
+  with a stored committed-sequence mapping so resume keeps working).
 
 ### Assistant
 
