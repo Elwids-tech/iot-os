@@ -25,6 +25,10 @@ Things that have cost time before. Add to this list when something surprises you
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in
   tests. Assert on the query log, or test against Postgres, when UUID parsing
   matters.
+- **Under an AI agent, PHPUnit prints one line of JSON.** `laravel/pao` detects the
+  agent and replaces PHPUnit's output with a pass/fail summary, which hides
+  deprecations and warnings even with `--display-deprecations`. Set `PAO_DISABLE=1`
+  to see PHPUnit's own output.
 - **Creating an `Organization` creates a billing account.** Every organization
   belongs to exactly one billing account (spec 023), so the model's `creating` hook
   makes one named after it unless `billing_account_id` is set, and `created` opens
