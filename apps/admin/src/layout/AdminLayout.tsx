@@ -37,6 +37,7 @@ import {
   Building2Icon,
   HistoryIcon,
   InboxIcon,
+  LayersIcon,
   LogOutIcon,
   ScrollTextIcon,
   ShieldCheckIcon,
@@ -50,6 +51,7 @@ const navigationGroups = [
   [
     { title: "Organizations", to: "/organizations", icon: Building2Icon },
     { title: "Billing accounts", to: "/billing-accounts", icon: WalletIcon },
+    { title: "Plans", to: "/plans", icon: LayersIcon },
     { title: "Users", to: "/users", icon: UsersIcon },
     { title: "Roles", to: "/roles", icon: ShieldCheckIcon },
     { title: "Activity", to: "/activity", icon: ScrollTextIcon },

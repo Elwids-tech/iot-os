@@ -3,7 +3,7 @@ import type { BillingAccountDetail, BillingAccountSummary } from "@iot-os/api-cl
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@iot-os/ui/components/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { Textarea } from "@iot-os/ui/components/textarea"
 import { AlertCircleIcon } from "lucide-react"
@@ -12,13 +12,16 @@ import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
 
-type Editable = Pick<BillingAccountSummary, "uuid" | "name" | "contact_email" | "organization_limit"> & {
+type Editable = Pick<BillingAccountSummary, "uuid" | "name" | "contact_email"> & {
   notes?: string | null
 }
 
-const empty = { name: "", contact_email: "", notes: "", organization_limit: "1" }
+const empty = { name: "", contact_email: "", notes: "" }
 
-/** Create (account "new") or edit a billing account's details and organization limit. */
+/**
+ * Create (account "new") or edit a billing account's details. Its organization limit
+ * is the `organizations` allowance, changed on the account's page (ADR-035).
+ */
 export function BillingAccountDialog({
   account,
   onClose,
@@ -35,8 +38,6 @@ export function BillingAccountDialog({
           name: account.name,
           contact_email: account.contact_email ?? "",
           notes: account.notes ?? "",
-          // Empty when unlimited; the field is then left out of the request.
-          organization_limit: account.organization_limit === null ? "" : String(account.organization_limit),
         }
       : empty
   const [values, setValues] = useState(baseline)
@@ -76,9 +77,6 @@ export function BillingAccountDialog({
         name: values.name.trim(),
         contact_email: values.contact_email.trim() || null,
         notes: values.notes.trim() || null,
-        ...(values.organization_limit.trim() === ""
-          ? {}
-          : { organization_limit: Number.parseInt(values.organization_limit, 10) }),
       }
       const saved =
         account === "new"
@@ -134,27 +132,6 @@ export function BillingAccountDialog({
                   onChange={(event) => set("contact_email", event.target.value)}
                 />
                 <FieldError errors={field("contact_email")} />
-              </Field>
-              <Field data-invalid={Boolean(field("organization_limit"))}>
-                <FieldLabel htmlFor="billing-account-limit">Organization limit</FieldLabel>
-                <Input
-                  id="billing-account-limit"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={1000}
-                  step={1}
-                  required
-                  className="max-w-32 tabular-nums"
-                  value={values.organization_limit}
-                  aria-invalid={Boolean(field("organization_limit"))}
-                  aria-describedby="billing-account-limit-help"
-                  onChange={(event) => set("organization_limit", event.target.value)}
-                />
-                <FieldDescription id="billing-account-limit-help">
-                  How many organizations the owners may have. Platform administrators can always add more.
-                </FieldDescription>
-                <FieldError errors={field("organization_limit")} />
               </Field>
               <Field data-invalid={Boolean(field("notes"))}>
                 <FieldLabel htmlFor="billing-account-notes">

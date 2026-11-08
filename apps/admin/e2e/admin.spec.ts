@@ -269,6 +269,12 @@ async function mockApi(
       return
     }
 
+    // The New organization dialog offers plans for a new billing account.
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/billing-plans") {
+      await fulfillJson(route, { data: [], meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 } })
+      return
+    }
+
     if (request.method() === "POST" && url.pathname === "/api/v1/auth/logout") {
       signedIn = false
       await route.fulfill({ status: 204 })

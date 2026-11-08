@@ -32918,11 +32918,6 @@
               "null"
             ],
             "maxLength": 2000
-          },
-          "organization_limit": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1000
           }
         },
         "required": [
@@ -34330,11 +34325,6 @@
               "null"
             ],
             "maxLength": 2000
-          },
-          "organization_limit": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1000
           }
         },
         "title": "UpdateBillingAccountRequest"
