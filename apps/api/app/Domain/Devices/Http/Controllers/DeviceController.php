@@ -6,6 +6,7 @@ namespace App\Domain\Devices\Http\Controllers;
 
 use App\Domain\Audit\Services\ActivityChanges;
 use App\Domain\Audit\Services\ActivityLog;
+use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\Site;
@@ -156,6 +157,7 @@ final class DeviceController
         $updated = $this->configuration->locked($device, $revision, function ($locked) use ($request) {
             abort_if($locked->applied_configuration_uuid || $locked->desired_configuration_uuid || $locked->deployment_status === 'pending', 422, 'Deactivate the device and wait for runtime acknowledgement before archiving.');
             $locked->forceFill(['lifecycle' => 'archived', 'reserved_source_uuid' => null, 'draft_revision' => $locked->draft_revision + 1])->save();
+            app(DeviceLimit::class)->release($locked);
             DeviceAudit::record('device.archived', $locked->organization_id, $request->user()->id, $locked->uuid);
 
             return $locked;

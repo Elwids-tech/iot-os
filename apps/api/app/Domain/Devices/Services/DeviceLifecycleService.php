@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOperation;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,9 @@ final class DeviceLifecycleService
                 'diagnostic' => null, 'updated_by' => $actor,
             ])->save();
             $operation = self::record($locked, $active ? 'resume' : 'deactivate', $actor, $input['operation_uuid']);
+            // The device limit counts from acceptance (spec 029 US2): reactivation needs a
+            // place and is refused at the limit; deactivation gives the place back.
+            $active ? app(DeviceLimit::class)->claim($locked) : app(DeviceLimit::class)->release($locked);
             $payload = ['device_uuid' => $locked->uuid, 'organization_uuid' => $locked->organization->uuid,
                 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid];
             if ($configuration) {

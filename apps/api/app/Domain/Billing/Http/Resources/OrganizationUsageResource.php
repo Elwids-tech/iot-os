@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Billing\Http\Resources;
 
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Services\OrganizationUsage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,11 +33,11 @@ final class OrganizationUsageResource extends JsonResource
         $left = $usage->account->left();
 
         return [
-            /** @var 'alerts'|'sms' */
+            /** @var 'alerts'|'sms'|'devices' */
             'kind' => $usage->account->kind->value,
             /** The first day of the UTC month. */
             'month' => $usage->account->month->toDateString(),
-            /** This organization's count this month. */
+            /** This organization's count this month; for devices, those holding a place now. */
             'count' => (int) $usage->count,
             /** The billing account's allowance; null when unlimited. */
             'allowance' => $usage->account->allowance === null ? null : (int) $usage->account->allowance,
@@ -44,6 +45,8 @@ final class OrganizationUsageResource extends JsonResource
             'left' => $left === null ? null : (int) $left,
             /** The billing account's overage this month. */
             'overage' => (int) $usage->account->overage,
+            /** Devices only: the billing account has more devices holding a place than its limit allows. */
+            'over_limit' => $this->when($usage->account->kind === AllowanceKind::Devices, fn (): bool => $usage->account->overLimit()),
         ];
     }
 }

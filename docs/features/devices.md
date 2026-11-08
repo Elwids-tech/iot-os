@@ -162,6 +162,9 @@ A source missing a metric, or announcing a type the parameter cannot take, is
 skipped with the reason (`missing metric flow_rate`, `datatype String for number
 parameter level`) and the rest continue. An item whose source already has a device
 is skipped as `already onboarded`, so repeating a run never creates a second device.
+At the billing account's [device limit](#device-limit), the sources that no longer fit
+are skipped with the limit's message and no device is made for them; the ones before
+them are activated.
 
 The run (`device_bulk_onboardings`, one `device_bulk_onboarding_items` row per
 source) is keyed by the client's `operation_uuid` and a hash of the request: the
@@ -232,6 +235,26 @@ Deactivation blocks new commands; when processed, the runtime closes ingestion a
 dispatch, cancels unsent work and marks possibly-sent work uncertain. Nothing is
 replayed on reactivation. Deactivated devices can be archived, which keeps
 history and releases the source.
+
+#### Device limit
+
+Active devices count against the device limit of the organization's billing account
+([billing](billing.md#device-limit), [spec 029](../../specs/029-billing-tier-limits/spec.md)
+US2). A device holds a place (`devices.limit_place_at`) from the moment its activation
+is **accepted**, not when the runtime confirms it, until its deactivation is accepted
+or it is archived.
+
+- At the limit, activating a registered device or reactivating a deactivated one is
+  refused with 422 on `device`: "Your billing account's device limit (50) is reached.
+  Deactivate a device or contact the platform operator." It names no account or other
+  organization, and the device stays as it was.
+- Registering devices, editing drafts, and activating a new configuration on (or
+  rolling back) an active device are never refused.
+- A failed first activation or reactivation gives its place back. A failed
+  reconfiguration keeps it, and a failed deactivation takes it back, because the
+  device is still running.
+- A lowered limit, or an organization moving into the account, deactivates nothing:
+  the account shows as over its limit until devices are deactivated.
 
 ## Offline detection
 

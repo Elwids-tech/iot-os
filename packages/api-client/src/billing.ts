@@ -26,14 +26,19 @@ export type Allowance = {
   note: string | null
 }
 
-/** The monthly allowances counted so far. */
-export type UsageKind = "alerts" | "sms"
+/** What usage covers so far: monthly alerts and SMS, and devices, which are a level. */
+export type UsageKind = "alerts" | "sms" | "devices"
 
 /**
  * A billing account's usage of one allowance in one UTC month. `allowance` is the
  * account's allowance now (null when unlimited) and `left` follows from it, 0 once used
  * up. `overage` was fixed as each unit was counted. `organizations` is each
  * organization's share, deleted and moved-away ones included under the name they had.
+ *
+ * `devices` is a level: `count` is the devices holding a place now (an earlier month
+ * shows its peak), `overage` is always 0, and only devices carry `peak_this_month` and
+ * `over_limit` (more devices than the limit, after it was lowered or an organization
+ * moved in).
  */
 export type Usage = {
   kind: UsageKind
@@ -44,6 +49,8 @@ export type Usage = {
   left: number | null
   overage: number
   organizations: { organization_uuid: string; name: string; count: number }[]
+  peak_this_month?: number
+  over_limit?: boolean
 }
 
 /**
@@ -58,6 +65,8 @@ export type OrganizationUsage = {
   allowance: number | null
   left: number | null
   overage: number
+  /** Devices only: the billing account has more devices than its limit allows. */
+  over_limit?: boolean
 }
 
 /** A plan in the platform administrators' list. */
