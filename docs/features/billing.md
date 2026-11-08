@@ -5,7 +5,7 @@ Plans, the allowances they give billing accounts, and what accounts use
 [spec 029](../../specs/029-billing-tier-limits/spec.md),
 [ADR-035](../adr/ADR-035-plans-and-allowances.md)). Billing accounts themselves, the
 payer of record for one or more organizations, are described under
-[Access](access.md#billing-accounts). Data point counting, invoices, payments and
+[Access](access.md#billing-accounts). Invoices, payments and
 trials are planned in
 [the billing plan](../../specs/029-billing-tier-limits/plan.md) and described here as
 they are built.
@@ -85,8 +85,8 @@ allowance changes as updates; the plan's page shows its own history.
 
 ## Usage
 
-`Usage` counts what each billing account uses per UTC month: alerts and SMS so far,
-data points once the runtime reports them. Devices are a level, kept by `DeviceLimit`
+`Usage` counts what each billing account uses per UTC month: alerts, SMS and data
+points (from the runtime's reports, below). Devices are a level, kept by `DeviceLimit`
 (below). Organizations on an account share its allowances.
 
 - **Tables.** `billing_usage` holds the account's `count` and `overage` per kind and
@@ -144,6 +144,34 @@ accepted until its deactivation is accepted or it is archived
   device count.
 - **Rollout** gives a place to every active device, unless its deactivation is already
   accepted, and to every device whose activation is outstanding.
+
+### Data points
+
+A data point is a stored reading
+([spec 029](../../specs/029-billing-tier-limits/spec.md) US3,
+[ADR-036](../adr/ADR-036-runtime-counts-data-points.md)). Telemetry never reaches the
+control plane: the runtime counts what it stores and reports cumulative counts per
+organization and UTC hour (`usage.data_points.v1`,
+[events](../reference/events.md#data-point-usage)).
+
+- **Intake.** [`DataPointReports`](../../apps/api/app/Domain/Billing/Services/DataPointReports.php)
+  keeps the highest count seen per bucket in `billing_data_point_buckets`, under its
+  row lock, and counts only the increase through `Usage::add`, in the bucket's month.
+  Replays, lower counts and reports out of order change nothing.
+- **Attribution.** A bucket is fixed, when first seen, to the billing account whose
+  assignment covered its hour (`billing_account_assignments`), so an hour before a
+  move counts for the old account and an hour after it for the new one. A bucket of an
+  organization that no longer exists is kept with no account and is not counted.
+- **Overage.** Readings are never stopped; what goes past the allowance is overage, as
+  for alerts.
+- **Finality.** `billing_usage_watermarks` keeps the runtime's `final_through`, which
+  only moves forward, and when it last reported. A month's `data_points` entry is
+  `final` once the watermark passes the month's end; until then the count may still
+  grow. It is `stale` when an open month has not been reported for longer than
+  `BILLING_USAGE_REPORT_STALE_SECONDS` (300 by default), for example while the
+  runtime or the control plane is down; the counts catch up exactly when it returns.
+- **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
+  stay in `billing_usage`.
 
 ### SMS allowance
 
@@ -226,5 +254,6 @@ Owner and manager routes:
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,
-plus `peak_this_month` and `over_limit` for `devices`. The manager's leaves out
-`organizations` and `peak_this_month`, and its `count` is the organization's own.
+plus `peak_this_month` and `over_limit` for `devices` and `final`, `reported_at` and
+`stale` for `data_points`. The manager's leaves out `organizations` and
+`peak_this_month`, and its `count` is the organization's own.

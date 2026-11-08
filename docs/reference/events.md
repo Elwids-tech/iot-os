@@ -122,6 +122,7 @@ generations, operations or sessions.
 | `workflow.membership.v1` | Geofence `entered` / `exited` |
 | `automation.intent.v1` | A DAG action request, re-authorized by `automation-worker` |
 | `device.connectivity.v1` | An offline episode of a device, gateway or adapter source `opened`, `cleared` or `stopped` ([below](#offline-episodes)) |
+| `usage.data_points.v1` | Every minute: cumulative counts of stored readings per organization and UTC hour, for billing ([below](#data-point-usage)) |
 
 ### Offline episodes
 
@@ -159,6 +160,31 @@ The runtime also answers `GET /internal/connectivity?organization=<uuid>&devices
 heard, last observed, anchor, reporting interval, readings counted, poll interval, the
 *Offline after* in effect and whether a gateway episode covers it. Laravel reads it for
 `GET devices/{device}/connectivity`; devices the runtime does not monitor are omitted.
+
+### Data point usage
+
+`usage.data_points.v1`
+([schema](../../contracts/internal/events/usage.data_points.v1.schema.json),
+[ADR-036](../adr/ADR-036-runtime-counts-data-points.md)) reports the readings the runtime
+stored, for the billing account's data point allowance
+([billing](../features/billing.md#data-points)).
+
+- **Counting.** `Store.PersistResultCounted` adds the observation and diagnostic rows
+  each message inserted to `device_runtime.usage_data_points` (organization, UTC hour)
+  in the same transaction. A duplicate message stops at the ledger and a re-sent sample
+  at the content match, so neither counts; calculated and invalid readings do.
+- **Reporting.** Every 60 seconds `Store.ReportUsage` sends, in one transaction with
+  the outbox rows, each bucket whose count grew or whose hour closed since it was last
+  reported, at most 500 per event. `count` is cumulative, not an increment. A bucket is
+  `final` once its hour ended more than a minute ago, and `final_through` (that hour
+  boundary) says every earlier hour is final across all organizations. With nothing to
+  send, an empty event still moves `final_through`, at most once an hour.
+- **Idempotent.** The envelope `uuid` is a UUID v5 of
+  `usage.data_points#<final_through>#<sha256 of the buckets JSON>`, so an identical
+  replay deduplicates in `device_inbox`. Laravel keeps the highest count per bucket and
+  counts only increases, so reordering is harmless too. `schema_version` other than 1
+  is answered 422 and dead-lettered.
+- **Pruning.** Runtime buckets go after 40 days; Laravel's after 13 months.
 
 Adapter runtimes report separately to `POST /api/internal/adapters/events` with a
 per-tenant token ([adapters](../features/adapters.md)).

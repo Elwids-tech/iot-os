@@ -320,6 +320,12 @@ requests ([Sparkplug reference](../reference/sparkplug.md)).
 - **Storage.** TimescaleDB keeps deduplicated history and durable latest state. A
   re-sent sample with the same source timestamp and value is stored once.
   Observation chunks are compressed after two days.
+- **Counted readings.** Every stored reading, valid, invalid (a diagnostic) or
+  calculated, counts once against the billing account's monthly data point allowance;
+  a duplicate message or re-sent sample counts nothing. The runtime counts them in the
+  storing transaction and reports cumulative hourly counts
+  ([billing](billing.md#data-points), [events](../reference/events.md#data-point-usage)).
+  Readings past the allowance are still stored.
 - **Time basis.** The portal's history endpoint always asks the runtime for
   observed time with configuration revisions of the same type and unit merged, so
   a backlog uploaded after an outage appears when it was measured. The runtime's

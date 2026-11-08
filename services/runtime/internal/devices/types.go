@@ -217,3 +217,21 @@ type Command struct {
 	ConfirmedAt        time.Time `json:"confirmed_at"`
 	ExpiresAt          time.Time `json:"expires_at"`
 }
+
+// UsageDataPoints is the usage.data_points.v1 payload (spec 029 US3, ADR-036):
+// cumulative counts of stored readings per organization and UTC hour.
+type UsageDataPoints struct {
+	SchemaVersion int           `json:"schema_version"`
+	GeneratedAt   time.Time     `json:"generated_at"`
+	FinalThrough  time.Time     `json:"final_through"`
+	Buckets       []UsageBucket `json:"buckets"`
+}
+
+// UsageBucket is one organization's hour. Count is cumulative, not an increment, and
+// Final means the hour ended more than a minute before the event was built.
+type UsageBucket struct {
+	OrganizationUUID string    `json:"organization_uuid"`
+	Hour             time.Time `json:"hour"`
+	Count            int64     `json:"count"`
+	Final            bool      `json:"final"`
+}

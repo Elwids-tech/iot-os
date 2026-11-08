@@ -33,7 +33,7 @@ final class OrganizationUsageResource extends JsonResource
         $left = $usage->account->left();
 
         return [
-            /** @var 'alerts'|'sms'|'devices' */
+            /** @var 'alerts'|'sms'|'data_points'|'devices' */
             'kind' => $usage->account->kind->value,
             /** The first day of the UTC month. */
             'month' => $usage->account->month->toDateString(),
@@ -45,6 +45,12 @@ final class OrganizationUsageResource extends JsonResource
             'left' => $left === null ? null : (int) $left,
             /** The billing account's overage this month. */
             'overage' => (int) $usage->account->overage,
+            /** Data points only: the runtime has reported the whole month. */
+            'final' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->account->final),
+            /** Data points only: when the runtime last reported; null before its first report. */
+            'reported_at' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): ?string => $usage->account->reportedAt?->toIso8601ZuluString()),
+            /** Data points only: the month is open and has not been reported for longer than usual. */
+            'stale' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->account->stale),
             /** Devices only: the billing account has more devices holding a place than its limit allows. */
             'over_limit' => $this->when($usage->account->kind === AllowanceKind::Devices, fn (): bool => $usage->account->overLimit()),
         ];

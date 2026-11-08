@@ -600,9 +600,18 @@ finality watermark.
 
 **Independent Test**: spec 029 US3's test, and quickstart section 3 steps 2–3.
 
+**As built (PR 6)**:
+
+- `Usage::COUNTED` now ends with `data_points`, so every usage response, the warnings
+  and the `usage_at_least` filter include them. Their entries alone carry `final`,
+  `reported_at` and `stale`.
+- `ReportUsage(ctx, now, since)` takes the last `final_through` written and returns the
+  new one; the application keeps it between ticks, and a zero `since` is read from the
+  outbox.
+
 ### Contract (constitution IV)
 
-- [ ] T050 [P] [US3] `contracts/internal/events/usage.data_points.v1.schema.json`
+- [X] T050 [P] [US3] `contracts/internal/events/usage.data_points.v1.schema.json`
   (dialect and `$id` as in `device.connectivity.v1`):
   - required `schema_version` const 1, `generated_at`, `final_through`, `buckets`
     (array, maxItems 500);
@@ -614,14 +623,20 @@ finality watermark.
   count, missing `final`, version 2), and a `contracts/internal/catalogue.json` entry
   naming the Go producer test and the PHP consumer test.
 
+  As built (PR 6): also an invalid case for an unknown bucket field, marked
+  `tolerant_valid` because the contract is read tolerantly. The catalogue fences on
+  `count` and `final_through`.
+
 ### Runtime (Go)
 
-- [ ] T051 [US3] `services/runtime/internal/storage/schema.sql`: `CREATE TABLE IF NOT
+- [X] T051 [US3] `services/runtime/internal/storage/schema.sql`: `CREATE TABLE IF NOT
   EXISTS device_runtime.usage_data_points (organization_uuid uuid NOT NULL, hour
   timestamptz NOT NULL, count bigint NOT NULL DEFAULT 0, reported_count bigint NOT
   NULL DEFAULT 0, reported_final boolean NOT NULL DEFAULT false, PRIMARY KEY
   (organization_uuid, hour))`.
-- [ ] T052 [US3] `services/runtime/internal/storage/store.go::PersistResult`:
+
+  As built (PR 6): as written.
+- [X] T052 [US3] `services/runtime/internal/storage/store.go::PersistResult`:
   - keep `RowsAffected()` of each observation and diagnostic insert (lines 277–285)
     and add them up;
   - after the loop, when the sum is above 0, `INSERT … ON CONFLICT (organization_uuid,
@@ -629,7 +644,11 @@ finality watermark.
     = date_trunc('hour', now())`, in the same transaction;
   - return the stored count to callers through a new result field, without changing
     the existing boolean's meaning.
-- [ ] T053 [US3] `services/runtime/internal/storage/usage.go`:
+
+  As built (PR 6): `PersistResultCounted` returns `PersistOutcome{Stored, Readings}`;
+  `PersistResult` wraps it, so its callers are unchanged. The hour is
+  `date_trunc('hour', now(), 'UTC')`, so the session time zone cannot shift it.
+- [X] T053 [US3] `services/runtime/internal/storage/usage.go`:
   - `ReportUsage(ctx, now time.Time)`, in one transaction:
     1. select buckets with `count > reported_count`, or `NOT reported_final AND hour <
        date_trunc('hour', now - 1 minute)`;
@@ -644,10 +663,16 @@ finality watermark.
     last one (kept in memory, and recomputed from the latest outbox row at start).
   - `PruneUsage(ctx, now)` deletes `hour < now - 40 days`.
   - Payload types in `internal/devices/types.go`.
-- [ ] T054 [US3] `services/runtime/internal/app/application.go`: a 60-second ticker
+
+  As built (PR 6): `reported_count` is raised to the count that was read, with
+  `GREATEST`, and the buckets are not locked, so ingestion never waits on the reporter;
+  a count that grows meanwhile is sent on the next tick.
+- [X] T054 [US3] `services/runtime/internal/app/application.go`: a 60-second ticker
   calling `ReportUsage` beside the heartbeat, with logged errors and a retry on the
   next tick. `PruneUsage` joins the 24-hour maintenance.
-- [ ] T055 [P] [US3] `services/runtime/internal/storage/usage_integration_test.go`:
+
+  As built (PR 6): every twelfth tick of the existing 5-second maintenance loop.
+- [X] T055 [P] [US3] `services/runtime/internal/storage/usage_integration_test.go`:
   - a message with 5 readings counts 5;
   - redelivering the same telemetry UUID counts 0 more;
   - a content-match duplicate under a new UUID counts 0;
@@ -657,19 +682,34 @@ finality watermark.
     unchanged bucket, and advances `final_through`;
   - `contractstest.AssertProduced` validates the event;
   - pruning works.
-- [ ] T056 [P] [US3] A load check: `tooling/` simulator at the tested rate before and
+
+  As built (PR 6): the tests read only their own organization's buckets from the
+  events, because the reporter covers every organization in the shared database
+  (gotchas). `historyStore`'s cleanup deletes usage buckets too.
+- [X] T056 [P] [US3] A load check: `tooling/` simulator at the tested rate before and
   after the change, with ingestion-to-history latency within 5% (029 SC-004). Record
   the numbers in the pull request.
 
+  As built (PR 6): measured on the storing transaction instead, with
+  `BenchmarkPersistResult` (a ten-reading message, `persist_bench_integration_test.go`)
+  against one TimescaleDB, six runs each: median 7.71 ms per message on main and
+  7.95 ms with counting, +3.0%. The simulator's Python dependencies were not installed
+  on the machine that built this, so no end-to-end simulator run was made.
+
 ### Laravel
 
-- [ ] T057 [US3] Migration `2026_11_13_000000_create_data_point_buckets.php`:
+- [X] T057 [US3] Migration `2026_11_13_000000_create_data_point_buckets.php`:
   `billing_data_point_buckets` (pk `(organization_uuid, hour)`, `count`,
   `billing_account_id` nullable FK, `updated_at`) and `billing_usage_watermarks` (pk
   `source` string(16), `final_through`, `reported_at`). Add the buckets table to
   `OrganizationDeletion::KEPT` (it has no organization FK, only the uuid).
   `billing:prune` also deletes buckets older than 13 months.
-- [ ] T058 [US3] `apps/api/app/Domain/Billing/Services/DataPointReports.php::apply(array
+
+  As built (PR 6): `2026_11_08_100000_create_data_point_buckets.php`. The buckets table
+  is not in `KEPT`: `KEPT` lists tables whose organization key sets null, and the
+  inventory test fails for a table with no such key. Deleting an organization leaves
+  its buckets anyway.
+- [X] T058 [US3] `apps/api/app/Domain/Billing/Services/DataPointReports.php::apply(array
   $payload)`:
   1. reject `schema_version !== 1` as a permanent failure;
   2. for each bucket, `insertOrIgnore` and then `lockForUpdate`;
@@ -679,13 +719,23 @@ finality watermark.
   4. if the reported count is above the stored one, `Usage::add(account,
      organization, DataPoints, hour, increase)` and raise the stored count;
   5. `final_through = greatest(stored, reported)`, and `reported_at = now()`.
-- [ ] T059 [US3] `RuntimeController.php`: add `usage.data_points.v1` to the
+
+  As built (PR 6): a version other than 1 or a malformed payload is a 422 for that
+  event, which the batch answers on its own and the runtime dead-letters. An hour no
+  assignment covers falls back to the organization's account now.
+- [X] T059 [US3] `RuntimeController.php`: add `usage.data_points.v1` to the
   `eventRules()` allow-list (line 138), and a branch in `apply()` before the device
   lookup that calls `DataPointReports::apply`.
-- [ ] T060 [US3] Usage responses for `data_points` carry `final` (watermark ≥ month
+
+  As built (PR 6): as written.
+- [X] T060 [US3] Usage responses for `data_points` carry `final` (watermark ≥ month
   end) and `reported_at`. When `reported_at` is older than
   `config('billing.usage_report_stale_seconds')`, the response says so (029 FR-014).
-- [ ] T061 [P] [US3] `apps/api/tests/Feature/Domain/Billing/DataPointReportsTest.php`:
+
+  As built (PR 6): `stale: true` for an open month not reported for longer than
+  `BILLING_USAGE_REPORT_STALE_SECONDS` (default 300, now in `config/billing.php`), or
+  never reported; a final month is never stale. Managers get the same three fields.
+- [X] T061 [P] [US3] `apps/api/tests/Feature/Domain/Billing/DataPointReportsTest.php`:
   - the fixture is accepted (consumer contract assertion);
   - a replayed event changes nothing; a lower count is ignored; out-of-order events
     end at the highest count;
@@ -695,12 +745,27 @@ finality watermark.
   - version 2 fails permanently;
   - an unknown organization is not counted;
   - an end-to-end batch through `events/batch` with other event types.
-- [ ] T062 Docs: `docs/reference/events.md` (`usage.data_points.v1`),
+
+  As built (PR 6): the fixture's organization exists, so its counts are checked too;
+  the finality test also covers `final` and `stale` in the usage response.
+- [X] T062 Docs: `docs/reference/events.md` (`usage.data_points.v1`),
   `docs/features/billing.md` (data points, finality), `docs/features/devices.md`
   (counted readings). Contract export and api-client (`final`, `reported_at`).
-- [ ] T063 Verify: `go test -count=1 -p 1 ./...` with `DEVICE_TEST_DATABASE_URL`,
+
+  As built (PR 6): `UsageKind` gains `data_points`, and `Usage` and `OrganizationUsage`
+  gain `final`, `reported_at` and `stale`. `docs/dev/gotchas.md` notes the reporter's
+  shared-database trap.
+- [X] T063 Verify: `go test -count=1 -p 1 ./...` with `DEVICE_TEST_DATABASE_URL`,
   `python3 tooling/verify-devices-contracts.py`, PHP tests. Rebuild `runtime` and
   `api`, then run quickstart section 3 steps 2–3 including the ten-minute `api` stop.
+
+  As built (PR 6): the Go suite, the contract check and both PHP suites pass. The
+  runtime and API family were rebuilt; live simulator readings were counted exactly (the
+  runtime's bucket matched the rows stored since its restart, 66 and 66), and the API
+  held exactly what the runtime last reported. With `api` stopped for four minutes, not
+  ten, the reports waited in the runtime and the API caught up to the same count (234)
+  within half a minute of starting. The usage response showed `final: false`,
+  `reported_at` and `stale: false`, and October as final.
 
 ---
 

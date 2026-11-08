@@ -50,6 +50,11 @@ Things that have cost time before. Add to this list when something surprises you
   deactivation is accepted, so the device limit and `lifecycle = 'active'` can
   disagree for a few seconds. Count places, never `lifecycle`, for the limit
   ([billing](../features/billing.md#device-limit)).
+- **The runtime's usage reporter covers every organization.** `Store.ReportUsage`
+  reads all of `device_runtime.usage_data_points`, and the storage integration tests
+  share one database, so a test's report also carries buckets other tests left behind.
+  `usage_integration_test.go` keeps only its own organization's buckets when it reads
+  the events, and `historyStore`'s cleanup deletes the organization's buckets.
 - **A test that forks must not let the child close the parent's connection.** A
   `pcntl_fork` child inherits the parent's open database sockets; its exit runs PDO's
   destructor, which ends the parent's session mid-test. The `ForksProcesses` test trait

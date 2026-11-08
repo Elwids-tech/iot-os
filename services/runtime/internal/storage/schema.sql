@@ -143,6 +143,15 @@ CREATE TABLE IF NOT EXISTS device_runtime.connectivity (
  open boolean NOT NULL DEFAULT false, offline_since timestamptz, opened_at timestamptz, cause text,
  affected_device_uuids jsonb NOT NULL DEFAULT '[]', updated_at timestamptz NOT NULL DEFAULT now()
 );
+-- Data point usage (spec 029 US3, ADR-036): readings stored per organization and UTC
+-- hour, counted in PersistResult's transaction. The reporter (Store.ReportUsage) sends
+-- cumulative counts and records what it sent; rows are pruned after 40 days.
+CREATE TABLE IF NOT EXISTS device_runtime.usage_data_points (
+ organization_uuid uuid NOT NULL, hour timestamptz NOT NULL,
+ count bigint NOT NULL DEFAULT 0, reported_count bigint NOT NULL DEFAULT 0,
+ reported_final boolean NOT NULL DEFAULT false,
+ PRIMARY KEY (organization_uuid, hour)
+);
 -- Retention and ledger pruning (Store.cleanup, Store.PruneLedgers).
 CREATE INDEX IF NOT EXISTS telemetry_outbox_retention ON device_runtime.telemetry_outbox(organization_uuid,created_at) WHERE published_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS runtime_outbox_published ON device_runtime.outbox(published_at) WHERE published_at IS NOT NULL;

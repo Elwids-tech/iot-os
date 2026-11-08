@@ -16,6 +16,11 @@ use Carbon\CarbonImmutable;
  * Devices are a level (spec 029 US2): `count` is the devices holding a place now, or the
  * month's peak for an earlier month; `peak` is the month's highest count; they have no
  * overage, and an account can be over its limit after the limit was lowered.
+ *
+ * Data points come from the runtime's reports (spec 029 US3, FR-014): `final` says the
+ * runtime has reported the whole month, `reportedAt` when it last reported, and `stale`
+ * that a month still open has not been reported for longer than
+ * `billing.usage_report_stale_seconds`. They are null for the other kinds.
  */
 final readonly class MonthlyUsage
 {
@@ -30,6 +35,9 @@ final readonly class MonthlyUsage
         public int $overage,
         public ?array $organizations = null,
         public ?int $peak = null,
+        public ?bool $final = null,
+        public ?CarbonImmutable $reportedAt = null,
+        public ?bool $stale = null,
     ) {}
 
     /** What is left of the allowance this month: null when unlimited, 0 once used up. */
