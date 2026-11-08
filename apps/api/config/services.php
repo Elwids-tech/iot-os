@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Spec 011's SMS provider. Billing hides SMS allowances from customers without it (spec 028).
+    'twilio' => [
+        'account_sid' => env('TWILIO_ACCOUNT_SID'),
+        'from' => env('TWILIO_FROM'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

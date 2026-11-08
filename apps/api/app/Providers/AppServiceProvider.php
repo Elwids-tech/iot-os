@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
+use App\Domain\Billing\Contracts\SmsAllowance;
+use App\Domain\Billing\Services\Usage;
 use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\DeviceProfiles\Services\UnitCatalogue;
 use App\Domain\Shared\Models\User;
@@ -29,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
         // Memoizes published artifacts for one request or queued job.
         $this->app->scoped(PublishedParameters::class);
         $this->app->singleton(UnitCatalogue::class);
+        // Spec 011's SMS sender reserves parts in the billing account's allowance (spec 028).
+        $this->app->bind(SmsAllowance::class, Usage::class);
     }
 
     /**

@@ -1,6 +1,6 @@
 /**
  * Billing accounts (spec 023, ADR-026): the payer of record for one or more organizations.
- * Plans and allowances (specs 028 and 029, ADR-035).
+ * Plans, allowances and usage (specs 028 and 029, ADR-035).
  */
 
 /** What a plan can limit. */
@@ -24,6 +24,40 @@ export type Allowance = {
   value: number | null
   source: "override" | "plan" | "default"
   note: string | null
+}
+
+/** The monthly allowances counted so far. */
+export type UsageKind = "alerts" | "sms"
+
+/**
+ * A billing account's usage of one allowance in one UTC month. `allowance` is the
+ * account's allowance now (null when unlimited) and `left` follows from it, 0 once used
+ * up. `overage` was fixed as each unit was counted. `organizations` is each
+ * organization's share, deleted and moved-away ones included under the name they had.
+ */
+export type Usage = {
+  kind: UsageKind
+  /** The first day of the UTC month, `YYYY-MM-DD`. */
+  month: string
+  count: number
+  allowance: number | null
+  left: number | null
+  overage: number
+  organizations: { organization_uuid: string; name: string; count: number }[]
+}
+
+/**
+ * One allowance this month as a manager of the organization sees it: the organization's
+ * own `count`, and the billing account's `allowance`, `left` and `overage`. It never
+ * names the account or its other organizations.
+ */
+export type OrganizationUsage = {
+  kind: UsageKind
+  month: string
+  count: number
+  allowance: number | null
+  left: number | null
+  overage: number
 }
 
 /** A plan in the platform administrators' list. */
@@ -143,6 +177,8 @@ export type BillingAccountDetail = {
   created_at: string | null
   plan_assignment: PlanAssignment | null
   allowances: Allowance[]
+  /** This month's usage, with each organization's share. */
+  usage: Usage[]
   owners: BillingAccountOwner[]
   organizations: BillingAccountOrganization[]
   history: BillingAccountHistoryEntry[]
@@ -155,7 +191,10 @@ export type BillingAccountValues = {
   notes?: string | null
 }
 
-/** A billing account as its owner sees it in the portal. */
+/**
+ * A billing account as its owner sees it in the portal. Without an SMS provider on the
+ * deployment, `allowances` and `usage` leave SMS out.
+ */
 export type OwnedBillingAccount = {
   uuid: string
   name: string
@@ -163,6 +202,10 @@ export type OwnedBillingAccount = {
   organization_limit: number | null
   organizations_count: number
   organizations: { uuid: string; name: string; created_at: string | null; member: boolean }[]
+  plan: { uuid: string; name: string } | null
+  allowances: Allowance[]
+  /** This month's usage, with each organization's share. */
+  usage: Usage[]
 }
 
 /** The organization an owner just created; reload the session for its capabilities. */

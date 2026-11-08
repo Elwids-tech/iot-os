@@ -42,7 +42,16 @@ Things that have cost time before. Add to this list when something surprises you
   reruns an old migration's `down()` and `up()` (as `BillingAccountBackfillTest`
   does for spec 023) must first roll back the later migrations whose foreign keys
   point at its tables, then reapply them. SQLite drops the table anyway, so only the
-  PostgreSQL job fails.
+  PostgreSQL job fails. The billing usage migration points at billing accounts and
+  plan assignments, so tests rerunning those roll it back first.
+- **A test that forks must not let the child close the parent's connection.** A
+  `pcntl_fork` child inherits the parent's open database sockets; its exit runs PDO's
+  destructor, which ends the parent's session mid-test. `SmsAllowanceTest` gives each
+  child a connection of its own (`DB::setDefaultConnection` to a new name, never
+  `DB::purge()` of an inherited one), writes its result to a file and ends with
+  `posix_kill(getmypid(), SIGKILL)`. The rows the children read must be committed
+  through another connection, since `RefreshDatabase` keeps the default one in a
+  transaction they cannot see.
 - **On SQLite, changing a column rebuilds the table, and the rebuild clears
   set-null keys that point at it.** Inside a migration's transaction foreign keys stay
   on, so dropping the old table fires `ON DELETE SET NULL` in every child table.

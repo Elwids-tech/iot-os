@@ -30,6 +30,19 @@ enum AllowanceKind: string
         return in_array($this, [self::Alerts, self::Sms, self::DataPoints], true);
     }
 
+    /** How emails name the allowance. */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Alerts => 'alert allowance',
+            self::Sms => 'SMS allowance',
+            self::Devices => 'device limit',
+            self::DataPoints => 'data point allowance',
+            self::RetentionDays => 'retention period',
+            self::Organizations => 'organization limit',
+        };
+    }
+
     public function minimum(): int
     {
         return $this === self::RetentionDays ? 1 : 0;

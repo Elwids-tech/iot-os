@@ -1,0 +1,344 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Billing\Services;
+
+use App\Domain\Billing\Contracts\SmsAllowance;
+use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use stdClass;
+
+/**
+ * Exact monthly usage per billing account, with each organization's share (spec 028
+ * US3 and US4, research R5, ADR-035). Every write locks the account's row for the kind
+ * and month, so concurrent counts serialize. Overage, the part beyond the allowance at
+ * that moment, is fixed when counted and recorded against the plan assignment in force:
+ * a later allowance change only moves what is left. Counting never stops an alert; SMS
+ * is reserved instead, and refused once it no longer fits.
+ */
+final class Usage implements SmsAllowance
+{
+    /** The monthly kinds counted so far, in display order. Data points join with their reports. */
+    public const COUNTED = [AllowanceKind::Alerts, AllowanceKind::Sms];
+
+    public function __construct(
+        private readonly Allowances $allowances,
+        private readonly PlanAssignments $assignments,
+        private readonly UsageThresholds $thresholds,
+    ) {}
+
+    /**
+     * Counts `$quantity` in the UTC month of `$at`, recording what goes past the allowance
+     * as overage. Threshold emails are checked once the caller's transaction commits.
+     *
+     * @return array{count: int, overage: int} the account's totals for the month after it
+     */
+    public function add(BillingAccount $account, ?Organization $organization, AllowanceKind $kind, CarbonImmutable $at, int $quantity): array
+    {
+        self::assertCounted($kind, $quantity);
+        $month = self::monthOf($at);
+
+        [$count, $overage, $allowance] = DB::transaction(function () use ($account, $organization, $kind, $at, $quantity, $month): array {
+            $totals = $this->lock($account, $kind, $month);
+            $allowance = $this->allowances->value($account->withoutRelations(), $kind);
+            $count = (int) $totals->count + $quantity;
+            $delta = $allowance === null ? 0 : max(0, min($quantity, $count - $allowance));
+            $overage = (int) $totals->overage + $delta;
+
+            $this->write($account, $organization, $kind, $month, $count, $overage, $quantity);
+
+            if ($delta > 0) {
+                $this->recordOverage($account, $kind, $month, $this->assignments->at($account, $at)?->getKey(), $delta);
+            }
+
+            return [$count, $overage, $allowance];
+        });
+
+        DB::afterCommit(fn () => $this->thresholds->check($account, $kind, $month, $count, $allowance));
+
+        return ['count' => $count, 'overage' => $overage];
+    }
+
+    public function reserve(BillingAccount $account, Organization $organization, int $parts, CarbonImmutable $at): bool
+    {
+        self::assertCounted(AllowanceKind::Sms, $parts);
+        $month = self::monthOf($at);
+
+        $reserved = DB::transaction(function () use ($account, $organization, $parts, $month): ?array {
+            $totals = $this->lock($account, AllowanceKind::Sms, $month);
+            $allowance = $this->allowances->value($account->withoutRelations(), AllowanceKind::Sms);
+            $count = (int) $totals->count + $parts;
+
+            if ($allowance !== null && $count > $allowance) {
+                return null;
+            }
+
+            $this->write($account, $organization, AllowanceKind::Sms, $month, $count, (int) $totals->overage, $parts);
+
+            return [$count, $allowance];
+        });
+
+        if ($reserved === null) {
+            return false;
+        }
+
+        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Sms, $month, $reserved[0], $reserved[1]));
+
+        return true;
+    }
+
+    public function release(BillingAccount $account, Organization $organization, int $parts, CarbonImmutable $reservedAt): void
+    {
+        self::assertCounted(AllowanceKind::Sms, $parts);
+        $month = self::monthOf($reservedAt);
+
+        DB::transaction(function () use ($account, $organization, $parts, $month): void {
+            $totals = DB::table('billing_usage')->where(self::key($account, AllowanceKind::Sms, $month))->lockForUpdate()->first();
+
+            if ($totals === null) {
+                return;
+            }
+
+            $this->write($account, $organization, AllowanceKind::Sms, $month, max(0, (int) $totals->count - $parts), (int) $totals->overage, -$parts);
+        });
+    }
+
+    /**
+     * The account's usage of each counted kind in a month, with each organization's share.
+     *
+     * @return list<MonthlyUsage>
+     */
+    public function forAccount(BillingAccount $account, CarbonImmutable $month, bool $withSms = true): array
+    {
+        $kinds = self::kinds($withSms);
+        $start = self::monthOf($month);
+        $totals = DB::table('billing_usage')
+            ->where('billing_account_id', $account->getKey())
+            ->where('month', $start)
+            ->whereIn('kind', self::values($kinds))
+            ->get()
+            ->keyBy('kind');
+        $shares = DB::table('billing_usage_shares')
+            ->where('billing_account_id', $account->getKey())
+            ->where('month', $start)
+            ->whereIn('kind', self::values($kinds))
+            ->orderBy('organization_name')
+            ->orderBy('organization_uuid')
+            ->get()
+            ->groupBy('kind');
+        $allowances = $this->allowances->all($account);
+
+        return array_map(fn (AllowanceKind $kind): MonthlyUsage => new MonthlyUsage(
+            $kind,
+            CarbonImmutable::parse($start, 'UTC'),
+            (int) ($totals->get($kind->value)->count ?? 0),
+            $allowances[$kind->value]->value,
+            (int) ($totals->get($kind->value)->overage ?? 0),
+            ($shares->get($kind->value) ?? collect())
+                ->map(fn (stdClass $share): array => [
+                    'organization_uuid' => (string) $share->organization_uuid,
+                    'name' => (string) $share->organization_name,
+                    'count' => (int) $share->count,
+                ])
+                ->values()
+                ->all(),
+        ), $kinds);
+    }
+
+    /**
+     * What a manager of the organization sees (spec 028 FR-022): its own count, and the
+     * allowance, what is left and the overage of its billing account, without the
+     * account's other organizations.
+     *
+     * @return list<OrganizationUsage>
+     */
+    public function forOrganization(Organization $organization, CarbonImmutable $month, bool $withSms = true): array
+    {
+        $account = $organization->billingAccount;
+
+        if ($account === null) {
+            return [];
+        }
+
+        $start = self::monthOf($month);
+        $counts = DB::table('billing_usage_shares')
+            ->where('billing_account_id', $account->getKey())
+            ->where('organization_uuid', $organization->uuid)
+            ->where('month', $start)
+            ->pluck('count', 'kind');
+
+        return array_map(
+            fn (MonthlyUsage $usage): OrganizationUsage => new OrganizationUsage(
+                (int) ($counts[$usage->kind->value] ?? 0),
+                new MonthlyUsage($usage->kind, $usage->month, $usage->count, $usage->allowance, $usage->overage),
+            ),
+            $this->forAccount($account, $month, $withSms),
+        );
+    }
+
+    /**
+     * Narrows a billing account query to accounts that have used at least `$percent` of
+     * a limited allowance in the month of `$at` (spec 028 FR-020, spec 029 FR-026). The
+     * allowance is resolved in SQL as `Allowances` does: override, plan, default.
+     *
+     * @param  Builder<BillingAccount>  $query
+     * @return Builder<BillingAccount>
+     */
+    public function whereUsageAtLeast(Builder $query, int $percent, CarbonImmutable $at): Builder
+    {
+        $defaults = (array) config('billing.defaults');
+        $default = 'CASE billing_usage.kind';
+
+        foreach (self::COUNTED as $kind) {
+            $value = $defaults[$kind->value] ?? null;
+            $default .= sprintf(" WHEN '%s' THEN CAST(%s AS BIGINT)", $kind->value, $value === null ? 'NULL' : (int) $value);
+        }
+
+        $allowance = 'CASE WHEN billing_allowance_overrides.kind IS NOT NULL THEN billing_allowance_overrides.value'
+            .' WHEN billing_plan_allowances.kind IS NOT NULL THEN billing_plan_allowances.value'
+            ." ELSE {$default} END END";
+
+        return $query->whereExists(fn ($usage) => $usage->selectRaw('1')
+            ->from('billing_usage')
+            ->leftJoin('billing_allowance_overrides', fn (JoinClause $join) => $join
+                ->on('billing_allowance_overrides.billing_account_id', '=', 'billing_usage.billing_account_id')
+                ->on('billing_allowance_overrides.kind', '=', 'billing_usage.kind'))
+            ->leftJoin('billing_plan_assignments', fn (JoinClause $join) => $join
+                ->on('billing_plan_assignments.billing_account_id', '=', 'billing_usage.billing_account_id')
+                ->whereNull('billing_plan_assignments.ended_at'))
+            ->leftJoin('billing_plan_allowances', fn (JoinClause $join) => $join
+                ->on('billing_plan_allowances.billing_plan_id', '=', 'billing_plan_assignments.billing_plan_id')
+                ->on('billing_plan_allowances.kind', '=', 'billing_usage.kind'))
+            ->whereColumn('billing_usage.billing_account_id', 'billing_accounts.id')
+            ->where('billing_usage.month', self::monthOf($at))
+            ->whereIn('billing_usage.kind', self::values(self::COUNTED))
+            ->where('billing_usage.count', '>', 0)
+            ->whereRaw("({$allowance}) IS NOT NULL")
+            // count >= ceil(allowance × percent / 100), in whole numbers.
+            ->whereRaw("billing_usage.count * 100 >= ? * ({$allowance})", [$percent]));
+    }
+
+    /**
+     * Whether the deployment can send SMS (spec 011: a Twilio account and a sender). Without
+     * it, owners and managers see no SMS allowance or usage (spec 028 edge case "SMS not
+     * configured"); platform administrators still do.
+     */
+    public static function smsAvailable(): bool
+    {
+        return filled(config('services.twilio.account_sid')) && filled(config('services.twilio.from'));
+    }
+
+    /** The first day of the UTC month `$at` falls in, as stored. */
+    public static function monthOf(CarbonImmutable $at): string
+    {
+        return $at->utc()->startOfMonth()->toDateString();
+    }
+
+    /**
+     * Inserts the month's row if needed, then locks it.
+     */
+    private function lock(BillingAccount $account, AllowanceKind $kind, string $month): stdClass
+    {
+        $key = self::key($account, $kind, $month);
+        DB::table('billing_usage')->insertOrIgnore([...$key, 'count' => 0, 'overage' => 0, 'updated_at' => now()]);
+
+        /** @var stdClass */
+        return DB::table('billing_usage')->where($key)->lockForUpdate()->first();
+    }
+
+    /**
+     * Writes the totals and moves the organization's share by `$shareDelta`. Shares are
+     * only written under the totals lock, so they need no lock of their own.
+     */
+    private function write(BillingAccount $account, ?Organization $organization, AllowanceKind $kind, string $month, int $count, int $overage, int $shareDelta): void
+    {
+        DB::table('billing_usage')
+            ->where(self::key($account, $kind, $month))
+            ->update(['count' => $count, 'overage' => $overage, 'updated_at' => now()]);
+
+        if ($organization === null) {
+            return;
+        }
+
+        $key = [...self::key($account, $kind, $month), 'organization_uuid' => $organization->uuid];
+        $share = DB::table('billing_usage_shares')->where($key)->value('count');
+
+        if ($share === null) {
+            if ($shareDelta > 0) {
+                DB::table('billing_usage_shares')->insert([
+                    ...$key,
+                    'organization_id' => $organization->getKey(),
+                    'organization_name' => $organization->name,
+                    'count' => $shareDelta,
+                ]);
+            }
+
+            return;
+        }
+
+        DB::table('billing_usage_shares')->where($key)->update([
+            'organization_id' => $organization->getKey(),
+            'organization_name' => $organization->name,
+            'count' => max(0, (int) $share + $shareDelta),
+        ]);
+    }
+
+    private function recordOverage(BillingAccount $account, AllowanceKind $kind, string $month, ?int $assignmentId, int $quantity): void
+    {
+        $updated = DB::table('billing_overage')
+            ->where(self::key($account, $kind, $month))
+            ->when(
+                $assignmentId === null,
+                fn ($query) => $query->whereNull('plan_assignment_id'),
+                fn ($query) => $query->where('plan_assignment_id', $assignmentId),
+            )
+            ->increment('quantity', $quantity);
+
+        if ($updated === 0) {
+            DB::table('billing_overage')->insert([
+                ...self::key($account, $kind, $month),
+                'plan_assignment_id' => $assignmentId,
+                'quantity' => $quantity,
+            ]);
+        }
+    }
+
+    /**
+     * @return array{billing_account_id: int, kind: string, month: string}
+     */
+    private static function key(BillingAccount $account, AllowanceKind $kind, string $month): array
+    {
+        return ['billing_account_id' => (int) $account->getKey(), 'kind' => $kind->value, 'month' => $month];
+    }
+
+    private static function assertCounted(AllowanceKind $kind, int $quantity): void
+    {
+        if (! $kind->isMonthly() || $quantity < 1) {
+            throw new InvalidArgumentException(sprintf('Usage counts a positive quantity of a monthly kind, not %d %s.', $quantity, $kind->value));
+        }
+    }
+
+    /**
+     * @return list<AllowanceKind>
+     */
+    private static function kinds(bool $withSms): array
+    {
+        return array_values(array_filter(self::COUNTED, fn (AllowanceKind $kind): bool => $withSms || $kind !== AllowanceKind::Sms));
+    }
+
+    /**
+     * @param  list<AllowanceKind>  $kinds
+     * @return list<string>
+     */
+    private static function values(array $kinds): array
+    {
+        return array_map(fn (AllowanceKind $kind): string => $kind->value, $kinds);
+    }
+}

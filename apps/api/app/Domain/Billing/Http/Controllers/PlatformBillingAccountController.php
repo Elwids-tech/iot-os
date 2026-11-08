@@ -11,6 +11,8 @@ use App\Domain\Billing\Http\Resources\BillingAccountDetailResource;
 use App\Domain\Billing\Http\Resources\BillingAccountResource;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\BillingAccounts;
+use App\Domain\Billing\Services\Usage;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,13 +24,18 @@ use Illuminate\Support\Facades\Gate;
  */
 final class PlatformBillingAccountController
 {
-    public function __construct(private readonly BillingAccounts $billingAccounts) {}
+    public function __construct(private readonly BillingAccounts $billingAccounts, private readonly Usage $usage) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+        $request->validate([
+            // Accounts that have used at least this percentage of a limited allowance this month.
+            'usage_at_least' => ['nullable', 'integer', 'between:1,100'],
+        ]);
 
         $search = trim((string) $request->query('search', ''));
+        $usageAtLeast = $request->filled('usage_at_least') ? $request->integer('usage_at_least') : null;
         $plan = trim((string) $request->query('plan', ''));
         $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
 
@@ -45,6 +52,8 @@ final class PlatformBillingAccountController
                 'openPlanAssignment.plan',
                 fn ($query) => $query->where('uuid', $plan),
             ))
+            // Spec 028 FR-020, spec 029 FR-026; `usage_at_least=80` is the list's filter.
+            ->when($usageAtLeast !== null, fn ($query) => $this->usage->whereUsageAtLeast($query, (int) $usageAtLeast, CarbonImmutable::now()))
             ->withCount('organizations')
             ->with(['owners' => fn ($query) => $query->orderBy('name'), 'openPlanAssignment.plan.allowances', 'allowanceOverrides'])
             ->orderBy('name')
