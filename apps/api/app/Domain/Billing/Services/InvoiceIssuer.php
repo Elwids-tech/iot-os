@@ -36,6 +36,14 @@ final class InvoiceIssuer
         $issued = DB::transaction(function () use ($invoice, $actor): Invoice {
             $locked = Invoice::query()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
             abort_if($locked->isIssued(), 409, sprintf('Invoice %s is already issued.', $locked->number));
+            // A draft of the running month is a preview: issued now, it would charge days to
+            // come and leave the rest of the month's overage off every invoice (FR-031).
+            $ends = $locked->month->addMonthNoOverflow();
+            abort_if($ends->greaterThan(now()), 409, sprintf(
+                '%s has not ended. Its draft is a preview; issue it from %s.',
+                $locked->month->format('F Y'),
+                $ends->format('j F Y'),
+            ));
             // The account row serializes its credit: two issues cannot spend it twice.
             $account = BillingAccount::withTrashed()->whereKey($locked->billing_account_id)->lockForUpdate()->firstOrFail();
 

@@ -59,13 +59,16 @@ final class OwnedInvoiceController
 
     public function creditNotePdf(Request $request, string $billingAccount, string $creditNote): Response
     {
-        $account = $this->account($request, $billingAccount);
-        $note = CreditNote::query()
-            ->where('uuid', $creditNote)
-            ->whereHas('invoice', fn ($query) => $query->where('billing_account_id', $account->getKey()))
-            ->firstOrFail();
+        $note = $this->creditNote($request, $billingAccount, $creditNote);
 
         return PlatformInvoiceController::download($this->documents->creditNote($note), $note->number.'.pdf', 'application/pdf');
+    }
+
+    public function creditNoteCsv(Request $request, string $billingAccount, string $creditNote): Response
+    {
+        $note = $this->creditNote($request, $billingAccount, $creditNote);
+
+        return PlatformInvoiceController::download($this->documents->creditNoteCsv($note), $note->number.'.csv', 'text/csv; charset=utf-8');
     }
 
     private function account(Request $request, string $uuid): BillingAccount
@@ -77,6 +80,16 @@ final class OwnedInvoiceController
         abort_if($account === null, 404);
 
         return $account;
+    }
+
+    private function creditNote(Request $request, string $billingAccount, string $creditNote): CreditNote
+    {
+        $account = $this->account($request, $billingAccount);
+
+        return CreditNote::query()
+            ->where('uuid', $creditNote)
+            ->whereHas('invoice', fn ($query) => $query->where('billing_account_id', $account->getKey()))
+            ->firstOrFail();
     }
 
     private function invoice(Request $request, string $billingAccount, string $invoice): Invoice

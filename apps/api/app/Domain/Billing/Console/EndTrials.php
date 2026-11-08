@@ -17,6 +17,8 @@ use Illuminate\Console\Command;
  * owners of trials ending within 7 days and within 1 day (FR-049, SC-008). Each reminder
  * goes once per trial and end date, so extending a trial reminds again before its new
  * end, and a trial started with less than 7 days left gets only the reminders still due.
+ * It runs hourly, so a trial that ended while the control plane was down ends, and its
+ * owners are emailed, within the hour after it is back.
  */
 final class EndTrials extends Command
 {

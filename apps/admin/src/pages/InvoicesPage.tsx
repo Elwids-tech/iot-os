@@ -38,7 +38,7 @@ const loaders: Record<Exclude<Tab, "waiting">, (query: DirectoryQuery) => Return
 
 const empty: Record<Tab, { title: string; description: string }> = {
   drafts: { title: "No drafts to review", description: "Last month's invoices are drafted once its usage is final." },
-  waiting: { title: "Nothing is waiting", description: "Every account with a plan last month has its usage in." },
+  waiting: { title: "Nothing is waiting", description: "Every ended month has its usage in." },
   issued: { title: "No issued invoices yet", description: "Review a draft and issue it to number and send it." },
   unpaid: { title: "Nothing unpaid", description: "Every issued invoice is paid or credited." },
 }
@@ -120,7 +120,7 @@ function WaitingList({ waiting, failed, onDraft }: { waiting: WaitingInvoice[] |
       id="admin-invoices-waiting"
       label="Waiting for usage"
       noun={["account", "accounts"]}
-      rowKey={(row) => row.billing_account.uuid}
+      rowKey={(row) => `${row.billing_account.uuid}-${row.month}`}
       rowLabel={(row) => row.billing_account.name}
       columns={columns}
       rows={waiting ?? undefined}

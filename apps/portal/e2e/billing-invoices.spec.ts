@@ -98,6 +98,9 @@ async function setup(page: Page) {
       return json({
         data: {
           ...invoice,
+          usage_incomplete: true,
+          credit_applied: 200,
+          amount_due: 2414,
           draft_note: null,
           tax_rate_name: "Sales tax",
           tax_basis_points: 1500,
@@ -107,6 +110,7 @@ async function setup(page: Page) {
             { id: 1, position: 1, kind: "base_price", description: "Example plan · 9–31 Oct 2026 · 23 of 31 days at $31.00 a month", quantity: 23, unit_price: null, amount: 2300, period_start: "2026-10-09", period_end: "2026-10-31", note: null },
             { id: 2, position: 2, kind: "alert_overage", description: "Alerts over the allowance", quantity: 2, unit_price: 50, amount: 100, period_start: null, period_end: null, note: null },
             { id: 3, position: 3, kind: "adjustment", description: "Credit for the outage", quantity: 1, unit_price: null, amount: -127, period_start: null, period_end: null, note: null },
+            { id: 4, position: 4, kind: "credit", description: "Credit from CN-0000", quantity: 1, unit_price: null, amount: -200, period_start: null, period_end: null, note: null },
           ],
           usage: [{ organization_uuid: org, organization_name: "Corner Shop", kind: "alerts", count: 1002 }],
           credit_notes: [creditNote],
@@ -142,6 +146,9 @@ test("an owner sees the plan's prices, issued invoices and credit notes, and ope
   )
   await expect(page.getByRole("menuitem", { name: "Download CSV" })).toHaveAttribute("href", /\.csv$/)
   await page.keyboard.press("Escape")
+  await page.getByRole("region", { name: "Credit notes" }).getByRole("button", { name: "Actions for CN-0001" }).click()
+  await expect(page.getByRole("menuitem", { name: "Download CSV" })).toHaveAttribute("href", new RegExp(`/credit-notes/${noteUuid}\\.csv$`))
+  await page.keyboard.press("Escape")
 
   await invoices.getByRole("button", { name: "INV-0001", exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`invoice=${invoiceUuid}`))
@@ -150,8 +157,13 @@ test("an owner sees the plan's prices, issued invoices and credit notes, and ope
   await expect(sheet.getByText("2 × $0.50")).toBeVisible()
   await expect(sheet.getByText("Tax · Sales tax 15%")).toBeVisible()
   await expect(sheet.getByText("Credit for the outage")).toBeVisible()
+  await expect(sheet.getByText("Usage may be incomplete")).toBeVisible()
+  // The account credit shows once, as a totals row, not as a line too.
+  await expect(sheet.getByText("Credit from CN-0000")).toHaveCount(1)
+  await expect(sheet.getByRole("term").filter({ hasText: "Credit from CN-0000" })).toBeVisible()
+  await expect(sheet.getByRole("link", { name: "CN-0001 as CSV" })).toHaveAttribute("href", new RegExp(`/credit-notes/${noteUuid}\\.csv$`))
   await expect(sheet.getByRole("link", { name: "PDF" })).toHaveAttribute("href", /\.pdf$/)
-  await expect(sheet.getByRole("link", { name: "CN-0001" })).toHaveAttribute("href", new RegExp(`/credit-notes/${noteUuid}\\.pdf$`))
+  await expect(sheet.getByRole("link", { name: "CN-0001", exact: true })).toHaveAttribute("href", new RegExp(`/credit-notes/${noteUuid}\\.pdf$`))
   const results = await new AxeBuilder({ page }).include('[role="dialog"]').analyze()
   expect(results.violations.map((violation) => violation.id)).toEqual([])
 

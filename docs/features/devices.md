@@ -152,8 +152,8 @@ choose the sources; nothing is onboarded automatically.
    with a generated name, the code `<edge node id>-<device id>` (lowercased, with a
    numeric suffix on a clash), the profile's suggested mappings and an activation
    request. Items read **active** only once the runtime acknowledges their device.
-   **Retry failed** re-queues the failed items; skipped sources do not match the
-   profile and need their own setup.
+   **Retry failed** re-queues the failed items, including those held at the device
+   limit; skipped sources do not match the profile and need their own setup.
 
 Mappings come from the profile's direct Sparkplug bindings when the birth has
 their metric, else from the birth metric named like the parameter's key or label
@@ -162,9 +162,10 @@ A source missing a metric, or announcing a type the parameter cannot take, is
 skipped with the reason (`missing metric flow_rate`, `datatype String for number
 parameter level`) and the rest continue. An item whose source already has a device
 is skipped as `already onboarded`, so repeating a run never creates a second device.
-At the billing account's [device limit](#device-limit), the sources that no longer fit
-are skipped with the limit's message and no device is made for them; the ones before
-them are activated.
+At the billing account's [device limit](#device-limit), the ones that fit are
+activated, and each source beyond the limit stays registered: its device, setup and
+draft are kept without the activation request, and its item fails with the limit's
+message, so **Retry failed** activates the same device once the limit is raised.
 
 The run (`device_bulk_onboardings`, one `device_bulk_onboarding_items` row per
 source) is keyed by the client's `operation_uuid` and a hash of the request: the
@@ -173,7 +174,8 @@ same request returns the same run, a different one is 409. The
 job works through it on the `default` database queue, 50 items per job, claiming
 each item under a row lock. Each item does what a single setup does, in one
 transaction: a gateway-mode setup (`device.onboarding.started` with
-`bulk_run_uuid`), a draft, the compile checks and the activation request. The run
+`bulk_run_uuid`), a draft, the compile checks and the activation request (all but the
+request are kept when the device limit refuses it). The run
 then rolls up to `succeeded`, `partial_failure` or `failed`, and the activity log
 records `device.bulk_onboarding.started`, `.retried` and `.finished`. An activation
 against a live birth asks for no rebirth, and one whose gateway is still announcing
@@ -432,7 +434,9 @@ Retention resolves the organization override, else its billing account's retenti
 in admin (**Settings → Retention**); reductions there require confirmation of the
 deletion cutoff and apply at the next cleanup. A billing change that shortens
 retention instead waits 30 days: until then cleanup keeps the previous period, and
-**Settings → Retention** shows the pending reduction ("7 days from 8 Dec 2026"). Cleanup runs at startup and every 24 hours per organization
+**Settings → Retention** shows the pending reduction ("7 days from 8 Dec 2026"). A
+confirmed shorter override set there during that wait ends it, and applies at the next
+cleanup too. Cleanup runs at startup and every 24 hours per organization
 by receipt time, in bounded batches that work on compressed chunks, and reports
 pending or failed passes in admin. Configuration, command audit and latest state
 are not part of history cleanup. Increasing retention cannot restore deleted data.

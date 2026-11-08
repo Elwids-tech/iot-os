@@ -89,7 +89,7 @@ final class DeviceLimitConcurrencyTest extends TestCase
         }
     }
 
-    public function test_a_bulk_onboarding_run_with_one_place_activates_one_and_skips_the_rest_with_the_reason(): void
+    public function test_a_bulk_onboarding_run_with_one_place_activates_one_keeps_the_rest_registered_and_a_retry_activates_them(): void
     {
         $this->seed(DatabaseSeeder::class);
         $organization = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
@@ -115,12 +115,22 @@ final class DeviceLimitConcurrencyTest extends TestCase
         ])->assertAccepted()->json('data');
         $run = $this->getJson('/api/v1/organizations/'.$organization->uuid.'/bulk-onboardings/'.$run['uuid'])->assertOk()->json('data');
 
-        $this->assertSame(1, $run['counts']['activation_requested']);
-        $this->assertSame(4, $run['counts']['skipped']);
-        $skipped = collect($run['items'])->where('status', 'skipped');
-        $this->assertSame([DeviceLimit::refusal($held + 1)], $skipped->pluck('reason')->unique()->values()->all());
+        $this->assertSame([1, 4, 0], [$run['counts']['activation_requested'], $run['counts']['failed'], $run['counts']['skipped']]);
+        $heldBack = collect($run['items'])->where('status', 'failed');
+        $this->assertSame([DeviceLimit::refusal($held + 1)], $heldBack->pluck('reason')->unique()->values()->all());
         $this->assertSame($held + 1, app(DeviceLimit::class)->count($organization->billingAccount)['total']);
-        // The skipped sources stay discovered, with no device made for them.
-        $this->assertSame(1, Device::where('organization_id', $organization->id)->where('code', 'like', 'line-1-meter-%')->count());
+        // Each source beyond the limit stays registered with its device, not activated (spec 029 edge case).
+        $devices = Device::where('organization_id', $organization->id)->where('code', 'like', 'line-1-meter-%')->get();
+        $this->assertCount(5, $devices);
+        $waiting = $devices->where('lifecycle', 'registered')->whereNull('desired_configuration_uuid');
+        $this->assertSame($heldBack->pluck('device_uuid')->sort()->values()->all(), $waiting->pluck('uuid')->sort()->values()->all());
+
+        // Once the limit is raised, the retry activates the same devices.
+        app(Allowances::class)->override($organization->billingAccount, AllowanceKind::Devices, $held + 5, 'Raised', $admin);
+        $this->postJson('/api/v1/organizations/'.$organization->uuid.'/bulk-onboardings/'.$run['uuid'].'/retry')->assertAccepted();
+        $run = $this->getJson('/api/v1/organizations/'.$organization->uuid.'/bulk-onboardings/'.$run['uuid'])->assertOk()->json('data');
+        $this->assertSame([5, 0], [$run['counts']['activation_requested'], $run['counts']['failed']]);
+        $this->assertSame(5, Device::where('organization_id', $organization->id)->where('code', 'like', 'line-1-meter-%')->count());
+        $this->assertSame($held + 5, app(DeviceLimit::class)->count($organization->billingAccount)['total']);
     }
 }

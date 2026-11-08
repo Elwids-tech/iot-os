@@ -28,6 +28,9 @@ use Stripe\Exception\CardException;
  */
 final class Payments
 {
+    /** How long Stripe's search may take to show a new PaymentIntent. */
+    private const SEARCH_LAG_MINUTES = 10;
+
     public function __construct(
         private readonly Notices $notices,
         private readonly Trials $trials,
@@ -149,17 +152,15 @@ final class Payments
     /**
      * Charges what is still owed on an issued invoice to the saved card, off-session
      * (`ChargeInvoice`): attempt 1 at issue, 2 on the due date, 3 seven days after. The
-     * idempotency key per attempt means a retried job never charges twice. A decline
-     * answers at once and fails the payment.
+     * pending payment is recorded before Stripe is asked, with the attempt's idempotency
+     * key, so a charge whose answer is lost still blocks the next attempt and **Check with
+     * Stripe** finds it; a retried job sends the same request again and Stripe answers
+     * with what it did the first time. A decline answers at once and fails the payment.
      */
     public function charge(Invoice $invoice, int $attempt): ?Payment
     {
-        $invoice->refresh();
         $account = $invoice->billingAccount;
-        $owed = $invoice->outstanding();
-
-        if (! self::enabled() || ! $invoice->isIssued() || $owed <= 0 || $account->pm_type === null
-            || $invoice->payments()->where('status', Payment::PENDING)->exists()) {
+        if (! self::enabled() || $account->pm_type === null) {
             return null;
         }
 
@@ -168,17 +169,42 @@ final class Payments
             return null;
         }
 
+        $payment = DB::transaction(function () use ($invoice, $attempt): ?Payment {
+            $locked = Invoice::query()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
+            $owed = $locked->outstanding();
+            $pending = $locked->payments()->where('status', Payment::PENDING)->first();
+            if ($pending !== null) {
+                // Only this attempt's own charge, with its answer lost, is sent again.
+                return $pending->method === Payment::CARD && $pending->attempt === $attempt && $pending->provider_reference === null ? $pending : null;
+            }
+            if (! $locked->isIssued() || $owed <= 0 || $locked->payments()->where('method', Payment::CARD)->where('attempt', $attempt)->exists()) {
+                return null;
+            }
+
+            return Payment::query()->create([
+                'invoice_id' => $locked->getKey(),
+                'amount' => $owed,
+                'method' => Payment::CARD,
+                'attempt' => $attempt,
+                'status' => Payment::PENDING,
+                'status_at' => now(),
+            ]);
+        });
+        if ($payment === null) {
+            return null;
+        }
+
         try {
             $intent = Cashier::stripe()->paymentIntents->create([
-                'amount' => $owed,
+                'amount' => $payment->amount,
                 'currency' => config('cashier.currency'),
                 'customer' => $account->stripe_id,
                 'payment_method' => $method,
                 'off_session' => true,
                 'confirm' => true,
                 'description' => 'Invoice '.$invoice->number,
-                'metadata' => ['invoice_uuid' => $invoice->uuid, 'method' => Payment::CARD, 'attempt' => $attempt],
-            ], ['idempotency_key' => sprintf('invoice:%s:%d', $invoice->uuid, $attempt)])->toArray();
+                'metadata' => ['invoice_uuid' => $invoice->uuid, 'method' => Payment::CARD, 'attempt' => $attempt, 'payment_uuid' => $payment->uuid],
+            ], ['idempotency_key' => self::idempotencyKey($invoice, $attempt)])->toArray();
         } catch (CardException $exception) {
             $intent = $exception->getJsonBody()['error']['payment_intent'] ?? null;
             if (! is_array($intent)) {
@@ -186,7 +212,15 @@ final class Payments
             }
         }
 
+        $payment->forceFill(['provider_reference' => (string) $intent['id']])->save();
+
         return $this->applyIntent($intent);
+    }
+
+    /** One key per invoice and attempt, so Stripe charges each attempt once. */
+    public static function idempotencyKey(Invoice $invoice, int $attempt): string
+    {
+        return sprintf('invoice:%s:%d', $invoice->uuid, $attempt);
     }
 
     /**
@@ -205,6 +239,11 @@ final class Payments
 
         return DB::transaction(function () use ($intent, $status): ?Payment {
             $payment = Payment::query()->where('provider_reference', (string) $intent['id'])->lockForUpdate()->first();
+            // A charge recorded before Stripe answered carries the payment's uuid.
+            if ($payment === null && is_string($intent['metadata']['payment_uuid'] ?? null)) {
+                $payment = Payment::query()->where('uuid', $intent['metadata']['payment_uuid'])->whereNull('provider_reference')->lockForUpdate()->first();
+                $payment?->forceFill(['provider_reference' => (string) $intent['id']])->save();
+            }
 
             if ($payment === null) {
                 $invoice = Invoice::query()->where('uuid', (string) ($intent['metadata']['invoice_uuid'] ?? ''))->where('status', Invoice::ISSUED)->first();
@@ -262,11 +301,32 @@ final class Payments
         });
     }
 
-    /** Asks Stripe for each pending payment's PaymentIntent and applies what it says. */
+    /**
+     * Asks Stripe for each pending payment's PaymentIntent and applies what it says. A
+     * card charge whose answer was lost is looked up by the payment's uuid; once Stripe's
+     * search has had time to see it, finding none means the card was never charged, and
+     * the payment fails so the invoice can be paid.
+     */
     public function reconcile(Invoice $invoice): void
     {
-        foreach ($invoice->payments()->where('status', Payment::PENDING)->whereNotNull('provider_reference')->get() as $payment) {
-            $this->applyIntent(Cashier::stripe()->paymentIntents->retrieve((string) $payment->provider_reference)->toArray());
+        foreach ($invoice->payments()->where('status', Payment::PENDING)->where('method', '!=', Payment::OUTSIDE)->get() as $payment) {
+            if ($payment->provider_reference !== null) {
+                $this->applyIntent(Cashier::stripe()->paymentIntents->retrieve($payment->provider_reference)->toArray());
+
+                continue;
+            }
+
+            $found = Cashier::stripe()->paymentIntents->search(['query' => sprintf("metadata['payment_uuid']:'%s'", $payment->uuid), 'limit' => 1])->data[0] ?? null;
+            if ($found !== null) {
+                $this->applyIntent($found->toArray());
+            } elseif ($payment->created_at->lessThan(now()->subMinutes(self::SEARCH_LAG_MINUTES))) {
+                DB::transaction(function () use ($payment): void {
+                    $locked = Payment::query()->whereKey($payment->getKey())->whereNull('provider_reference')->lockForUpdate()->first();
+                    if ($locked?->status === Payment::PENDING) {
+                        $this->failed($locked, 'The charge never reached Stripe; the card was not charged.');
+                    }
+                });
+            }
         }
     }
 

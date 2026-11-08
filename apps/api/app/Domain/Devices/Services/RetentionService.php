@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\DB;
  * Telemetry retention per organization: its own override, else its billing account's
  * retention allowance (a plan or account override, spec 029 US4), else the platform
  * default, else `devices.default_retention_days`. After a billing change shortens it,
- * a floor keeps cleanup at the previous period for 30 days (`RetentionGuard`).
+ * a floor keeps cleanup at the previous period for 30 days (`RetentionGuard`); a
+ * confirmed shorter override set here ends that grace.
  */
 final class RetentionService
 {
@@ -114,6 +115,11 @@ final class RetentionService
             $effectiveAfter = $days ?? ($organization ? ($before['billing_days'] ?? $this->effective()['days']) : config('devices.default_retention_days'));
             abort_if($effectiveAfter < $before['days'] && ! $confirmed, 422, 'Confirm the shorter retention period. Older measurements will be permanently deleted during cleanup.');
             $setting->update(['days' => $days, 'revision' => $revision + 1, 'updated_by' => $actor]);
+            // A confirmed direct shortening applies at the next cleanup (spec 029 FR-021): it
+            // ends the grace a billing change gave the organization.
+            if ($organization !== null && $effectiveAfter < $before['days']) {
+                DB::table('telemetry_retention_floors')->where('organization_id', $organization->getKey())->delete();
+            }
             DeviceAudit::record('telemetry.retention.updated', $organization?->id, $actor, $organization?->uuid,
                 ['before_days' => $before['days'], 'after_days' => $effectiveAfter, 'override_days' => $days]);
             DeviceAudit::enqueue('settings.retention.changed.v1', ['scope' => $scope, 'revision' => $revision + 1]);

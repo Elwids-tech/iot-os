@@ -135,22 +135,24 @@ final class InvoiceDrafter
     }
 
     /**
-     * Drafts last month's invoices that are due (`billing:draft-invoices`): every account
-     * with a plan during the month and no invoice for it, once its usage is final.
+     * Drafts the invoices that are due (`billing:draft-invoices`): for each ended month
+     * whose usage is final, every account with a plan during it and no invoice for it. A
+     * month the job missed, or whose usage became final late, is drafted on the next run.
      *
-     * @return int how many were drafted
+     * @return array<string, int> how many were drafted, by month (`YYYY-MM-DD`)
      */
-    public function draftDue(CarbonImmutable $now): int
+    public function draftDue(CarbonImmutable $now): array
     {
-        $month = $now->utc()->startOfMonth()->subMonthNoOverflow();
-        if (! $this->usageFinal($month)) {
-            return 0;
-        }
-
-        $drafted = 0;
-        foreach ($this->dueAccounts($month) as $account) {
-            $this->draft($account, $month, null, null);
-            $drafted++;
+        $drafted = [];
+        foreach ($this->endedMonths($now) as $month) {
+            // Usage is reported in order, so no later month is final either.
+            if (! $this->usageFinal($month)) {
+                break;
+            }
+            foreach ($this->dueAccounts($month) as $account) {
+                $this->draft($account, $month, null, null);
+                $drafted[$month->toDateString()] = ($drafted[$month->toDateString()] ?? 0) + 1;
+            }
         }
 
         return $drafted;
@@ -177,22 +179,50 @@ final class InvoiceDrafter
 
     /**
      * Accounts whose invoice for an ended month waits for final usage, and since when
-     * (the month's end). Empty once usage is final: the daily job drafts them then.
+     * (the month's end): for every ended month, or only the one given. Empty once usage
+     * is final: the daily job drafts them then.
      *
-     * @return list<array{account: BillingAccount, waiting_since: CarbonImmutable}>
+     * @return list<array{account: BillingAccount, month: CarbonImmutable, waiting_since: CarbonImmutable}>
      */
-    public function waiting(CarbonImmutable $month): array
+    public function waiting(?CarbonImmutable $month = null, ?CarbonImmutable $now = null): array
     {
-        $month = $month->utc()->startOfMonth();
-        $end = $month->addMonthNoOverflow();
-        if ($end->greaterThan(CarbonImmutable::now()) || $this->usageFinal($month)) {
+        $now ??= CarbonImmutable::now();
+        $months = $month === null ? $this->endedMonths($now) : [$month->utc()->startOfMonth()];
+
+        $waiting = [];
+        foreach ($months as $item) {
+            $end = $item->addMonthNoOverflow();
+            if ($end->greaterThan($now) || $this->usageFinal($item)) {
+                continue;
+            }
+            foreach ($this->dueAccounts($item) as $account) {
+                $waiting[] = ['account' => $account, 'month' => $item, 'waiting_since' => $end];
+            }
+        }
+
+        return $waiting;
+    }
+
+    /**
+     * Each ended UTC month since the first plan assignment began, oldest first: the
+     * months an invoice can be due for.
+     *
+     * @return list<CarbonImmutable>
+     */
+    public function endedMonths(CarbonImmutable $now): array
+    {
+        $first = PlanAssignment::query()->min('started_at');
+        if ($first === null) {
             return [];
         }
 
-        return $this->dueAccounts($month)
-            ->map(fn (BillingAccount $account): array => ['account' => $account, 'waiting_since' => $end])
-            ->values()
-            ->all();
+        $months = [];
+        $current = $now->utc()->startOfMonth();
+        for ($month = CarbonImmutable::parse((string) $first)->utc()->startOfMonth(); $month->lessThan($current); $month = $month->addMonthNoOverflow()) {
+            $months[] = $month;
+        }
+
+        return $months;
     }
 
     /** The runtime has reported data points up to the month's end (research R9). */

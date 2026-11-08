@@ -5557,6 +5557,67 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing/credit-notes/{creditNote}.csv": {
+      "get": {
+        "operationId": "v1.admin.billing.credit-notes.csv",
+        "tags": [
+          "PlatformInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "creditNote",
+            "in": "path",
+            "required": true,
+            "description": "The credit note UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing/credit-notes/{creditNote}.pdf": {
       "get": {
         "operationId": "v1.admin.billing.credit-notes.pdf",
@@ -5851,7 +5912,7 @@
     "/v1/admin/billing/invoices/waiting": {
       "get": {
         "operationId": "v1.admin.billing.invoices.waiting",
-        "summary": "Accounts whose invoice for an ended month waits for final usage (FR-033)",
+        "summary": "Accounts whose invoice for an ended month waits for final usage (FR-033), for every month or one",
         "tags": [
           "PlatformInvoice"
         ],
@@ -5859,6 +5920,7 @@
           {
             "name": "month",
             "in": "query",
+            "description": "A UTC month as `YYYY-MM`; every ended month when left out.",
             "schema": {
               "type": [
                 "string",
@@ -5869,7 +5931,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Accounts whose invoice for the month waits for final usage; empty once usage is final.",
+            "description": "Accounts whose invoice for an ended month waits for final usage, for every such month or the one asked for; empty once usage is final.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6377,7 +6439,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The invoice is already issued.",
+            "description": "The invoice is already issued, or its month has not ended, so its draft is still a preview (spec 029 FR-031).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9993,6 +10055,73 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/credit-notes/{creditNote}.csv": {
+      "get": {
+        "operationId": "v1.billing-accounts.credit-notes.csv",
+        "tags": [
+          "OwnedInvoice"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "creditNote",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store, private"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         },
         "security": [

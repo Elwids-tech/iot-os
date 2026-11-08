@@ -1268,7 +1268,7 @@ export class ApiClient {
     return this.request<PaginatedResponse<InvoiceSummary>>(`/api/v1/admin/billing/invoices${path}`)
   }
 
-  /** Accounts whose invoice for a month (`YYYY-MM`, last month by default) waits for final usage. */
+  /** Accounts whose invoice for an ended month waits for final usage: every such month, or one (`YYYY-MM`). */
   async waitingInvoices(month?: string): Promise<WaitingInvoice[]> {
     return this.request<ApiResponse<WaitingInvoice[]>>(
       `/api/v1/admin/billing/invoices/waiting${withParameter("", "month", month)}`,
@@ -1334,8 +1334,8 @@ export class ApiClient {
     return `${this.baseUrl}/api/v1/admin/billing/invoices/${encodeURIComponent(invoiceUuid)}.${format}`
   }
 
-  adminCreditNotePdfUrl(creditNoteUuid: string): string {
-    return `${this.baseUrl}/api/v1/admin/billing/credit-notes/${encodeURIComponent(creditNoteUuid)}.pdf`
+  adminCreditNoteDocumentUrl(creditNoteUuid: string, format: "pdf" | "csv"): string {
+    return `${this.baseUrl}/api/v1/admin/billing/credit-notes/${encodeURIComponent(creditNoteUuid)}.${format}`
   }
 
   private async invoiceAction(invoiceUuid: string, action: string, body?: unknown): Promise<InvoiceDetail> {
@@ -1479,8 +1479,8 @@ export class ApiClient {
     return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}.${format}`
   }
 
-  ownedCreditNotePdfUrl(billingAccountUuid: string, creditNoteUuid: string): string {
-    return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/credit-notes/${encodeURIComponent(creditNoteUuid)}.pdf`
+  ownedCreditNoteDocumentUrl(billingAccountUuid: string, creditNoteUuid: string, format: "pdf" | "csv"): string {
+    return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/credit-notes/${encodeURIComponent(creditNoteUuid)}.${format}`
   }
 
   async adminOrganizationDeletion(organizationUuid: string): Promise<OrganizationDeletion> {

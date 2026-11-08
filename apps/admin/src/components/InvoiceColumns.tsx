@@ -67,7 +67,7 @@ export function useInvoiceColumns({ account = true }: { account?: boolean } = {}
             ) : (
               <Status value={paymentState(invoice)} domain="payment" />
             )}
-            {invoice.status === "draft" && invoice.usage_incomplete ? <Status value="incomplete" domain="invoice" /> : null}
+            {invoice.usage_incomplete ? <Status value="incomplete" domain="invoice" /> : null}
           </span>
         ),
       },

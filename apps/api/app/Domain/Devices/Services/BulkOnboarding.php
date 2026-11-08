@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
+use App\Domain\Billing\Exceptions\DeviceLimitReached;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Enums\BulkOnboardingItemStatus;
@@ -96,7 +97,10 @@ final class BulkOnboarding
         });
     }
 
-    /** Re-queues the failed items only; skipped sources do not match the profile and need a new run. */
+    /**
+     * Re-queues the failed items only, including those held at the device limit;
+     * skipped sources do not match the profile and need a new run.
+     */
     public function retry(DeviceBulkOnboarding $run, int $actor): DeviceBulkOnboarding
     {
         return DB::transaction(function () use ($run, $actor) {
@@ -118,8 +122,10 @@ final class BulkOnboarding
      * Onboards one item, claimed under a row lock and re-checked as pending so a
      * duplicate job cannot onboard a source twice. Its device, setup, draft and
      * activation request are made together or not at all (the AdapterService::activate
-     * sequence). A source that does not fit is skipped with the reason; anything else
-     * marks the item failed for a retry.
+     * sequence), except at the billing account's device limit: the device stays
+     * registered with the reason, and the item fails so a retry activates it once the
+     * limit is raised (spec 029 US2). A source that does not fit is skipped with the
+     * reason; anything else marks the item failed for a retry.
      */
     public function onboard(DeviceBulkOnboarding $run, int $itemId): void
     {
@@ -129,8 +135,24 @@ final class BulkOnboarding
                 return;
             }
             try {
-                $device = DB::transaction(fn () => $this->create($run, $item));
-                $item->update(['status' => BulkOnboardingItemStatus::ActivationRequested, 'device_id' => $device->id, 'reason' => null]);
+                $held = null;
+                $device = DB::transaction(function () use ($run, $item, &$held): Device {
+                    // A source held at the limit on an earlier try is registered already.
+                    $device = $item->device ?? $this->register($run, $item);
+                    if ($device->desired_configuration_uuid !== null) {
+                        return $device;
+                    }
+                    try {
+                        return DB::transaction(fn () => $this->configuration->activate($device, $device->draft_revision, $run->created_by));
+                    } catch (DeviceLimitReached $exception) {
+                        $held = $exception;
+
+                        return $device;
+                    }
+                });
+                $item->update($held === null
+                    ? ['status' => BulkOnboardingItemStatus::ActivationRequested, 'device_id' => $device->id, 'reason' => null]
+                    : ['status' => BulkOnboardingItemStatus::Failed, 'device_id' => $device->id, 'reason' => self::reason(collect($held->errors())->flatten()->first() ?? $held->getMessage())]);
             } catch (ValidationException $exception) {
                 $item->update(['status' => BulkOnboardingItemStatus::Skipped, 'reason' => self::reason(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())]);
             } catch (HttpExceptionInterface $exception) {
@@ -233,7 +255,8 @@ final class BulkOnboarding
         return mb_substr($code === '' ? 'device' : $code, 0, 120);
     }
 
-    private function create(DeviceBulkOnboarding $run, DeviceBulkOnboardingItem $item): Device
+    /** The source's device, setup and draft, ready to activate. */
+    private function register(DeviceBulkOnboarding $run, DeviceBulkOnboardingItem $item): Device
     {
         $gateway = $run->gateway;
         $artifact = $run->artifact;
@@ -261,9 +284,8 @@ final class BulkOnboarding
             'request_hash' => hash('sha256', json_encode([$name, $artifact->uuid, 'gateway', $gateway->uuid, $candidate->source_device_id])),
         ]);
         DeviceAudit::record('device.onboarding.started', $run->organization_id, $actor, $device->uuid, ['mode' => 'gateway', 'bulk_run_uuid' => $run->uuid]);
-        $device = $this->configuration->saveDraft($device, ['artifact_uuid' => $artifact->uuid, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => $candidate->birth_revision, 'mappings' => $match['mappings']], $device->draft_revision, $actor);
 
-        return $this->configuration->activate($device, $device->draft_revision, $actor);
+        return $this->configuration->saveDraft($device, ['artifact_uuid' => $artifact->uuid, 'candidate_uuid' => $candidate->uuid, 'birth_revision' => $candidate->birth_revision, 'mappings' => $match['mappings']], $device->draft_revision, $actor);
     }
 
     /** The code, or the code with the first free numeric suffix (`-2`, `-3`, …). */

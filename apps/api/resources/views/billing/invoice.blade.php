@@ -3,6 +3,9 @@
     $title = $creditNote ? 'Credit note' : ($invoice->isIssued() ? 'Invoice' : 'Draft invoice');
     $number = $creditNote ? $creditNote->number : ($invoice->number ?? 'Draft');
     $kinds = ['alerts' => 'Alerts', 'sms' => 'SMS', 'data_points' => 'Data points', 'devices' => 'Devices'];
+    // The account's credit shows once, as a totals row, so the subtotal is the sum of the lines (FR-038).
+    $credit = $lines->firstWhere('kind', \App\Domain\Billing\Enums\InvoiceLineKind::Credit);
+    $charges = $lines->reject(fn ($line) => $line->kind === \App\Domain\Billing\Enums\InvoiceLineKind::Credit);
 @endphp
 <!doctype html>
 <html lang="en">
@@ -33,6 +36,9 @@
         · on invoice {{ $invoice->number }} · issued {{ $creditNote->issued_at->format('j F Y') }}
     @elseif ($invoice->isIssued())
         · issued {{ $invoice->issued_at->format('j F Y') }} · due {{ $invoice->due_at?->format('j F Y') }}
+        @if ($invoice->usage_incomplete)
+            · <span class="draft">Usage possibly incomplete</span>
+        @endif
     @else
         · <span class="draft">Not issued{{ $invoice->usage_incomplete ? ', usage possibly incomplete' : '' }}</span>
     @endif
@@ -76,7 +82,7 @@
     <h2>Charges</h2>
     <table>
         <tr><th>Description</th><th class="end">Quantity</th><th class="end">Unit price</th><th class="end">Amount ({{ $invoice->currency }})</th></tr>
-        @foreach ($lines as $line)
+        @foreach ($charges as $line)
             <tr>
                 {{-- An adjustment's note is the administrator's own; the description is what the customer reads. --}}
                 <td>{{ $line->description }}@if ($line->note && $line->kind !== \App\Domain\Billing\Enums\InvoiceLineKind::Adjustment)<div class="muted">{{ $line->note }}</div>@endif</td>
@@ -94,7 +100,7 @@
         </tr>
         <tr class="strong"><td class="end">Total</td><td class="end">{{ $money($invoice->total) }}</td></tr>
         @if ($invoice->credit_applied > 0)
-            <tr><td class="end">Credit applied</td><td class="end">-{{ $money($invoice->credit_applied) }}</td></tr>
+            <tr><td class="end">{{ $credit?->description ?? 'Credit applied' }}</td><td class="end">-{{ $money($invoice->credit_applied) }}</td></tr>
         @endif
         <tr class="strong"><td class="end">Amount due</td><td class="end">{{ $money($invoice->amount_due) }}</td></tr>
     </table>

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Services;
 
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Exceptions\DeviceLimitReached;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Active devices per billing account against its device limit (spec 029 US2, research
@@ -33,7 +33,7 @@ final class DeviceLimit
      * the limit and nothing else about the account. A device that already holds a place
      * keeps it, so reconfiguring or rolling back an active device is never refused.
      *
-     * @throws ValidationException
+     * @throws DeviceLimitReached
      */
     public function claim(Device $device): void
     {
@@ -46,7 +46,7 @@ final class DeviceLimit
         $count = $account === null ? 0 : $this->placed($account);
 
         if ($limit !== null && $count >= $limit) {
-            throw ValidationException::withMessages(['device' => self::refusal($limit)]);
+            throw DeviceLimitReached::withMessages(['device' => self::refusal($limit)]);
         }
 
         $this->take($device, $account, $count + 1, $limit);

@@ -10,8 +10,10 @@ use App\Domain\Billing\Mail\InvoiceDocumentMail;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Models\Invoice;
+use App\Domain\Billing\Models\PlanAssignment;
 use App\Domain\Billing\Services\InvoiceDrafter;
 use App\Domain\Billing\Services\InvoiceIssuer;
+use App\Domain\Billing\Services\InvoicePdf;
 use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Billing\Services\Prices;
 use App\Domain\Shared\Models\Organization;
@@ -150,6 +152,33 @@ final class InvoiceIssuingTest extends TestCase
         }
     }
 
+    public function test_a_draft_of_the_running_month_is_a_preview_until_the_month_ends(): void
+    {
+        $november = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-11-01', 'UTC'), $this->admin, 'Preview');
+
+        $this->postJson("/api/v1/admin/billing/invoices/{$november->uuid}/issue")
+            ->assertConflict()
+            ->assertJsonPath('message', 'November 2026 has not ended. Its draft is a preview; issue it from 1 December 2026.');
+        $this->assertNull($november->fresh()->number);
+
+        $this->travelTo(CarbonImmutable::parse('2026-12-01 00:00:01', 'UTC'));
+        $this->postJson("/api/v1/admin/billing/invoices/{$november->uuid}/recalculate")->assertOk();
+        $this->postJson("/api/v1/admin/billing/invoices/{$november->uuid}/issue")->assertOk()->assertJsonPath('data.number', 'INV-0001');
+    }
+
+    public function test_an_invoice_issued_before_usage_was_final_keeps_its_mark(): void
+    {
+        DB::table('billing_usage_watermarks')->update(['final_through' => CarbonImmutable::parse('2026-10-31', 'UTC')]);
+        $invoice = app(InvoiceIssuer::class)->issue(app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-10-01', 'UTC'), $this->admin, 'Runtime offline'), $this->admin);
+
+        $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")->assertOk()->assertJsonPath('data.usage_incomplete', true);
+        $this->actingAs($this->owner, 'sanctum')
+            ->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/invoices/'.$invoice->uuid)
+            ->assertOk()
+            ->assertJsonPath('data.usage_incomplete', true);
+        $this->assertStringContainsString('Usage possibly incomplete', $this->html($invoice));
+    }
+
     public function test_concurrent_issues_take_consecutive_numbers(): void
     {
         $this->skipUnlessForkable();
@@ -201,10 +230,23 @@ final class InvoiceIssuingTest extends TestCase
             ->assertJsonPath('data.applied', 100)
             ->json('data');
         $this->assertStringStartsWith('%PDF', (string) $this->get("/api/v1/admin/billing/credit-notes/{$note['uuid']}.pdf")->assertOk()->getContent());
+        $csv = implode("\n", [
+            'credit_note,CN-0001,invoice,INV-0001,month,2026-10,currency,USD',
+            'issued_at,2026-11-02T10:00:00+00:00',
+            '',
+            'reason,"Partial outage"',
+            'amount,1.00',
+            'taken_off_invoice,1.00',
+            'credit_for_next_invoice,0.00',
+            '',
+        ]);
+        $this->assertSame($csv, $this->get("/api/v1/admin/billing/credit-notes/{$note['uuid']}.csv")->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="CN-0001.csv"')->getContent());
         $this->actingAs($this->owner, 'sanctum')
             ->get('/api/v1/billing-accounts/'.$this->account->uuid.'/credit-notes/'.$note['uuid'].'.pdf')
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf');
+        $this->assertSame($csv, $this->get('/api/v1/billing-accounts/'.$this->account->uuid.'/credit-notes/'.$note['uuid'].'.csv')->assertOk()->getContent());
+        $this->get('/api/v1/billing-accounts/'.BillingAccount::factory()->create()->uuid.'/credit-notes/'.$note['uuid'].'.csv')->assertNotFound();
         $this->actingAs($this->admin, 'sanctum');
         $this->getJson("/api/v1/admin/billing/invoices/{$invoice->uuid}")->assertJsonPath('data.outstanding', 233)->assertJsonPath('data.payment_status', 'pending');
         $this->getJson('/api/v1/admin/billing/invoices?unpaid=1')->assertOk()->assertJsonPath('meta.total', 1);
@@ -239,6 +281,12 @@ final class InvoiceIssuingTest extends TestCase
         $december = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-12-01', 'UTC'), null, null);
         $credit = $december->lines()->where('kind', 'credit')->sole();
         $this->assertSame(['Credit from CN-0003', -300, 300, 33], [$credit->description, $credit->amount, $december->credit_applied, $december->amount_due]);
+        // The credit shows once, as a totals row, so the lines add up to the subtotal (FR-038).
+        $csv = (string) $this->get("/api/v1/admin/billing/invoices/{$december->uuid}.csv")->assertOk()->getContent();
+        $this->assertStringNotContainsString(',credit,', $csv);
+        $this->assertStringContainsString("subtotal,3.33\n", $csv);
+        $this->assertStringContainsString("credit_applied,3.00,\"Credit from CN-0003\"\n", $csv);
+        $this->assertSame(1, substr_count($this->html($december), 'Credit from CN-0003'));
         $issued = app(InvoiceIssuer::class)->issue($december, $this->admin);
         $this->assertSame([300, 33], [$issued->credit_applied, $issued->amount_due]);
         $this->assertSame(0, app(InvoiceDrafter::class)->creditBalance($this->account));
@@ -341,6 +389,42 @@ final class InvoiceIssuingTest extends TestCase
         $draft = app(InvoiceDrafter::class)->draft($other, CarbonImmutable::parse('2026-11-01', 'UTC'), $this->admin, 'Early');
         $this->deleteJson('/api/v1/admin/billing-accounts/'.$other->uuid)->assertNoContent();
         $this->assertNull(Invoice::query()->find($draft->id));
+        // Its plan ends with it (spec 028 FR-002).
+        $plan = PlanAssignment::query()->where('billing_account_id', $other->id)->sole();
+        $this->assertSame(['account_deleted', now()->toIso8601String()], [$plan->end_reason, $plan->ended_at?->toIso8601String()]);
+        $this->assertSame(1, $this->plan->assignments()->whereNull('ended_at')->count());
+    }
+
+    public function test_the_rollout_ends_the_plans_of_accounts_deleted_before(): void
+    {
+        $gone = BillingAccount::factory()->create(['name' => 'Deleted earlier']);
+        app(PlanAssignments::class)->assign($gone, $this->plan, $this->admin);
+        $gone->delete();
+        DB::table('billing_plan_assignments')->where('billing_account_id', $gone->id)->update(['ended_at' => null, 'end_reason' => null]);
+
+        $migration = require database_path('migrations/2026_11_17_000000_close_plans_of_deleted_billing_accounts.php');
+        $migration->up();
+
+        $plan = PlanAssignment::query()->where('billing_account_id', $gone->id)->sole();
+        $this->assertSame('account_deleted', $plan->end_reason);
+        $this->assertSame(BillingAccount::withTrashed()->findOrFail($gone->id)->deleted_at?->toIso8601String(), $plan->ended_at?->toIso8601String());
+        $this->assertNull(PlanAssignment::query()->where('billing_account_id', $this->account->id)->sole()->ended_at);
+    }
+
+    /** The document's HTML, as `InvoicePdf` renders it before dompdf. */
+    private function html(Invoice $invoice): string
+    {
+        $invoice->refresh()->load('lines');
+
+        return view('billing.invoice', [
+            'invoice' => $invoice,
+            'creditNote' => null,
+            'lines' => $invoice->lines,
+            'usage' => app(InvoicePdf::class)->usage($invoice),
+            'operator' => $invoice->operator_details ?? [],
+            'account' => $invoice->account_details ?? ['name' => $this->account->name],
+            'money' => static fn (?int $amount): string => $amount === null ? '' : number_format($amount / 100, 2),
+        ])->render();
     }
 
     private function draft(): Invoice

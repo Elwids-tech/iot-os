@@ -4,7 +4,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@iot-os/ui/components/sheet"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
-import { formatDay, formatMonth, paymentState } from "@iot-os/ui/lib/invoices"
+import { formatDay, formatMonth, invoiceLines, paymentState } from "@iot-os/ui/lib/invoices"
 import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { DownloadIcon } from "lucide-react"
 import { LoadError } from "../components/forms"
@@ -43,6 +43,7 @@ export function InvoiceDetail({
   const data = invoice.data
   const money = (amount: number) => formatMoney(amount, data?.currency ?? "USD")
   const canPay = paymentsEnabled && data !== undefined && payable(data)
+  const { charges, credit } = invoiceLines(data?.lines ?? [])
 
   useEffect(() => {
     if (canPay) payButton.current?.focus()
@@ -75,6 +76,7 @@ export function InvoiceDetail({
             <>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <Status value={paymentState(data)} domain="payment" />
+                {data.usage_incomplete ? <Status value="incomplete" domain="invoice" /> : null}
                 {data.due_at ? <span className="text-muted-foreground">Due {formatDay(data.due_at)}</span> : null}
                 <span className="ml-auto flex gap-2">
                   {canPay ? (
@@ -101,7 +103,7 @@ export function InvoiceDetail({
                   Lines
                 </h3>
                 <ul className="divide-y">
-                  {data.lines.map((line) => (
+                  {charges.map((line) => (
                     <li key={line.id} className="flex items-baseline gap-4 py-2">
                       <span className="min-w-0 flex-1 break-words">
                         {line.description}
@@ -129,7 +131,7 @@ export function InvoiceDetail({
                   <dd className="text-right font-medium tabular-nums">{money(data.total)}</dd>
                   {data.credit_applied ? (
                     <>
-                      <dt className="text-muted-foreground">Account credit</dt>
+                      <dt className="text-muted-foreground">{credit ?? "Account credit"}</dt>
                       <dd className="text-right tabular-nums">{money(-data.credit_applied)}</dd>
                     </>
                   ) : null}
@@ -147,11 +149,19 @@ export function InvoiceDetail({
                   <ul className="divide-y">
                     {data.credit_notes.map((note) => (
                       <li key={note.uuid} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2">
-                        <a className="font-medium underline-offset-4 hover:underline" href={api.ownedCreditNotePdfUrl(accountUuid, note.uuid)} download>
+                        <a className="font-medium underline-offset-4 hover:underline" href={api.ownedCreditNoteDocumentUrl(accountUuid, note.uuid, "pdf")} download>
                           {note.number}
                         </a>
                         <span className="min-w-0 flex-1 break-words text-muted-foreground">{note.reason}</span>
                         <span className="tabular-nums">{money(-note.amount)}</span>
+                        <a
+                          className="text-meta text-muted-foreground underline-offset-4 hover:underline"
+                          href={api.ownedCreditNoteDocumentUrl(accountUuid, note.uuid, "csv")}
+                          aria-label={`${note.number} as CSV`}
+                          download
+                        >
+                          CSV
+                        </a>
                       </li>
                     ))}
                   </ul>
