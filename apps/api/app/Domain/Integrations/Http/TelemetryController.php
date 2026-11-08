@@ -60,9 +60,9 @@ final class TelemetryController
             'device_uuids.*' => ['uuid', 'distinct'],
         ]);
         $uuids = array_values($values['device_uuids']);
-        // PR 030-1 replaces this inline grant check with the ApplicationGrant resolver.
-        $devices = Device::where('organization_id', $organization->id)
-            ->whereIn('uuid', $request->attributes->get('integration_application')->device_uuids)
+        // Resolved through the grant like every other read: a device list or a site scope (research R7).
+        $devices = ApplicationGrants::for($request->attributes->get('integration_application'))
+            ->deviceQuery(Device::where('organization_id', $organization->id))
             ->whereIn('uuid', $uuids)->get()->keyBy('uuid');
         // A device outside the grant refuses the whole request and reveals nothing (FR-002).
         abort_if($devices->count() !== count($uuids), 404);

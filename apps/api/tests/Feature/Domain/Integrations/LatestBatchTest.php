@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Integrations;
 
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\Site;
 use App\Domain\Integrations\Models\IntegrationApplication;
 use App\Domain\Shared\Models\Organization;
 use Database\Seeders\DatabaseSeeder;
@@ -138,6 +139,30 @@ final class LatestBatchTest extends TestCase
         $this->batch(['not-a-uuid'])->assertUnprocessable()->assertJsonValidationErrors(['device_uuids.0']);
         $this->batch([])->assertUnprocessable()->assertJsonValidationErrors(['device_uuids']);
         Http::assertNothingSent();
+    }
+
+    /** A site scope resolves like the single-device read's: devices at the site, while they are there (US3). */
+    public function test_a_site_scope_grants_the_devices_at_the_site_while_they_are_there(): void
+    {
+        $hall = Site::create(['organization_id' => $this->organization->id, 'name' => 'Packaging hall', 'timezone' => 'UTC']);
+        $this->online->update(['site_id' => $hall->id]);
+        $this->never->update(['site_id' => $hall->id]);
+        $application = IntegrationApplication::create(['organization_id' => $this->organization->id, 'name' => 'Plant twin',
+            'abilities' => ['telemetry:read'], 'device_uuids' => [], 'site_uuids' => [$hall->uuid]])->fresh();
+        $secret = Str::random(40);
+        $token = $application->tokens()->create(['name' => 'plant', 'token' => hash('sha256', $secret), 'abilities' => ['telemetry:read'], 'expires_at' => now()->addDay()]);
+        $this->token = $token->id.'|'.$secret;
+        Http::fake(['*/internal/measurements/latest-batch*' => Http::response(['data' => []])]);
+
+        $this->batch([$this->online->uuid, $this->never->uuid])->assertOk()->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.device_uuid', $this->online->uuid)->assertJsonPath('data.1.device_uuid', $this->never->uuid);
+        // A device of the organization at no site, or named in no grant, is outside the scope.
+        $this->batch([$this->online->uuid, $this->staleRuntime->uuid])->assertNotFound();
+        $this->batch([$this->ungranted->uuid])->assertNotFound();
+        // Moved out of the site, the device leaves the grant at once.
+        $this->online->update(['site_id' => null]);
+        $this->batch([$this->online->uuid])->assertNotFound();
+        Http::assertSentCount(1);
     }
 
     public function test_a_failing_runtime_is_service_unavailable_never_an_empty_answer(): void
