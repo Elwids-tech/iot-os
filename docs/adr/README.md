@@ -52,6 +52,7 @@ the code as evidence.
 | [ADR-035](ADR-035-plans-and-allowances.md) | Plans carry allowances (alerts, SMS, devices, data points, retention, organizations) as rows keyed by kind; accounts get one plan at a time plus overrides; usage is counted per account with organization shares; the organization limit becomes an allowance; amends ADR-026 | Proposed |
 | [ADR-036](ADR-036-runtime-counts-data-points.md) | The runtime counts stored readings in the storage transaction and reports cumulative hourly counts with a watermark; Laravel applies only increases | Proposed |
 | [ADR-037](ADR-037-invoices-and-card-payments.md) | The platform issues its own monthly invoices (unbroken numbering, admin-set tax, credit notes) and takes card payments through Stripe and Laravel Cashier; non-payment never restricts an account | Proposed |
+| [ADR-038](ADR-038-octane-on-frankenphp.md) | The API runs on Laravel Octane under FrankenPHP instead of php-fpm and nginx, after a state-safety audit and an alternating-organization CI test; canary on the pilot with the fpm image kept as fallback | Proposed |
 
 ## Template
 
