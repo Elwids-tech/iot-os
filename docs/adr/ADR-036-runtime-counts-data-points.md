@@ -1,6 +1,6 @@
 # ADR-036: The Runtime Counts Stored Data Points and Reports Cumulative Hourly Counts
 
-**Status:** Proposed
+**Status:** Accepted (built in specs 028 and 029, 2026-11-08)
 **Date:** 2026-11-07
 **Relates to:** [ADR-003](ADR-003-go-data-plane.md),
 [ADR-014](ADR-014-control-plane-data-plane-http-integration.md),

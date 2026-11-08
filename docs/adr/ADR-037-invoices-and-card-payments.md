@@ -1,6 +1,6 @@
 # ADR-037: The Platform Issues Invoices and Takes Card Payments Through Stripe
 
-**Status:** Proposed
+**Status:** Accepted (built in specs 028 and 029, 2026-11-08)
 **Date:** 2026-11-07
 **Relates to:** [ADR-026](ADR-026-billing-accounts.md), [ADR-035](ADR-035-plans-and-allowances.md),
 [ADR-036](ADR-036-runtime-counts-data-points.md),

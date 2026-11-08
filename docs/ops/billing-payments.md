@@ -51,8 +51,8 @@ Payments only move forward, so a replayed or late event changes nothing.
 
 ## Locally, in test mode
 
-1. Put the test-mode keys in the main checkout's `.env`, which git ignores, and
-   rebuild the API-image services
+1. Put the test-mode keys in the main checkout's `.env`, which git ignores (or a
+   `.local/` env file the stack loads), and rebuild the API-image services
    ([rebuild one service](../dev/local-setup.md#rebuild-one-service)).
 2. Forward Stripe's events to the local API with the Stripe CLI:
 
@@ -62,9 +62,10 @@ Payments only move forward, so a replayed or late event changes nothing.
 
    It prints a `whsec_…` signing secret for this session; use it as
    `STRIPE_WEBHOOK_SECRET`.
-3. Run [quickstart section 7](../../specs/029-billing-tier-limits/quickstart.md) with
-   Stripe's test cards: one that always succeeds, and one that attaches but declines
-   every charge.
+3. Run [quickstart sections 7 and 8](../../specs/029-billing-tier-limits/quickstart.md)
+   with Stripe's test cards: one that always succeeds, and one that attaches but
+   declines every charge. Section 8 ends a trial with a saved card, and saves one after
+   a trial ended without it.
 4. `stripe events resend <event id>` replays an event to show it changes nothing.
 
 ## When something looks wrong
