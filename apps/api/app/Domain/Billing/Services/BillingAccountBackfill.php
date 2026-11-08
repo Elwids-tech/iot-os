@@ -37,7 +37,6 @@ final class BillingAccountBackfill
                 $accountId = DB::table('billing_accounts')->insertGetId([
                     'uuid' => (string) Str::uuid(),
                     'name' => $organization->name,
-                    'organization_limit' => 1,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);

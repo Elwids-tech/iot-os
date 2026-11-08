@@ -11,7 +11,9 @@ use App\Domain\Audit\Services\ActivityChanges;
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\BillingAccounts;
+use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,7 @@ final class PlatformOrganizationController
     public function __construct(
         private readonly OrganizationDefaultRoles $defaultRoles,
         private readonly BillingAccounts $billingAccounts,
+        private readonly PlanAssignments $planAssignments,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -68,6 +71,10 @@ final class PlatformOrganizationController
                     'name' => $values['new_billing_account']['name'] ?? $values['name'],
                     'contact_email' => $values['new_billing_account']['contact_email'] ?? null,
                 ], $request->user());
+
+            if (isset($values['plan_uuid'])) {
+                $this->planAssignments->assign($account, BillingPlan::query()->where('uuid', $values['plan_uuid'])->firstOrFail(), $request->user());
+            }
 
             $organization = new Organization($request->safe()->only(['name', 'slug']));
             $organization->billing_account_id = $account->getKey();

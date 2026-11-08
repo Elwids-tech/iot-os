@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Services;
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Administration\Services\OrganizationRoleManager;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -17,14 +18,16 @@ use Illuminate\Validation\ValidationException;
 /**
  * An owner creates an organization under a billing account they own (spec 023 US3).
  * The account row is locked while the limit is checked, so concurrent creations cannot
- * take it past its limit (FR-017). The owner becomes the organization's Organization
- * Admin through the same path invitations use, without the welcome email.
+ * take it past its limit (FR-017). The limit is the account's `organizations`
+ * allowance (ADR-035); `null` is unlimited. The owner becomes the organization's
+ * Organization Admin through the same path invitations use, without the welcome email.
  */
 final class OwnerOrganizations
 {
     public function __construct(
         private readonly OrganizationDefaultRoles $defaultRoles,
         private readonly OrganizationRoleManager $roleManager,
+        private readonly Allowances $allowances,
     ) {}
 
     public function create(User $owner, string $accountUuid, string $name, ?string $slug): Organization
@@ -38,9 +41,9 @@ final class OwnerOrganizations
 
             abort_if($account === null, 404);
 
-            $limit = $account->organization_limit;
+            $limit = $this->allowances->value($account, AllowanceKind::Organizations);
 
-            if ($account->organizations()->count() >= $limit) {
+            if ($limit !== null && $account->organizations()->count() >= $limit) {
                 throw ValidationException::withMessages(['billing_account' => sprintf(
                     'This billing account allows %d %s. Ask the platform operator to raise the limit.',
                     $limit,

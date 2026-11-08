@@ -49,9 +49,21 @@ shows each allowance with source `override`, `plan` or `default`. An account who
 limit was raised before the migration shows it as an override, and owner creation
 still stops at it.
 
+**As built (PR 2)**:
+
+- `config/billing.php` holds only `defaults`. Each later pull request adds the keys it
+  uses.
+- Columns that reference plans are named `billing_plan_id`, not `plan_id`.
+- `organization_limit` stays in the API as the resolved `organizations` allowance
+  (`null` when unlimited). Writing it sets an override, or removes the override when
+  the value equals the plan's or default's. The admin and portal apps only became
+  null-safe here, and PR 3 replaces the field in the UI.
+- Plan and allowance changes show in the account's history as `updated` entries:
+  `plan`, the allowance kind, or `organization_limit` as the field.
+
 ### Foundation
 
-- [ ] T003 `apps/api/config/billing.php`:
+- [X] T003 `apps/api/config/billing.php`:
   - `currency` (`env('BILLING_CURRENCY', 'USD')`, ISO 4217, three uppercase letters);
   - `defaults` (`alerts` null, `devices` null, `data_points` null, `organizations` 1,
     `sms` from spec 011's deployment setting or 0, `retention_days` null meaning
@@ -60,12 +72,12 @@ still stops at it.
     300.
 
   Add `BILLING_CURRENCY` to `deploy/compose` and `deploy/release` env examples.
-- [ ] T004 `apps/api/app/Domain/Billing/Enums/AllowanceKind.php`, a string enum with
+- [X] T004 `apps/api/app/Domain/Billing/Enums/AllowanceKind.php`, a string enum with
   cases `alerts`, `sms`, `devices`, `data_points`, `retention_days`, `organizations`.
   It has helpers `isMonthly()` (alerts, sms, data_points), `allowsUnlimited()` (every
   kind except `retention_days`) and validation bounds: `retention_days` 1–36,500,
   others `≥ 0`. Also `PlanAssignmentKind.php` (`paid`, `trial`, `trial_unpaid`).
-- [ ] T005 Migration `apps/api/database/migrations/2026_11_10_000000_create_billing_plans.php`
+- [X] T005 Migration `apps/api/database/migrations/2026_11_10_000000_create_billing_plans.php`
   with the tables in [data-model.md](data-model.md#plans-and-allowances):
   - `billing_plans`: uuid unique; `name` string(120) with a unique index on
     `lower(name)`; `description` text nullable; `archived_at` timestampTz nullable;
@@ -85,7 +97,7 @@ still stops at it.
     insert an `organizations` override with that value and the note "Organization
     limit before plans". Then drop `billing_accounts.organization_limit`.
   - `down()` restores the column from overrides (default 1) and drops the tables.
-- [ ] T006 [P] Models in `apps/api/app/Domain/Billing/Models/`:
+- [X] T006 [P] Models in `apps/api/app/Domain/Billing/Models/`:
   - `BillingPlan` (uuid route key, `allowances()`, `assignments()`, `archived()`
     scope);
   - `PlanAllowance` (no timestamps, composite key handled with
@@ -95,7 +107,7 @@ still stops at it.
 
   `BillingAccount` gains `planAssignments()`, `openAssignment()`,
   `allowanceOverrides()`. Remove `organization_limit` from its fillable.
-- [ ] T007 [P] Factories: `apps/api/database/factories/BillingPlanFactory.php` (with
+- [X] T007 [P] Factories: `apps/api/database/factories/BillingPlanFactory.php` (with
   `withAllowances(array)` and `archived()` states) and
   `BillingAccountFactory::onPlan(BillingPlan)`. Replace every
   `BillingAccountFactory::limit(int)` use with an `organizations` override state of
@@ -103,7 +115,7 @@ still stops at it.
 
 ### Services and HTTP
 
-- [ ] T008 [028-US1] `apps/api/app/Domain/Billing/Services/Allowances.php`:
+- [X] T008 [028-US1] `apps/api/app/Domain/Billing/Services/Allowances.php`:
   - `resolve(BillingAccount, AllowanceKind): array{value: ?int, source:
     'override'|'plan'|'default', note: ?string}`: the override row, else the open
     assignment's plan row, else `config('billing.defaults')`.
@@ -113,7 +125,7 @@ still stops at it.
     `removeOverride(...)` validate with `AllowanceKind` bounds and record
     `billing_account.allowance_overridden` / `.allowance_override_removed` (from, to,
     note).
-- [ ] T009 [028-US1] `apps/api/app/Domain/Billing/Services/Plans.php`:
+- [X] T009 [028-US1] `apps/api/app/Domain/Billing/Services/Plans.php`:
   - `create(values, actor)` and `update(plan, values, actor, ?int confirmAffected)`. A
     plan with accounts whose allowances change needs `confirmAffected === count of
     accounts on it`, else a 409 with `{affected_accounts}`.
@@ -121,7 +133,7 @@ still stops at it.
 
   Audit events `billing_plan.created|updated|archived|restored|deleted` include the
   changed allowances.
-- [ ] T010 [028-US2] `apps/api/app/Domain/Billing/Services/PlanAssignments.php`:
+- [X] T010 [028-US2] `apps/api/app/Domain/Billing/Services/PlanAssignments.php`:
   - `assign(account, plan, actor, kind = paid)`: refused for an archived plan, a no-op
     when the plan is already the open one.
   - `remove(account, actor)`.
@@ -130,11 +142,11 @@ still stops at it.
   row (`ended_at`, `ended_by`, `end_reason` `changed` or `removed`) and opens the next
   at the same `$at`. Also `current(account)` and `at(account, CarbonImmutable)`. Audit
   `billing_account.plan_assigned|plan_removed`.
-- [ ] T011 [US1] `apps/api/app/Domain/Billing/Services/OwnerOrganizations.php::create`:
+- [X] T011 [US1] `apps/api/app/Domain/Billing/Services/OwnerOrganizations.php::create`:
   the limit comes from `Allowances::resolve($account, AllowanceKind::Organizations)`,
   with null as unlimited. The account row lock and organization count are unchanged.
   The 422 message names the resolved limit.
-- [ ] T012 [028-US1] HTTP in `apps/api/app/Domain/Billing/Http/` and
+- [X] T012 [028-US1] HTTP in `apps/api/app/Domain/Billing/Http/` and
   `routes/api.php`, per [contracts/billing-api.md](contracts/billing-api.md) (Plans, a
   billing account's plan and allowances):
   - `PlatformPlanController` (index with `search`, `archived`, account counts;
@@ -148,19 +160,19 @@ still stops at it.
     with `plan`, `assignment`, `allowances[]`.
 
   All routes need `can:PlatformAdministration.manageOrganizations`.
-- [ ] T013 [028-US2] `Administration/Http/Requests/StoreOrganizationRequest.php` and
+- [X] T013 [028-US2] `Administration/Http/Requests/StoreOrganizationRequest.php` and
   `PlatformOrganizationController@store` accept `plan_uuid` (an unarchived plan) only
   together with `new_billing_account` or no account. Assign it in the existing
-  transaction. `BillingAccountDialog` requests no longer send `organization_limit`;
-  `UpdateBillingAccountRequest` drops it.
-- [ ] T014 [028-US2] The admin `GET v1/admin/billing-accounts` gains a `plan` column
+  transaction. (As built: `organization_limit` stays accepted and maps to the
+  allowance; PR 3 removes it from `BillingAccountDialog`.)
+- [X] T014 [028-US2] The admin `GET v1/admin/billing-accounts` gains a `plan` column
   and a `plan` filter (plan uuid, or `none`).
-- [ ] T015 `apps/api/app/Domain/Audit/Services/ActivityCatalogue.php`: the plan,
+- [X] T015 `apps/api/app/Domain/Audit/Services/ActivityCatalogue.php`: the plan,
   assignment and allowance events from data-model.md, with titles.
 
 ### Tests
 
-- [ ] T016 [P] [028-US1] `apps/api/tests/Feature/Domain/Billing/PlanAdministrationTest.php`:
+- [X] T016 [P] [028-US1] `apps/api/tests/Feature/Domain/Billing/PlanAdministrationTest.php`:
   - create with all six kinds; a duplicate name with different case is 422;
   - `retention_days` null is 422, and 0 or 36,501 are 422;
   - editing a plan with two accounts without `confirm_affected` is 409 with
@@ -168,13 +180,13 @@ still stops at it.
   - an archived plan cannot be assigned but stays on accounts; restore;
   - deleting an assigned plan is 409;
   - non-administrators get 403 on every route.
-- [ ] T017 [P] [028-US2] `apps/api/tests/Feature/Domain/Billing/PlanAssignmentTest.php`:
+- [X] T017 [P] [028-US2] `apps/api/tests/Feature/Domain/Billing/PlanAssignmentTest.php`:
   - assign, change, remove: one open row at a time, no overlap, gaps for "no plan",
     `at()` answers for past instants;
   - overrides survive plan changes;
   - resolution order override, then plan, then default for each kind;
   - organization creation with `plan_uuid` and `new_billing_account`.
-- [ ] T018 [P] [US1] `apps/api/tests/Feature/Domain/Billing/OrganizationLimitAllowanceTest.php`:
+- [X] T018 [P] [US1] `apps/api/tests/Feature/Domain/Billing/OrganizationLimitAllowanceTest.php`:
   - the migration data step: limit 5 becomes an override of 5, limit 1 makes no row;
   - owner creation stops at the resolved limit from the plan, from an override and at
     the default 1, and passes when unlimited;
@@ -186,19 +198,19 @@ still stops at it.
 
 ### Finish
 
-- [ ] T019 `php artisan contract:export` and `contracts/openapi/supplements/billing.yaml`
+- [X] T019 `php artisan contract:export` and `contracts/openapi/supplements/billing.yaml`
   (the allowance map body and the 409 confirmation body). In
   `packages/api-client/src/billing.ts` add `BillingPlan`, `Allowance`,
   `AllowanceKind`, `PlanAssignment`, and extend `BillingAccountDetail`. In
   `src/index.ts` add `adminPlans`, `createPlan`, `adminPlan`, `updatePlan`,
   `archivePlan`, `restorePlan`, `deletePlan`, `setBillingAccountPlan`,
-  `overrideAllowance` and `removeAllowanceOverride`; remove `organization_limit` from
-  the values types.
-- [ ] T020 Docs: new `docs/features/billing.md` (plans, allowances, resolution, the
+  `overrideAllowance` and `removeAllowanceOverride`. (As built: `organization_limit`
+  stays in the types as `number | null`; PR 3 removes it from the values types.)
+- [X] T020 Docs: new `docs/features/billing.md` (plans, allowances, resolution, the
   organization limit) linked from `docs/features/access.md`'s Billing accounts
   section, which loses the typed limit; `docs/dev/gotchas.md` (an account's
   organization limit is an allowance now).
-- [ ] T021 Verify: `php artisan test --compact`, `contract:check --base=origin/main`,
+- [X] T021 Verify: `php artisan test --compact`, `contract:check --base=origin/main`,
   `./taskw lint`. Rebuild `api` and the API-image services, then run quickstart
   section 1 through the API with curl or the admin app's existing pages, and confirm
   existing accounts keep their organization limit (029 SC-006).
@@ -237,7 +249,10 @@ admin app.
 
   Remove the organization limit field from `components/BillingAccountDialog.tsx`, and
   read "N of M organizations" from the `organizations` allowance in
-  `BillingAccountChoice.tsx` and `BillingAccountsPage.tsx`.
+  `BillingAccountChoice.tsx` and `BillingAccountsPage.tsx`. Then drop
+  `organization_limit` from `BillingAccountValues` and from the store and update
+  requests. The history already lists plan and allowance changes as `updated`
+  entries; give their fields labels (`plan`, each allowance kind).
 - [ ] T026 [028-US2] `components/BillingAccountChoice.tsx`: under **New billing
   account**, an optional **Plan** `SearchableSelect` (default **No plan**) sending
   `plan_uuid`. `BillingAccountsPage.tsx` gains a Plan column and a Plan filter.

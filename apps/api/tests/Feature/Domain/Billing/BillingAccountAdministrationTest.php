@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Billing;
 
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Services\Allowances;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -47,7 +49,7 @@ final class BillingAccountAdministrationTest extends TestCase
         $organization = Organization::query()->where('slug', 'corner-shop')->firstOrFail();
         $account = $organization->billingAccount;
         $this->assertSame('billing@example.com', $account->contact_email);
-        $this->assertSame(1, $account->organization_limit);
+        $this->assertSame(1, app(Allowances::class)->value($account, AllowanceKind::Organizations));
         $this->assertSame($this->administrator->id, (int) DB::table('billing_account_assignments')->where('organization_id', $organization->id)->value('assigned_by'));
         $this->assertSame(1, $this->auditCount('billing_account.created', $account->uuid));
         $this->assertBillingAssignmentInvariants($organization);
@@ -211,8 +213,11 @@ final class BillingAccountAdministrationTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.organization_limit', 5)
             ->assertJsonPath('data.organizations', [])
-            ->assertJsonPath('data.history.0.action', 'created')
-            ->assertJsonPath('data.history.0.actor', ['id' => $this->administrator->id, 'name' => 'Platform Admin'])
+            // A limit other than the default is an override recorded after the account (ADR-035).
+            ->assertJsonPath('data.history.0.action', 'updated')
+            ->assertJsonPath('data.history.0.changes', [['field' => 'organization_limit', 'from' => '1', 'to' => '5']])
+            ->assertJsonPath('data.history.1.action', 'created')
+            ->assertJsonPath('data.history.1.actor', ['id' => $this->administrator->id, 'name' => 'Platform Admin'])
             ->json('data.uuid');
 
         $this->assertSame(1, $this->auditCount('billing_account.created', $uuid));
@@ -275,8 +280,10 @@ final class BillingAccountAdministrationTest extends TestCase
             ->assertJsonPath('data.organizations_count', 2);
         $this->patchJson('/api/v1/admin/billing-accounts/'.$account->uuid, ['organization_limit' => 1])->assertOk();
 
-        $details = json_decode((string) DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.updated')->sole()->properties, true);
-        $this->assertSameJsonDocument(['organization_limit' => ['from' => 3, 'to' => 1]], $details['changes']);
+        // The limit is the `organizations` allowance (ADR-035): back at the default, the override goes.
+        $this->assertSame(0, DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.updated')->count());
+        $details = json_decode((string) DB::table('activity_log')->where('subject_uuid', $account->uuid)->where('event', 'billing_account.allowance_override_removed')->sole()->properties, true);
+        $this->assertSameJsonDocument(['kind' => 'organizations', 'from' => 3, 'to' => 1, 'to_source' => 'default'], $details);
     }
 
     public function test_only_an_empty_billing_account_can_be_deleted(): void

@@ -247,7 +247,7 @@ organization's account.
   names neither gets a new account, so older API clients keep working. Platform
   administrators are not bound by an account's limit.
 - **Billing accounts** in the admin app lists accounts with their organizations,
-  owners and limit. An account's page edits its name, contact email, notes and
+  owners, plan and limit. An account's page edits its name, contact email, notes and
   **organization limit** (0 to 1000, default 1), adds and removes **owners**, moves
   organizations to another account (nothing inside the organization changes) and
   shows its history: changes, owner changes, and organizations joining and leaving,
@@ -275,6 +275,10 @@ organization's account.
   from when to when; deleting an organization closes its period and keeps the row.
   The rollout gave every existing organization an account of its own, with no owners
   and a limit of 1, from the organization's creation.
+- **Plans and allowances** ([Billing](billing.md), ADR-035): an account's
+  organization limit is its `organizations` allowance, from its override, its plan or
+  the default of 1. Setting the limit on the account writes an override, or removes it
+  when the value equals the plan's.
 
 Admin routes need `PlatformAdministration.manage-organizations`:
 `GET/POST admin/billing-accounts`, `GET/PATCH/DELETE admin/billing-accounts/{uuid}`

@@ -3421,6 +3421,155 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing-accounts/{billingAccount}/allowances/{kind}": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.allowances.update",
+        "tags": [
+          "PlatformBillingAccountAllowance"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideAllowanceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "delete": {
+        "operationId": "v1.admin.billing-accounts.allowances.destroy",
+        "tags": [
+          "PlatformBillingAccountAllowance"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing-accounts/{billingAccount}/owners/{user}": {
       "put": {
         "operationId": "v1.admin.billing-accounts.owners.update",
@@ -3522,6 +3671,610 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/plan": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.plan.update",
+        "tags": [
+          "PlatformBillingAccountPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBillingAccountPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-plans": {
+      "get": {
+        "operationId": "v1.admin.billing-plans.index",
+        "summary": "`archived=0` leaves archived plans out, `archived=1` lists only them; without it,\nevery plan is listed",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated set of `PlanResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlanResource"
+                      }
+                    },
+                    "links": {
+                      "type": "object",
+                      "properties": {
+                        "first": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "last": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "prev": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "first",
+                        "last",
+                        "prev",
+                        "next"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "from": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "links": {
+                          "type": "array",
+                          "description": "Generated paginator links.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "label",
+                              "active"
+                            ]
+                          }
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Base path for paginator generated URLs."
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "description": "Number of items shown per page.",
+                          "minimum": 0
+                        },
+                        "to": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Number of the last item in the slice.",
+                          "minimum": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of items being paginated.",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "from",
+                        "last_page",
+                        "links",
+                        "path",
+                        "per_page",
+                        "to",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "post": {
+        "operationId": "v1.admin.billing-plans.store",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorePlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-plans/{billingPlan}": {
+      "get": {
+        "operationId": "v1.admin.billing-plans.show",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "delete": {
+        "operationId": "v1.admin.billing-plans.destroy",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The plan has been assigned to a billing account at some point, so it cannot be deleted; archive it instead. Nothing was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "patch": {
+        "operationId": "v1.admin.billing-plans.update",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The change alters the allowances of a plan billing accounts are on, and `confirm_affected` does not match their number. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanChangeNeedsConfirmation"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-plans/{billingPlan}/archive": {
+      "post": {
+        "operationId": "v1.admin.billing-plans.archive",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-plans/{billingPlan}/restore": {
+      "post": {
+        "operationId": "v1.admin.billing-plans.restore",
+        "tags": [
+          "PlatformPlan"
+        ],
+        "parameters": [
+          {
+            "name": "billingPlan",
+            "in": "path",
+            "required": true,
+            "description": "The billing plan UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlanDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -28486,6 +29239,49 @@
         ],
         "title": "AlertNotificationSummaryResource"
       },
+      "AllowanceResource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alerts",
+              "sms",
+              "devices",
+              "data_points",
+              "retention_days",
+              "organizations"
+            ]
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "override",
+              "plan",
+              "default"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "source",
+          "note"
+        ],
+        "title": "AllowanceResource"
+      },
       "AssistantModelResource": {
         "type": "object",
         "properties": {
@@ -28763,7 +29559,10 @@
             ]
           },
           "organization_limit": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "organizations_count": {
             "type": "integer"
@@ -28773,6 +29572,22 @@
               "string",
               "null"
             ]
+          },
+          "plan_assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanAssignmentResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllowanceResource"
+            }
           },
           "owners": {
             "type": "array",
@@ -28801,6 +29616,8 @@
           "organization_limit",
           "organizations_count",
           "created_at",
+          "plan_assignment",
+          "allowances",
           "owners",
           "organizations",
           "history"
@@ -28956,7 +29773,28 @@
             ]
           },
           "organization_limit": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
           },
           "organizations_count": {
             "type": "integer"
@@ -28979,6 +29817,7 @@
           "name",
           "contact_email",
           "organization_limit",
+          "plan",
           "organizations_count",
           "owners",
           "created_at"
@@ -30992,6 +31831,26 @@
           }
         }
       },
+      "OverrideAllowanceRequest": {
+        "type": "object",
+        "description": "An allowance for one billing account, replacing its plan's (spec 028 FR-008): a whole\nnumber, or null for unlimited where the kind allows it, and why.",
+        "properties": {
+          "value": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 0
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "value",
+          "note"
+        ],
+        "title": "OverrideAllowanceRequest"
+      },
       "OwnedBillingAccountResource": {
         "type": "object",
         "properties": {
@@ -31002,7 +31861,10 @@
             "type": "string"
           },
           "organization_limit": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "organizations_count": {
             "type": "integer"
@@ -31065,6 +31927,252 @@
           "slug"
         ],
         "title": "OwnerOrganizationResource"
+      },
+      "PlanAllowanceResource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alerts",
+              "sms",
+              "devices",
+              "data_points",
+              "retention_days",
+              "organizations"
+            ]
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "PlanAllowanceResource"
+      },
+      "PlanAssignmentResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "trial",
+              "trial_unpaid"
+            ]
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "uuid",
+              "name",
+              "archived"
+            ]
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "trial_ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "kind",
+          "plan",
+          "started_at",
+          "trial_ends_at"
+        ],
+        "title": "PlanAssignmentResource"
+      },
+      "PlanChangeNeedsConfirmation": {
+        "type": "object",
+        "required": [
+          "message",
+          "affected_accounts"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "affected_accounts": {
+            "type": "integer",
+            "description": "The billing accounts on the plan now. Send it back as `confirm_affected` to apply the change to all of them."
+          }
+        }
+      },
+      "PlanDetailResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanAllowanceResource"
+            }
+          },
+          "accounts_count": {
+            "type": "integer"
+          },
+          "ever_assigned": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "paid",
+                    "trial",
+                    "trial_unpaid"
+                  ]
+                },
+                "since": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uuid",
+                "name",
+                "kind",
+                "since"
+              ]
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingAccountHistoryResource"
+            }
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "description",
+          "archived",
+          "archived_at",
+          "allowances",
+          "accounts_count",
+          "ever_assigned",
+          "created_at",
+          "accounts",
+          "history"
+        ],
+        "title": "PlanDetailResource"
+      },
+      "PlanResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanAllowanceResource"
+            }
+          },
+          "accounts_count": {
+            "type": "integer"
+          },
+          "ever_assigned": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "name",
+          "description",
+          "archived",
+          "archived_at",
+          "allowances",
+          "accounts_count",
+          "ever_assigned",
+          "created_at"
+        ],
+        "title": "PlanResource"
       },
       "PlatformTeamMemberResource": {
         "type": "object",
@@ -31500,6 +32608,23 @@
             }
           }
         }
+      },
+      "SetBillingAccountPlanRequest": {
+        "type": "object",
+        "description": "Puts a billing account on a plan, or takes it off with `plan_uuid: null` (spec 028\nUS2). Archived plans cannot be newly assigned.",
+        "properties": {
+          "plan_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "plan_uuid"
+        ],
+        "title": "SetBillingAccountPlanRequest"
       },
       "StarterManifest": {
         "type": "object",
@@ -32005,6 +33130,14 @@
               "name",
               "contact_email"
             ]
+          },
+          "plan_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "A plan for the new account (spec 028 FR-010); an existing account keeps its own."
           }
         },
         "required": [
@@ -32032,6 +33165,85 @@
           "name"
         ],
         "title": "StoreOwnedOrganizationRequest"
+      },
+      "StorePlanRequest": {
+        "type": "object",
+        "description": "A new plan (spec 028 FR-001). `allowances` maps a kind to a whole number, or to null\nfor unlimited; a kind left out falls back to the deployment's default.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "allowances": {
+            "type": "object",
+            "properties": {
+              "alerts": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "sms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "devices": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "data_points": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "retention_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 36500
+              },
+              "organizations": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "alerts",
+              "sms",
+              "devices",
+              "data_points",
+              "retention_days",
+              "organizations"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "StorePlanRequest"
       },
       "StoreProfileParameterGroupRequest": {
         "type": "object",
@@ -33217,6 +34429,89 @@
           "slug"
         ],
         "title": "UpdateOrganizationRequest"
+      },
+      "UpdatePlanRequest": {
+        "type": "object",
+        "description": "Changes to a plan (spec 028 FR-003). `allowances`, when sent, is the complete set.\nChanging the allowances of a plan in use needs `confirm_affected`: the number of\nbilling accounts on it, which a 409 reports.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "allowances": {
+            "type": "object",
+            "properties": {
+              "alerts": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "sms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "devices": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "data_points": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000
+              },
+              "retention_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 36500
+              },
+              "organizations": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "alerts",
+              "sms",
+              "devices",
+              "data_points",
+              "retention_days",
+              "organizations"
+            ]
+          },
+          "confirm_affected": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "title": "UpdatePlanRequest"
       },
       "UpsertOrganizationRoleRequest": {
         "type": "object",

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Billing;
 
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\BillingAccounts;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -26,7 +28,7 @@ final class BillingAssignmentHistoryTest extends TestCase
             $account = $organization->billingAccount;
 
             $this->assertSame($organization->name, $account->name);
-            $this->assertSame(1, $account->organization_limit);
+            $this->assertSame(1, app(Allowances::class)->value($account, AllowanceKind::Organizations));
             $this->assertNull(DB::table('billing_account_assignments')->where('organization_id', $organization->id)->value('assigned_by'));
             $this->assertBillingAssignmentInvariants($organization);
         }

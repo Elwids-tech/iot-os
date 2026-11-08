@@ -1,4 +1,72 @@
-/** Billing accounts (spec 023, ADR-026): the payer of record for one or more organizations. */
+/**
+ * Billing accounts (spec 023, ADR-026): the payer of record for one or more organizations.
+ * Plans and allowances (specs 028 and 029, ADR-035).
+ */
+
+/** What a plan can limit. */
+export type AllowanceKind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations"
+
+/**
+ * One allowance a plan sets. `value` is null for unlimited; `retention_days` is never
+ * unlimited. A kind a plan does not list falls back to the deployment's default.
+ */
+export type PlanAllowance = {
+  kind: AllowanceKind
+  value: number | null
+}
+
+/**
+ * One of a billing account's allowances: its override, else its plan's, else the
+ * deployment's default. For `retention_days`, null means the platform setting applies.
+ */
+export type Allowance = {
+  kind: AllowanceKind
+  value: number | null
+  source: "override" | "plan" | "default"
+  note: string | null
+}
+
+/** A plan in the platform administrators' list. */
+export type BillingPlan = {
+  uuid: string
+  name: string
+  description: string | null
+  archived: boolean
+  archived_at: string | null
+  allowances: PlanAllowance[]
+  /** Billing accounts on the plan now. */
+  accounts_count: number
+  /** Whether any account was ever on it; such a plan cannot be deleted, only archived. */
+  ever_assigned: boolean
+  created_at: string | null
+}
+
+/** A plan's page: the accounts on it now (up to 100) and its latest history. */
+export type BillingPlanDetail = BillingPlan & {
+  accounts: { uuid: string; name: string; kind: PlanAssignmentKind; since: string }[]
+  history: BillingAccountHistoryEntry[]
+}
+
+/**
+ * A plan's values. `allowances`, when sent, is the complete set: a kind left out falls
+ * back to the deployment's default.
+ */
+export type BillingPlanValues = {
+  name: string
+  description?: string | null
+  allowances?: Partial<Record<AllowanceKind, number | null>>
+}
+
+export type PlanAssignmentKind = "paid" | "trial" | "trial_unpaid"
+
+/** The plan a billing account is on now, and since when. */
+export type PlanAssignment = {
+  uuid: string
+  kind: PlanAssignmentKind
+  plan: { uuid: string; name: string; archived: boolean }
+  started_at: string
+  trial_ends_at: string | null
+}
 
 /** A billing account owner, by integer user id (ADR-013). */
 export type BillingAccountOwner = {
@@ -13,7 +81,9 @@ export type BillingAccountSummary = {
   uuid: string
   name: string
   contact_email: string | null
-  organization_limit: number
+  /** The `organizations` allowance; null when unlimited. */
+  organization_limit: number | null
+  plan: { uuid: string; name: string } | null
   organizations_count: number
   owners: BillingAccountOwner[]
   created_at: string | null
@@ -56,9 +126,12 @@ export type BillingAccountDetail = {
   name: string
   contact_email: string | null
   notes: string | null
-  organization_limit: number
+  /** The `organizations` allowance; null when unlimited. */
+  organization_limit: number | null
   organizations_count: number
   created_at: string | null
+  plan_assignment: PlanAssignment | null
+  allowances: Allowance[]
   owners: BillingAccountOwner[]
   organizations: BillingAccountOrganization[]
   history: BillingAccountHistoryEntry[]
@@ -68,7 +141,10 @@ export type BillingAccountValues = {
   name: string
   contact_email?: string | null
   notes?: string | null
-  /** From 0 to 1000; owners cannot create organizations at or above it. */
+  /**
+   * From 0 to 1000; owners cannot create organizations at or above it. Saved as the
+   * `organizations` allowance: an override, or none when it equals the plan's value.
+   */
   organization_limit?: number
 }
 
@@ -76,7 +152,8 @@ export type BillingAccountValues = {
 export type OwnedBillingAccount = {
   uuid: string
   name: string
-  organization_limit: number
+  /** Null when unlimited. */
+  organization_limit: number | null
   organizations_count: number
   organizations: { uuid: string; name: string; created_at: string | null; member: boolean }[]
 }

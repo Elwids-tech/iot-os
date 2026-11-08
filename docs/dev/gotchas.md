@@ -32,6 +32,17 @@ Things that have cost time before. Add to this list when something surprises you
   `Organization::factory()->forBillingAccount($account)`. Quiet saves
   (`saveQuietly`, `WithoutModelEvents` in `DatabaseSeeder`) skip the hook, so
   `OrganizationSeeder` sets the account and assignment itself.
+- **A billing account's organization limit is an allowance, not a column.** Since
+  ADR-035 it is the `organizations` allowance: an override, else the account's plan,
+  else `config('billing.defaults.organizations')` (1). Read it with
+  `Allowances::value($account, AllowanceKind::Organizations)`, where `null` is unlimited.
+  `BillingAccountFactory::limit(n)` writes an override, so a test's limit survives any
+  plan it is given.
+- **PostgreSQL refuses to drop a table that later tables reference.** A test that
+  reruns an old migration's `down()` and `up()` (as `BillingAccountBackfillTest`
+  does for spec 023) must first roll back the later migrations whose foreign keys
+  point at its tables, then reapply them. SQLite drops the table anyway, so only the
+  PostgreSQL job fails.
 - **On SQLite, changing a column rebuilds the table, and the rebuild clears
   set-null keys that point at it.** Inside a migration's transaction foreign keys stay
   on, so dropping the old table fires `ON DELETE SET NULL` in every child table.
@@ -547,6 +558,16 @@ Things that have cost time before. Add to this list when something surprises you
   `SIGTERM` stops it without its NDEATH; the broker then sends its will instead.
 
 ## Browser tests and screenshots
+
+- **The portal's mocked specs run against whatever answers on 4173.** Another
+  worktree's `vite preview` often holds the port, so a local run tests that build and
+  times out on missing elements. Build this checkout's portal, serve it on another port
+  (`vite preview --port 4183 --strictPort`) and run with
+  `STUDIO_BASE_URL=http://127.0.0.1:4183`.
+- **An open dialog hides the page behind it from role queries.** Radix marks the rest
+  of the page `aria-hidden`, so `expect(getByRole("row", …)).toHaveCount(0)` passes
+  while a confirm dialog is still open, before its request is sent. Wait for something
+  the request causes, such as its toast, before reading a mock's state.
 
 - **Playwright browser version.** If the headless shell pinned by
   `@playwright/test` is not installed but another build is, point

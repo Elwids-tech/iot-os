@@ -59,7 +59,6 @@ class OrganizationSeeder extends Seeder
                 $organization->billing_account_id ??= BillingAccount::query()->forceCreate([
                     'uuid' => (string) Str::uuid(),
                     'name' => $definition['name'],
-                    'organization_limit' => 1,
                 ])->getKey();
                 $organization->saveQuietly();
                 $organization->restoreQuietly();

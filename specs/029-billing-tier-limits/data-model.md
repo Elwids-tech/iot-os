@@ -24,11 +24,11 @@ against `billing_plan_assignments`.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| plan_id | fk → billing_plans, cascade | |
+| billing_plan_id | fk → billing_plans, cascade | |
 | kind | string(32) | `alerts`, `sms`, `devices`, `data_points`, `retention_days`, `organizations` |
 | value | bigint null | ≥ 0; `NULL` = unlimited |
 
-The primary key is (plan_id, kind). A missing row means "not set on the plan", which
+The primary key is (billing_plan_id, kind). A missing row means "not set on the plan", which
 falls back to the deployment default. The rules per kind:
 
 - `retention_days` is 1–36,500 and never unlimited; a missing row means **Platform
@@ -41,7 +41,7 @@ falls back to the deployment default. The rules per kind:
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| plan_id | fk | |
+| billing_plan_id | fk | |
 | effective_from | date | always the first day of a month |
 | base_price | bigint | monthly, ≥ 0 |
 | alert_overage_price | bigint | per alert, ≥ 0 |
@@ -49,7 +49,7 @@ falls back to the deployment default. The rules per kind:
 | data_point_block_size | integer | ≥ 1, default 1,000,000 |
 | set_by, created_at | | |
 
-The primary key is (plan_id, effective_from). Month M uses the latest row with
+The primary key is (billing_plan_id, effective_from). Month M uses the latest row with
 `effective_from ≤ M`; a plan with no row is priced at 0 (029 FR-027).
 
 ### `billing_allowance_overrides`
@@ -84,7 +84,7 @@ writes a row with a `NULL` value from next month.
 | --- | --- | --- |
 | id, uuid | | |
 | billing_account_id | fk | |
-| plan_id | fk, restrict | |
+| billing_plan_id | fk, restrict | |
 | kind | string(16) | `paid`, `trial`, `trial_unpaid` |
 | started_at | timestamptz | |
 | ended_at | timestamptz null | |
