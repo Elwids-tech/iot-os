@@ -41,6 +41,10 @@ final class StoreOrganizationRequest extends FormRequest
                 Rule::exists('billing_plans', 'uuid')->whereNull('archived_at'),
                 'prohibits:billing_account_uuid',
             ],
+            // Or a trial on a plan for the new account (spec 029 US8): an end instant, or null for none.
+            'trial' => ['nullable', 'array:plan_uuid,ends_at', 'prohibits:billing_account_uuid,plan_uuid'],
+            'trial.plan_uuid' => ['required_with:trial', 'uuid', Rule::exists('billing_plans', 'uuid')->whereNull('archived_at')],
+            'trial.ends_at' => ['nullable', 'date', 'after:now'],
         ];
     }
 
@@ -54,6 +58,9 @@ final class StoreOrganizationRequest extends FormRequest
             'billing_account_uuid.exists' => 'That billing account no longer exists.',
             'plan_uuid.exists' => 'Choose a plan that exists and is not archived.',
             'plan_uuid.prohibits' => 'An existing billing account keeps its plan; choose a plan only for a new account.',
+            'trial.prohibits' => 'Start a trial only on a new billing account, instead of choosing its plan.',
+            'trial.plan_uuid.exists' => 'Choose a plan that exists and is not archived.',
+            'trial.ends_at.after' => 'Choose an end date in the future.',
         ];
     }
 }

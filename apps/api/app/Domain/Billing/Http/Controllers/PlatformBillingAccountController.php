@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Http\Controllers;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use App\Domain\Billing\Enums\PlanAssignmentKind;
 use App\Domain\Billing\Http\Requests\StoreBillingAccountRequest;
 use App\Domain\Billing\Http\Requests\UpdateBillingAccountRequest;
 use App\Domain\Billing\Http\Resources\BillingAccountDetailResource;
@@ -18,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 /**
  * Platform administrators manage billing accounts (spec 023 US2).
@@ -34,6 +36,8 @@ final class PlatformBillingAccountController
             'usage_at_least' => ['nullable', 'integer', 'between:1,100'],
             /** Accounts with an invoice unpaid past its due date (spec 029 FR-043). */
             'past_due' => ['nullable', 'boolean'],
+            /** On a trial, on one ending within 7 days, or whose trial ended without a payment method (spec 029 FR-051). */
+            'trial' => ['nullable', Rule::in(['active', 'ending', 'ended_unpaid'])],
         ]);
 
         $search = trim((string) $request->query('search', ''));
@@ -57,6 +61,11 @@ final class PlatformBillingAccountController
             // Spec 028 FR-020, spec 029 FR-026; `usage_at_least=80` is the list's filter.
             ->when($usageAtLeast !== null, fn ($query) => $this->usage->whereUsageAtLeast($query, (int) $usageAtLeast, CarbonImmutable::now()))
             ->when($request->boolean('past_due'), fn ($query) => $query->whereNotNull('past_due_since'))
+            ->when($request->filled('trial'), fn ($query) => $query->whereHas('openPlanAssignment', fn ($query) => match ($request->query('trial')) {
+                'ending' => $query->where('kind', PlanAssignmentKind::Trial->value)->whereNotNull('trial_ends_at')->where('trial_ends_at', '<=', now()->addDays(7)),
+                'ended_unpaid' => $query->where('kind', PlanAssignmentKind::TrialUnpaid->value),
+                default => $query->where('kind', PlanAssignmentKind::Trial->value),
+            }))
             ->withCount('organizations')
             ->with(['owners' => fn ($query) => $query->orderBy('name'), 'openPlanAssignment.plan.allowances', 'allowanceOverrides'])
             ->orderBy('name')

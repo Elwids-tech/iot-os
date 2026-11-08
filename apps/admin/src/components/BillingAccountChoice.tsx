@@ -2,6 +2,7 @@ import type { BillingAccountSummary, DirectoryQuery } from "@iot-os/api-client"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { ChoiceCard } from "@iot-os/ui/components/choice-card"
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
+import { CheckboxField } from "@iot-os/ui/components/form-fields"
 import { Input } from "@iot-os/ui/components/input"
 import { RadioGroup } from "@iot-os/ui/components/radio-group"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
@@ -9,6 +10,7 @@ import { InfoIcon } from "lucide-react"
 import { useSearchOptions } from "../hooks/use-search-options"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages } from "../lib/errors"
+import { defaultTrialLength, TrialLengthFields, trialEndsAtOf, type TrialLengthValue } from "./TrialDialog"
 
 export type BillingAccountChoiceValue = {
   mode: "new" | "existing"
@@ -18,6 +20,8 @@ export type BillingAccountChoiceValue = {
   contactEmail: string
   /** New account: the plan it starts on, or none (spec 028). */
   plan: { uuid: string; name: string } | null
+  /** New account on a plan: a trial of it instead, or none (spec 029 US8). */
+  trial: TrialLengthValue | null
   /** Existing account. */
   account: BillingAccountSummary | null
 }
@@ -28,6 +32,7 @@ export const newBillingAccountChoice = (): BillingAccountChoiceValue => ({
   nameTouched: false,
   contactEmail: "",
   plan: null,
+  trial: null,
   account: null,
 })
 
@@ -40,7 +45,11 @@ export function billingAccountValues(choice: BillingAccountChoiceValue, organiza
           name: choice.name.trim() || organizationName.trim(),
           contact_email: choice.contactEmail.trim() || null,
         },
-        ...(choice.plan ? { plan_uuid: choice.plan.uuid } : {}),
+        ...(choice.plan && choice.trial
+          ? { trial: { plan_uuid: choice.plan.uuid, ends_at: trialEndsAtOf(choice.trial) } }
+          : choice.plan
+            ? { plan_uuid: choice.plan.uuid }
+            : {}),
       }
 }
 
@@ -87,7 +96,8 @@ export function BillingAccountChoice({
   const nameErrors = fieldMessages(errors, "new_billing_account.name")
   const emailErrors = fieldMessages(errors, "new_billing_account.contact_email")
   const accountErrors = fieldMessages(errors, "billing_account_uuid")
-  const planErrors = fieldMessages(errors, "plan_uuid")
+  const planErrors = fieldMessages(errors, "plan_uuid") ?? fieldMessages(errors, "trial.plan_uuid")
+  const trialErrors = fieldMessages(errors, "trial.ends_at") ?? fieldMessages(errors, "trial")
 
   return (
     <FieldSet>
@@ -152,10 +162,27 @@ export function BillingAccountChoice({
             ]}
             onChange={(uuid) => {
               const plan = plans.items.find((item) => item.uuid === uuid)
-              onChange({ ...value, plan: plan ? { uuid: plan.uuid, name: plan.name } : null })
+              onChange({ ...value, plan: plan ? { uuid: plan.uuid, name: plan.name } : null, trial: plan ? value.trial : null })
             }}
             error={planErrors?.join(" ")}
           />
+          {value.plan ? (
+            <CheckboxField
+              label="Start on a trial"
+              description="The plan's allowances and limits apply, and no trial day is charged."
+              checked={value.trial !== null}
+              disabled={disabled}
+              onCheckedChange={(checked) => onChange({ ...value, trial: checked ? defaultTrialLength() : null })}
+            />
+          ) : null}
+          {value.plan && value.trial ? (
+            <TrialLengthFields
+              value={value.trial}
+              disabled={disabled}
+              error={trialErrors?.join(" ")}
+              onChange={(trial) => onChange({ ...value, trial })}
+            />
+          ) : null}
         </FieldGroup>
       ) : (
         <FieldGroup>

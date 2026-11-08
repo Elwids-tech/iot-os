@@ -36,6 +36,8 @@ import type {
   OrganizationUsage,
   OwnedBillingAccount,
   OwnerOrganization,
+  TrialFilter,
+  TrialValues,
   Usage,
 } from "./billing"
 import type {
@@ -999,6 +1001,8 @@ export class ApiClient {
     billing_account_uuid?: string
     new_billing_account?: { name: string; contact_email?: string | null }
     plan_uuid?: string | null
+    /** A trial for the new account instead of `plan_uuid` (spec 029 US8). */
+    trial?: { plan_uuid: string; ends_at: string | null }
   }): Promise<Organization> {
     return this.request<ApiResponse<Organization>>("/api/v1/admin/organizations", {
       method: "POST",
@@ -1022,11 +1026,16 @@ export class ApiClient {
    * limited allowance this month.
    */
   async adminBillingAccounts(
-    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { plan?: string; usageAtLeast?: number; pastDue?: boolean } = {},
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & {
+      plan?: string
+      usageAtLeast?: number
+      pastDue?: boolean
+      trial?: TrialFilter
+    } = {},
   ): Promise<PaginatedResponse<BillingAccountSummary>> {
-    const { plan, usageAtLeast, pastDue, ...directory } = query
+    const { plan, usageAtLeast, pastDue, trial, ...directory } = query
     let path = withParameter(withParameter(directoryQuery(directory), "plan", plan), "usage_at_least", usageAtLeast?.toString())
-    path = withParameter(path, "past_due", pastDue ? "1" : undefined)
+    path = withParameter(withParameter(path, "past_due", pastDue ? "1" : undefined), "trial", trial)
     return this.request<PaginatedResponse<BillingAccountSummary>>(`/api/v1/admin/billing-accounts${path}`)
   }
 
@@ -1108,6 +1117,42 @@ export class ApiClient {
     return this.request<ApiResponse<BillingAccountDetail>>(
       `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/plan`,
       { method: "PUT", body: JSON.stringify({ plan_uuid: planUuid, ...(confirmRetention ? { confirm_retention: true } : {}) }) },
+    ).then((response) => response.data)
+  }
+
+  /**
+   * Starts a trial (spec 029 US8) on the account's plan or `plan_uuid`, ending at
+   * `ends_at` (an instant) or with no end date. 409 when a trial is open, or
+   * (`RetentionNeedsConfirmation`) when the plan shortens retention, until `confirm_retention`.
+   */
+  async startTrial(billingAccountUuid: string, values: TrialValues): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/trial`,
+      { method: "POST", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  /** Extends, shortens or moves the open trial to another plan; 409 without one. */
+  async changeTrial(billingAccountUuid: string, values: TrialValues): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/trial`,
+      { method: "PATCH", body: JSON.stringify(values) },
+    ).then((response) => response.data)
+  }
+
+  /** Ends the trial now: the paid plan with a saved card, else "trial ended, no payment method". */
+  async endTrial(billingAccountUuid: string): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/trial/end`,
+      { method: "POST" },
+    ).then((response) => response.data)
+  }
+
+  /** Turns a trial, or one that ended without a card, into the paid plan, charged from the next day. */
+  async convertTrial(billingAccountUuid: string): Promise<BillingAccountDetail> {
+    return this.request<ApiResponse<BillingAccountDetail>>(
+      `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/trial/convert`,
+      { method: "POST" },
     ).then((response) => response.data)
   }
 

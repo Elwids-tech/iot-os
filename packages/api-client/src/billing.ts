@@ -126,6 +126,16 @@ export type BillingPlanValues = {
 
 export type PlanAssignmentKind = "paid" | "trial" | "trial_unpaid"
 
+/**
+ * A trial's plan (the account's own when omitted) and when it ends: an instant, or null
+ * for no end date (spec 029 US8). Invoices charge each day by the assignment in force at
+ * 00:00 UTC, so a trial ending at 00:00 UTC on the 9th runs until the 8th.
+ */
+export type TrialValues = { plan_uuid?: string | null; ends_at: string | null; confirm_retention?: boolean }
+
+/** The admin list's trial filter: on a trial, ending within 7 days, or ended without a payment method. */
+export type TrialFilter = "active" | "ending" | "ended_unpaid"
+
 /** The plan a billing account is on now, and since when. */
 export type PlanAssignment = {
   uuid: string
@@ -150,7 +160,8 @@ export type BillingAccountSummary = {
   contact_email: string | null
   /** The `organizations` allowance; null when unlimited. */
   organization_limit: number | null
-  plan: { uuid: string; name: string } | null
+  /** `trial_ends_at` is when a limited trial ends (spec 029 US8); null otherwise. */
+  plan: { uuid: string; name: string; kind: PlanAssignmentKind; trial_ends_at: string | null } | null
   organizations_count: number
   owners: BillingAccountOwner[]
   created_at: string | null
@@ -233,8 +244,8 @@ export type OwnedBillingAccount = {
   organization_limit: number | null
   organizations_count: number
   organizations: { uuid: string; name: string; created_at: string | null; member: boolean }[]
-  /** `since` is when the account went onto the plan. */
-  plan: { uuid: string; name: string; since: string } | null
+  /** `since` is when the account went onto the plan; `trial_ends_at` is when a limited trial ends. */
+  plan: { uuid: string; name: string; since: string; kind: PlanAssignmentKind; trial_ends_at: string | null } | null
   allowances: Allowance[]
   /** This month's usage, with each organization's share. */
   usage: Usage[]

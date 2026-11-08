@@ -17,6 +17,7 @@ import { CreditCardIcon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
 import { billingAccountsKey } from "./model"
+import { addCard } from "./payments"
 
 /** "Visa •••• 4242", or the brand alone. */
 export const cardName = (card: NonNullable<OwnedBillingAccount["payment_method"]>) =>
@@ -37,13 +38,7 @@ export function PaymentMethodPanel({ account, saving }: { account: OwnedBillingA
 
   async function openStripe() {
     setBusy(true)
-    try {
-      const { url } = await api.paymentMethodCheckout(account.uuid)
-      window.location.assign(url)
-    } catch {
-      toast.error("Could not open Stripe's page. Try again.")
-      setBusy(false)
-    }
+    if (!(await addCard(account.uuid))) setBusy(false)
   }
 
   async function remove() {

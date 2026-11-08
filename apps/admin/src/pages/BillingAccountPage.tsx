@@ -34,6 +34,7 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { UsagePanel } from "@iot-os/ui/components/usage-overview"
 import { formatDay, formatMonth } from "@iot-os/ui/lib/invoices"
+import { trialLastDay } from "@iot-os/ui/lib/trials"
 import { formatBasisPoints, formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, Building2Icon, ReceiptTextIcon, UserRoundXIcon, WalletIcon } from "lucide-react"
@@ -54,6 +55,7 @@ import { errorMessage } from "../lib/errors"
 import { invoicePath, priceKinds, priceText } from "../lib/invoices"
 import { planPath } from "./PlansPage"
 import { RetentionConfirmDialog, retentionConfirmation } from "../components/RetentionConfirmDialog"
+import { TrialDialog } from "../components/TrialDialog"
 
 const back = { to: "/billing-accounts", label: "Billing accounts" }
 
@@ -105,6 +107,9 @@ export function BillingAccountPage() {
   const [invoices, setInvoices] = useState<InvoiceSummary[] | null>(null)
   const [invoicesFailed, setInvoicesFailed] = useState(false)
   const [removingPlan, setRemovingPlan] = useState(false)
+  // The mode outlives the dialog, so its title holds while it closes.
+  const [trialDialog, setTrialDialog] = useState<{ mode: "start" | "change"; open: boolean }>({ mode: "start", open: false })
+  const [endingTrial, setEndingTrial] = useState<"end" | "convert" | null>(null)
   const [busy, setBusy] = useState(false)
   // A plan change or override removal that shortens retention, waiting for confirmation (spec 029 US4).
   const [retention, setRetention] = useState<{ confirmation: RetentionNeedsConfirmation; retry: () => Promise<void> } | null>(null)
@@ -302,6 +307,44 @@ export function BillingAccountPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  /** Ends the trial now by the card rule, or turns it into the paid plan (spec 029 US8). */
+  async function finishTrial(action: "end" | "convert") {
+    if (!account) return
+    setBusy(true)
+    try {
+      const saved = action === "end" ? await apiClient.endTrial(account.uuid) : await apiClient.convertTrial(account.uuid)
+      toast.success(
+        saved.plan_assignment?.kind === "paid"
+          ? `${account.name} is on ${saved.plan_assignment.plan.name}, charged from tomorrow`
+          : `The trial ended. ${account.name} is not charged until an owner saves a card`,
+      )
+      setAccount(saved)
+      setEndingTrial(null)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** A trial plan that shortens retention waits for the confirmation; `apply` sends it again. */
+  function confirmTrialRetention(confirmation: RetentionNeedsConfirmation, apply: () => Promise<void>) {
+    setRetention({
+      confirmation,
+      retry: async () => {
+        setBusy(true)
+        try {
+          await apply()
+          setRetention(null)
+        } catch (error) {
+          toast.error(errorMessage(error))
+        } finally {
+          setBusy(false)
+        }
+      },
+    })
   }
 
   async function removePriceOverride(price: PriceKind) {
@@ -535,7 +578,17 @@ export function BillingAccountPage() {
                 </p>
                 <p className="text-meta text-muted-foreground">
                   Since <RelativeTime at={assignment.started_at} />
+                  {assignment.kind === "trial"
+                    ? assignment.trial_ends_at
+                      ? ` · until ${formatDay(trialLastDay(assignment.trial_ends_at))}`
+                      : " · no end date"
+                    : null}
                 </p>
+                {assignment.kind === "trial_unpaid" ? (
+                  <p className="text-meta text-muted-foreground">
+                    Not charged until an owner saves a card or the trial is converted to paid.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="text-muted-foreground">No plan. The account gets the deployment&apos;s default allowances.</p>
@@ -544,6 +597,7 @@ export function BillingAccountPage() {
               label={assignment ? "Change plan" : "Choose a plan"}
               value=""
               placeholder="Choose a plan"
+              help={assignment && assignment.kind !== "paid" ? "A paid plan, which ends the trial." : undefined}
               emptyText={plans.failed ? "Plans could not be loaded." : "No plans match."}
               disabled={busy}
               {...plans.select}
@@ -552,11 +606,32 @@ export function BillingAccountPage() {
                 .map((plan) => ({ value: plan.uuid, label: plan.name }))}
               onChange={(planUuid) => void changePlan(planUuid)}
             />
-            {assignment ? (
-              <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setRemovingPlan(true)}>
-                Remove plan
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {assignment?.kind === "trial" ? (
+                <>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setTrialDialog({ mode: "change", open: true })}>
+                    Change trial
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setEndingTrial("end")}>
+                    End trial
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setTrialDialog({ mode: "start", open: true })}>
+                  Start trial
+                </Button>
+              )}
+              {assignment && assignment.kind !== "paid" ? (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setEndingTrial("convert")}>
+                  Convert to paid
+                </Button>
+              ) : null}
+              {assignment ? (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setRemovingPlan(true)}>
+                  Remove plan
+                </Button>
+              ) : null}
+            </div>
           </PanelContent>
         </Panel>
         <Panel aria-labelledby="billing-allowances">
@@ -813,6 +888,36 @@ export function BillingAccountPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={endingTrial !== null} onOpenChange={(open) => !open && !busy && setEndingTrial(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {endingTrial === "end" ? `End the trial of ${assignment?.plan.name} now?` : `Convert ${account.name} to paid?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {endingTrial === "convert"
+                ? `It stays on ${assignment?.plan.name} and is charged from tomorrow, with or without a saved card.`
+                : account.payment_method
+                  ? `It stays on ${assignment?.plan.name} and is charged to the saved card from tomorrow. Owners are emailed.`
+                  : `There is no saved card, so it stays on ${assignment?.plan.name}, not charged, and is flagged "trial ended, no payment method" until an owner saves one. Owners are emailed.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <Button disabled={busy} onClick={() => endingTrial && void finishTrial(endingTrial)}>
+              {endingTrial === "end" ? (busy ? "Ending…" : "End trial") : busy ? "Converting…" : "Convert to paid"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <TrialDialog
+        account={account}
+        mode={trialDialog.mode}
+        open={trialDialog.open}
+        onClose={() => setTrialDialog((current) => ({ ...current, open: false }))}
+        onSaved={setAccount}
+        onRetention={confirmTrialRetention}
+      />
       <AlertDialog open={removingOwner !== null} onOpenChange={(open) => !open && !busy && setRemovingOwner(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

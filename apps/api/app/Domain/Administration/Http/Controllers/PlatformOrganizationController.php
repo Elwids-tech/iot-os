@@ -14,8 +14,10 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\BillingAccounts;
 use App\Domain\Billing\Services\PlanAssignments;
+use App\Domain\Billing\Services\Trials;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -29,6 +31,7 @@ final class PlatformOrganizationController
         private readonly OrganizationDefaultRoles $defaultRoles,
         private readonly BillingAccounts $billingAccounts,
         private readonly PlanAssignments $planAssignments,
+        private readonly Trials $trials,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -75,6 +78,16 @@ final class PlatformOrganizationController
             if (isset($values['plan_uuid'])) {
                 // A new account has no history, so a shorter retention needs no confirmation.
                 $this->planAssignments->assign($account, BillingPlan::query()->where('uuid', $values['plan_uuid'])->firstOrFail(), $request->user(), confirmRetention: true);
+            }
+
+            if (isset($values['trial'])) {
+                $this->trials->start(
+                    $account,
+                    BillingPlan::query()->where('uuid', $values['trial']['plan_uuid'])->firstOrFail(),
+                    isset($values['trial']['ends_at']) ? CarbonImmutable::parse((string) $values['trial']['ends_at'])->utc() : null,
+                    $request->user(),
+                    confirmRetention: true,
+                );
             }
 
             $organization = new Organization($request->safe()->only(['name', 'slug']));

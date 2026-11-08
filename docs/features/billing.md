@@ -5,10 +5,8 @@ Plans, the allowances they give billing accounts, and what accounts use
 [spec 029](../../specs/029-billing-tier-limits/spec.md),
 [ADR-035](../adr/ADR-035-plans-and-allowances.md)). Billing accounts themselves, the
 payer of record for one or more organizations, are described under
-[Access](access.md#billing-accounts). Prices, tax and invoices are below; payments and
-trials are planned in
-[the billing plan](../../specs/029-billing-tier-limits/plan.md) and described here as
-they are built.
+[Access](access.md#billing-accounts). Prices, tax, invoices, card payments and trials
+are below ([the billing plan](../../specs/029-billing-tier-limits/plan.md)).
 
 Code: Laravel [`Domain/Billing`](../../apps/api/app/Domain/Billing) (resolution:
 [`Allowances`](../../apps/api/app/Domain/Billing/Services/Allowances.php), plans:
@@ -19,7 +17,8 @@ usage: [`Usage`](../../apps/api/app/Domain/Billing/Services/Usage.php), warnings
 [`Notices`](../../apps/api/app/Domain/Billing/Services/Notices.php), invoices:
 [`InvoiceDrafter`](../../apps/api/app/Domain/Billing/Services/InvoiceDrafter.php),
 [`InvoiceIssuer`](../../apps/api/app/Domain/Billing/Services/InvoiceIssuer.php) and
-[`CreditNotes`](../../apps/api/app/Domain/Billing/Services/CreditNotes.php)), defaults in
+[`CreditNotes`](../../apps/api/app/Domain/Billing/Services/CreditNotes.php), trials:
+[`Trials`](../../apps/api/app/Domain/Billing/Services/Trials.php)), defaults in
 [`config/billing.php`](../../apps/api/config/billing.php).
 
 ## Plans and allowances
@@ -114,7 +113,14 @@ allowance changes as updates; the plan's page shows its own history.
   payments recorded by hand, each with its status and the card issuer's reason or the
   note), **Record payment** (up to what is still owed, with a note) and, while a card or
   Checkout payment is still processing, **Check with Stripe**.
-- **New organization** with a new billing account can start it on a plan.
+- **Trials** (spec 029 US8). The account's **Plan** panel has **Start trial**: a plan
+  (the account's own by default) and a last day (UTC, 30 days by default) or **No end
+  date**. During a trial it has **Change trial** (the same dialog), **End trial** and
+  **Convert to paid**; a trial that ended without a card keeps **Convert to paid**. The
+  account list marks trials, with their last day, and filters them (Trial: On a trial,
+  Ending within 7 days, Ended, no payment method).
+- **New organization** with a new billing account can start it on a plan, or on a trial
+  of it (**Start on a trial**).
 
 Money is formatted with `formatMoney` from `@iot-os/ui/lib/money` in the reader's
 locale and typed in major units (`parseMoney`); invoice months, due days and the
@@ -425,6 +431,40 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
 Invoice history adds `payment_recorded`, `payment_succeeded`, `payment_failed` and
 `payment_amount_mismatch`; the audit catalogue adds the card's saving and removal.
 
+## Trials
+
+Spec 029 US8, research R4. A trial is a `trial` plan assignment: the plan's allowances,
+limits, usage and warnings apply as on any plan, and invoices show its days and its
+overage at 0.
+
+- **Limited or open-ended.** `trial_ends_at` is the instant it ends, or null. The admin
+  app picks a last day: a trial ending at 00:00 UTC on the 9th runs until the 8th. An
+  account has one open trial at most (409).
+- **Steps.** Starting, moving to another plan, ending and converting each close the open
+  assignment and open the next at one instant (`PlanAssignments::replace`), so the
+  history answers "was the account on a trial at instant X". Extending or shortening
+  changes `trial_ends_at` in place. A trial's plan can shorten retention, which needs
+  confirmation like a plan change.
+- **The card rule** (FR-050). When a trial ends, the account stays on its plan: `paid`
+  with a saved card, otherwise `trial_unpaid` ("trial ended, no payment method":
+  flagged, still not charged). Saving a card then makes it `paid`
+  (`Trials::paymentMethodAdded`, called when Stripe confirms the card), and an
+  administrator can convert it. Invoices charge each day by the assignment in force at
+  00:00 UTC, so a trial that ends during a day is charged from the next; overage counted
+  after the switch is charged.
+- **`billing:end-trials`** (daily at 00:05 UTC, `--now=`) ends trials whose end has
+  passed, at their end even when the job runs late, then sends `trial_reminder` emails
+  for limited trials ending within 7 days and within 1 day, once each per trial and end
+  date (so an extended trial is reminded again). Each asks for a card when none is
+  saved. Ending a trial sends `trial_ended` once, saying whether the plan is now charged.
+- **Portal.** The owner's **Plan** panel shows "Trial until {day}" or "Trial, no end
+  date", and "Add a card to keep your plan" with **Add a card** while a trial ends within
+  7 days or ended without a card.
+
+The account's history and the audit catalogue add `trial_started`, `trial_changed` and
+`trial_ended`. Dates come from `@iot-os/ui/lib/trials` (`trialLastDay`, `trialEndsAt`,
+`trialText`, `trialEndingSoon`).
+
 ## API
 
 Admin routes need `PlatformAdministration.manage-organizations`:
@@ -451,8 +491,11 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf` | `{amount, reason}` on an issued invoice |
 | `POST admin/billing/invoices/{uuid}/payments` | `{amount, note}`: a payment made another way, up to what is still owed (201) |
 | `POST admin/billing/invoices/{uuid}/reconcile` | Applies Stripe's state to pending payments; 404 while payments are off |
+| `POST admin/billing-accounts/{uuid}/trial` | `{plan_uuid?, ends_at\|null}`: start a trial now (409 when one is open) |
+| `PATCH admin/billing-accounts/{uuid}/trial` | `{ends_at\|null, plan_uuid?}`: extend, shorten or move it (409 without one) |
+| `POST admin/billing-accounts/{uuid}/trial/end`, `/convert` | End it now by the card rule, or turn it (or a trial that ended without a card) into the paid plan |
 
-The plan, allowance and organization-move routes answer 409 `retention` when the change
+The plan, trial, allowance and organization-move routes answer 409 `retention` when the change
 shortens an organization's telemetry retention, until `confirm_retention: true` is
 sent ([retention](#retention)).
 
@@ -461,11 +504,12 @@ with `value`, `source` and `note`), this month's `usage`, `prices` (this month's
 when a change waits, next month's), `price_overrides`, `billing_details`,
 `payment_method` and `past_due_since`. Plans carry `prices` too. Invoice details carry
 `payments`. Billing settings carry `payments_enabled`. The admin account list
-carries `plan` and `past_due_since`, and filters by `past_due=1`, by `plan` (a plan's uuid, or `none`) and by
+carries `plan` (with `kind` and `trial_ends_at`) and `past_due_since`, and filters by
+`past_due=1`, by `trial` (`active`, `ending` within 7 days, `ended_unpaid`), by `plan` (a plan's uuid, or `none`) and by
 `usage_at_least` (1 to 100; the list's filter is 80): accounts that have used at
 least that share of a limited allowance this month, resolved in SQL as
-`Allowances` does. `POST admin/organizations` takes `plan_uuid` with a new billing
-account.
+`Allowances` does. `POST admin/organizations` takes `plan_uuid`, or `trial: {plan_uuid,
+ends_at|null}`, with a new billing account.
 
 Owner and manager routes:
 
@@ -485,4 +529,5 @@ plus `peak_this_month` and `over_limit` for `devices` and `final`, `reported_at`
 `peak_this_month`, and its `count` is the organization's own. It also carries
 `retention`: `{days, source, pending_reduction}`, where `source` is `organization`,
 `billing_account`, `platform` or `default` and `pending_reduction` is `{days, from}`
-while a billing change's grace runs. An owner's account `plan` carries `since`.
+while a billing change's grace runs. An owner's account `plan` carries `since`, `kind`
+and `trial_ends_at`.

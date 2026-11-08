@@ -45,6 +45,9 @@ final class BillingAccountHistory
         'billing_account.allowance_override_removed' => 'updated',
         'billing_account.price_overridden' => 'updated',
         'billing_account.billing_details_updated' => 'updated',
+        'billing_account.trial_started' => 'updated',
+        'billing_account.trial_changed' => 'updated',
+        'billing_account.trial_ended' => 'updated',
     ];
 
     /**
@@ -117,6 +120,25 @@ final class BillingAccountHistory
                         'billing_account.plan_assigned', 'billing_account.plan_removed' => ['changes' => [
                             new BillingAccountChange('plan', $details['from']['name'] ?? null, $details['to']['name'] ?? null),
                         ]],
+                        'billing_account.trial_started' => ['changes' => [
+                            new BillingAccountChange('trial', 'none', self::trialText((string) ($details['plan']['name'] ?? ''), $details['ends_at'] ?? null)),
+                        ]],
+                        'billing_account.trial_changed' => ['changes' => [
+                            new BillingAccountChange(
+                                'trial',
+                                self::trialText((string) ($details['from']['plan'] ?? ''), $details['from']['ends_at'] ?? null),
+                                self::trialText((string) ($details['to']['plan'] ?? ''), $details['to']['ends_at'] ?? null),
+                            ),
+                        ]],
+                        'billing_account.trial_ended' => ['changes' => [
+                            new BillingAccountChange(
+                                'trial',
+                                ($details['plan']['name'] ?? '').(($details['from'] ?? null) === 'trial_unpaid' ? ', ended without a payment method' : ''),
+                                ($details['to'] ?? null) === 'paid'
+                                    ? 'paid from '.CarbonImmutable::parse((string) ($details['at'] ?? 'now'))->utc()->subMicrosecond()->addDay()->format('j M Y')
+                                    : 'ended without a payment method',
+                            ),
+                        ]],
                         'billing_account.allowance_overridden', 'billing_account.allowance_override_removed' => ['changes' => [
                             new BillingAccountChange(
                                 self::allowanceField((string) ($details['kind'] ?? '')),
@@ -188,6 +210,14 @@ final class BillingAccountHistory
     private static function allowanceText(mixed $value): string
     {
         return $value === null ? 'Unlimited' : (string) $value;
+    }
+
+    /** "Plan until 8 Dec 2026": the last UTC day before the trial ends; or "Plan, no end date". */
+    private static function trialText(string $plan, mixed $endsAt): string
+    {
+        return $endsAt === null
+            ? $plan.', no end date'
+            : $plan.' until '.CarbonImmutable::parse((string) $endsAt)->utc()->subMicrosecond()->format('j M Y');
     }
 
     /** A price override as text: an amount, or the plan's price when there is none. */

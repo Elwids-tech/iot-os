@@ -12,8 +12,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A billing account in the platform administrators' list (spec 023), with its plan
- * (spec 028). `organization_limit` is the `organizations` allowance, null when
- * unlimited; the list eager-loads what `Allowances` needs.
+ * (spec 028) and whether it is on a trial (spec 029 US8). `organization_limit` is the
+ * `organizations` allowance, null when unlimited; the list eager-loads what
+ * `Allowances` needs.
  *
  * @extends JsonResource<BillingAccount>
  */
@@ -32,6 +33,10 @@ final class BillingAccountResource extends JsonResource
             'plan' => $this->resource->openPlanAssignment === null ? null : [
                 'uuid' => (string) $this->resource->openPlanAssignment->plan->uuid,
                 'name' => (string) $this->resource->openPlanAssignment->plan->name,
+                /** @var 'paid'|'trial'|'trial_unpaid' */
+                'kind' => $this->resource->openPlanAssignment->kind->value,
+                /** When a limited trial ends (spec 029 US8); null otherwise. */
+                'trial_ends_at' => $this->resource->openPlanAssignment->trial_ends_at?->toIso8601String(),
             ],
             'organizations_count' => (int) $this->resource->organizations_count,
             'owners' => BillingAccountOwnerResource::collection($this->resource->owners),

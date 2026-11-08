@@ -81,6 +81,35 @@ final class PlanAssignments
         }), 'plan_changed', $confirmRetention);
     }
 
+    /**
+     * Closes the open assignment and opens the next at one instant, for the trial steps
+     * (spec 029 US8). The caller holds the account's lock (`lock`) in a transaction.
+     */
+    public function replace(?PlanAssignment $open, BillingAccount $account, BillingPlan $plan, PlanAssignmentKind $kind, ?User $actor, string $endReason, ?CarbonImmutable $trialEndsAt = null, ?CarbonImmutable $at = null): PlanAssignment
+    {
+        $at ??= CarbonImmutable::now();
+        $open?->forceFill(['ended_at' => $at, 'ended_by' => $actor?->getKey(), 'end_reason' => $endReason])->save();
+
+        return PlanAssignment::query()->create([
+            'billing_account_id' => $account->getKey(),
+            'billing_plan_id' => $plan->getKey(),
+            'kind' => $kind,
+            'started_at' => $at,
+            'trial_ends_at' => $trialEndsAt,
+            'assigned_by' => $actor?->getKey(),
+        ])->setRelation('plan', $plan);
+    }
+
+    /**
+     * Locks the account row and returns its open assignment.
+     */
+    public function lock(BillingAccount $account): ?PlanAssignment
+    {
+        BillingAccount::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
+
+        return $this->current($account);
+    }
+
     public function current(BillingAccount $account): ?PlanAssignment
     {
         return PlanAssignment::query()

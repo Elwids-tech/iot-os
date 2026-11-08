@@ -15,3 +15,15 @@ export async function payOnline(accountUuid: string, invoice: Pick<InvoiceSummar
     toast.error(`Could not open Stripe's page for ${invoice.number}. Try again.`)
   }
 }
+
+/** Opens Stripe's page to save a card; it comes back to Billing accounts. False when it could not open. */
+export async function addCard(accountUuid: string): Promise<boolean> {
+  try {
+    const { url } = await api.paymentMethodCheckout(accountUuid)
+    window.location.assign(url)
+    return true
+  } catch {
+    toast.error("Could not open Stripe's page. Try again.")
+    return false
+  }
+}
