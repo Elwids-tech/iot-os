@@ -57,5 +57,25 @@
     "consumer_tests": [
       "services/runtime/internal/app/control_test.go"
     ]
+  },
+  {
+    "id": "usage.data_points.v1",
+    "group": "event",
+    "schema": "internal/events/usage.data_points.v1.schema.json",
+    "producer": "runtime",
+    "consumer": "control_plane",
+    "dedup": "uuid",
+    "fences": [
+      "count",
+      "final_through"
+    ],
+    "reading": "tolerant",
+    "live_check": "none",
+    "producer_tests": [
+      "services/runtime/internal/storage/usage_integration_test.go"
+    ],
+    "consumer_tests": [
+      "apps/api/tests/Feature/Domain/Billing/DataPointReportsTest.php"
+    ]
   }
 ]

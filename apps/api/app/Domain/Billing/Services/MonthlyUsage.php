@@ -12,6 +12,11 @@ use Carbon\CarbonImmutable;
  * allowance now, null when unlimited; `overage` was fixed when each unit was counted, so
  * a later allowance change only moves what is left. `organizations` is each
  * organization's share by name, or null where it must not be shown.
+ *
+ * Data points come from the runtime's reports (spec 029 US3, FR-014): `final` says the
+ * runtime has reported the whole month, `reportedAt` when it last reported, and `stale`
+ * that a month still open has not been reported for longer than
+ * `billing.usage_report_stale_seconds`. They are null for the other kinds.
  */
 final readonly class MonthlyUsage
 {
@@ -25,6 +30,9 @@ final readonly class MonthlyUsage
         public ?int $allowance,
         public int $overage,
         public ?array $organizations = null,
+        public ?bool $final = null,
+        public ?CarbonImmutable $reportedAt = null,
+        public ?bool $stale = null,
     ) {}
 
     /** What is left of the allowance this month: null when unlimited, 0 once used up. */

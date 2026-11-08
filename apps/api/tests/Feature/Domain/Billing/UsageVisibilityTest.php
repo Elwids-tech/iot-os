@@ -82,6 +82,8 @@ final class UsageVisibilityTest extends TestCase
                 ['kind' => 'sms', 'month' => $month, 'count' => 2, 'allowance' => 5, 'left' => 3, 'overage' => 0, 'organizations' => [
                     ['organization_uuid' => $this->acme->uuid, 'name' => 'Acme Manufacturing', 'count' => 2],
                 ]],
+                // No runtime report yet: provisional and stale.
+                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'organizations' => [], 'final' => false, 'reported_at' => null, 'stale' => true],
             ]]);
 
         $this->getJson('/api/v1/billing-accounts')
@@ -129,6 +131,7 @@ final class UsageVisibilityTest extends TestCase
             ->assertExactJson(['data' => [
                 ['kind' => 'alerts', 'month' => $month, 'count' => 3, 'allowance' => 10, 'left' => 5, 'overage' => 0],
                 ['kind' => 'sms', 'month' => $month, 'count' => 2, 'allowance' => 5, 'left' => 3, 'overage' => 0],
+                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'final' => false, 'reported_at' => null, 'stale' => true],
             ]]);
 
         foreach (['Integrator Billing', 'Lakeside Home', $this->lakeside->uuid, $this->account->uuid, 'Integrator plan'] as $hidden) {
@@ -165,16 +168,16 @@ final class UsageVisibilityTest extends TestCase
         $manager = User::where('email', 'shared.operator@example.test')->firstOrFail();
 
         $this->actingAs($this->owner, 'sanctum');
-        $this->assertSame(['alerts'], array_column($this->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->json('data'), 'kind'));
+        $this->assertSame(['alerts', 'data_points'], array_column($this->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->json('data'), 'kind'));
         $owned = $this->getJson('/api/v1/billing-accounts')->assertOk()->json('data.0');
-        $this->assertSame(['alerts'], array_column($owned['usage'], 'kind'));
+        $this->assertSame(['alerts', 'data_points'], array_column($owned['usage'], 'kind'));
         $this->assertNotContains('sms', array_column($owned['allowances'], 'kind'));
 
         $this->actingAs($manager, 'sanctum');
-        $this->assertSame(['alerts'], array_column($this->getJson('/api/v1/organizations/'.$this->acme->uuid.'/usage')->assertOk()->json('data'), 'kind'));
+        $this->assertSame(['alerts', 'data_points'], array_column($this->getJson('/api/v1/organizations/'.$this->acme->uuid.'/usage')->assertOk()->json('data'), 'kind'));
 
         $this->actingAs($this->admin, 'sanctum');
-        $this->assertSame(['alerts', 'sms'], array_column($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->json('data'), 'kind'));
+        $this->assertSame(['alerts', 'sms', 'data_points'], array_column($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->json('data'), 'kind'));
         $this->assertContains('sms', array_column($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->json('data.allowances'), 'kind'));
     }
 

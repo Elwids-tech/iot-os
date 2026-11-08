@@ -32512,7 +32512,8 @@
             "type": "string",
             "enum": [
               "alerts",
-              "sms"
+              "sms",
+              "data_points"
             ]
           },
           "month": {
@@ -32540,6 +32541,21 @@
           "overage": {
             "type": "integer",
             "description": "The billing account's overage this month."
+          },
+          "final": {
+            "type": "boolean",
+            "description": "Data points only: the runtime has reported the whole month."
+          },
+          "reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Data points only: when the runtime last reported; null before its first report."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "Data points only: the month is open and has not been reported for longer than usual."
           }
         },
         "required": [
@@ -35668,7 +35684,8 @@
             "type": "string",
             "enum": [
               "alerts",
-              "sms"
+              "sms",
+              "data_points"
             ]
           },
           "month": {
@@ -35714,6 +35731,21 @@
                 "count"
               ]
             }
+          },
+          "final": {
+            "type": "boolean",
+            "description": "Data points only: the runtime has reported the whole month, so the count will not change."
+          },
+          "reported_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Data points only: when the runtime last reported; null before its first report."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "Data points only: the month is open and has not been reported for longer than usual."
           }
         },
         "required": [

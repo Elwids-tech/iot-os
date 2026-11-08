@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/internal/events/usage.data_points.v1.schema.json",
+  "title": "usage.data_points.v1",
+  "description": "Cumulative counts of stored readings per organization and UTC hour (spec 029 US3, ADR-036). Producer: runtime usage reporter (Store.ReportUsage), written to device_runtime.outbox every 60 s in the transaction that marks the buckets reported, relayed on iot.runtime.usage.data_points.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which applies only increases per bucket to billing usage (DataPointReports). At least once; deduplicate by uuid, a UUID v5 of usage.data_points#<final_through>#<sha256 of the buckets JSON>, in device_inbox. Counts are cumulative, so replays and reordering are harmless. Times are RFC 3339 UTC.",
+  "type": "object",
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "const": "usage.data_points.v1"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "generated_at": {
+          "description": "When the reporter built the event.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "final_through": {
+          "description": "Every bucket whose hour ends at or before this instant is final, across all organizations. It never moves backwards.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "buckets": {
+          "description": "0 to 500 buckets. An event with none still advances final_through.",
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "properties": {
+              "organization_uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "hour": {
+                "description": "The UTC hour start, from the storage transaction's now().",
+                "type": "string",
+                "format": "date-time"
+              },
+              "count": {
+                "description": "The cumulative number of readings stored for the organization in that hour, not an increment.",
+                "type": "integer",
+                "minimum": 0
+              },
+              "final": {
+                "description": "The hour ended more than one minute before generated_at, so the count will not change.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "organization_uuid",
+              "hour",
+              "count",
+              "final"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "final_through",
+        "buckets"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "uuid",
+    "type",
+    "payload"
+  ],
+  "additionalProperties": false
+}

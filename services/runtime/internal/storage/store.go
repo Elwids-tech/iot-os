@@ -232,49 +232,68 @@ func (s *Store) Persist(ctx context.Context, t devices.Telemetry) error {
 	_, err := s.PersistResult(ctx, t)
 	return err
 }
+
+// PersistOutcome is what PersistResultCounted did. Stored keeps PersistResult's
+// meaning; Readings is how many observation and diagnostic rows it inserted, which is
+// what data point usage counts (spec 029 US3, ADR-036).
+type PersistOutcome struct {
+	Stored   bool
+	Readings int64
+}
+
 func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, error) {
+	outcome, e := s.PersistResultCounted(ctx, t)
+	return outcome.Stored, e
+}
+
+// PersistResultCounted stores a telemetry message and, in the same transaction, adds
+// the readings it inserted to its organization's usage bucket for the UTC hour. A
+// duplicate message, or a reading the content match skips, adds nothing.
+func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (PersistOutcome, error) {
 	tx, e := s.Pool.Begin(ctx)
 	if e != nil {
-		return false, e
+		return PersistOutcome{}, e
 	}
 	defer tx.Rollback(ctx)
 	var allowed bool
 	if e = tx.QueryRow(ctx, "SELECT true FROM device_runtime.devices WHERE device_uuid=$1 AND applied_generation=$2 AND definition->>'configuration_uuid'=$3 AND organization_uuid=$4 FOR SHARE", t.Definition.DeviceUUID, t.Generation, t.Definition.ConfigurationUUID, t.Definition.OrganizationUUID).Scan(&allowed); errors.Is(e, pgx.ErrNoRows) {
-		return false, tx.Commit(ctx)
+		return PersistOutcome{}, tx.Commit(ctx)
 	} else if e != nil {
-		return false, e
+		return PersistOutcome{}, e
 	}
 	if !allowed {
-		return false, tx.Commit(ctx)
+		return PersistOutcome{}, tx.Commit(ctx)
 	}
 	if len(t.Readings) == 0 {
-		return false, tx.Commit(ctx)
+		return PersistOutcome{}, tx.Commit(ctx)
 	}
 	// The ledger and telemetry commit together. Do not infer acceptance from a
 	// nil error: stale generations and duplicate deliveries are intentional no-ops.
 	committed, e := json.Marshal(devices.ProjectCommitted(t))
 	if e != nil {
-		return false, e
+		return PersistOutcome{}, e
 	}
 	inserted, e := tx.Exec(ctx, "INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event) VALUES($1,$2,$3) ON CONFLICT(telemetry_uuid) DO NOTHING", t.UUID, t.Definition.OrganizationUUID, committed)
 	if e != nil {
-		return false, e
+		return PersistOutcome{}, e
 	}
 	if inserted.RowsAffected() == 0 {
 		err := tx.Commit(ctx)
-		return err == nil, err
+		return PersistOutcome{Stored: err == nil}, err
 	}
+	var readings int64
 	for _, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
-			return false, e
+			return PersistOutcome{}, e
 		}
+		var tag pgconn.CommandTag
 		if reading.Quality == "good" {
 			// Devices re-send buffered samples after reconnecting, under a new
 			// telemetry UUID. A source-timestamped sample with the same observed
 			// time and value is the same measurement. Source clocks are at most
 			// five minutes ahead of receipt, which bounds the chunk scan.
-			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
+			tag, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
    SELECT $1,$2,$3,$4,$5,$6,$7,$8
    WHERE NOT $9::boolean OR NOT EXISTS (
      SELECT 1 FROM device_runtime.observations o
@@ -282,11 +301,12 @@ func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, e
        AND o.received_at>=$7::timestamptz-interval '5 minutes' AND o.reading->'value'=$8::jsonb->'value')
    ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw, reading.TimestampSource == "source")
 		} else {
-			_, e = tx.Exec(ctx, `INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
+			tag, e = tx.Exec(ctx, `INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		}
 		if e != nil {
-			return false, e
+			return PersistOutcome{}, e
 		}
+		readings += tag.RowsAffected()
 		if reading.Historical {
 			continue
 		}
@@ -295,11 +315,17 @@ func (s *Store) PersistResult(ctx context.Context, t devices.Telemetry) (bool, e
    reading=CASE WHEN excluded.reading->>'quality'='good' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
    WHERE device_runtime.latest.received_at<excluded.received_at`, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		if e != nil {
-			return false, e
+			return PersistOutcome{}, e
+		}
+	}
+	if readings > 0 {
+		if _, e = tx.Exec(ctx, `INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES($1,date_trunc('hour',now(),'UTC'),$2)
+   ON CONFLICT (organization_uuid,hour) DO UPDATE SET count=device_runtime.usage_data_points.count+EXCLUDED.count`, t.Definition.OrganizationUUID, readings); e != nil {
+			return PersistOutcome{}, e
 		}
 	}
 	err := tx.Commit(ctx)
-	return err == nil, err
+	return PersistOutcome{Stored: err == nil, Readings: readings}, err
 }
 func (s *Store) Latest(ctx context.Context, org, device, configuration string) ([]devices.Reading, error) {
 	rows, e := s.Pool.Query(ctx, "SELECT reading FROM device_runtime.latest WHERE organization_uuid=$1 AND device_uuid=$2 AND configuration_uuid=$3 ORDER BY parameter_uuid", org, device, configuration)

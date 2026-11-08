@@ -50,6 +50,7 @@ final class UsageThresholdMail extends Mailable
             'left' => number_format(max(0, $this->allowance - $this->count)),
             'consequence' => match ($kind) {
                 AllowanceKind::Alerts => 'Alerts past the allowance are still recorded and sent on every channel, and are counted as overage.',
+                AllowanceKind::DataPoints => 'Readings past the allowance are still stored and shown in history, and are counted as overage.',
                 AllowanceKind::Sms => $this->usedUp()
                     ? 'Further SMS are cancelled until next month. Email and the other channels are unaffected.'
                     : 'Once it is used up, SMS are cancelled until next month. Email and the other channels are unaffected.',

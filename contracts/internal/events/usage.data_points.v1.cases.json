@@ -1,0 +1,168 @@
+[
+  {
+    "description": "an hour that closed and the current hour of one organization",
+    "valid": true,
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 1,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T20:00:00Z",
+        "buckets": [
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T19:00:00Z",
+            "count": 118004,
+            "final": true
+          },
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T20:00:00Z",
+            "count": 41230,
+            "final": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "description": "no buckets: final_through advanced with no traffic",
+    "valid": true,
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 1,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T21:00:00Z",
+        "buckets": []
+      }
+    }
+  },
+  {
+    "description": "a negative count",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/payload/buckets/0/count"
+    },
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 1,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T20:00:00Z",
+        "buckets": [
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T19:00:00Z",
+            "count": -1,
+            "final": true
+          },
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T20:00:00Z",
+            "count": 41230,
+            "final": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "description": "a bucket without final",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/payload/buckets/1"
+    },
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 1,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T20:00:00Z",
+        "buckets": [
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T19:00:00Z",
+            "count": 118004,
+            "final": true
+          },
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T20:00:00Z",
+            "count": 41230
+          }
+        ]
+      }
+    }
+  },
+  {
+    "description": "schema version 2",
+    "valid": false,
+    "error": {
+      "keyword": "const",
+      "instance_location": "/payload/schema_version"
+    },
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 2,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T20:00:00Z",
+        "buckets": [
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T19:00:00Z",
+            "count": 118004,
+            "final": true
+          },
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T20:00:00Z",
+            "count": 41230,
+            "final": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "description": "an unknown bucket field",
+    "valid": false,
+    "tolerant_valid": true,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": "/payload/buckets/0"
+    },
+    "data": {
+      "uuid": "5d0e6a52-6a8b-5f1e-8c3d-2b7a9e4f1c60",
+      "type": "usage.data_points.v1",
+      "payload": {
+        "schema_version": 1,
+        "generated_at": "2026-11-07T20:41:00Z",
+        "final_through": "2026-11-07T20:00:00Z",
+        "buckets": [
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T19:00:00Z",
+            "count": 118004,
+            "final": true,
+            "delta": 5
+          },
+          {
+            "organization_uuid": "29000000-0000-4000-8000-000000000001",
+            "hour": "2026-11-07T20:00:00Z",
+            "count": 41230,
+            "final": false
+          }
+        ]
+      }
+    }
+  }
+]
