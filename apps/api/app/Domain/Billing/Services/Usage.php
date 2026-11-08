@@ -10,6 +10,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -32,6 +33,7 @@ final class Usage implements SmsAllowance
         private readonly Allowances $allowances,
         private readonly PlanAssignments $assignments,
         private readonly UsageThresholds $thresholds,
+        private readonly DeviceLimit $devices,
     ) {}
 
     /**
@@ -111,7 +113,8 @@ final class Usage implements SmsAllowance
     }
 
     /**
-     * The account's usage of each counted kind in a month, with each organization's share.
+     * The account's usage of each counted kind in a month, with each organization's share,
+     * then its devices.
      *
      * @return list<MonthlyUsage>
      */
@@ -136,7 +139,7 @@ final class Usage implements SmsAllowance
         $allowances = $this->allowances->all($account);
         $reports = $this->dataPointReports(CarbonImmutable::parse($start, 'UTC'));
 
-        return array_map(fn (AllowanceKind $kind): MonthlyUsage => new MonthlyUsage(
+        return [...array_map(fn (AllowanceKind $kind): MonthlyUsage => new MonthlyUsage(
             $kind,
             CarbonImmutable::parse($start, 'UTC'),
             (int) ($totals->get($kind->value)->count ?? 0),
@@ -151,7 +154,25 @@ final class Usage implements SmsAllowance
                 ->values()
                 ->all(),
             ...($kind === AllowanceKind::DataPoints ? $reports : []),
-        ), $kinds);
+        ), $kinds), $this->deviceUsage($account, $month, $allowances[AllowanceKind::Devices->value]->value)];
+    }
+
+    /**
+     * Devices are a level: this month shows the devices holding a place now and each
+     * organization's; an earlier month shows its peak.
+     */
+    private function deviceUsage(BillingAccount $account, CarbonImmutable $month, ?int $allowance): MonthlyUsage
+    {
+        $start = CarbonImmutable::parse(self::monthOf($month), 'UTC');
+        $peak = $this->devices->peak($account, $start);
+
+        if (self::monthOf($month) !== self::monthOf(CarbonImmutable::now())) {
+            return new MonthlyUsage(AllowanceKind::Devices, $start, $peak, $allowance, 0, [], peak: $peak);
+        }
+
+        $now = $this->devices->count($account);
+
+        return new MonthlyUsage(AllowanceKind::Devices, $start, $now['total'], $allowance, 0, $now['organizations'], peak: max($peak, $now['total']));
     }
 
     /**
@@ -195,8 +216,10 @@ final class Usage implements SmsAllowance
 
         return array_map(
             fn (MonthlyUsage $usage): OrganizationUsage => new OrganizationUsage(
-                (int) ($counts[$usage->kind->value] ?? 0),
-                new MonthlyUsage($usage->kind, $usage->month, $usage->count, $usage->allowance, $usage->overage, null, $usage->final, $usage->reportedAt, $usage->stale),
+                $usage->kind === AllowanceKind::Devices
+                    ? (int) (collect($usage->organizations)->firstWhere('organization_uuid', $organization->uuid)['count'] ?? 0)
+                    : (int) ($counts[$usage->kind->value] ?? 0),
+                new MonthlyUsage($usage->kind, $usage->month, $usage->count, $usage->allowance, $usage->overage, final: $usage->final, reportedAt: $usage->reportedAt, stale: $usage->stale),
             ),
             $this->forAccount($account, $month, $withSms),
         );
@@ -204,7 +227,8 @@ final class Usage implements SmsAllowance
 
     /**
      * Narrows a billing account query to accounts that have used at least `$percent` of
-     * a limited allowance in the month of `$at` (spec 028 FR-020, spec 029 FR-026). The
+     * a limited allowance in the month of `$at`, or whose devices holding a place now
+     * reach that share of the device limit (spec 028 FR-020, spec 029 FR-026). The
      * allowance is resolved in SQL as `Allowances` does: override, plan, default.
      *
      * @param  Builder<BillingAccount>  $query
@@ -212,36 +236,70 @@ final class Usage implements SmsAllowance
      */
     public function whereUsageAtLeast(Builder $query, int $percent, CarbonImmutable $at): Builder
     {
-        $defaults = (array) config('billing.defaults');
-        $default = 'CASE billing_usage.kind';
+        $allowance = self::allowanceSql('billing_usage.kind', self::COUNTED);
+        $deviceLimit = '(SELECT '.self::allowanceSql("'devices'", [AllowanceKind::Devices], 'billing_accounts.id').')';
+        $devices = '(SELECT count(*) FROM devices JOIN organizations ON organizations.id = devices.organization_id'
+            .' WHERE organizations.billing_account_id = billing_accounts.id AND organizations.deleted_at IS NULL AND devices.limit_place_at IS NOT NULL)';
 
-        foreach (self::COUNTED as $kind) {
+        return $query->where(fn (Builder $query) => $query
+            ->whereExists(fn ($usage) => self::joinAllowance($usage->selectRaw('1')->from('billing_usage'), 'billing_usage.kind', 'billing_usage.billing_account_id')
+                ->whereColumn('billing_usage.billing_account_id', 'billing_accounts.id')
+                ->where('billing_usage.month', self::monthOf($at))
+                ->whereIn('billing_usage.kind', self::values(self::COUNTED))
+                ->where('billing_usage.count', '>', 0)
+                ->whereRaw("({$allowance}) IS NOT NULL")
+                // count >= ceil(allowance × percent / 100), in whole numbers.
+                ->whereRaw("billing_usage.count * 100 >= ? * ({$allowance})", [$percent]))
+            ->orWhere(fn (Builder $query) => $query
+                ->whereRaw("{$devices} > 0")
+                ->whereRaw("{$deviceLimit} IS NOT NULL")
+                ->whereRaw("{$devices} * 100 >= ? * {$deviceLimit}", [$percent])));
+    }
+
+    /**
+     * The allowance of `$kindSql` resolved in SQL, from the joins `joinAllowance` adds:
+     * the override, else the plan's, else the deployment default. With `$accountSql`, it
+     * is a scalar subquery body that makes its own joins for that account.
+     *
+     * @param  list<AllowanceKind>  $kinds  the kinds `$kindSql` can be, for their defaults
+     */
+    private static function allowanceSql(string $kindSql, array $kinds, ?string $accountSql = null): string
+    {
+        $defaults = (array) config('billing.defaults');
+        $default = "CASE {$kindSql}";
+
+        foreach ($kinds as $kind) {
             $value = $defaults[$kind->value] ?? null;
             $default .= sprintf(" WHEN '%s' THEN CAST(%s AS BIGINT)", $kind->value, $value === null ? 'NULL' : (int) $value);
         }
 
-        $allowance = 'CASE WHEN billing_allowance_overrides.kind IS NOT NULL THEN billing_allowance_overrides.value'
+        $case = 'CASE WHEN billing_allowance_overrides.kind IS NOT NULL THEN billing_allowance_overrides.value'
             .' WHEN billing_plan_allowances.kind IS NOT NULL THEN billing_plan_allowances.value'
             ." ELSE {$default} END END";
 
-        return $query->whereExists(fn ($usage) => $usage->selectRaw('1')
-            ->from('billing_usage')
+        if ($accountSql === null) {
+            return $case;
+        }
+
+        return "{$case} FROM billing_accounts AS allowance_account"
+            ." LEFT JOIN billing_allowance_overrides ON billing_allowance_overrides.billing_account_id = allowance_account.id AND billing_allowance_overrides.kind = {$kindSql}"
+            .' LEFT JOIN billing_plan_assignments ON billing_plan_assignments.billing_account_id = allowance_account.id AND billing_plan_assignments.ended_at IS NULL'
+            ." LEFT JOIN billing_plan_allowances ON billing_plan_allowances.billing_plan_id = billing_plan_assignments.billing_plan_id AND billing_plan_allowances.kind = {$kindSql}"
+            ." WHERE allowance_account.id = {$accountSql}";
+    }
+
+    private static function joinAllowance(QueryBuilder $query, string $kindColumn, string $accountColumn): QueryBuilder
+    {
+        return $query
             ->leftJoin('billing_allowance_overrides', fn (JoinClause $join) => $join
-                ->on('billing_allowance_overrides.billing_account_id', '=', 'billing_usage.billing_account_id')
-                ->on('billing_allowance_overrides.kind', '=', 'billing_usage.kind'))
+                ->on('billing_allowance_overrides.billing_account_id', '=', $accountColumn)
+                ->on('billing_allowance_overrides.kind', '=', $kindColumn))
             ->leftJoin('billing_plan_assignments', fn (JoinClause $join) => $join
-                ->on('billing_plan_assignments.billing_account_id', '=', 'billing_usage.billing_account_id')
+                ->on('billing_plan_assignments.billing_account_id', '=', $accountColumn)
                 ->whereNull('billing_plan_assignments.ended_at'))
             ->leftJoin('billing_plan_allowances', fn (JoinClause $join) => $join
                 ->on('billing_plan_allowances.billing_plan_id', '=', 'billing_plan_assignments.billing_plan_id')
-                ->on('billing_plan_allowances.kind', '=', 'billing_usage.kind'))
-            ->whereColumn('billing_usage.billing_account_id', 'billing_accounts.id')
-            ->where('billing_usage.month', self::monthOf($at))
-            ->whereIn('billing_usage.kind', self::values(self::COUNTED))
-            ->where('billing_usage.count', '>', 0)
-            ->whereRaw("({$allowance}) IS NOT NULL")
-            // count >= ceil(allowance × percent / 100), in whole numbers.
-            ->whereRaw("billing_usage.count * 100 >= ? * ({$allowance})", [$percent]));
+                ->on('billing_plan_allowances.kind', '=', $kindColumn));
     }
 
     /**

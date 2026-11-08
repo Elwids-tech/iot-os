@@ -26,8 +26,8 @@ export type Allowance = {
   note: string | null
 }
 
-/** The monthly allowances counted: alerts, SMS and data points (stored readings). */
-export type UsageKind = "alerts" | "sms" | "data_points"
+/** What usage covers: monthly alerts, SMS and data points (stored readings), and devices, which are a level. */
+export type UsageKind = "alerts" | "sms" | "data_points" | "devices"
 
 /**
  * A billing account's usage of one allowance in one UTC month. `allowance` is the
@@ -38,6 +38,11 @@ export type UsageKind = "alerts" | "sms" | "data_points"
  * `data_points` come from the runtime's reports and alone carry `final` (the whole month
  * is reported), `reported_at` and `stale` (an open month not reported for a while): show
  * "Provisional" or "Last reported …" instead of presenting the count as current.
+ *
+ * `devices` is a level: `count` is the devices holding a place now (an earlier month
+ * shows its peak), `overage` is always 0, and only devices carry `peak_this_month` and
+ * `over_limit` (more devices than the limit, after it was lowered or an organization
+ * moved in).
  */
 export type Usage = {
   kind: UsageKind
@@ -51,6 +56,8 @@ export type Usage = {
   final?: boolean
   reported_at?: string | null
   stale?: boolean
+  peak_this_month?: number
+  over_limit?: boolean
 }
 
 /**
@@ -69,6 +76,8 @@ export type OrganizationUsage = {
   final?: boolean
   reported_at?: string | null
   stale?: boolean
+  /** Devices only: the billing account has more devices than its limit allows. */
+  over_limit?: boolean
 }
 
 /** A plan in the platform administrators' list. */

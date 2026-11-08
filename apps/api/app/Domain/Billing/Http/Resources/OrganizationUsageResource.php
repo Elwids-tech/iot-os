@@ -33,11 +33,11 @@ final class OrganizationUsageResource extends JsonResource
         $left = $usage->account->left();
 
         return [
-            /** @var 'alerts'|'sms'|'data_points' */
+            /** @var 'alerts'|'sms'|'data_points'|'devices' */
             'kind' => $usage->account->kind->value,
             /** The first day of the UTC month. */
             'month' => $usage->account->month->toDateString(),
-            /** This organization's count this month. */
+            /** This organization's count this month; for devices, those holding a place now. */
             'count' => (int) $usage->count,
             /** The billing account's allowance; null when unlimited. */
             'allowance' => $usage->account->allowance === null ? null : (int) $usage->account->allowance,
@@ -51,6 +51,8 @@ final class OrganizationUsageResource extends JsonResource
             'reported_at' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): ?string => $usage->account->reportedAt?->toIso8601ZuluString()),
             /** Data points only: the month is open and has not been reported for longer than usual. */
             'stale' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->account->stale),
+            /** Devices only: the billing account has more devices holding a place than its limit allows. */
+            'over_limit' => $this->when($usage->account->kind === AllowanceKind::Devices, fn (): bool => $usage->account->overLimit()),
         ];
     }
 }

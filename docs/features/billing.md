@@ -5,7 +5,7 @@ Plans, the allowances they give billing accounts, and what accounts use
 [spec 029](../../specs/029-billing-tier-limits/spec.md),
 [ADR-035](../adr/ADR-035-plans-and-allowances.md)). Billing accounts themselves, the
 payer of record for one or more organizations, are described under
-[Access](access.md#billing-accounts). The device limit, invoices, payments and
+[Access](access.md#billing-accounts). Invoices, payments and
 trials are planned in
 [the billing plan](../../specs/029-billing-tier-limits/plan.md) and described here as
 they are built.
@@ -86,8 +86,8 @@ allowance changes as updates; the plan's page shows its own history.
 ## Usage
 
 `Usage` counts what each billing account uses per UTC month: alerts, SMS and data
-points (from the runtime's reports, below). Organizations on an account share its
-allowances.
+points (from the runtime's reports, below). Devices are a level, kept by `DeviceLimit`
+(below). Organizations on an account share its allowances.
 
 - **Tables.** `billing_usage` holds the account's `count` and `overage` per kind and
   month (the month is its first day). `billing_usage_shares` holds each organization's
@@ -110,6 +110,40 @@ allowances.
 - **What a month shows.** `allowance` is the account's allowance now and `left`
   follows from it (0 once used up); `overage` is what was recorded at the time. Months
   stay readable for as long as the account exists.
+
+### Device limit
+
+Devices are a level, not a monthly amount
+([spec 029](../../specs/029-billing-tier-limits/spec.md) US2, research R7,
+[`DeviceLimit`](../../apps/api/app/Domain/Billing/Services/DeviceLimit.php)). A device
+holds a place while `devices.limit_place_at` is set: from the moment its activation is
+accepted until its deactivation is accepted or it is archived
+([devices](devices.md#device-limit)).
+
+- **Claiming.** `DeviceConfigurationService::activate` (first activation or a new
+  configuration) and `DeviceLifecycleService::request` (reactivation) claim a place with
+  the device row locked. `claim` then locks the billing account row, counts the places
+  in the account's organizations and refuses at the limit with a 422 on `device`, so
+  concurrent activations across organizations never pass it. A device that already
+  holds a place keeps it: reconfiguring or rolling back is never refused.
+- **Releasing.** Both deactivation paths release when the request is accepted, archive
+  releases, and `device.failed.v1` releases for a device that is not active (a failed
+  first activation or reactivation). A failed deactivation takes the place back without
+  a check.
+- **Over the limit.** Lowering the limit or moving an organization in deactivates
+  nothing; usage shows `over_limit` and activations are refused until it is back below.
+- **Peak.** `billing_device_peaks` keeps each month's highest count. Claims raise it
+  with the count after, releases with the count before, and `billing:device-peaks`
+  (daily at 00:15 UTC) records each account's current count, for a month in which
+  nothing changed.
+- **Warnings** at 80% and 100% of the limit go to owners once per threshold and month
+  (`devices:{YYYY-MM}:{80|100}`), as for the monthly kinds.
+- **Usage.** The `devices` entry's `count` is the devices holding a place now, with
+  each organization's share; an earlier month shows its peak. It has `peak_this_month`
+  and `over_limit`, and no overage. The `usage_at_least` filter includes the current
+  device count.
+- **Rollout** gives a place to every active device, unless its deactivation is already
+  accepted, and to every device whose activation is outstanding.
 
 ### Data points
 
@@ -254,5 +288,6 @@ Owner and manager routes:
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,
-plus `final`, `reported_at` and `stale` for `data_points`. The manager's leaves out
-`organizations`, and its `count` is the organization's own.
+plus `peak_this_month` and `over_limit` for `devices` and `final`, `reported_at` and
+`stale` for `data_points`. The manager's leaves out `organizations` and
+`peak_this_month`, and its `count` is the organization's own.

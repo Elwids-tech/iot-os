@@ -479,12 +479,28 @@ registering is not.
 
 **Independent Test**: spec 029 US2's test, and quickstart section 2.
 
-- [ ] T041 Migration `2026_11_12_000000_add_device_limit_places.php`:
+**As built (PR 5)**:
+
+- Devices join the usage responses as one more entry of the `Usage` shape:
+  `kind: devices`, with `peak_this_month` and `over_limit` (both only on devices),
+  `overage` 0, and for an earlier month its peak as `count`.
+- `DeviceConfigurationService::deactivate`, the Deactivate button's path, releases too;
+  the tasks named only the lifecycle switch's.
+- `billing:device-peaks` (daily 00:15 UTC) records each account's current count as at
+  least the month's peak, and a release raises the peak with the count before it, so a
+  month in which no claim happened still has its peak (029 FR-007).
+
+- [X] T041 Migration `2026_11_12_000000_add_device_limit_places.php`:
   `devices.limit_place_at` timestampTz nullable, and a partial index on
   `(organization_id) WHERE limit_place_at IS NOT NULL AND deleted_at IS NULL`.
   Backfill `now()` for devices with `lifecycle = 'active'` or with an outstanding
   `device.activate.v1` operation.
-- [ ] T042 [US2] `apps/api/app/Domain/Billing/Services/DeviceLimit.php`:
+
+  As built (PR 5): `2026_11_08_000000_add_device_limit_places.php`. Devices have no
+  `deleted_at`, so the partial index is `WHERE limit_place_at IS NOT NULL`. An active
+  device whose deactivation is already pending gets no place (its deactivation was
+  accepted).
+- [X] T042 [US2] `apps/api/app/Domain/Billing/Services/DeviceLimit.php`:
   - `claim(Device)`, called with the device row already locked:
     1. return if `limit_place_at` is set;
     2. `lockForUpdate` the device's `billing_accounts` row;
@@ -497,25 +513,41 @@ registering is not.
   - `count(BillingAccount)` returns the total and per organization.
   - `UsageThresholds::check` treats `devices` as a level (80% and 100% once per
     month).
-- [ ] T043 [US2] `apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php::activate`:
+
+  As built (PR 5): `count` is grouped by organization in SQL. `peak(account, month)`
+  and `recordPeaks(at)` keep `billing_device_peaks` with an upsert that only raises.
+  The warning email words devices as a level ("has reached its device limit").
+- [X] T043 [US2] `apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php::activate`:
   inside `locked()`, before enqueuing, call `DeviceLimit::claim($device)` when
   `limit_place_at` is null. Reconfiguring an active device holds its place and is
   never refused.
   `apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php::request`: target
   `active` calls `claim`; target `inactive` calls `release` when the request is
   accepted.
-- [ ] T044 [US2] `apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php`:
+
+  As built (PR 5): `activate` claims before the runtime validation call, so a refusal
+  costs no round trip. An active device without a place (only possible from data made
+  outside these paths) retakes one without a check instead of being refused.
+- [X] T044 [US2] `apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php`:
   - `device.failed.v1` on a device whose `lifecycle` is not `active` calls
     `DeviceLimit::release`;
   - a failed deactivation operation calls `retake`.
 
   The archive action in `DeviceController` calls `release`. Organization deletion
   removes its devices, so places go with them.
-- [ ] T045 [US2] Device usage in the usage responses (`kind: devices`, `count`,
+
+  As built (PR 5): the operation's `target_state` tells a failed deactivation
+  (`inactive`, retake) from a failed activation (release unless `lifecycle` is
+  `active`).
+- [X] T045 [US2] Device usage in the usage responses (`kind: devices`, `count`,
   `allowance`, `left`, `peak_this_month`, `over_limit`, per organization) in
   `Usage::forAccount` / `forOrganization`. The bulk onboarding item reason shows the
   422 message (check `BulkOnboarding.php:136-138`, which already stores it).
-- [ ] T046 [P] [US2] `apps/api/tests/Feature/Domain/Billing/DeviceLimitTest.php`:
+
+  As built (PR 5): bulk onboarding needed no change. Managers see their organization's
+  devices with the account's limit, `left` and `over_limit`, not its peak.
+  `usage_at_least` adds the current device count against the resolved limit.
+- [X] T046 [P] [US2] `apps/api/tests/Feature/Domain/Billing/DeviceLimitTest.php`:
   - a limit of 3 across two organizations: the fourth activation is 422 and the
     device stays `registered`;
   - deactivating frees a place; reactivating at the limit is 422;
@@ -528,16 +560,35 @@ registering is not.
     nothing;
   - the peak is recorded;
   - the refusal message names no account or organization.
-- [ ] T047 [P] [US2] `apps/api/tests/Feature/Domain/Billing/DeviceLimitConcurrencyTest.php`:
+
+  As built (PR 5): also the threshold notices and the 80% list filter for devices, and
+  the rollout backfill.
+- [X] T047 [P] [US2] `apps/api/tests/Feature/Domain/Billing/DeviceLimitConcurrencyTest.php`:
   parallel activations on separate connections at the last place, so exactly one
   succeeds (029 SC-003). A bulk onboarding run with 5 items and one place gives 1
   activated and 4 Skipped with the reason.
-- [ ] T048 Docs: `docs/features/devices.md` Lifecycle (the device limit, when a place
+
+  As built (PR 5): 20 forked processes claim for their own devices in two organizations
+  with one place left; exactly one succeeds, and without the account row lock 10 did.
+  The fork helper is now the `ForksProcesses` trait, which `SmsAllowanceTest` uses too.
+- [X] T048 Docs: `docs/features/devices.md` Lifecycle (the device limit, when a place
   is held), `docs/features/billing.md`, `docs/dev/gotchas.md` (a place is held from
   acceptance, not runtime confirmation). Contract export and api-client types for
   device usage.
-- [ ] T049 Verify: tests, `contract:check`. Rebuild `api` and run quickstart section 2
+
+  As built (PR 5): no supplement was needed: the activate and lifecycle routes already
+  document their 422. `UsageKind` gains `devices`; `Usage` gains `peak_this_month` and
+  `over_limit`, `OrganizationUsage` gains `over_limit`.
+- [X] T049 Verify: tests, `contract:check`. Rebuild `api` and run quickstart section 2
   with simulated devices and a bulk onboarding run.
+
+  As built (PR 5): the SQLite and PostgreSQL suites and `contract:check` pass. The API
+  family was rebuilt; the rollout gave the dev account's 3 active devices their places.
+  With the limit at 3, a bulk onboarding run of a live simulator source was skipped with
+  the limit's message and activating a registered device was refused with it. With 4,
+  the run activated the source, the runtime applied it, usage read 4 of 4 with peak 4,
+  and accepting its deactivation freed the place. The dev stack had one free matching
+  source, so the run had one item, not five.
 
 ---
 

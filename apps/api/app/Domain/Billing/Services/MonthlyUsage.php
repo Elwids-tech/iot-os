@@ -13,6 +13,10 @@ use Carbon\CarbonImmutable;
  * a later allowance change only moves what is left. `organizations` is each
  * organization's share by name, or null where it must not be shown.
  *
+ * Devices are a level (spec 029 US2): `count` is the devices holding a place now, or the
+ * month's peak for an earlier month; `peak` is the month's highest count; they have no
+ * overage, and an account can be over its limit after the limit was lowered.
+ *
  * Data points come from the runtime's reports (spec 029 US3, FR-014): `final` says the
  * runtime has reported the whole month, `reportedAt` when it last reported, and `stale`
  * that a month still open has not been reported for longer than
@@ -30,6 +34,7 @@ final readonly class MonthlyUsage
         public ?int $allowance,
         public int $overage,
         public ?array $organizations = null,
+        public ?int $peak = null,
         public ?bool $final = null,
         public ?CarbonImmutable $reportedAt = null,
         public ?bool $stale = null,
@@ -39,5 +44,11 @@ final readonly class MonthlyUsage
     public function left(): ?int
     {
         return $this->allowance === null ? null : max(0, $this->allowance - $this->count);
+    }
+
+    /** More devices hold a place than the limit allows. */
+    public function overLimit(): bool
+    {
+        return $this->allowance !== null && $this->count > $this->allowance;
     }
 }

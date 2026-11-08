@@ -16,7 +16,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use Throwable;
 
 /**
  * SMS parts are reserved in the billing account's SMS allowance before the provider is
@@ -25,7 +24,7 @@ use Throwable;
  */
 final class SmsAllowanceTest extends TestCase
 {
-    use RefreshDatabase;
+    use ForksProcesses, RefreshDatabase;
 
     private BillingAccount $account;
 
@@ -112,43 +111,30 @@ final class SmsAllowanceTest extends TestCase
      */
     public function test_concurrent_reservations_never_exceed_the_allowance(): void
     {
-        if (DB::getDriverName() !== 'pgsql' || ! function_exists('pcntl_fork')) {
-            $this->markTestSkipped('Needs PostgreSQL row locks and pcntl.');
-        }
-
+        $this->skipUnlessForkable();
         $processes = 50;
         $perProcess = 2;
         $allowance = 37;
-        $base = config('database.connections.'.config('database.default'));
-        config(['database.connections.billing_setup' => $base, 'database.connections.billing_child' => $base]);
-        $setup = DB::connection('billing_setup');
-        $results = sys_get_temp_dir().'/sms-allowance-'.Str::uuid();
-        mkdir($results);
+        $setup = $this->committedConnection();
         $now = now();
         $accountId = $setup->table('billing_accounts')->insertGetId(['uuid' => (string) Str::uuid(), 'name' => 'Concurrent SMS', 'created_at' => $now, 'updated_at' => $now]);
         $organizationId = $setup->table('organizations')->insertGetId(['uuid' => (string) Str::uuid(), 'name' => 'Concurrent SMS', 'slug' => 'concurrent-sms-'.Str::lower(Str::random(6)), 'billing_account_id' => $accountId, 'created_at' => $now, 'updated_at' => $now]);
         $setup->table('billing_allowance_overrides')->insert(['billing_account_id' => $accountId, 'kind' => 'sms', 'value' => $allowance, 'note' => 'Concurrency test', 'created_at' => $now, 'updated_at' => $now]);
-        $setup->disconnect();
 
         try {
-            $start = microtime(true) + 1.0;
-            $children = [];
+            $outcomes = $this->inForkedProcesses($processes, function (int $index, callable $ready) use ($accountId, $organizationId, $perProcess): string {
+                $account = BillingAccount::query()->findOrFail($accountId);
+                $organization = Organization::query()->findOrFail($organizationId);
+                $sms = app(SmsAllowance::class);
+                $ready();
+                $outcome = '';
 
-            for ($i = 0; $i < $processes; $i++) {
-                $pid = pcntl_fork();
-
-                if ($pid === 0) {
-                    $this->reserveInChild($results.'/'.$i, $accountId, $organizationId, $perProcess, $start);
+                for ($i = 0; $i < $perProcess; $i++) {
+                    $outcome .= $sms->reserve($account, $organization, 1, CarbonImmutable::now()) ? 'y' : 'n';
                 }
 
-                $children[] = $pid;
-            }
-
-            foreach ($children as $pid) {
-                pcntl_waitpid($pid, $status);
-            }
-
-            $outcomes = array_map(fn (int $i): string => (string) @file_get_contents($results.'/'.$i), range(0, $processes - 1));
+                return $outcome;
+            });
             $reserved = array_sum(array_map(fn (string $outcome): int => substr_count($outcome, 'y'), $outcomes));
             $refused = array_sum(array_map(fn (string $outcome): int => substr_count($outcome, 'n'), $outcomes));
 
@@ -158,44 +144,13 @@ final class SmsAllowanceTest extends TestCase
             $this->assertSame([$allowance, 0], [(int) $totals->count, (int) $totals->overage]);
             $this->assertSame($allowance, (int) DB::table('billing_usage_shares')->where('billing_account_id', $accountId)->value('count'));
         } finally {
-            $setup->reconnect();
             foreach (['billing_usage_shares', 'billing_usage', 'billing_notices', 'billing_allowance_overrides'] as $table) {
                 $setup->table($table)->where('billing_account_id', $accountId)->delete();
             }
             $setup->table('organizations')->where('id', $organizationId)->delete();
             $setup->table('billing_accounts')->where('id', $accountId)->delete();
             $setup->disconnect();
-            array_map('unlink', glob($results.'/*') ?: []);
-            rmdir($results);
         }
-    }
-
-    /**
-     * Runs in a forked child: its own connection, the parent's left untouched, and a
-     * SIGKILL at the end so no destructor closes the parent's inherited sockets.
-     */
-    private function reserveInChild(string $file, int $accountId, int $organizationId, int $count, float $start): never
-    {
-        try {
-            DB::setDefaultConnection('billing_child');
-            DB::connection('billing_child')->getPdo();
-            $account = BillingAccount::query()->findOrFail($accountId);
-            $organization = Organization::query()->findOrFail($organizationId);
-            $sms = app(SmsAllowance::class);
-            time_sleep_until($start);
-            $outcome = '';
-
-            for ($i = 0; $i < $count; $i++) {
-                $outcome .= $sms->reserve($account, $organization, 1, CarbonImmutable::now()) ? 'y' : 'n';
-            }
-        } catch (Throwable $exception) {
-            $outcome = 'error: '.$exception->getMessage();
-        }
-
-        file_put_contents($file, $outcome);
-        posix_kill(getmypid(), SIGKILL);
-
-        exit(1);
     }
 
     private function allow(int $parts): void

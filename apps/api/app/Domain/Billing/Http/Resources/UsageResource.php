@@ -16,6 +16,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * changes it. `organizations` is each organization's share, deleted and moved-away
  * organizations included under the name they had.
  *
+ * `devices` is a level (spec 029 US2): `count` is the devices holding a place now (an
+ * earlier month shows its peak), `overage` is always 0, and only devices carry
+ * `peak_this_month` and `over_limit`.
+ *
  * `data_points` come from the runtime's reports (spec 029 FR-014) and alone carry
  * `final` (the runtime has reported the whole month), `reported_at` and `stale` (an open
  * month not reported for a while), so pages can say "Provisional" or "Last reported…".
@@ -39,7 +43,7 @@ final class UsageResource extends JsonResource
         $left = $usage->left();
 
         return [
-            /** @var 'alerts'|'sms'|'data_points' */
+            /** @var 'alerts'|'sms'|'data_points'|'devices' */
             'kind' => $usage->kind->value,
             /** The first day of the UTC month. */
             'month' => $usage->month->toDateString(),
@@ -55,6 +59,10 @@ final class UsageResource extends JsonResource
             'reported_at' => $this->when($usage->kind === AllowanceKind::DataPoints, fn (): ?string => $usage->reportedAt?->toIso8601ZuluString()),
             /** Data points only: the month is open and has not been reported for longer than usual. */
             'stale' => $this->when($usage->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->stale),
+            /** Devices only: the month's highest number of devices holding a place. */
+            'peak_this_month' => $this->when($usage->kind === AllowanceKind::Devices, fn (): int => (int) $usage->peak),
+            /** Devices only: more devices hold a place than the limit allows, after it was lowered or an organization moved in. */
+            'over_limit' => $this->when($usage->kind === AllowanceKind::Devices, fn (): bool => $usage->overLimit()),
         ];
     }
 }

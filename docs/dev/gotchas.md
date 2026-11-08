@@ -50,6 +50,12 @@ Things that have cost time before. Add to this list when something surprises you
   point at its tables, then reapply them. SQLite drops the table anyway, so only the
   PostgreSQL job fails. The billing usage migration points at billing accounts and
   plan assignments, so tests rerunning those roll it back first.
+- **A device holds its place in the device limit from acceptance, not from runtime
+  confirmation.** `lifecycle` turns `active` only on `device.applied.v1`, but
+  `limit_place_at` is set when the activation is accepted and cleared when a
+  deactivation is accepted, so the device limit and `lifecycle = 'active'` can
+  disagree for a few seconds. Count places, never `lifecycle`, for the limit
+  ([billing](../features/billing.md#device-limit)).
 - **The runtime's usage reporter covers every organization.** `Store.ReportUsage`
   reads all of `device_runtime.usage_data_points`, and the storage integration tests
   share one database, so a test's report also carries buckets other tests left behind.
@@ -57,8 +63,8 @@ Things that have cost time before. Add to this list when something surprises you
   the events, and `historyStore`'s cleanup deletes the organization's buckets.
 - **A test that forks must not let the child close the parent's connection.** A
   `pcntl_fork` child inherits the parent's open database sockets; its exit runs PDO's
-  destructor, which ends the parent's session mid-test. `SmsAllowanceTest` gives each
-  child a connection of its own (`DB::setDefaultConnection` to a new name, never
+  destructor, which ends the parent's session mid-test. The `ForksProcesses` test trait
+  (`tests/Feature/Domain/Billing`) gives each child a connection of its own (`DB::setDefaultConnection` to a new name, never
   `DB::purge()` of an inherited one), writes its result to a file and ends with
   `posix_kill(getmypid(), SIGKILL)`. The rows the children read must be committed
   through another connection, since `RefreshDatabase` keeps the default one in a

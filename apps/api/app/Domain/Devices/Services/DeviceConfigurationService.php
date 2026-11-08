@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Services;
 
+use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 final class DeviceConfigurationService
 {
-    public function __construct(private readonly RuntimeClient $runtime, private readonly CanonicalJson $canonical) {}
+    public function __construct(private readonly RuntimeClient $runtime, private readonly CanonicalJson $canonical, private readonly DeviceLimit $limit) {}
 
     public function locked(Device $device, int $revision, callable $action): mixed
     {
@@ -192,6 +193,9 @@ final class DeviceConfigurationService
         return $this->locked($device, $revision, function (Device $locked) use ($actor, $rollback) {
             abort_if($locked->deployment_status === 'pending', 409, 'Wait for the pending deployment to finish.');
             abort_if($locked->commands()->whereNotNull('outstanding_key')->exists(), 409, 'Finish outstanding commands before changing configuration.');
+            // A first activation or a reactivation needs a place in the billing account's
+            // device limit; an active device keeps its own (spec 029 US2).
+            $locked->lifecycle === 'active' ? $this->limit->retake($locked) : $this->limit->claim($locked);
             if ($rollback) {
                 $old = $locked->configurations()->where('uuid', $rollback)->firstOrFail();
                 $definition = $old->definition;
@@ -231,6 +235,7 @@ final class DeviceConfigurationService
             $locked->forceFill(['desired_configuration_uuid' => null, 'deployment_status' => 'pending',
                 'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1])->save();
             $operation = DeviceLifecycleService::record($locked, 'deactivate', $actor);
+            $this->limit->release($locked);
             DeviceAudit::enqueue('device.deactivate.v1', ['organization_uuid' => $locked->organization->uuid,
                 'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid]);
             DeviceAudit::record('device.deactivation.requested', $locked->organization_id, $actor, $locked->uuid);

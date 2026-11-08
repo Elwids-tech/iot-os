@@ -29,11 +29,13 @@ final class UsageThresholdMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $allowance = ucfirst(AllowanceKind::from($this->kind)->label());
+        $kind = AllowanceKind::from($this->kind);
+        $allowance = ucfirst($kind->label());
+        $used = $kind === AllowanceKind::Devices ? 'reached' : 'used';
 
         return new Envelope(subject: $this->usedUp()
-            ? sprintf('%s used up: %s', $allowance, $this->accountName)
-            : sprintf('%s %d%% used: %s', $allowance, $this->percent, $this->accountName));
+            ? sprintf('%s %s: %s', $allowance, $kind === AllowanceKind::Devices ? 'reached' : 'used up', $this->accountName)
+            : sprintf('%s %d%% %s: %s', $allowance, $this->percent, $used, $this->accountName));
     }
 
     public function content(): Content
@@ -42,9 +44,13 @@ final class UsageThresholdMail extends Mailable
         $month = CarbonImmutable::parse($this->month, 'UTC')->format('F Y');
 
         return new Content(text: 'billing.usage-threshold', with: [
-            'lead' => $this->usedUp()
-                ? sprintf('The billing account %s has used up its %s for %s.', $this->accountName, $kind->label(), $month)
-                : sprintf('The billing account %s has used %d%% of its %s for %s.', $this->accountName, $this->percent, $kind->label(), $month),
+            'lead' => match (true) {
+                // Devices are a level, not a monthly amount.
+                $kind === AllowanceKind::Devices && $this->usedUp() => sprintf('The billing account %s has reached its device limit.', $this->accountName),
+                $kind === AllowanceKind::Devices => sprintf('The billing account %s has %d%% of its device limit active.', $this->accountName, $this->percent),
+                $this->usedUp() => sprintf('The billing account %s has used up its %s for %s.', $this->accountName, $kind->label(), $month),
+                default => sprintf('The billing account %s has used %d%% of its %s for %s.', $this->accountName, $this->percent, $kind->label(), $month),
+            },
             'used' => number_format($this->count),
             'allowance' => number_format($this->allowance),
             'left' => number_format(max(0, $this->allowance - $this->count)),
@@ -54,10 +60,13 @@ final class UsageThresholdMail extends Mailable
                 AllowanceKind::Sms => $this->usedUp()
                     ? 'Further SMS are cancelled until next month. Email and the other channels are unaffected.'
                     : 'Once it is used up, SMS are cancelled until next month. Email and the other channels are unaffected.',
+                AllowanceKind::Devices => 'At the limit, activating another device is refused until one is deactivated. Registering devices and editing their configuration are not affected.',
                 default => null,
             },
             'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid,
-            'footer' => 'You receive this because you own this billing account. Allowances reset on the first day of each month (UTC).',
+            'footer' => $kind->isMonthly()
+                ? 'You receive this because you own this billing account. Allowances reset on the first day of each month (UTC).'
+                : 'You receive this because you own this billing account.',
         ]);
     }
 

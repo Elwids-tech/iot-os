@@ -32574,7 +32574,8 @@
             "enum": [
               "alerts",
               "sms",
-              "data_points"
+              "data_points",
+              "devices"
             ]
           },
           "month": {
@@ -32583,7 +32584,7 @@
           },
           "count": {
             "type": "integer",
-            "description": "This organization's count this month."
+            "description": "This organization's count this month; for devices, those holding a place now."
           },
           "allowance": {
             "type": [
@@ -32617,6 +32618,10 @@
           "stale": {
             "type": "boolean",
             "description": "Data points only: the month is open and has not been reported for longer than usual."
+          },
+          "over_limit": {
+            "type": "boolean",
+            "description": "Devices only: the billing account has more devices holding a place than its limit allows."
           }
         },
         "required": [
@@ -35812,7 +35817,8 @@
             "enum": [
               "alerts",
               "sms",
-              "data_points"
+              "data_points",
+              "devices"
             ]
           },
           "month": {
@@ -35873,6 +35879,14 @@
           "stale": {
             "type": "boolean",
             "description": "Data points only: the month is open and has not been reported for longer than usual."
+          },
+          "peak_this_month": {
+            "type": "integer",
+            "description": "Devices only: the month's highest number of devices holding a place."
+          },
+          "over_limit": {
+            "type": "boolean",
+            "description": "Devices only: more devices hold a place than the limit allows, after it was lowered or an organization moved in."
           }
         },
         "required": [

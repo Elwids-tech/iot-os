@@ -8,6 +8,7 @@ use App\Domain\Automation\Services\ConnectivityProjector;
 use App\Domain\Automation\Services\DagActions;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Billing\Services\DataPointReports;
+use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Connectivity\Services\ConnectivitySettings;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
@@ -362,6 +363,14 @@ final class RuntimeController
                 } elseif ($event['type'] === 'device.failed.v1') {
                     // The applied configuration and its generation stay, and so do their bindings (ADR-027).
                     $device->update(['deployment_status' => 'failed', 'diagnostic' => $p['diagnostic'] ?? 'The runtime rejected the configuration.']);
+                    // Device limit (spec 029 US2): a failed deactivation leaves the device running,
+                    // so it takes its place back; a failed activation of a device that is not
+                    // active gives its place up. A failed reconfiguration keeps it.
+                    if ($operation->target_state === 'inactive') {
+                        app(DeviceLimit::class)->retake($device);
+                    } elseif ($device->lifecycle !== 'active') {
+                        app(DeviceLimit::class)->release($device);
+                    }
                 }
                 $operation->update(['status' => $event['type'] === 'device.failed.v1' ? 'failed' : 'succeeded', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => $p['diagnostic'] ?? null]);
                 $device->increment('state_revision');
