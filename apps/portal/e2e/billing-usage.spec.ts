@@ -38,7 +38,9 @@ const october = [
   { kind: "devices", month: `${lastMonth}-01`, count: 9, allowance: 10, left: 1, overage: 0, organizations: [share(org, "Corner Shop", 9)] },
 ]
 
-async function setup(page: Page, options: { manage?: boolean; reportedAt?: string; sms?: boolean } = {}) {
+type Trial = { kind: "trial" | "trial_unpaid"; trial_ends_at: string | null; card?: boolean }
+
+async function setup(page: Page, options: { manage?: boolean; reportedAt?: string; sms?: boolean; trial?: Trial } = {}) {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   const manage = options.manage ?? true
@@ -84,7 +86,16 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
               { uuid: org, name: "Corner Shop", created_at: ago(86_400), member: true },
               { uuid: depot, name: "Depot", created_at: ago(86_400), member: false },
             ],
-            plan: { uuid: "e0000000-0000-4000-8000-000000000001", name: "Example plan", since: ago(10 * 86_400) },
+            plan: {
+              uuid: "e0000000-0000-4000-8000-000000000001",
+              name: "Example plan",
+              since: ago(10 * 86_400),
+              kind: options.trial?.kind ?? "paid",
+              trial_ends_at: options.trial?.trial_ends_at ?? null,
+            },
+            payments_enabled: options.trial !== undefined,
+            payment_method: options.trial?.card ? { brand: "visa", last_four: "4242", expires: "2030-12" } : null,
+            past_due_since: null,
             allowances: [
               { kind: "alerts", value: 1000, source: "plan", note: null },
               { kind: "sms", value: 200, source: "plan", note: null },
@@ -98,6 +109,7 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
         ],
       })
     if (path === `/api/v1/billing-accounts/${accountUuid}/invoices`) return json({ data: { invoices: [], credit_notes: [] } })
+    if (path === `/api/v1/billing-accounts/${accountUuid}/payment-method/checkout`) return json({ data: { url: "https://checkout.stripe.test/c/setup" } })
     if (path === `/api/v1/billing-accounts/${accountUuid}/usage`) {
       months.push(url.searchParams.get("month") ?? "")
       return json({ data: october })
@@ -150,6 +162,45 @@ test("an owner sees the plan, usage with each organization's share, and an earli
 
   await expect(page.getByRole("region", { name: "Organizations" }).getByRole("row").filter({ hasText: "Depot" })).toContainText("Not a member")
   expect(errors).toEqual([])
+})
+
+test("an owner sees a trial on the Plan panel, asked for a card when it ends within 7 days or ended without one", async ({ page }) => {
+  // The last day is three UTC days from now; the trial ends at 00:00 UTC the day after.
+  const lastDay = new Date(now + 3 * 86_400_000).toISOString().slice(0, 10)
+  const endsAt = new Date(Date.parse(`${lastDay}T00:00:00Z`) + 86_400_000).toISOString()
+  const shown = new Date(Date.parse(`${lastDay}T00:00:00Z`)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  await page.route("https://checkout.stripe.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<title>Stripe test page</title>" }))
+  const { errors } = await setup(page, { trial: { kind: "trial", trial_ends_at: endsAt } })
+  await page.goto("/billing")
+  const plan = page.getByRole("region", { name: "Plan" })
+  const banner = plan.getByRole("alert")
+  await expect(banner).toContainText(`Trial until ${shown}`)
+  await expect(banner).toContainText("no trial day is charged")
+  await expect(banner).toContainText("Add a card to keep your plan: it is charged from the day after.")
+  await banner.getByRole("button", { name: "Add a card" }).click()
+  await expect(page).toHaveURL("https://checkout.stripe.test/c/setup")
+  expect(errors).toEqual([])
+})
+
+test("an open-ended trial asks for nothing, a saved card is named, and an ended trial asks for a card", async ({ page }) => {
+  await setup(page, { trial: { kind: "trial", trial_ends_at: null } })
+  await page.goto("/billing")
+  const banner = page.getByRole("region", { name: "Plan" }).getByRole("alert")
+  await expect(banner).toContainText("Trial, no end date")
+  await expect(banner.getByRole("button", { name: "Add a card" })).toHaveCount(0)
+
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+  await setup(page, { trial: { kind: "trial", trial_ends_at: new Date(now + 2 * 86_400_000).toISOString(), card: true } })
+  await page.reload()
+  await expect(banner).toContainText("After the trial it stays on Example plan, charged to Visa •••• 4242.")
+  await expect(banner.getByRole("button", { name: "Add a card" })).toHaveCount(0)
+
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+  await setup(page, { trial: { kind: "trial_unpaid", trial_ends_at: null } })
+  await page.reload()
+  await expect(banner).toContainText("The trial of Example plan has ended")
+  await expect(banner).toContainText("The account stays on Example plan and is not charged. Add a card to keep your plan")
+  await expect(banner.getByRole("button", { name: "Add a card" })).toBeVisible()
 })
 
 test("a stale report reads late on the data point meter", async ({ page }) => {

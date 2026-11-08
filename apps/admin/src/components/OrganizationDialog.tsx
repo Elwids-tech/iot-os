@@ -114,7 +114,7 @@ export function OrganizationDialog({
         if (!open) cancel()
       }}
     >
-      <DialogContent showCloseButton={!isSubmitting} aria-describedby={undefined}>
+      <DialogContent showCloseButton={!isSubmitting} aria-describedby={undefined} className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isNew ? "New organization" : "Edit organization"}</DialogTitle>
         </DialogHeader>

@@ -16,15 +16,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/t
 import { UsagePanel } from "@iot-os/ui/components/usage-overview"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { formatDay, formatMonth, paymentState } from "@iot-os/ui/lib/invoices"
+import { trialEndingSoon, trialText } from "@iot-os/ui/lib/trials"
 import { formatMoney } from "@iot-os/ui/lib/money"
 import { EntityPage } from "@iot-os/ui/templates/entity-page"
-import { Building2Icon, PlusIcon, ReceiptTextIcon, TriangleAlertIcon, WalletIcon } from "lucide-react"
+import { Building2Icon, CreditCardIcon, PlusIcon, ReceiptTextIcon, SparklesIcon, TriangleAlertIcon, WalletIcon } from "lucide-react"
 import { toast } from "sonner"
 import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
 import { InvoiceDetail } from "./InvoiceDetail"
 import { cardName, PaymentMethodPanel } from "./PaymentMethodPanel"
-import { payable, payOnline } from "./payments"
+import { addCard, payable, payOnline } from "./payments"
 import {
   allowanceLabels,
   allowanceValue,
@@ -37,6 +38,51 @@ import {
 import { NewOrganizationDialog } from "./NewOrganizationDialog"
 
 type AccountOrganization = OwnedBillingAccount["organizations"][number]
+
+/**
+ * The account's trial (spec 029 FR-049): "Trial until {date}" or "Trial, no end date",
+ * and "Add a card to keep your plan" when it ends within 7 days or ended without a card.
+ */
+function TrialBanner({ account, plan }: { account: OwnedBillingAccount; plan: NonNullable<OwnedBillingAccount["plan"]> }) {
+  const [opening, setOpening] = useState(false)
+  const ended = plan.kind === "trial_unpaid"
+  const askForCard = account.payments_enabled && account.payment_method === null && (ended || trialEndingSoon(plan))
+  const card = account.payment_method
+  const next = askForCard
+    ? "Add a card to keep your plan: it is charged from the day after."
+    : card && !ended && plan.trial_ends_at
+      ? `After the trial it stays on ${plan.name}, charged to ${cardName(card)}.`
+      : null
+
+  return (
+    <Alert>
+      {ended ? <TriangleAlertIcon /> : <SparklesIcon />}
+      <AlertTitle>{ended ? `The trial of ${plan.name} has ended` : trialText(plan)}</AlertTitle>
+      <AlertDescription>
+        <p>
+          {ended
+            ? `The account stays on ${plan.name} and is not charged.`
+            : `${plan.name}'s allowances and limits apply as usual, and no trial day is charged.`}{" "}
+          {next}
+        </p>
+        {askForCard ? (
+          <Button
+            size="sm"
+            className="mt-2"
+            disabled={opening}
+            onClick={async () => {
+              setOpening(true)
+              if (!(await addCard(account.uuid))) setOpening(false)
+            }}
+          >
+            <CreditCardIcon data-icon="inline-start" />
+            Add a card
+          </Button>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  )
+}
 
 const EXPLANATION =
   "A billing account groups organizations for billing. Owning it gives you no access to them: you open the ones you are a member of."
@@ -340,6 +386,7 @@ export default function BillingAccountsPage() {
           </PanelDescription>
         </PanelHeader>
         <PanelContent className="flex flex-col gap-4">
+          {account.plan && account.plan.kind !== "paid" ? <TrialBanner account={account} plan={account.plan} /> : null}
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
             {account.allowances.map((allowance) => (
               <div key={allowance.kind} className="flex min-w-0 flex-col">

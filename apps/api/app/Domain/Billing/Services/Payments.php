@@ -313,7 +313,7 @@ final class Payments
             'pm_expires' => isset($card['exp_year'], $card['exp_month']) ? sprintf('%04d-%02d', $card['exp_year'], $card['exp_month']) : null,
         ])->save();
         ActivityLog::record('billing_account.payment_method_changed', null, null, $account, ['brand' => $account->pm_type, 'last_four' => $account->pm_last_four]);
-        $this->trials->paymentMethodSaved($account);
+        $this->trials->paymentMethodAdded($account);
     }
 
     private function succeeded(Payment $payment, int $received): void

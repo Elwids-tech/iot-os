@@ -674,6 +674,13 @@ Things that have cost time before. Add to this list when something surprises you
   mouseup. Playwright checks only the first event's hit target, so it reports
   the click as done while `click` fires on a parent. Wait for
   `document.getAnimations().length === 0` before clicking.
+- **A click just after choosing in a searchable select logs a flushSync error.**
+  While the list's popover plays its exit animation, a click that re-renders the
+  form (a radio that hides a field, say) makes React warn "flushSync was called from
+  inside a lifecycle method", which fails specs that collect console errors. People
+  cannot click that fast. Wait for the list to close first, as
+  `apps/admin/e2e/billing-trials.spec.ts`'s `choose` does
+  (`expect(page.getByRole("listbox")).toHaveCount(0)`).
 - **A picker could close the next picker on a busy page.** Radix returns focus
   to a closed popover's trigger in a `setTimeout`, and the browser runs input
   before timers. When the next picker opened first, the late focus closed it

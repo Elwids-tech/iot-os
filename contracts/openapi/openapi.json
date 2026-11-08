@@ -3520,6 +3520,23 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "trial",
+            "in": "query",
+            "description": "On a trial, on one ending within 7 days, or whose trial ended without a payment method (spec 029 FR-051).",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "active",
+                "ending",
+                "ended_unpaid",
+                null
+              ]
+            }
           }
         ],
         "responses": {
@@ -4524,6 +4541,322 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/trial": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.trial.store",
+        "tags": [
+          "PlatformBillingAccountTrial"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The account is already on a trial; change or end it instead. Or the trial's plan shortens organizations' telemetry retention (spec 029 US4); send `confirm_retention` true to apply it. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorMessage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      },
+      "patch": {
+        "operationId": "v1.admin.billing-accounts.trial.update",
+        "tags": [
+          "PlatformBillingAccountTrial"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The account is not on a trial. Or the new plan shortens organizations' telemetry retention (spec 029 US4); send `confirm_retention` true to apply it. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorMessage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RetentionNeedsConfirmation"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/trial/convert": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.trial.convert",
+        "summary": "Turns a trial, or one that ended without a card, into the paid plan; charged from the next day",
+        "tags": [
+          "PlatformBillingAccountTrial"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The account is not on a trial, nor on one that ended without a payment method. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/trial/end": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.trial.end",
+        "summary": "Ends the trial now: the paid plan with a saved card, else \"trial ended, no payment method\"",
+        "tags": [
+          "PlatformBillingAccountTrial"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BillingAccountDetailResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BillingAccountDetailResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The account is not on a trial. Nothing was changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
           }
         },
         "security": [
@@ -33221,11 +33554,28 @@
               },
               "name": {
                 "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "paid",
+                  "trial",
+                  "trial_unpaid"
+                ]
+              },
+              "trial_ends_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When a limited trial ends (spec 029 US8); null otherwise."
               }
             },
             "required": [
               "uuid",
-              "name"
+              "name",
+              "kind",
+              "trial_ends_at"
             ]
           },
           "organizations_count": {
@@ -36329,12 +36679,29 @@
               },
               "since": {
                 "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "paid",
+                  "trial",
+                  "trial_unpaid"
+                ]
+              },
+              "trial_ends_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When a limited trial ends (spec 029 US8); null otherwise."
               }
             },
             "required": [
               "uuid",
               "name",
-              "since"
+              "since",
+              "kind",
+              "trial_ends_at"
             ]
           },
           "allowances": {
@@ -38000,6 +38367,27 @@
             ],
             "format": "uuid",
             "description": "A plan for the new account (spec 028 FR-010); an existing account keeps its own."
+          },
+          "trial": {
+            "type": "object",
+            "description": "Or a trial on a plan for the new account (spec 029 US8): an end instant, or null for none.",
+            "properties": {
+              "plan_uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "ends_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "plan_uuid",
+              "ends_at"
+            ]
           }
         },
         "required": [
@@ -39232,6 +39620,35 @@
           "improvement"
         ],
         "title": "TicketType"
+      },
+      "TrialRequest": {
+        "type": "object",
+        "description": "Starts or changes a trial (spec 029 US8): its plan (the account's plan when omitted)\nand the instant it ends, or `ends_at: null` for no end date. Invoices charge each day\nby the assignment in force at 00:00 UTC, so a trial ending at 00:00 UTC on the 9th\nruns until the 8th and is charged from the 9th.",
+        "properties": {
+          "plan_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the trial ends, in the future; null for no end date."
+          },
+          "confirm_retention": {
+            "type": "boolean",
+            "description": "Applies a plan that shortens organizations' telemetry retention, after the 409 named them."
+          }
+        },
+        "required": [
+          "ends_at"
+        ],
+        "title": "TrialRequest"
       },
       "UpdateAssistantSettingsRequest": {
         "type": "object",

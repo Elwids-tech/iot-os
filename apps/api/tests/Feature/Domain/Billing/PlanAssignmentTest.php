@@ -196,7 +196,7 @@ final class PlanAssignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.name', 'On Growth')
-            ->assertJsonPath('data.0.plan', ['uuid' => $growth->uuid, 'name' => 'Growth']);
+            ->assertJsonPath('data.0.plan', ['uuid' => $growth->uuid, 'name' => 'Growth', 'kind' => 'paid', 'trial_ends_at' => null]);
         $this->getJson('/api/v1/admin/billing-accounts?plan=none')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)

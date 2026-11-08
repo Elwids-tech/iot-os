@@ -77,6 +77,7 @@ export const historyFieldLabels: Record<string, string> = {
   contact_email: "contact email",
   notes: "notes",
   plan: "plan",
+  trial: "trial",
   organization_limit: "organization limit",
   ...Object.fromEntries(allowanceKinds.map((kind) => [kind, allowanceText[kind].noun])),
   // Prices and billing details (spec 029 US6).

@@ -1461,7 +1461,7 @@ account is charged when a card is saved, or flagged otherwise.
 
 **Independent Test**: spec 029 US8's test, and quickstart section 8.
 
-- [ ] T114 [US8] `apps/api/app/Domain/Billing/Services/Trials.php`:
+- [x] T114 [US8] `apps/api/app/Domain/Billing/Services/Trials.php`:
   - `start(account, ?plan (default current), ?CarbonImmutable endsAt, actor)`: 409
     when a trial is open; inside `RetentionGuard`; opens a `trial` assignment.
   - `change(account, endsAt?, plan?)`.
@@ -1473,20 +1473,55 @@ account is charged when a card is saved, or flagged otherwise.
   - `endDue(now)`.
 
   Audit `billing_account.trial_started|trial_changed|trial_ended`.
-- [ ] T115 [US8] `apps/api/app/Domain/Billing/Console/EndTrials.php`
+
+  As built (PR 13): `start`, `change`, `end` (now, by an administrator), `convert` (from
+  `trial` or `trial_unpaid`), `paymentMethodAdded` (renamed from PR 11's
+  `paymentMethodSaved`) and `endDue(asOf)`. Each step closes the open assignment and
+  opens the next at one instant through `PlanAssignments::replace`; the new `paid` or
+  `trial_unpaid` assignment starts then, and the day rule (each day charged by the
+  assignment at 00:00 UTC) charges from the next day. A due trial switches at its
+  `trial_ends_at`, even when the job runs late, never later than now. Extending or
+  shortening updates `trial_ends_at` in place; a plan move opens a new trial
+  assignment. `trial_ended` covers every exit from `trial` or `trial_unpaid`, with
+  `from`, `to` and `reason`; the email goes only when a `trial` ends.
+
+- [x] T115 [US8] `apps/api/app/Domain/Billing/Console/EndTrials.php`
   (`billing:end-trials`, daily 00:05, `--now=`): ends due trials, then sends
   `trial_reminder` notices keyed `trial:{assignment}:7d|1d` for limited trials ending
   in 7 days and 1 day, asking for a card when none is saved.
-- [ ] T116 [US8] HTTP per the contract (Trials), and `trial` with
+
+  As built (PR 13): reminder keys carry the end date, `trial:{assignment}:{date}:7d|1d`,
+  so an extended trial is reminded again before its new end. Within 1 day only the 1d
+  reminder goes. Output: "Ended N trials and sent N trial reminders."
+
+- [x] T116 [US8] HTTP per the contract (Trials), and `trial` with
   `new_billing_account` in organization creation. List filters `trial=active|ending|ended_unpaid`.
   The `assignment` in the owner and admin resources carries kind and end date.
-- [ ] T117 [US8] Admin: on `BillingAccountPage.tsx`'s Plan Panel, **Start trial**
+
+  As built (PR 13): `PlatformBillingAccountTrialController` with `TrialRequest`
+  (`plan_uuid?`, `ends_at` an instant in the future or null, `confirm_retention`);
+  each answers the account's page. 409s are in the billing supplement. The admin list
+  and owner `plan` carry `kind` and `trial_ends_at`; the admin detail already had
+  `plan_assignment`. `POST admin/organizations` takes `trial: {plan_uuid, ends_at}`,
+  which prohibits `plan_uuid` and `billing_account_uuid`. History and the audit
+  catalogue add the three trial events.
+
+- [x] T117 [US8] Admin: on `BillingAccountPage.tsx`'s Plan Panel, **Start trial**
   (`TrialDialog.tsx`: plan, end date or **No end date**), **Change trial**, **End
   trial** and **Convert to paid**; a trial option in `BillingAccountChoice.tsx`; the
   list filters. Portal: a trial banner on the Plan Panel ("Trial until {date}" or
   "Trial") and "Add a card to keep your plan" when ending within 7 days or ended
   without a card.
-- [ ] T118 [P] [US8] `apps/api/tests/Feature/Domain/Billing/TrialsTest.php`:
+
+  As built (PR 13): `TrialDialog.tsx` (plan, then a last day in UTC, 30 days by
+  default, or **No end date**; a shortening plan goes to the retention confirmation)
+  and its `TrialLengthFields`, also used by `BillingAccountChoice.tsx` behind **Start on
+  a trial**. **End trial** and **Convert to paid** ask first. The list marks trials
+  with their last day and has a Trial filter. The portal's Plan panel has a
+  `TrialBanner` with **Add a card**. Shared dates are in `@iot-os/ui/lib/trials`. The
+  New organization dialog now scrolls when taller than the screen.
+
+- [x] T118 [P] [US8] `apps/api/tests/Feature/Domain/Billing/TrialsTest.php`:
   - limited and open-ended trials;
   - limits and warnings apply during trials;
   - the invoice has trial days at 0 and no overage charge, with "trial ended today"
@@ -1499,11 +1534,41 @@ account is charged when a card is saved, or flagged otherwise.
   - extend, shorten, change plan, convert;
   - at most one open trial;
   - "was on a trial at instant X" from assignments.
-- [ ] T119 [P] Playwright: `apps/admin/e2e/billing-trials.spec.ts` and the portal
+
+  As built (PR 13): 7 tests, including the invoice for a trial ended by the job late
+  (trial days and trial overage at 0, overage after the switch charged), a card saved
+  after `trial_unpaid` charged from the next day, reminders keyed by end date, and
+  organization creation with a trial.
+
+- [x] T119 [P] Playwright: `apps/admin/e2e/billing-trials.spec.ts` and the portal
   banner in `apps/portal/e2e/billing-usage.spec.ts`.
-- [ ] T120 Docs: `docs/features/billing.md` (trials). Contract export and api-client.
+
+  As built (PR 13): 4 admin tests (start, change, end, convert; retention
+  confirmation; list marks and filter; New organization on a trial) and 2 portal
+  tests in `billing-usage.spec.ts` (ending soon with **Add a card**; open-ended, a
+  saved card named, ended without a card).
+
+- [x] T120 Docs: `docs/features/billing.md` (trials). Contract export and api-client.
+
+  As built (PR 13): `docs/features/billing.md` has a Trials section, the routes and
+  fields; the api-client has `startTrial`, `changeTrial`, `endTrial`, `convertTrial`,
+  `TrialValues`, `TrialFilter` and the `trial` list filter. A gotcha covers the
+  flushSync warning after a searchable select.
+
 - [ ] T121 Verify: tests and lint. Rebuild `api`, `admin` and `portal`, then run
   quickstart section 8 with `billing:end-trials --now=` and a test card.
+
+  As built (PR 13): the API suite passes on SQLite and PostgreSQL (1,310), with
+  `contract:coverage` (219 required pairs); admin e2e (67), portal mocked e2e (180),
+  both apps' lint and the kit's unit tests pass. The api family, admin and portal were
+  rebuilt from this branch and checked by API and headless as seeded users, with
+  payments off locally: an organization created on a trial ending that night got the
+  1-day reminder, `billing:end-trials --now=<tomorrow 00:05>` ended it as `trial_unpaid`
+  with the ended email, the filter found it and a draft showed its days at 0; in admin,
+  Convert to paid, Start trial (no end date), Change trial and End trial each applied
+  and showed in the history; the owner saw the ended banner. Still to do: the same with
+  a Stripe test card (ending straight to paid, and a card saved afterwards), which
+  needs Stripe test keys in the stack's environment.
 
 ---
 

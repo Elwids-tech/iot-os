@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ApiError, type BillingAccountSummary, type BillingPlan, type DirectoryQuery } from "@iot-os/api-client"
+import { ApiError, type BillingAccountSummary, type BillingPlan, type DirectoryQuery, type TrialFilter } from "@iot-os/api-client"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -15,6 +15,8 @@ import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/d
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
+import { formatDay } from "@iot-os/ui/lib/invoices"
+import { trialLastDay } from "@iot-os/ui/lib/trials"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { PlusIcon, WalletIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -51,6 +53,13 @@ const usageOptions = [
   { value: "100", label: "Used up" },
 ]
 
+/** The Trial filter (spec 029 FR-051). */
+const trialOptions: { value: TrialFilter; label: string }[] = [
+  { value: "active", label: "On a trial" },
+  { value: "ending", label: "Ending within 7 days" },
+  { value: "ended_unpaid", label: "Ended, no payment method" },
+]
+
 /** Billing accounts (spec 023): who pays for which organizations, and on which plan. */
 export function BillingAccountsPage() {
   const navigate = useNavigate()
@@ -58,6 +67,7 @@ export function BillingAccountsPage() {
   const plan = url.get("plan") || null
   const usage = usageOptions.some((option) => option.value === url.get("usage")) ? url.get("usage") : null
   const pastDue = url.get("payment") === "past_due"
+  const trial = trialOptions.find((option) => option.value === url.get("trial"))?.value ?? null
   const load = useCallback(
     (query: DirectoryQuery) =>
       apiClient.adminBillingAccounts({
@@ -65,8 +75,9 @@ export function BillingAccountsPage() {
         plan: plan ?? undefined,
         usageAtLeast: usage ? Number(usage) : undefined,
         pastDue: pastDue || undefined,
+        trial: trial ?? undefined,
       }),
-    [plan, usage, pastDue],
+    [plan, usage, pastDue, trial],
   )
   const { reload, table } = useDirectoryTable(load, { searchPlaceholder: "Name or contact email" })
   const plans = usePlanFilterOptions()
@@ -109,7 +120,13 @@ export function BillingAccountsPage() {
         value: (account) => account.plan?.name ?? "",
         cell: (account) =>
           account.plan ? (
-            <RefLink to={planPath(account.plan.uuid)}>{account.plan.name}</RefLink>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <RefLink to={planPath(account.plan.uuid)}>{account.plan.name}</RefLink>
+              {account.plan.kind !== "paid" ? <Status value={account.plan.kind} domain="plan_assignment" /> : null}
+              {account.plan.kind === "trial" && account.plan.trial_ends_at ? (
+                <span className="text-meta text-muted-foreground">until {formatDay(trialLastDay(account.plan.trial_ends_at))}</span>
+              ) : null}
+            </span>
           ) : (
             <span className="text-muted-foreground">No plan</span>
           ),
@@ -160,8 +177,15 @@ export function BillingAccountsPage() {
         value: pastDue ? ["past_due"] : [],
         onChange: (value) => url.set({ payment: value[0] ?? null, page: null }),
       },
+      {
+        id: "trial",
+        label: "Trial",
+        options: trialOptions,
+        value: trial ? [trial] : [],
+        onChange: (value) => url.set({ trial: value[0] ?? null, page: null }),
+      },
     ],
-    [plan, plans, usage, pastDue, url],
+    [plan, plans, usage, pastDue, trial, url],
   )
 
   async function remove() {
@@ -203,8 +227,8 @@ export function BillingAccountsPage() {
         columns={columns}
         {...table}
         filters={filters}
-        filtered={table.filtered || plan !== null || usage !== null || pastDue}
-        onReset={() => url.clear(["search", "plan", "usage", "payment", "page"])}
+        filtered={table.filtered || plan !== null || usage !== null || pastDue || trial !== null}
+        onReset={() => url.clear(["search", "plan", "usage", "payment", "trial", "page"])}
         rowActions={(account) => (
           <>
             <DropdownMenuItem onSelect={() => navigate(billingAccountPath(account.uuid))}>Open</DropdownMenuItem>

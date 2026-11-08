@@ -17,6 +17,7 @@ use App\Domain\Billing\Http\Controllers\PlatformBillingAccountController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountOwnerController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountPlanController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountPriceController;
+use App\Domain\Billing\Http\Controllers\PlatformBillingAccountTrialController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingAccountUsageController;
 use App\Domain\Billing\Http\Controllers\PlatformBillingSettingsController;
 use App\Domain\Billing\Http\Controllers\PlatformInvoiceController;
@@ -59,6 +60,18 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
             Route::put('billing-accounts/{billingAccount}/plan', [PlatformBillingAccountPlanController::class, 'update'])
                 ->whereUuid('billingAccount')
                 ->name('billing-accounts.plan.update');
+            Route::post('billing-accounts/{billingAccount}/trial', [PlatformBillingAccountTrialController::class, 'store'])
+                ->whereUuid('billingAccount')
+                ->name('billing-accounts.trial.store');
+            Route::patch('billing-accounts/{billingAccount}/trial', [PlatformBillingAccountTrialController::class, 'update'])
+                ->whereUuid('billingAccount')
+                ->name('billing-accounts.trial.update');
+            Route::post('billing-accounts/{billingAccount}/trial/end', [PlatformBillingAccountTrialController::class, 'end'])
+                ->whereUuid('billingAccount')
+                ->name('billing-accounts.trial.end');
+            Route::post('billing-accounts/{billingAccount}/trial/convert', [PlatformBillingAccountTrialController::class, 'convert'])
+                ->whereUuid('billingAccount')
+                ->name('billing-accounts.trial.convert');
             Route::put('billing-accounts/{billingAccount}/allowances/{kind}', [PlatformBillingAccountAllowanceController::class, 'update'])
                 ->whereUuid('billingAccount')
                 ->whereIn('kind', AllowanceKind::values())
