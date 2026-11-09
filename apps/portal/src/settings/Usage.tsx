@@ -7,6 +7,7 @@ import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
+import { reductionSteps } from "@iot-os/ui/lib/retention"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
@@ -116,8 +117,13 @@ function RetentionSummary({ retention }: { retention: OrganizationRetention }) {
       <p className="text-meta text-muted-foreground">{retentionSources[retention.source]}</p>
       {retention.pending_reduction ? (
         <p className="text-meta">
-          History older than {counted(retention.pending_reduction.days, ["day", "days"])} is deleted from{" "}
-          {formatDateTime(retention.pending_reduction.from)}.
+          {reductionSteps(retention.pending_reduction)
+            .map(
+              (step, index) =>
+                `${index === 0 ? "History older than" : "then older than"} ${counted(step.days, ["day", "days"])} ${index === 0 ? "is deleted from" : "from"} ${formatDateTime(step.from)}`,
+            )
+            .join(", ")}
+          .
         </p>
       ) : null}
     </div>

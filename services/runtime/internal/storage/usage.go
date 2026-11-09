@@ -46,6 +46,13 @@ func (s *Store) ReportUsage(ctx context.Context, now, since time.Time) (time.Tim
 		return since, e
 	}
 	defer tx.Rollback(ctx)
+	// The commit does not wait for its WAL flush, so the row locks below end with it even
+	// while a checkpoint slows fsync, and storing never waits for them (spec 029 FR-015,
+	// SC-004). A crash can lose this transaction whole: its counts are cumulative, so the
+	// next pass reports them again.
+	if _, e = tx.Exec(ctx, "SET LOCAL synchronous_commit TO OFF"); e != nil {
+		return since, e
+	}
 	if since.IsZero() {
 		if since, e = lastUsageWatermark(ctx, tx); e != nil {
 			return since, e
@@ -77,13 +84,29 @@ func (s *Store) ReportUsage(ctx context.Context, now, since time.Time) (time.Tim
 		}
 		return since, tx.Commit(ctx)
 	}
+	// Only the pass's last event moves the watermark; the ones before it keep the previous
+	// one, so the control plane never reads a month as final while some of its buckets
+	// are still in a later event (ADR-036). Without a previous one, the earliest bucket's
+	// hour claims nothing new.
+	held := since
+	if held.IsZero() && len(buckets) > 0 {
+		held = buckets[0].Hour
+	}
+	if held.After(finalThrough) {
+		held = finalThrough
+	}
 	for start := 0; start == 0 || start < len(buckets); start += usageBatch {
-		if e = writeUsageEvent(ctx, tx, now, finalThrough, buckets[start:min(start+usageBatch, len(buckets))]); e != nil {
+		end := min(start+usageBatch, len(buckets))
+		through := finalThrough
+		if end < len(buckets) {
+			through = held
+		}
+		if e = writeUsageEvent(ctx, tx, now, through, buckets[start:end]); e != nil {
 			return since, e
 		}
 	}
 	// Recorded last, in one statement, just before the commit: storing upserts the same
-	// rows, so their locks are held for that statement only (spec 029 FR-015).
+	// rows, and their locks last until the commit, which does not wait for its flush.
 	if len(buckets) > 0 {
 		organizations, hours, counts, finals := make([]string, len(buckets)), make([]time.Time, len(buckets)), make([]int64, len(buckets)), make([]bool, len(buckets))
 		for i, b := range buckets {
@@ -133,7 +156,9 @@ func writeUsageEvent(ctx context.Context, tx pgx.Tx, now, finalThrough time.Time
 	if e != nil {
 		return e
 	}
-	_, e = tx.Exec(ctx, "INSERT INTO device_runtime.outbox(uuid,event) VALUES($1,$2) ON CONFLICT (uuid) DO NOTHING", id, event)
+	// Each event gets its own time, so the relay, which reads by created_at, sends a
+	// pass's events in the order they were written and the watermark arrives last.
+	_, e = tx.Exec(ctx, "INSERT INTO device_runtime.outbox(uuid,event,created_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT (uuid) DO NOTHING", id, event)
 	return e
 }
 
@@ -167,10 +192,11 @@ func lastUsageEventAt(ctx context.Context, tx pgx.Tx) (time.Time, error) {
 	return *at, nil
 }
 
-// lastUsageWatermark is the final_through of the newest usage event still in the outbox.
+// lastUsageWatermark is the furthest final_through of the usage events still in the
+// outbox: a pass's earlier events carry the previous one.
 func lastUsageWatermark(ctx context.Context, tx pgx.Tx) (time.Time, error) {
 	var raw string
-	e := tx.QueryRow(ctx, `SELECT event->'payload'->>'final_through' FROM device_runtime.outbox WHERE event->>'type'=$1 ORDER BY created_at DESC LIMIT 1`, UsageEventType).Scan(&raw)
+	e := tx.QueryRow(ctx, `SELECT event->'payload'->>'final_through' FROM device_runtime.outbox WHERE event->>'type'=$1 ORDER BY (event->'payload'->>'final_through')::timestamptz DESC LIMIT 1`, UsageEventType).Scan(&raw)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return time.Time{}, nil
 	}

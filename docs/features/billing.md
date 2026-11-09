@@ -230,7 +230,8 @@ organization and UTC hour (`usage.data_points.v1`,
   month counted after midnight, is priced against the allowance of the plan in force at
   its hour (the account's override when one is set), not today's.
 - **Finality.** `billing_usage_watermarks` keeps the runtime's `final_through`, which
-  only moves forward, and when it last reported: the newest report's `generated_at`
+  only moves forward (a reporter pass of more than 500 buckets writes several events,
+  and only the last, sent last, advances it), and when it last reported: the newest report's `generated_at`
   (never later than now), not when the report arrived, so a backlog of events reads as
   late. A month's `data_points` entry is
   `final` once the watermark passes the month's end; until then the count may still
@@ -240,27 +241,31 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  On the dev stack on 2026-11-08 we measured, at the tested rate (503 simulated water
-  meters, each reporting every 10 s, 50 messages a second), the time from the runtime
-  receiving a message to it being visible in history, with
-  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py).
-  We ran 10 minutes with counting, 10 without (a temporary build without the upsert),
-  then 10 with counting again:
+  SC-004 is held at p50, p95 and p99 of the time from the runtime receiving a message
+  to it being visible in history, measured with
+  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) at
+  the tested rate (500 simulated water meters, each reporting every 10 s, 50 messages
+  a second): 10 minutes with counting, 10 without (a temporary build without the
+  upsert), then 10 with counting again. The probe polls every 100 ms, which adds about
+  50 ms to every figure.
+  - **2026-11-09, after the reporter's asynchronous commit (T174):**
 
-  | Run | Messages | p50 | p95 | p99 | Queue p50 |
-  | --- | --- | --- | --- | --- | --- |
-  | With counting | 30,152 | 62 ms | 108 ms | 126 ms | 6 ms |
-  | Without counting | 30,045 | 61 ms | 106 ms | 113 ms | 4 ms |
-  | With counting again | 30,031 | 64 ms | 111 ms | 119 ms | 6 ms |
+    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | With counting | 29,800 | 59 ms | 105 ms | 113 ms | 153 ms | 5 ms |
+    | Without counting | 29,800 | 57 ms | 105 ms | 112 ms | 141 ms | 3 ms |
+    | With counting again | 29,800 | 62 ms | 108 ms | 115 ms | 131 ms | 5 ms |
 
-  - **Within 5%.** p50 and p95 stay within 5% in both counting runs (p50 +1.6% and
-    +4.9%, p95 +1.9% and +4.7%). The two counting runs differ from each other by about
-    as much as either differs from the run without.
-  - **Absolute cost.** Counting adds about 2 ms before storing starts. The probe polls
-    every 100 ms, which adds about 50 ms to every figure.
-  - **Tail.** Each counting run had 6–7 messages over 500 ms (at most 1.5 s); the run
-    without had none. They came near the database's five-minute checkpoints, one of
-    which took 1.1 s to sync.
+    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%). p50 is
+    +3.5% and +8.8%, while the two counting runs differ from each other by 5%: about
+    2 ms, which is what counting adds before storing starts. No message in any run
+    took more than 153 ms.
+  - **2026-11-08, before it (T141):** p50 62, 61 and 64 ms; p95 108, 106 and 111 ms;
+    p99 126, 113 and 119 ms (counting, without, counting). Each counting run had 6–7
+    messages over 500 ms (at most 1.5 s) near the database's five-minute checkpoints,
+    and the run without had none, most likely because the reporter's row locks on the
+    hour's buckets lasted through a commit waiting on a slow fsync. With the
+    asynchronous commit that tail did not come back.
   - **Readings kept.** No reading was dropped in any run.
 
 ### SMS allowance
@@ -297,7 +302,9 @@ naming the account, the allowance, what is used and left, and linking to
 - Once per threshold, allowance and month: `Notices` inserts a `billing_notices` row
   keyed `{kind}:{YYYY-MM}:{80|100}` and queues the emails in the same transaction only
   when it was inserted. An allowance that jumps past both thresholds at once sends both.
-- Thresholds are checked after the counting transaction commits. Unlimited allowances
+- Thresholds are checked after the counting transaction commits. Nothing used sends
+  none, even against an allowance of 0 (an account given a device limit of 0 with no
+  active devices is not warned). Unlimited allowances
   send nothing, and an account with no owners gets no notice.
 - `DeliverBillingEmail` sends one email per owner on the `alerts` database queue (five
   tries, backoff 1, 5 and 15 minutes), and skips anyone who is no longer an owner or
@@ -330,10 +337,15 @@ In the apps (spec 029 US5):
   `Freshness`), and the portal asks for usage again every minute. `UsagePanel`
   combines the meters, a month picker that goes back to the account's start, and each
   organization's share; the admin
-  account page and the portal's Billing accounts page both use it.
+  account page and the portal's Billing accounts page both use it. On the admin page,
+  which loads the account once, the panel reloads this month itself every minute
+  (`refreshEvery`), leaving open dialogs alone; on both apps an earlier month whose
+  data points are not final yet reloads every minute until they are.
 - **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
   a **Plan** panel (the plan and since when, each allowance, retention included), the
-  **Usage** panel and its **Organizations**.
+  **Usage** panel and its **Organizations**. Retention the plan leaves to the platform
+  shows the platform's days, "400 days (platform setting)": both account responses
+  carry `platform_retention_days`, and admin's **Allowances** panel shows the same.
 - **Managers** see **Settings → Usage**, shown only with `Device.manage`: their
   organization's active devices, data points, alerts and SMS this month, what is left
   of each on the account (never its own count), and its retention with where it comes
@@ -363,11 +375,21 @@ retention.
   are the effective period raised to any running floor, so two reductions in a row
   keep the longest period of the last 30 days, and undoing a change in time deletes
   nothing. Organizations with their own override are untouched.
+- **Steps.** `pending_reduction` is `{days, from, steps}`: `days` from `from` once the
+  last floor ends, and `steps`, each date cleanup shortens and the period it keeps from
+  then. After 90 → 30 days and, five days later, 30 → 7, cleanup keeps 90 days until
+  the first floor ends, then 30 until the second does, then 7. Settings → Retention
+  reads "cleanup keeps 90 days, then 30 days from …, then 7 days from …", and the
+  portal's Settings → Usage says when history older than each period goes.
 - **Emails.** Owners get [`RetentionReducedMail`](../../apps/api/app/Domain/Billing/Mail/RetentionReducedMail.php)
   at each change (`retention_reduction`, keyed by its floor, so a second change the same
   day is emailed too), and `billing:retention-warnings` (daily at 08:00) sends it again
   7 days before the floor ends (`retention_warning`, once per organization and date),
-  unless the change was undone. `billing:prune` removes floors that ended.
+  naming the step cleanup takes then (90 → 30 above, then 30 → 7 before the second);
+  steps on the same day make one warning, from the period before the first to the one
+  after the last. A floor whose end changes nothing gets no warning: the change was
+  undone, or a later floor keeps the period and is warned about itself. `billing:prune` removes floors
+  that ended.
 - **Direct changes** on Settings → Retention (an organization override or the platform
   default) keep their immediate behaviour and make no floor. A confirmed shorter
   organization override also ends that organization's running floors, so it applies at
@@ -637,6 +659,6 @@ where `allowance` is the allowance now and an earlier month's `left` is null, pl
 `stale` for `data_points`. The manager's leaves out `organizations` and
 `peak_this_month`, and its `count` is the organization's own. It also carries
 `retention`: `{days, source, pending_reduction}`, where `source` is `organization`,
-`billing_account`, `platform` or `default` and `pending_reduction` is `{days, from}`
-while a billing change's grace runs. An owner's account `plan` carries `since`, `kind`
+`billing_account`, `platform` or `default` and `pending_reduction` is
+`{days, from, steps}` while a billing change's grace runs. An owner's account `plan` carries `since`, `kind`
 and `trial_ends_at`.

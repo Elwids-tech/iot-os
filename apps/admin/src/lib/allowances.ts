@@ -55,10 +55,12 @@ export const allowanceMaximum: Record<AllowanceKind, number> = {
 /** Retention is never unlimited: null there means the platform's retention setting. */
 export const allowsUnlimited = (kind: AllowanceKind) => kind !== "retention_days"
 
-/** A value as text: a number, "Unlimited", or the platform retention setting. */
-export function allowanceValue(kind: AllowanceKind, value: number | null): string {
-  if (value === null) return allowsUnlimited(kind) ? "Unlimited" : "Platform setting"
-  return kind === "retention_days" ? `${value.toLocaleString()} ${value === 1 ? "day" : "days"}` : value.toLocaleString()
+/** A value as text: a number, "Unlimited", or the platform retention setting, in days when known. */
+export function allowanceValue(kind: AllowanceKind, value: number | null, platformRetentionDays?: number): string {
+  const days = (count: number) => `${count.toLocaleString()} ${count === 1 ? "day" : "days"}`
+  if (value === null && allowsUnlimited(kind)) return "Unlimited"
+  if (value === null) return platformRetentionDays === undefined ? "Platform setting" : `${days(platformRetentionDays)} (platform setting)`
+  return kind === "retention_days" ? days(value) : value.toLocaleString()
 }
 
 /** "Alerts 3 · SMS 2 · Devices Unlimited", or "Deployment defaults" when the plan sets none. */

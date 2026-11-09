@@ -30,6 +30,7 @@ import { PageHeader } from "@iot-os/ui/components/page-header"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Switch } from "@iot-os/ui/components/switch"
 import { formatDateTime } from "@iot-os/ui/lib/format"
+import { reductionText } from "@iot-os/ui/lib/retention"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
 import { apiClient } from "../lib/api-client"
@@ -217,9 +218,9 @@ export function RetentionPage() {
               </p>
               {setting.pending_reduction && (
                 <p className="text-meta text-warning">
-                  {setting.pending_reduction.days} {setting.pending_reduction.days === 1 ? "day" : "days"} from{" "}
-                  {formatDateTime(setting.pending_reduction.from)}. A billing
-                  change shortened retention; until then cleanup keeps the longer period.
+                  A billing change shortened retention: cleanup keeps{" "}
+                  {setting.cleanup_days === undefined ? "the longer period" : `${setting.cleanup_days} days`}, then{" "}
+                  {reductionText(setting.pending_reduction)}.
                 </p>
               )}
             </div>
@@ -335,7 +336,7 @@ export function RetentionPage() {
             <AlertDialogDescription>
               Reduce from {current} to {effective} days.{" "}
               {setting?.pending_reduction
-                ? `This also ends the grace a billing change gave this organization, which keeps ${current} days until ${formatDateTime(setting.pending_reduction.from)}. `
+                ? `This also ends the grace a billing change gave this organization: cleanup keeps ${current} days, then ${reductionText(setting.pending_reduction)}. `
                 : ""}
               At the next daily cleanup, measurements received before{" "}
               {formatDateTime(new Date(Date.now() - effective * 86400000).toISOString())}{" "}

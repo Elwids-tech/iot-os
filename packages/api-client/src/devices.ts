@@ -346,13 +346,16 @@ export type RetentionSetting = {
   cleanup_days?: number
   /** The billing account's retention for an organization, or null when it sets none. */
   billing_days?: number | null
-  /**
-   * A billing change shortened retention to `days`; older history is kept until `from`
-   * (spec 029 US4). Null when nothing is pending.
-   */
-  pending_reduction?: { days: number; from: string } | null
+  /** A billing change shortened retention (spec 029 US4). Null when nothing is pending. */
+  pending_reduction?: RetentionReduction | null
   cutoff: string
 }
+/**
+ * Retention a billing change shortened: `days` from `from`, when the last grace ends, and
+ * `steps`, each date cleanup shortens and the period it keeps from then (spec 029
+ * FR-020, FR-022). Older payloads omit `steps`.
+ */
+export type RetentionReduction = { days: number; from: string; steps?: { days: number; from: string }[] }
 /** An organization in admin Settings → Retention's picker; `manage-retention` sees no more. */
 export type RetentionOrganization = { uuid: string; name: string }
 export type DeviceValidation = {

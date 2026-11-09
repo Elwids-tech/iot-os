@@ -28943,11 +28943,30 @@
                             },
                             "from": {
                               "type": "string"
+                            },
+                            "steps": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "days": {
+                                    "type": "integer"
+                                  },
+                                  "from": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "days",
+                                  "from"
+                                ]
+                              }
                             }
                           },
                           "required": [
                             "days",
-                            "from"
+                            "from",
+                            "steps"
                           ]
                         }
                       },
@@ -33442,6 +33461,10 @@
               }
             ]
           },
+          "platform_retention_days": {
+            "type": "integer",
+            "description": "The platform's retention in days, which applies where the plan and overrides set none (spec 029 FR-023)."
+          },
           "allowances": {
             "type": "array",
             "items": {
@@ -33672,6 +33695,7 @@
           "organizations_count",
           "created_at",
           "plan_assignment",
+          "platform_retention_days",
           "allowances",
           "prices",
           "price_overrides",
@@ -37027,6 +37051,10 @@
               "trial_ends_at"
             ]
           },
+          "platform_retention_days": {
+            "type": "integer",
+            "description": "The platform's retention in days, which applies where the plan and overrides set none (spec 029 FR-023)."
+          },
           "allowances": {
             "type": "array",
             "items": {
@@ -37173,6 +37201,7 @@
           "organizations_count",
           "organizations",
           "plan",
+          "platform_retention_days",
           "allowances",
           "usage",
           "prices",

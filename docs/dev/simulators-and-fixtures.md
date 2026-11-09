@@ -66,7 +66,9 @@ is how a bulk onboarding run's rebirths are counted
 ```
 
 The energy meter and RGB light are still announced, so they serve as sources of
-another type. `--meters` cannot be combined with `--gps`.
+another type. `--meters` cannot be combined with `--gps`. `--meters-from <n>` numbers
+the meters from `n`; the width grows past 999, so `--meters 500 --meters-from 601`
+announces `meter-0601` to `meter-1100`.
 
 **Load checks.** 500 onboarded meters reporting every 10 s are the platform's tested
 rate (50 messages a second). While they run,
@@ -76,7 +78,8 @@ message being visible in history, and the queue before storing starts. Run it on
 runtime build under the same load and compare (spec 029 SC-004,
 [billing](../features/billing.md#data-points)). `--drop` removes its scratch table.
 Retire load-test devices afterwards with deactivate, then archive once the runtime
-has acknowledged.
+has acknowledged. An archived device keeps its source id ("already onboarded"), so
+the next load check takes new numbers with `--meters-from`.
 
 ### RGB light v2
 

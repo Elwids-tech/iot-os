@@ -201,7 +201,9 @@ export function UsageShares({ id, figures, now }: { id: string; figures: UsageFi
 /**
  * A billing account's Usage panel: a meter per allowance and, with `shares`, each
  * organization's part, for this UTC month (`figures`, already loaded with the page) or
- * an earlier one picked in its header (`load`), back to `since`.
+ * an earlier one picked in its header (`load`), back to `since`. With `refreshEvery` it
+ * reloads this month itself, for a page that loads it once (spec 028 SC-004); an
+ * earlier month still waiting for its usage reloads every minute until it is final.
  */
 export function UsagePanel({
   id,
@@ -210,6 +212,7 @@ export function UsagePanel({
   load,
   since,
   shares = true,
+  refreshEvery,
   now,
 }: {
   id: string
@@ -219,12 +222,51 @@ export function UsagePanel({
   /** The account's start; the month picker goes back to it (twelve months when left out). */
   since?: string | null
   shares?: boolean
+  /** Milliseconds between reloads of this month through `load`; off when the page refetches it. */
+  refreshEvery?: number
   now?: number
 }) {
   const thisMonth = monthKey(new Date(now ?? Date.now()))
   const [month, setMonth] = React.useState(thisMonth)
   const [earlier, setEarlier] = React.useState<{ month: string; figures: UsageFigure[] | "failed" } | null>(null)
   const [attempt, setAttempt] = React.useState(0)
+  // This month as last reloaded here; the page's own figures win again when they change.
+  const [latest, setLatest] = React.useState<UsageFigure[] | null>(null)
+  React.useEffect(() => setLatest(null), [figures])
+
+  React.useEffect(() => {
+    if (!refreshEvery || month !== thisMonth) return
+    let current = true
+    const timer = window.setInterval(() => {
+      load(thisMonth)
+        .then((loaded) => current && setLatest(loaded))
+        .catch(() => undefined)
+    }, refreshEvery)
+    return () => {
+      current = false
+      window.clearInterval(timer)
+    }
+    // load is a fresh closure on every render of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshEvery, month, thisMonth])
+
+  const provisional =
+    earlier !== null && earlier.month === month && earlier.figures !== "failed" && earlier.figures.some((figure) => figure.final === false)
+  React.useEffect(() => {
+    if (!provisional) return
+    let current = true
+    const timer = window.setTimeout(() => {
+      load(month)
+        .then((loaded) => current && setEarlier({ month, figures: loaded }))
+        .catch(() => undefined)
+    }, 60_000)
+    return () => {
+      current = false
+      window.clearTimeout(timer)
+    }
+    // load is a fresh closure on every render of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provisional, month, earlier])
 
   React.useEffect(() => {
     if (month === thisMonth) return
@@ -240,7 +282,7 @@ export function UsagePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, thisMonth, attempt])
 
-  const shown = month === thisMonth ? figures : earlier?.month === month ? earlier.figures : undefined
+  const shown = month === thisMonth ? (latest ?? figures) : earlier?.month === month ? earlier.figures : undefined
   const titleId = `${id}-title`
 
   return (

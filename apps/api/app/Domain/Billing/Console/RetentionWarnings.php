@@ -14,8 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Warns billing account owners 7 days before a retention floor ends and older history
- * starts to be deleted (spec 029 FR-020). A floor the account undid in the meantime (its
- * retention is back at or above the floor) needs no warning.
+ * starts to be deleted (spec 029 FR-020), naming the step cleanup takes then. A floor
+ * whose end changes nothing needs no warning: the account undid it in the meantime, or
+ * a later floor keeps the period until its own end and is warned about then.
  */
 final class RetentionWarnings extends Command
 {
@@ -36,20 +37,25 @@ final class RetentionWarnings extends Command
 
         foreach ($floors as $floor) {
             $organization = Organization::query()->with('billingAccount')->find($floor->organization_id);
-            $days = $organization === null ? null : $retention->effective($organization)['days'];
+            $effective = $organization === null ? null : $retention->effective($organization);
+            $steps = $effective['pending_reduction']['steps'] ?? [];
+            $until = CarbonImmutable::parse((string) $floor->until)->utc();
+            // One warning per organization and day, from the period kept before the day's
+            // first step to the one after its last: two reductions minutes apart are one change.
+            $onDay = array_keys(array_filter($steps, fn (array $step): bool => str_starts_with($step['from'], $until->toDateString())));
 
-            if ($organization?->billingAccount !== null && $days < $floor->days) {
-                $until = CarbonImmutable::parse((string) $floor->until)->utc();
-                $notices->send($organization->billingAccount, 'retention_warning', $organization->uuid.':'.$until->toDateString(), new RetentionReducedMail(
+            if ($organization?->billingAccount !== null && $onDay !== []) {
+                [$first, $last] = [min($onDay), max($onDay)];
+                $sent = $notices->send($organization->billingAccount, 'retention_warning', $organization->uuid.':'.$until->toDateString(), new RetentionReducedMail(
                     (string) $organization->billingAccount->uuid,
                     (string) $organization->billingAccount->name,
                     (string) $organization->name,
-                    (int) $floor->days,
-                    (int) $days,
-                    $until->toIso8601ZuluString(),
+                    $first === 0 ? (int) $effective['cleanup_days'] : $steps[$first - 1]['days'],
+                    $steps[$last]['days'],
+                    $steps[$first]['from'],
                     true,
                 ));
-                $warned++;
+                $warned += $sent ? 1 : 0;
             }
 
             DB::table('telemetry_retention_floors')->where('id', $floor->id)->update(['warned_at' => $now]);

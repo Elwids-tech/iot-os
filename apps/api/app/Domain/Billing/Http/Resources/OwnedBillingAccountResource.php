@@ -12,6 +12,7 @@ use App\Domain\Billing\Services\MonthlyUsage;
 use App\Domain\Billing\Services\Payments;
 use App\Domain\Billing\Services\ResolvedAllowance;
 use App\Domain\Billing\Services\Usage;
+use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -67,6 +68,8 @@ final class OwnedBillingAccountResource extends JsonResource
                 /** When a limited trial ends (spec 029 US8); null otherwise. */
                 'trial_ends_at' => $this->resource->openPlanAssignment->trial_ends_at?->toIso8601String(),
             ],
+            /** The platform's retention in days, which applies where the plan and overrides set none (spec 029 FR-023). */
+            'platform_retention_days' => (int) app(RetentionService::class)->effective()['days'],
             'allowances' => AllowanceResource::collection(array_map(fn (ResolvedAllowance $allowance): AllowanceResource => new AllowanceResource($allowance), $allowances)),
             'usage' => UsageResource::collection(array_map(fn (MonthlyUsage $usage): UsageResource => new UsageResource($usage), $usage)),
             /**

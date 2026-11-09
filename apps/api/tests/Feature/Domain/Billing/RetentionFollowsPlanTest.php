@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Billing;
 
+use App\Domain\Billing\Jobs\DeliverBillingEmail;
+use App\Domain\Billing\Mail\RetentionReducedMail;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Devices\Services\RetentionService;
@@ -86,7 +88,7 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->assertSame([7, 'billing_account'], $this->effective($this->lakeside));
         $this->assertSame(90, app(RetentionService::class)->cleanupDays($this->lakeside));
         $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
-            ->assertJsonPath('data.pending_reduction', ['days' => 7, 'from' => '2026-12-08T10:00:00Z']);
+            ->assertJsonPath('data.pending_reduction', ['days' => 7, 'from' => '2026-12-08T10:00:00Z', 'steps' => [['days' => 7, 'from' => '2026-12-08T10:00:00Z']]]);
         $this->assertSame(['days' => 90, 'reason' => 'plan_changed'], (array) DB::table('telemetry_retention_floors')->where('organization_id', $this->lakeside->id)->first(['days', 'reason']));
         // The organization with its own override is untouched.
         $this->assertSame(0, DB::table('telemetry_retention_floors')->where('organization_id', $this->harbour->id)->count());
@@ -198,6 +200,69 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->artisan('billing:prune', ['--now' => '2026-12-09 00:00:00'])->expectsOutput('Pruned 0 billing notices, 0 data point buckets, 0 Stripe event ids and 2 retention floors.');
     }
 
+    public function test_two_reductions_within_the_grace_step_down_at_each_floor_and_warn_before_each_step(): void
+    {
+        $middle = BillingPlan::factory()->withAllowances(['retention_days' => 30])->create(['name' => 'Middle']);
+        $this->putJson($this->planUrl(), ['plan_uuid' => $middle->uuid, 'confirm_retention' => true])->assertOk();
+        $this->travelTo(CarbonImmutable::parse('2026-11-13 10:00:00', 'UTC'));
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
+
+        // 90 days until the first floor ends, then 30 until the second does, then 7.
+        $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
+            ->assertJsonPath('data.cleanup_days', 90)
+            ->assertJsonPath('data.pending_reduction', ['days' => 7, 'from' => '2026-12-13T10:00:00Z', 'steps' => [
+                ['days' => 30, 'from' => '2026-12-08T10:00:00Z'],
+                ['days' => 7, 'from' => '2026-12-13T10:00:00Z'],
+            ]]);
+
+        $warned = fn (int $from, int $to, string $date): bool => Queue::pushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof RetentionReducedMail
+            && $job->mail->reminder && $job->mail->organizationName === 'Lakeside Home'
+            && [$job->mail->fromDays, $job->mail->toDays, $job->mail->deletionFrom] === [$from, $to, $date])->isNotEmpty();
+        $this->artisan('billing:retention-warnings', ['--now' => '2026-12-02 08:00:00'])->expectsOutput('Warned owners about 2 retention reductions.');
+        $this->assertTrue($warned(90, 30, '2026-12-08T10:00:00Z'));
+        $this->artisan('billing:retention-warnings', ['--now' => '2026-12-07 08:00:00'])->expectsOutput('Warned owners about 2 retention reductions.');
+        $this->assertTrue($warned(30, 7, '2026-12-13T10:00:00Z'));
+
+        $this->travelTo(CarbonImmutable::parse('2026-12-08 10:00:01', 'UTC'));
+        $this->assertSame(30, app(RetentionService::class)->cleanupDays($this->lakeside));
+        $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
+            ->assertJsonPath('data.pending_reduction.steps', [['days' => 7, 'from' => '2026-12-13T10:00:00Z']]);
+        $this->travelTo(CarbonImmutable::parse('2026-12-13 10:00:01', 'UTC'));
+        $this->assertSame(7, app(RetentionService::class)->cleanupDays($this->lakeside));
+    }
+
+    public function test_two_reductions_minutes_apart_are_warned_about_once_from_the_first_period_to_the_last(): void
+    {
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
+        $this->travelTo(CarbonImmutable::parse('2026-11-08 10:05:00', 'UTC'));
+        $this->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/allowances/retention_days', ['value' => 3, 'note' => 'Shorter still', 'confirm_retention' => true])->assertOk();
+
+        $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
+            ->assertJsonPath('data.pending_reduction.steps', [['days' => 7, 'from' => '2026-12-08T10:00:00Z'], ['days' => 3, 'from' => '2026-12-08T10:05:00Z']]);
+        $this->artisan('billing:retention-warnings', ['--now' => '2026-12-02 08:00:00'])->expectsOutput('Warned owners about 2 retention reductions.');
+
+        $warnings = Queue::pushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof RetentionReducedMail
+            && $job->mail->reminder && $job->mail->organizationName === 'Lakeside Home');
+        $this->assertCount(1, $warnings);
+        $this->assertSame([90, 3, '2026-12-08T10:00:00Z'], [$warnings->first()->mail->fromDays, $warnings->first()->mail->toDays, $warnings->first()->mail->deletionFrom]);
+    }
+
+    public function test_a_floor_whose_end_changes_nothing_sends_no_warning(): void
+    {
+        // 90 → 7 (floor 90 until 8 December); back to 90 at once; then 90 → 30 five days
+        // later (floor 90 until 13 December). The first floor's end changes nothing.
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
+        $this->putJson($this->planUrl(), ['plan_uuid' => $this->long->uuid])->assertOk();
+        $this->travelTo(CarbonImmutable::parse('2026-11-13 10:00:00', 'UTC'));
+        $middle = BillingPlan::factory()->withAllowances(['retention_days' => 30])->create(['name' => 'Middle']);
+        $this->putJson($this->planUrl(), ['plan_uuid' => $middle->uuid, 'confirm_retention' => true])->assertOk();
+
+        $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
+            ->assertJsonPath('data.pending_reduction.steps', [['days' => 30, 'from' => '2026-12-13T10:00:00Z']]);
+        $this->artisan('billing:retention-warnings', ['--now' => '2026-12-02 08:00:00'])->expectsOutput('Warned owners about 0 retention reductions.');
+        $this->artisan('billing:retention-warnings', ['--now' => '2026-12-07 08:00:00'])->expectsOutput('Warned owners about 2 retention reductions.');
+    }
+
     public function test_a_second_reduction_on_the_same_day_is_emailed_too(): void
     {
         $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
@@ -213,6 +278,21 @@ final class RetentionFollowsPlanTest extends TestCase
         $this->putJson($this->planUrl(), ['plan_uuid' => $this->long->uuid])->assertOk();
 
         $this->artisan('billing:retention-warnings', ['--now' => '2026-12-02 08:00:00'])->expectsOutput('Warned owners about 0 retention reductions.');
+    }
+
+    public function test_accounts_carry_the_platform_retention_that_applies_without_an_allowance(): void
+    {
+        $plain = BillingPlan::factory()->withAllowances(['alerts' => 10])->create(['name' => 'Plain']);
+        $this->putJson($this->planUrl(), ['plan_uuid' => $plain->uuid, 'confirm_retention' => true])->assertOk();
+        $owner = $this->account->owners()->firstOrFail();
+
+        $this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->assertOk()
+            ->assertJsonPath('data.platform_retention_days', (int) config('devices.default_retention_days'));
+        $this->putJson('/api/v1/admin/settings/telemetry-retention', ['days' => 200, 'revision' => 0, 'confirmed_reduction' => true])->assertOk();
+
+        $owned = collect($this->actingAs($owner, 'sanctum')->getJson('/api/v1/billing-accounts')->assertOk()->json('data'))->firstWhere('uuid', $this->account->uuid);
+        $this->assertSame(200, $owned['platform_retention_days']);
+        $this->assertNull(collect($owned['allowances'])->firstWhere('kind', 'retention_days')['value']);
     }
 
     public function test_without_a_retention_allowance_nothing_changes(): void

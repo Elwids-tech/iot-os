@@ -176,10 +176,13 @@ stored, for the billing account's data point allowance
 - **Reporting.** Every 60 seconds, on its own ticker, `Store.ReportUsage` sends each
   bucket whose count grew or whose hour closed since it was last reported, at most 500
   per event, in one transaction with the outbox rows. It records what it reported in
-  one statement just before the commit, so storing waits on those rows for that
-  statement only. `count` is cumulative, not an increment. A bucket is `final` once its
-  hour ended more than a minute ago, and `final_through` (that hour boundary) says every
-  earlier hour is final across all organizations. With nothing to send, an empty event
+  one statement just before the commit, and commits without waiting for the WAL flush,
+  so storing waits on those rows only briefly (a crash loses the pass whole, and the
+  next one sends the same cumulative counts). `count` is cumulative, not an increment.
+  A bucket is `final` once its hour ended more than a minute ago, and `final_through`
+  (that hour boundary) says every earlier hour is final across all organizations. Only
+  a pass's last event advances it; each event gets its own `created_at`, so the relay
+  sends that one last. With nothing to send, an empty event
   still moves `final_through` when an hour closes. Otherwise a heartbeat with no buckets
   goes out every two minutes, so the control plane's `generated_at` stays current on a
   quiet deployment.
