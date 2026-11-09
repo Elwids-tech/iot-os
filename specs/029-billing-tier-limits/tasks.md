@@ -1600,6 +1600,21 @@ account is charged when a card is saved, or flagged otherwise.
   - Nothing is critical or high, and the public-repo rule holds.
   - It added T144–T167 (Phase 16): six medium (T144–T149) and eighteen low.
   - Run it again once those land.
+
+  Third run (PR 22): Phase 16 was built in PRs 19–21. The same three reviewers covered
+  about 170 requirements and acceptance scenarios, about 55 plan decisions and 9
+  principles, and every finding was checked against the code before it was added.
+  - Every Phase 15 and 16 fix holds; T148 holds in the portal but not in admin (T176).
+  - Nothing is critical or high. Specs, docs, ADRs and contracts name no prices, tiers,
+    customers or hosts, but some test fixtures use tier-like plan names (T169).
+  - It added T168–T181 (Phase 17): two medium (T168, T169) and twelve low.
+  - Not added:
+    - Adapter activation at the limit rolls back the new device with it; whether that
+      counts as registering under 029 US2/AC2 is a product question.
+    - A plan change racing an organization move into the account, which only a
+      concurrency test could show.
+    - `final` taking the runtime's clock while buckets take the database's.
+  - Run it again once those land.
 - [x] T123 [P] Cross-check docs: `docs/features/billing.md`, `access.md`, `devices.md`,
   `alerts.md`, `docs/reference/events.md` and `docs/ops/billing-payments.md` describe
   what was built; fix any drift from code
@@ -1973,3 +1988,20 @@ account is charged when a card is saved, or flagged otherwise.
   longer during a grace) and `default_days` (the platform's fallback). The confirmation
   reduces from `cleanup_days` and, while a floor runs, says confirming ends its grace;
   the fallback shown is `default_days`, 400 by default.
+
+## Phase 17: Convergence
+
+- [ ] T168 Report a pending retention reduction step by step (at least the earliest date cleanup shortens and the period it moves to) in `pending_reduction`, on admin Settings → Retention, on the portal's Settings → Usage and in the 7-day warning. Today two reductions within the grace (for example 90 → 30 days, then 30 → 7 five days later) show only the last period and the latest date, and the first floor's warning says 90 → 7, while cleanup already moves to 30 days at the first floor's end, per 029 FR-020, FR-022, US4/AC3 and the edge case "Two retention reductions in a row" (partial)
+- [ ] T169 Rename the example plans in the billing API tests (`PlanAdministrationTest`, `PlanAssignmentTest`, `InvoiceDraftingTest`) and the admin billing e2e (`billing-plans`, `billing-trials`, `billing-invoices`) to neutral names such as "Plan A" or "Example plan", and give their prices made-up amounts, so no fixture reads like a tier on a price list, per 028 Assumptions ("this spec names none") and the public-repository rule (contradicts)
+- [ ] T170 Price the overage counted after a trial turns paid (a card saved on a `trial_unpaid` account, or **Convert**) at 0 until the next 00:00 UTC, so the account is charged from the next day as the trial email, the portal and the account history say; today `PlanAssignments::replace` opens the paid assignment at once and the rest of that day's alert and data point overage is priced, per 029 FR-050, US8/AC6, plan "Trials", data-model "kinds move like this", `stripe-webhooks.md` (`checkout.session.completed`, setup) and `billing-api.md` (`trial/convert`) (contradicts)
+- [ ] T171 Key trial reminders by billing account and end date (or carry the steps already sent across `Trials::change`), so moving a trial to another plan does not send the 7-day or 1-day reminder again, per 029 FR-049 and SC-008 (partial)
+- [ ] T172 Audit `trial_ended` for every exit from `trial_unpaid` (a plan change or removal, a new trial) and for a trial closed by deleting the account, without the owner email, or correct T114's note and `docs/features/billing.md` to name the exits audited only as plan changes, per 029 FR-048 and T114 (partial)
+- [ ] T173 Put the new `final_through` only on the last event of a reporter pass that writes more than one (the earlier ones carry the previous watermark), so the control plane never reads a month as final while some of its buckets are still on their way in a later inbox batch, per ADR-036, `contracts/usage-data-points-event.md` and 029 FR-014 and FR-031 (partial)
+- [ ] T174 Measure history latency again since T151 at p99 as well as p50 and p95. If counting is still more than 5% slower at p99, keep the reporter's bookkeeping off the rows storing upserts (for example a separate reported-state table), since PostgreSQL holds its row locks through the commit. Correct the comment in `storage/usage.go` that says the locks last for the statement only, and say in `docs/features/billing.md` which percentiles SC-004 is held to, per 029 SC-004 and FR-015 (partial)
+- [ ] T175 Skip usage threshold notices when the count is 0, so giving an account with no active devices a device limit of 0 no longer emails "80% of its device limit" and "reached its device limit", per 029 FR-025 (partial)
+- [ ] T176 Refresh the admin billing account page's usage every minute without disturbing open dialogs or edits, and reload an earlier month that is not final yet in `UsagePanel` on both apps, per 028 SC-004, 029 SC-005, constitution VI and T148 (partial)
+- [ ] T177 Send each owned billing account's resolved retention period (the platform default when the plan sets none) with its source, and show it on the portal's Plan panel as days, for example "400 days (platform setting)", instead of "Platform setting", per 029 FR-023 (partial)
+- [ ] T178 Add API tests that owners get one email at 80% and one at 100% of a device limit and of a data point allowance per month, as `UsageVisibilityTest` does for alerts and SMS, per 029 FR-025, SC-008 and 028 SC-005 (missing)
+- [ ] T179 Update `contracts/usage-data-points-event.md` and the description in `contracts/internal/events/usage.data_points.v1.schema.json` for the empty event written every two minutes when quiet (and its `usage.data_points#heartbeat#<generated_at>` id), and for a deleted organization's readings counting for its account, per 029 FR-052, T150 and T155 (contradicts)
+- [ ] T180 Correct the specification documents: in `contracts/billing-api.md` the admin account detail sends `plan_assignment` and the owner list sends `plan` with `kind` and `trial_ends_at` (no `assignment`); `data-model.md` adds `account_deleted` to `end_reason` and `billing_account.payment_method_removed` to the audit list, per the plan's documentation rule and T137 (contradicts)
+- [ ] T181 Correct `docs/features/billing.md` (the month picker goes back to the account's start, not twelve months) and `docs/ops/billing-payments.md` (the invoice action is **Check with Stripe**, not **Reconcile**), per T154 and the plan's documentation rule (contradicts)
