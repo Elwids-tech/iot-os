@@ -227,6 +227,29 @@ organization and UTC hour (`usage.data_points.v1`,
   runtime or the control plane is down; the counts catch up exactly when it returns.
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
+- **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
+  On the dev stack on 2026-11-08 we measured, at the tested rate (503 simulated water
+  meters, each reporting every 10 s, 50 messages a second), the time from the runtime
+  receiving a message to it being visible in history, with
+  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py).
+  We ran 10 minutes with counting, 10 without (a temporary build without the upsert),
+  then 10 with counting again:
+
+  | Run | Messages | p50 | p95 | p99 | Queue p50 |
+  | --- | --- | --- | --- | --- | --- |
+  | With counting | 30,152 | 62 ms | 108 ms | 126 ms | 6 ms |
+  | Without counting | 30,045 | 61 ms | 106 ms | 113 ms | 4 ms |
+  | With counting again | 30,031 | 64 ms | 111 ms | 119 ms | 6 ms |
+
+  - **Within 5%.** p50 and p95 stay within 5% in both counting runs (p50 +1.6% and
+    +4.9%, p95 +1.9% and +4.7%). The two counting runs differ from each other by about
+    as much as either differs from the run without.
+  - **Absolute cost.** Counting adds about 2 ms before storing starts. The probe polls
+    every 100 ms, which adds about 50 ms to every figure.
+  - **Tail.** Each counting run had 6–7 messages over 500 ms (at most 1.5 s); the run
+    without had none. They came near the database's five-minute checkpoints, one of
+    which took 1.1 s to sync.
+  - **Readings kept.** No reading was dropped in any run.
 
 ### SMS allowance
 

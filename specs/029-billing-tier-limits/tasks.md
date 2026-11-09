@@ -1756,7 +1756,24 @@ account is charged when a card is saved, or flagged otherwise.
   date (`FOLLOW_UP_DAYS`); past that it is left to administrators, so a pruned reminder
   is never sent again.
 
-- [ ] T141 Run the simulator at the tested rate with and without data point counting and record the ingestion-to-history latency, per 029 SC-004 and the plan's constitution IX row (partial)
+- [x] T141 Run the simulator at the tested rate with and without data point counting and record the ingestion-to-history latency, per 029 SC-004 and the plan's constitution IX row (partial)
+
+  As built (PR 17): measured on the dev stack on 2026-11-08, not in CI, with
+  `tooling/measure-history-latency.py`.
+  - **Load.** 500 extra simulated water meters were bulk-onboarded, so 503 reported
+    every 10 s (50.0–50.1 messages a second).
+  - **Measure.** The time from the runtime receiving a message to it being visible in
+    history, polled every 100 ms.
+  - **Runs.** 10 minutes each with counting (main), without it (a temporary build
+    without the usage upsert, not committed), and with it again.
+  - **Results.** p50 62 / 61 / 64 ms, p95 108 / 106 / 111 ms, p99 126 / 113 / 119 ms.
+    The queue before storing was 6 / 4 / 6 ms at p50.
+  - **SC-004.** p50 and p95 are within 5% (at most +4.9% and +4.7%), about the same as
+    the gap between the two counting runs. No reading was dropped.
+  - **Tail.** Each counting run had 6–7 of about 30,000 messages over 500 ms (at most
+    1.5 s), near the database's five-minute checkpoints, one of which took 1.1 s to
+    sync. The run without counting had none.
+  - **Cleanup.** The meters were retired afterwards and the simulator went back to 3.
 - [x] T142 Make the card payments ops doc and the gotchas agree on where Stripe test keys live, and add the planned gotcha, per plan: documentation (contradicts)
 
   As built (PR 14): both say ignored files only, the main checkout's `.env` or a `.local/`
