@@ -241,27 +241,31 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  On the dev stack on 2026-11-08 we measured, at the tested rate (503 simulated water
-  meters, each reporting every 10 s, 50 messages a second), the time from the runtime
-  receiving a message to it being visible in history, with
-  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py).
-  We ran 10 minutes with counting, 10 without (a temporary build without the upsert),
-  then 10 with counting again:
+  SC-004 is held at p50, p95 and p99 of the time from the runtime receiving a message
+  to it being visible in history, measured with
+  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) at
+  the tested rate (500 simulated water meters, each reporting every 10 s, 50 messages
+  a second): 10 minutes with counting, 10 without (a temporary build without the
+  upsert), then 10 with counting again. The probe polls every 100 ms, which adds about
+  50 ms to every figure.
+  - **2026-11-09, after the reporter's asynchronous commit (T174):**
 
-  | Run | Messages | p50 | p95 | p99 | Queue p50 |
-  | --- | --- | --- | --- | --- | --- |
-  | With counting | 30,152 | 62 ms | 108 ms | 126 ms | 6 ms |
-  | Without counting | 30,045 | 61 ms | 106 ms | 113 ms | 4 ms |
-  | With counting again | 30,031 | 64 ms | 111 ms | 119 ms | 6 ms |
+    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | With counting | 29,800 | 59 ms | 105 ms | 113 ms | 153 ms | 5 ms |
+    | Without counting | 29,800 | 57 ms | 105 ms | 112 ms | 141 ms | 3 ms |
+    | With counting again | 29,800 | 62 ms | 108 ms | 115 ms | 131 ms | 5 ms |
 
-  - **Within 5%.** p50 and p95 stay within 5% in both counting runs (p50 +1.6% and
-    +4.9%, p95 +1.9% and +4.7%). The two counting runs differ from each other by about
-    as much as either differs from the run without.
-  - **Absolute cost.** Counting adds about 2 ms before storing starts. The probe polls
-    every 100 ms, which adds about 50 ms to every figure.
-  - **Tail.** Each counting run had 6–7 messages over 500 ms (at most 1.5 s); the run
-    without had none. They came near the database's five-minute checkpoints, one of
-    which took 1.1 s to sync.
+    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%). p50 is
+    +3.5% and +8.8%, while the two counting runs differ from each other by 5%: about
+    2 ms, which is what counting adds before storing starts. No message in any run
+    took more than 153 ms.
+  - **2026-11-08, before it (T141):** p50 62, 61 and 64 ms; p95 108, 106 and 111 ms;
+    p99 126, 113 and 119 ms (counting, without, counting). Each counting run had 6–7
+    messages over 500 ms (at most 1.5 s) near the database's five-minute checkpoints,
+    and the run without had none, most likely because the reporter's row locks on the
+    hour's buckets lasted through a commit waiting on a slow fsync. With the
+    asynchronous commit that tail did not come back.
   - **Readings kept.** No reading was dropped in any run.
 
 ### SMS allowance

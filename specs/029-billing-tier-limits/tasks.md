@@ -2021,7 +2021,13 @@ account is charged when a card is saved, or flagged otherwise.
   row locks end at the commit without waiting for the WAL flush, and storing never
   waits through a slow checkpoint fsync. A crash can lose that transaction whole, and
   the next pass sends the same cumulative counts. The comment and the events
-  reference say so. MEASUREMENT
+  reference say so. Measured again on the dev stack with 500 load meters (50 messages
+  a second), 10 minutes each: p99 113, 112 and 115 ms (counting, without, counting),
+  p95 105, 105 and 108 ms, p50 59, 57 and 62 ms, and no message over 153 ms, where T141
+  had 6–7 over 500 ms per counting run. p99 is within 5%, so the reported state stays
+  on the bucket rows; `docs/features/billing.md` says SC-004 is held at p50, p95 and
+  p99 and records both runs. The simulator gained `--meters-from`, because archived
+  load meters keep their source ids.
 
 - [x] T175 Skip usage threshold notices when the count is 0, so giving an account with no active devices a device limit of 0 no longer emails "80% of its device limit" and "reached its device limit", per 029 FR-025 (partial)
 

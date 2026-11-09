@@ -40,14 +40,14 @@ def metric(name, datatype, value, alias=None):
 METER_INTERVAL = 10
 
 
-def meter_ids(count):
-    """`meter-001`, `meter-002`, ... for the downstream water meters of `--meters`."""
-    width = max(3, len(str(count)))
-    return [f"meter-{index:0{width}d}" for index in range(1, count + 1)]
+def meter_ids(count, first=1):
+    """`meter-001`, `meter-002`, ... for the downstream water meters of `--meters`, from `--meters-from`."""
+    width = max(3, len(str(first + count - 1)))
+    return [f"meter-{index:0{width}d}" for index in range(first, first + count)]
 
 
 class Simulator:
-    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False, gps=False, meters=0):
+    def __init__(self, config, state_file, ignore_commands=False, rgb_v2=False, gps=False, meters=0, meters_from=1):
         self.config = config
         self.state_file = pathlib.Path(state_file)
         self.ignore_commands = ignore_commands
@@ -60,7 +60,7 @@ class Simulator:
         self.values = {"power": False, "color": "#ff0000", "mode": "blink", "brightness": 5}
         self.rgb_v2 = rgb_v2
         self.gps = gps
-        self.meters = meter_ids(meters)
+        self.meters = meter_ids(meters, meters_from)
         self.rebirths = 0
         self.rgb_state_file = pathlib.Path(str(state_file) + ".rgb.json")
         if rgb_v2:
@@ -262,16 +262,19 @@ if __name__ == "__main__":
     parser.add_argument("--gps", action="store_true", help="Publish a GPS route that crosses the demo geofence.")
     parser.add_argument("--control-port", type=int, help="Serve optional local RGB controls on this loopback port (requires --rgb-v2).")
     parser.add_argument("--meters", type=int, default=0, metavar="COUNT", help="Also announce COUNT water meters, meter-001 onwards, for bulk onboarding.")
+    parser.add_argument("--meters-from", type=int, default=1, metavar="N", help="Number the water meters from N: archived devices keep their source ids, so a new load check takes new ones.")
     args = parser.parse_args()
     if args.meters < 0:
         parser.error("--meters must be zero or more")
+    if args.meters_from < 1:
+        parser.error("--meters-from must be 1 or more")
     if args.gps and args.meters:
         parser.error("--gps cannot be combined with --meters")
     if args.control_port is not None and not args.rgb_v2:
         parser.error("--control-port requires --rgb-v2")
     if args.gps and (args.rgb_v2 or args.control_port is not None):
         parser.error("--gps cannot be combined with RGB controls")
-    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2, args.gps, args.meters)
+    simulator = Simulator(json.loads(pathlib.Path(args.config).read_text()), args.state_file, args.ignore_commands, args.rgb_v2, args.gps, args.meters, args.meters_from)
     server = serve_controls(simulator, args.control_port) if args.control_port is not None else None
     try:
         simulator.run()
