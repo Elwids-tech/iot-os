@@ -26,6 +26,7 @@ final class CreditNotes
     public function __construct(
         private readonly BillingSettings $settings,
         private readonly Notices $notices,
+        private readonly Payments $payments,
     ) {}
 
     public function issue(Invoice $invoice, int $amount, string $reason, User $actor): CreditNote
@@ -80,6 +81,8 @@ final class CreditNotes
 
         $invoice = $note->invoice;
         $account = $invoice->billingAccount;
+        // An invoice credited in full is no longer owed: the account may stop being past due (FR-043).
+        $this->payments->refreshPastDue($account);
         $this->notices->sendWithContact($account, 'credit_note_issued', 'credit_note:'.$note->uuid, InvoiceDocumentMail::forCreditNote($note, $invoice, $account));
 
         return $note;

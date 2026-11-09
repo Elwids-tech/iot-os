@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Laravel\Cashier\Cashier;
+use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\CardException;
 
 /**
@@ -30,6 +31,9 @@ final class Payments
 {
     /** How long Stripe's search may take to show a new PaymentIntent. */
     private const SEARCH_LAG_MINUTES = 10;
+
+    /** How long an invoice's Checkout page stays open: Stripe's minimum. */
+    private const CHECKOUT_MINUTES = 30;
 
     public function __construct(
         private readonly Notices $notices,
@@ -58,7 +62,11 @@ final class Payments
         return (string) $session->url;
     }
 
-    /** A Stripe Checkout page that pays what is still owed on an issued invoice. */
+    /**
+     * A Stripe Checkout page that pays what is still owed on an issued invoice. It expires
+     * after Stripe's minimum of 30 minutes, and is expired sooner once another payment for
+     * the invoice starts or settles it (`expireCheckouts`).
+     */
     public function checkoutForInvoice(Invoice $invoice): string
     {
         $owed = $invoice->outstanding();
@@ -80,6 +88,7 @@ final class Payments
             ]],
             'metadata' => ['invoice_uuid' => $invoice->uuid],
             'payment_intent_data' => ['metadata' => ['invoice_uuid' => $invoice->uuid, 'method' => Payment::CHECKOUT]],
+            'expires_at' => now()->addMinutes(self::CHECKOUT_MINUTES)->getTimestamp(),
             'success_url' => $this->portal($account, ['invoice' => $invoice->uuid, 'paid' => '1']),
             'cancel_url' => $this->portal($account, ['invoice' => $invoice->uuid]),
         ]);
@@ -193,6 +202,7 @@ final class Payments
         if ($payment === null) {
             return null;
         }
+        $this->expireCheckouts($invoice);
 
         try {
             $intent = Cashier::stripe()->paymentIntents->create([
@@ -380,12 +390,25 @@ final class Payments
     {
         $invoice = Invoice::query()->whereKey($payment->invoice_id)->lockForUpdate()->firstOrFail();
         $account = $invoice->billingAccount;
+        // What was still owed before this payment. Anything beyond it was paid twice: a
+        // Checkout page completed late, or a credit note or payment recorded while this one
+        // was pending. It becomes account credit for the next invoice (FR-035, FR-040).
+        $owed = $invoice->outstanding();
 
         // A different amount is kept as received and left for an administrator to review.
         if ($received !== $payment->amount) {
             ActivityLog::record('billing_invoice.payment_amount_mismatch', null, null, $invoice, ['expected' => $payment->amount, 'received' => $received]);
         }
         $payment->forceFill(['status' => Payment::SUCCEEDED, 'amount' => $received, 'failure_reason' => null, 'status_at' => now()])->save();
+        if ($received > $owed) {
+            DB::table('billing_account_credits')->insert([
+                'billing_account_id' => $account->getKey(),
+                'amount' => $received - $owed,
+                'invoice_id' => $invoice->getKey(),
+                'created_at' => now(),
+            ]);
+            ActivityLog::record('billing_invoice.overpaid', null, null, $invoice, ['amount' => $received - $owed, 'method' => $payment->method]);
+        }
         $this->settle($invoice);
         ActivityLog::record('billing_invoice.payment_succeeded', null, null, $invoice, ['amount' => $received, 'method' => $payment->method]);
         $this->notices->send($account, 'receipt', 'payment:'.$payment->uuid, PaymentMail::receipt($invoice, $account, $received));
@@ -404,16 +427,45 @@ final class Payments
         $this->notices->send($account, 'payment_failed', 'payment:'.$payment->uuid, PaymentMail::failed($invoice, $account, $payment->amount, $reason));
     }
 
-    /** Marks the invoice paid once its payments cover what credit notes left. */
+    /**
+     * Marks the invoice paid once its payments cover what credit notes left, and closes
+     * its open Checkout pages. One already settled, credited included, keeps its status.
+     */
     private function settle(Invoice $invoice): void
     {
-        if (! in_array($invoice->payment_status, [PaymentStatus::Paid, PaymentStatus::PaidOutside], true)
+        if (! in_array($invoice->payment_status, [PaymentStatus::Paid, PaymentStatus::PaidOutside, PaymentStatus::Credited], true)
             && $invoice->amount_due - (int) $invoice->creditNotes()->sum('applied') - $invoice->paid() <= 0) {
             $last = $invoice->payments()->where('status', Payment::SUCCEEDED)->reorder()->latest('status_at')->latest('id')->first();
             $invoice->forceFill(['payment_status' => $last?->method === Payment::OUTSIDE ? PaymentStatus::PaidOutside : PaymentStatus::Paid])->save();
         }
+        if ($invoice->outstanding() <= 0) {
+            DB::afterCommit(fn () => $this->expireCheckouts($invoice));
+        }
 
         $this->refreshPastDue($invoice->billingAccount);
+    }
+
+    /**
+     * Expires the invoice's Checkout pages still open, so a page left open cannot pay it a
+     * second time (FR-040). A Stripe error here leaves them to expire on their own.
+     */
+    public function expireCheckouts(Invoice $invoice): void
+    {
+        $customer = $invoice->billingAccount->stripe_id;
+        if (! self::enabled() || $customer === null) {
+            return;
+        }
+
+        try {
+            $sessions = Cashier::stripe()->checkout->sessions->all(['customer' => $customer, 'status' => 'open', 'limit' => 100]);
+            foreach ($sessions->data as $session) {
+                if (($session->metadata['invoice_uuid'] ?? null) === $invoice->uuid) {
+                    Cashier::stripe()->checkout->sessions->expire($session->id);
+                }
+            }
+        } catch (ApiErrorException $exception) {
+            report($exception);
+        }
     }
 
     private function customer(BillingAccount $account): void

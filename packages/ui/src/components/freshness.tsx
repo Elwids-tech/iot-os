@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { useNow } from "@iot-os/ui/hooks/use-now"
 import {
   formatAge,
   formatDateTime,
@@ -9,7 +10,8 @@ import { cn } from "@iot-os/ui/lib/utils"
 
 /**
  * "6 d ago" with the absolute time on hover. Missing times read as `never`
- * (pass null to render nothing). `bare` drops "ago" for dense readouts.
+ * (pass null to render nothing). `bare` drops "ago" for dense readouts. Without `now`
+ * it keeps ageing on its own (`useNow`).
  */
 function RelativeTime({
   at,
@@ -26,6 +28,7 @@ function RelativeTime({
   bare?: boolean
   className?: string
 }) {
+  const clock = useNow()
   if (!at) {
     if (never === null) return null
     return <span className={cn("text-muted-foreground", className)}>{never}</span>
@@ -36,7 +39,7 @@ function RelativeTime({
       title={formatDateTime(at, timezone) + (timezone === "utc" ? " UTC" : "")}
       className={cn("tabular-nums", className)}
     >
-      {formatAge(at, now)}
+      {formatAge(at, now ?? clock)}
       {!bare && " ago"}
     </time>
   )
@@ -51,7 +54,8 @@ const dots = {
 
 /**
  * When something last reported, rated against its expected interval: a dot
- * plus the relative time. Late readings also say so in text and colour.
+ * plus the relative time. Late readings also say so in text and colour. Without `now`
+ * the rating and the time keep ageing on their own.
  */
 function Freshness({
   at,
@@ -68,7 +72,8 @@ function Freshness({
   timezone?: "browser" | "utc"
   className?: string
 }) {
-  const state = freshnessState(at, expectedSeconds, now)
+  const clock = useNow()
+  const state = freshnessState(at, expectedSeconds, now ?? clock)
   return (
     <span
       data-slot="freshness"

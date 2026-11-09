@@ -51,5 +51,7 @@ export function invoiceHistoryText(entry: InvoiceHistoryEntry, currency: string)
       return `A payment of ${amount} failed${why}`
     case "payment_amount_mismatch":
       return `Received ${amount}, not the amount charged; check the payments`
+    case "overpaid":
+      return `Paid ${amount} more than was owed; it became account credit for the next invoice`
   }
 }

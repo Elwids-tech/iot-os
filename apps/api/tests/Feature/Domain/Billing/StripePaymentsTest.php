@@ -288,6 +288,70 @@ final class StripePaymentsTest extends TestCase
         $this->assertSame([Payment::FAILED, Payment::SUCCEEDED], $invoice->payments()->orderBy('id')->pluck('status')->all());
     }
 
+    public function test_checkout_pages_expire_and_a_late_one_never_pays_twice_unnoticed(): void
+    {
+        $this->withCard();
+        $invoice = $this->issued();
+        $this->stripe
+            ->on('POST', '/v1/checkout/sessions', ['id' => 'cs_open', 'object' => 'checkout.session', 'url' => 'https://checkout.stripe.test/c/cs_open'])
+            ->on('GET', '/v1/checkout/sessions', ['object' => 'list', 'url' => '/v1/checkout/sessions', 'has_more' => false, 'data' => [
+                ['id' => 'cs_open', 'object' => 'checkout.session', 'status' => 'open', 'metadata' => ['invoice_uuid' => $invoice->uuid]],
+                ['id' => 'cs_elsewhere', 'object' => 'checkout.session', 'status' => 'open', 'metadata' => ['invoice_uuid' => 'f0000000-0000-4000-8000-000000000000']],
+            ]])
+            ->on('POST', '/v1/checkout/sessions/cs_open/expire', ['id' => 'cs_open', 'object' => 'checkout.session', 'status' => 'expired'])
+            ->on('POST', '/v1/payment_intents', fn (array $params): array => $this->intent('pi_card', 'succeeded', (string) $params['metadata']['invoice_uuid'], (int) $params['amount'], (int) $params['metadata']['attempt']));
+
+        // The owner opens Stripe's page; it closes after Stripe's minimum of 30 minutes.
+        $this->actingAs($this->owner, 'sanctum')->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertOk();
+        $session = $this->stripe->sent('POST', '/v1/checkout/sessions')[0]['params'];
+        $this->assertSame(now()->addMinutes(30)->getTimestamp(), (int) $session['expires_at']);
+
+        // The card is charged meanwhile: the open page for this invoice is expired, no other.
+        (new ChargeInvoice($invoice->id, 1))->handle(app(Payments::class));
+        $this->assertSame(PaymentStatus::Paid, $invoice->fresh()->payment_status);
+        $this->assertCount(2, $this->stripe->sent('POST', '/v1/checkout/sessions/cs_open/expire'));
+        $this->assertCount(0, $this->stripe->sent('POST', '/v1/checkout/sessions/cs_elsewhere/expire'));
+
+        // A page completed before it could be expired pays it again: that becomes account credit.
+        $this->webhook($this->event('evt_late', 'checkout.session.completed', [
+            'id' => 'cs_open', 'object' => 'checkout.session', 'mode' => 'payment', 'payment_status' => 'paid', 'payment_intent' => 'pi_late',
+            'amount_total' => 333, 'metadata' => ['invoice_uuid' => $invoice->uuid],
+        ]))->assertOk();
+        $this->assertSame(PaymentStatus::Paid, $invoice->fresh()->payment_status);
+        $this->assertSame([Payment::SUCCEEDED, Payment::SUCCEEDED], $invoice->payments()->orderBy('id')->pluck('status')->all());
+        $this->assertSame(333, app(InvoiceDrafter::class)->creditBalance($this->account));
+        $history = collect($this->actingAs($this->admin, 'sanctum')->getJson('/api/v1/admin/billing/invoices/'.$invoice->uuid)->assertOk()->json('data.history'));
+        $this->assertSame(333, $history->firstWhere('action', 'overpaid')['amount'] ?? null);
+
+        // The next invoice takes it off, naming where it came from.
+        $this->travelTo(CarbonImmutable::parse('2026-12-02 10:00', 'UTC'));
+        DB::table('billing_usage_watermarks')->update(['final_through' => CarbonImmutable::parse('2026-12-01', 'UTC')]);
+        $november = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-11-01', 'UTC'), null, null);
+        $this->assertSame('Credit from the overpayment of '.$invoice->number, $november->lines()->where('kind', 'credit')->value('description'));
+    }
+
+    public function test_a_credit_note_while_a_charge_is_pending_turns_the_charge_into_account_credit(): void
+    {
+        $this->withCard();
+        $this->stripe->on('POST', '/v1/payment_intents', fn (array $params): array => $this->intent('pi_slow', 'processing', (string) $params['metadata']['invoice_uuid'], (int) $params['amount']));
+        $invoice = $this->issued();
+        (new ChargeInvoice($invoice->id, 1))->handle(app(Payments::class));
+        $this->account->forceFill(['past_due_since' => now()->subDay()])->save();
+
+        // The whole invoice is credited while the card charge is still processing.
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/credit-notes', ['amount' => 333, 'reason' => 'Outage'])
+            ->assertCreated()
+            ->assertJsonPath('data.applied', 333);
+        $this->assertSame(PaymentStatus::Credited, $invoice->fresh()->payment_status);
+        $this->assertNull($this->account->fresh()->past_due_since);
+
+        // The charge then succeeds: nothing was owed, so all of it becomes account credit.
+        $this->webhook($this->event('evt_slow', 'payment_intent.succeeded', $this->intent('pi_slow', 'succeeded', $invoice->uuid, 333)))->assertOk();
+        $this->assertSame(PaymentStatus::Credited, $invoice->fresh()->payment_status);
+        $this->assertSame(333, app(InvoiceDrafter::class)->creditBalance($this->account));
+    }
+
     public function test_an_unsigned_or_wrongly_signed_webhook_is_refused(): void
     {
         $payload = (string) json_encode($this->event('evt_forged', 'payment_intent.succeeded', ['id' => 'pi_1']));

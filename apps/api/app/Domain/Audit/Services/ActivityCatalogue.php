@@ -75,6 +75,7 @@ final class ActivityCatalogue
         'billing_invoice.payment_succeeded' => ['received a payment on invoice', null],
         'billing_invoice.payment_failed' => ['had a payment fail on invoice', null],
         'billing_invoice.payment_amount_mismatch' => ['received an unexpected amount on invoice', null],
+        'billing_invoice.overpaid' => ['received more than was owed on invoice', null],
         // Devices and sites
         'device.registered' => ['registered device', 'device'],
         'device.updated' => ['updated device', 'device'],

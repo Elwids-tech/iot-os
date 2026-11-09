@@ -35707,6 +35707,10 @@
               "null"
             ]
           },
+          "usage_final": {
+            "type": "boolean",
+            "description": "The runtime has reported the month's usage to its end; a draft marked incomplete is recalculated before it is issued."
+          },
           "tax_rate_name": {
             "type": [
               "string",
@@ -35977,7 +35981,8 @@
                     "payment_recorded",
                     "payment_succeeded",
                     "payment_failed",
-                    "payment_amount_mismatch"
+                    "payment_amount_mismatch",
+                    "overpaid"
                   ]
                 },
                 "actor": {
@@ -36054,6 +36059,7 @@
           "drafted_at",
           "issued_at",
           "draft_note",
+          "usage_final",
           "tax_rate_name",
           "tax_basis_points",
           "operator_details",

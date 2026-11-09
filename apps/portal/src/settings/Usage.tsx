@@ -14,13 +14,17 @@ import { useDeviceOrganization } from "../devices/shared"
 
 export const organizationUsageKey = (org: string) => ["organization-usage", org] as const
 
-/** This organization's usage and retention; only for members who may manage devices (spec 029 FR-024). */
+/**
+ * This organization's usage and retention; only for members who may manage devices
+ * (spec 029 FR-024). Asked again every minute while shown, as the runtime reports.
+ */
 export function useOrganizationUsage() {
   const { org, capabilities } = useDeviceOrganization()
   return useQuery({
     queryKey: organizationUsageKey(org),
     queryFn: () => api.organizationUsage(org),
     enabled: capabilities.manage,
+    refetchInterval: 60_000,
   })
 }
 

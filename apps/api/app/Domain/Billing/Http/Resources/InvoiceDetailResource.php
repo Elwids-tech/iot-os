@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Http\Resources;
 use App\Domain\Billing\Enums\InvoiceLineKind;
 use App\Domain\Billing\Models\InvoiceLine;
 use App\Domain\Billing\Models\Payment;
+use App\Domain\Billing\Services\InvoiceDrafter;
 use App\Domain\Billing\Services\InvoiceHistory;
 use App\Domain\Billing\Services\InvoicePdf;
 use Illuminate\Http\Request;
@@ -40,6 +41,8 @@ final class InvoiceDetailResource extends InvoiceResource
         return [
             ...parent::toArray($request),
             'draft_note' => $this->owner || $invoice->draft_note === null ? null : (string) $invoice->draft_note,
+            /** The runtime has reported the month's usage to its end; a draft marked incomplete is recalculated before it is issued. */
+            'usage_final' => (bool) app(InvoiceDrafter::class)->usageFinal($invoice->month),
             'tax_rate_name' => $invoice->tax_rate_name === null ? null : (string) $invoice->tax_rate_name,
             'tax_basis_points' => $invoice->tax_basis_points === null ? null : (int) $invoice->tax_basis_points,
             /**
@@ -94,7 +97,7 @@ final class InvoiceDetailResource extends InvoiceResource
             /**
              * Drafting, adjustments, issuing, credit notes and payments, newest first; empty for owners.
              *
-             * @var list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
+             * @var list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch'|'overpaid', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
              */
             'history' => $this->owner ? [] : app(InvoiceHistory::class)->for($invoice),
         ];

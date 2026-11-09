@@ -179,6 +179,23 @@ final class InvoiceIssuingTest extends TestCase
         $this->assertStringContainsString('Usage possibly incomplete', $this->html($invoice));
     }
 
+    public function test_a_draft_made_before_usage_was_final_is_recalculated_before_it_is_issued(): void
+    {
+        DB::table('billing_usage_watermarks')->update(['final_through' => CarbonImmutable::parse('2026-10-31', 'UTC')]);
+        $october = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-10-01', 'UTC'), $this->admin, 'Runtime behind');
+        $this->getJson("/api/v1/admin/billing/invoices/{$october->uuid}")->assertOk()->assertJsonPath('data.usage_incomplete', true)->assertJsonPath('data.usage_final', false);
+
+        // The runtime catches up: the draft's lines may lack what came in since (FR-031, SC-009).
+        DB::table('billing_usage_watermarks')->update(['final_through' => CarbonImmutable::parse('2026-11-01', 'UTC')]);
+        $this->getJson("/api/v1/admin/billing/invoices/{$october->uuid}")->assertOk()->assertJsonPath('data.usage_final', true);
+        $this->postJson("/api/v1/admin/billing/invoices/{$october->uuid}/issue")
+            ->assertConflict()
+            ->assertJsonPath('message', "October 2026's usage is final now. Recalculate the draft, check it, then issue it.");
+
+        $this->postJson("/api/v1/admin/billing/invoices/{$october->uuid}/recalculate")->assertOk()->assertJsonPath('data.usage_incomplete', false);
+        $this->postJson("/api/v1/admin/billing/invoices/{$october->uuid}/issue")->assertOk()->assertJsonPath('data.number', 'INV-0001');
+    }
+
     public function test_concurrent_issues_take_consecutive_numbers(): void
     {
         $this->skipUnlessForkable();

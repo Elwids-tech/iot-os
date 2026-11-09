@@ -220,7 +220,9 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Overage.** Readings are never stopped; what goes past the allowance is overage, as
   for alerts.
 - **Finality.** `billing_usage_watermarks` keeps the runtime's `final_through`, which
-  only moves forward, and when it last reported. A month's `data_points` entry is
+  only moves forward, and when it last reported: the newest report's `generated_at`
+  (never later than now), not when the report arrived, so a backlog of events reads as
+  late. A month's `data_points` entry is
   `final` once the watermark passes the month's end; until then the count may still
   grow. It is `stale` when an open month has not been reported for longer than
   `BILLING_USAGE_REPORT_STALE_SECONDS` (300 by default), for example while the
@@ -312,7 +314,9 @@ In the apps (spec 029 US5):
   Settings → Usage. An earlier month shows its count and overage only, without today's
   allowance, bar or status: the allowance may have changed since, and no history of it
   is kept. Data points read **Provisional** with when the runtime last reported (late
-  after five minutes, the API's `stale`) until their month is **Final**. `UsagePanel`
+  after five minutes, the API's `stale`) until their month is **Final**. The age keeps
+  ticking on a page left open (`useNow` in the kit drives every `RelativeTime` and
+  `Freshness`), and the portal asks for usage again every minute. `UsagePanel`
   combines the meters, a month picker and each organization's share; the admin
   account page and the portal's Billing accounts page both use it.
 - **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
@@ -395,7 +399,10 @@ every division rounds half up.
   CN-…"), so the lines shown add up to the subtotal (`@iot-os/ui/lib/invoices`
   `invoiceLines`).
 - **Issuing.** Only once the invoice's month has ended (409 before: a draft of the
-  running month is a preview). In one transaction: the next number from a locked counter row
+  running month is a preview). A draft made before its month's usage was final must be
+  recalculated once it is (409 until then, and admin's **Issue** asks for it; the
+  detail's `usage_final` says so), so it never goes out without what came in since. In
+  one transaction: the next number from a locked counter row
   (`billing_number_sequences`, so no gaps); snapshots of the operator's and the account's
   details and the tax rate; tax on the subtotal; the account's credit applied; due in
   `BILLING_INVOICE_DUE_DAYS` (14). An invoice with nothing to pay is paid. From then on
@@ -404,7 +411,8 @@ every division rounds half up.
   not yet credited. Each takes what it can off what the invoice still owes (`applied`);
   the rest becomes account credit (`billing_account_credits`) for the next invoice, shown
   as "Credit from CN-…". An invoice whose credit notes leave nothing owed reads
-  `credited`. The invoice's own figures never change: `outstanding` is derived.
+  `credited`, and the account's past due is refreshed. The invoice's own figures never
+  change: `outstanding` is derived.
 - **Documents and email.** PDFs are rendered on request with dompdf from
   `resources/views/billing/invoice.blade.php`; an invoice's CSV holds the lines, totals
   and usage, a credit note's its reason and amounts.
@@ -459,7 +467,9 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   payment blocks the next attempt and the Checkout page until Stripe's event arrives or
   an administrator checks with Stripe.
 - **Paying online.** An owner can pay what is still owed on a Checkout page in payment
-  mode, which answers 409 when nothing is owed or a payment is still processing.
+  mode, which answers 409 when nothing is owed or a payment is still processing. The
+  page expires after 30 minutes (Stripe's minimum), and the invoice's open pages are
+  expired once a card charge starts or the invoice is settled.
 - **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
   secret (403 otherwise). Each event id goes into `billing_provider_events` first and is
   acted on only once; `billing:prune` forgets ids after 30 days, longer than Stripe
@@ -470,6 +480,12 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   payments that succeeded. An invoice becomes `paid` once nothing is owed, or
   `paid_outside` when a payment recorded by hand settled it. A failed charge marks it
   `failed` unless it is already settled.
+- **Paid twice.** A payment that succeeds for more than was still owed, such as a
+  Checkout page completed after the card was charged, or a charge that was pending
+  while a credit note or a payment by hand settled the invoice, keeps the rest. It goes
+  to account credit for the next invoice, shown as "Credit from the overpayment of
+  INV-…", is audited (`billing_invoice.overpaid`, history `overpaid`), and leaves a
+  settled invoice's status as it was.
 - **Emails** go to the owners once each: a `receipt` per payment, a `payment_failed`
   email with the card issuer's reason, and a `payment_reminder` on the due date and
   seven days after. Each links to `/billing?account=…&invoice=…`. The invoice email now
