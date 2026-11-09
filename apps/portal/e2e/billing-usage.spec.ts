@@ -228,6 +228,19 @@ test("after an allowance is raised past the count, Settings → Usage shows what
   expect(errors).toEqual([])
 })
 
+test("the last-reported age keeps ageing on a page left open", async ({ page }) => {
+  await page.clock.install({ time: new Date() })
+  const { errors } = await setup(page)
+  await page.goto(`/organizations/${org}/settings/usage`)
+
+  const reported = page.getByRole("region", { name: "Allowances" }).locator('[data-kind="data_points"] [data-slot="freshness"]')
+  await expect(reported).toHaveAttribute("data-state", "fresh")
+  // Ten minutes later, with no new report, it reads late without a reload (SC-005).
+  await page.clock.fastForward("10:00")
+  await expect(reported).toHaveAttribute("data-state", "late")
+  expect(errors).toEqual([])
+})
+
 test("a manager sees Settings → Usage for the organization without the billing account", async ({ page }) => {
   const { errors } = await setup(page)
   await page.goto(`/organizations/${org}/settings/general`)

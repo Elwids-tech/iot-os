@@ -27,10 +27,11 @@ final class InvoiceHistory
         'billing_invoice.payment_succeeded',
         'billing_invoice.payment_failed',
         'billing_invoice.payment_amount_mismatch',
+        'billing_invoice.overpaid',
     ];
 
     /**
-     * @return list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
+     * @return list<array{at: string, action: 'drafted'|'recalculated'|'adjustment_added'|'adjustment_removed'|'issued'|'credit_note_issued'|'payment_recorded'|'payment_succeeded'|'payment_failed'|'payment_amount_mismatch'|'overpaid', actor: array{id: int, name: string}|null, description: string|null, amount: int|null, note: string|null, number: string|null}>
      */
     public function for(Invoice $invoice): array
     {
@@ -62,6 +63,7 @@ final class InvoiceHistory
                     'billing_invoice.payment_succeeded' => 'payment_succeeded',
                     'billing_invoice.payment_failed' => 'payment_failed',
                     'billing_invoice.payment_amount_mismatch' => 'payment_amount_mismatch',
+                    'billing_invoice.overpaid' => 'overpaid',
                     default => match ($details['change'] ?? null) {
                         'adjustment_added' => 'adjustment_added',
                         'adjustment_removed' => 'adjustment_removed',

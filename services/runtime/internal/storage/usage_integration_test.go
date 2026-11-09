@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -237,5 +238,61 @@ func TestUsageBucketsArePrunedAfterFortyDays(t *testing.T) {
 	}
 	if got := usageCount(t, store, organization); got != 1 {
 		t.Fatalf("after pruning %d buckets remain counted, want 1", got)
+	}
+}
+
+// A runtime restart loses only the reporter's memory of what it last sent: the next
+// report reads its watermark from the outbox and carries cumulative counts, and a
+// message the broker delivers again after the restart is not counted (spec 029 SC-002).
+func TestCountsStayExactAcrossARestart(t *testing.T) {
+	store, ctx, organization := historyStore(t)
+	started := time.Now().UTC().Add(-time.Second)
+	cleanUsageEvents(t, store, started)
+	definition := devices.Definition{DeviceUUID: UUID(), OrganizationUUID: organization, ConfigurationUUID: UUID()}
+	if err := store.Apply(ctx, definition, 1, "device.applied.v1"); err != nil {
+		t.Fatal(err)
+	}
+	message := func(readings int) devices.Telemetry {
+		now := time.Now().UTC()
+		values := []devices.Reading{}
+		for range readings {
+			values = append(values, devices.Reading{ParameterUUID: UUID(), DataType: "number", Value: 1.5, Quality: "good", ObservedAt: now, ReceivedAt: now})
+		}
+		return devices.Telemetry{UUID: UUID(), Generation: 1, Definition: definition, SessionID: "restart", Readings: values}
+	}
+
+	first := message(3)
+	persistCounted(t, store, first)
+	if _, err := store.ReportUsage(ctx, time.Now().UTC(), time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A new process opens the same database; its reporter remembers nothing.
+	restarted, err := Open(ctx, os.Getenv("DEVICE_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(restarted.Pool.Close)
+	if outcome, err := restarted.PersistResultCounted(ctx, first); err != nil || outcome.Readings != 0 {
+		t.Fatalf("a message delivered again after the restart counted %d (%v)", outcome.Readings, err)
+	}
+	persistCounted(t, restarted, message(4))
+	if _, err := restarted.ReportUsage(ctx, time.Now().UTC().Add(time.Second), time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reports are cumulative per hour: the highest count of each hour is the usage.
+	highest := map[time.Time]int64{}
+	for _, event := range usageEvents(t, store, started, organization) {
+		for _, bucket := range event.Buckets {
+			highest[bucket.Hour] = max(highest[bucket.Hour], bucket.Count)
+		}
+	}
+	var reported int64
+	for _, count := range highest {
+		reported += count
+	}
+	if reported != 7 || usageCount(t, store, organization) != 7 {
+		t.Fatalf("reported %d and stored %d, want 7 and 7", reported, usageCount(t, store, organization))
 	}
 }

@@ -44,6 +44,12 @@ final class InvoiceIssuer
                 $locked->month->format('F Y'),
                 $ends->format('j F Y'),
             ));
+            // Drafted before the month's usage was final: its lines may lack what came in
+            // since, so it is recalculated before it goes out (FR-031, SC-009).
+            abort_if($locked->usage_incomplete && $this->drafter->usageFinal($locked->month), 409, sprintf(
+                "%s's usage is final now. Recalculate the draft, check it, then issue it.",
+                $locked->month->format('F Y'),
+            ));
             // The account row serializes its credit: two issues cannot spend it twice.
             $account = BillingAccount::withTrashed()->whereKey($locked->billing_account_id)->lockForUpdate()->firstOrFail();
 
