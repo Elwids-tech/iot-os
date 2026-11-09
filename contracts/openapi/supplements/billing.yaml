@@ -236,11 +236,13 @@ operations:
   POST /v1/admin/billing/invoices/{invoice}/issue:
     responses:
       '409':
-        description: The invoice is already issued, or its month has not ended, so its draft is still a preview (spec 029 FR-031).
+        description: The invoice is already issued; its month has not ended, so its draft is still a preview; or it was drafted before the month's usage was final, which it is now, so it must be recalculated first (spec 029 FR-031).
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ErrorMessage'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   POST /v1/admin/billing/invoices/{invoice}/credit-notes:
     responses:
       '409':

@@ -6439,7 +6439,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The invoice is already issued, or its month has not ended, so its draft is still a preview (spec 029 FR-031).",
+            "description": "The invoice is already issued; its month has not ended, so its draft is still a preview; or it was drafted before the month's usage was final, which it is now, so it must be recalculated first (spec 029 FR-031).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6450,6 +6450,9 @@
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -35692,6 +35695,10 @@
               "paid_outside"
             ]
           },
+          "payment_processing": {
+            "type": "boolean",
+            "description": "A card or Checkout payment is still being processed: nothing more can be paid until Stripe answers."
+          },
           "drafted_at": {
             "type": "string"
           },
@@ -36056,6 +36063,7 @@
           "outstanding",
           "due_at",
           "payment_status",
+          "payment_processing",
           "drafted_at",
           "issued_at",
           "draft_note",
@@ -36150,6 +36158,10 @@
               "paid_outside"
             ]
           },
+          "payment_processing": {
+            "type": "boolean",
+            "description": "A card or Checkout payment is still being processed: nothing more can be paid until Stripe answers."
+          },
           "drafted_at": {
             "type": "string"
           },
@@ -36176,6 +36188,7 @@
           "outstanding",
           "due_at",
           "payment_status",
+          "payment_processing",
           "drafted_at",
           "issued_at"
         ],
@@ -37864,15 +37877,14 @@
             "minimum": 1
           },
           "note": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
+            "description": "How it was paid, such as a transfer's reference (spec 029 FR-044).",
             "maxLength": 1000
           }
         },
         "required": [
-          "amount"
+          "amount",
+          "note"
         ],
         "title": "RecordPaymentRequest"
       },

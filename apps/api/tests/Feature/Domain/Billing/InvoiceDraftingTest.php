@@ -177,6 +177,18 @@ final class InvoiceDraftingTest extends TestCase
         $this->getJson('/api/v1/admin/billing/invoices/waiting?month=2026-10')->assertOk()->assertJsonCount(0, 'data');
     }
 
+    public function test_a_month_without_a_plan_cannot_be_drafted(): void
+    {
+        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->travelTo(CarbonImmutable::parse('2026-10-02 10:00', 'UTC'));
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/invoices', ['month' => '2026-08', 'note' => 'Before the plan'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.month.0', 'Example Account had no plan in August 2026, so there is nothing to invoice.');
+        $this->assertSame(0, Invoice::query()->count());
+    }
+
     public function test_recalculation_rebuilds_from_the_records_and_keeps_adjustments(): void
     {
         $this->assign('2026-09-20 08:00', $this->starter);

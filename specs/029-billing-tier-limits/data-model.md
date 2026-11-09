@@ -338,7 +338,8 @@ The new events are:
 - `billing_tax_rate.created`, `.updated`, `.archived`;
 - `billing_invoice.drafted`, `.adjusted`, `.issued`;
 - `billing_credit_note.issued`;
-- `billing_payment.recorded`.
+- `billing_invoice.payment_recorded`, `.payment_succeeded`, `.payment_failed`,
+  `.payment_amount_mismatch`, `.overpaid`.
 
 Each records its actor. Account events use the account's uuid as `resource_uuid`, so
 the account history (spec 023) shows them.

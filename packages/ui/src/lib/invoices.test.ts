@@ -31,5 +31,8 @@ describe("invoices", () => {
     expect(paymentState({ ...issued, due_at: "2026-11-30T10:00:00+00:00" }, now)).toBe("pending")
     expect(paymentState({ ...issued, payment_status: "credited" }, now)).toBe("credited")
     expect(paymentState({ status: "draft", payment_status: "pending", due_at: null }, now)).toBeNull()
+    // A payment Stripe has not answered yet comes before overdue.
+    expect(paymentState({ ...issued, payment_processing: true }, now)).toBe("processing")
+    expect(paymentState({ ...issued, payment_status: "paid", payment_processing: true }, now)).toBe("paid")
   })
 })

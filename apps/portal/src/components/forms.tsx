@@ -62,11 +62,14 @@ export function errorMessage(error: unknown): string {
       return "You do not have permission for this action in this organization."
     if (error.status === 404 && (!payload?.message || payload.message === "Not Found"))
       return "This isn't available. It may have been removed, or the feature isn't enabled for this organization."
+    // Laravel repeats a lone field error as the message: say it once.
     return (
       [
-        payload?.message,
-        ...Object.values(payload?.errors ?? {}).flat(),
-        ...(payload?.references ?? []).map((item) => item.label),
+        ...new Set([
+          payload?.message,
+          ...Object.values(payload?.errors ?? {}).flat(),
+          ...(payload?.references ?? []).map((item) => item.label),
+        ]),
       ]
         .filter(Boolean)
         .join(" ") || "The request could not be completed."

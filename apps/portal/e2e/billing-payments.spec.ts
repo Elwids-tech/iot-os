@@ -16,12 +16,13 @@ const overview = {
   commands: { uncertain: 0, recent: [] },
 }
 
-type Options = { enabled?: boolean; card?: boolean; pastDue?: boolean; failed?: boolean }
+type Options = { enabled?: boolean; card?: boolean; pastDue?: boolean; failed?: boolean; processing?: boolean }
 
-function invoiceOf(uuid: string, number: string, status: string, outstanding: number) {
+function invoiceOf(uuid: string, number: string, status: string, outstanding: number, processing = false) {
   return {
     uuid,
     number,
+    payment_processing: processing,
     status: "issued",
     month: "2026-10-01",
     billing_account: { uuid: accountUuid, name: "Example Integrations" },
@@ -107,12 +108,12 @@ async function setup(page: Page, options: Options = {}) {
     if (path === `/api/v1/billing-accounts/${accountUuid}/invoices`) {
       if (state.posts.includes(`POST /api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}/checkout`) && state.paidLooks++ >= 1) state.unpaidStatus = "paid"
       const unpaid = state.unpaidStatus === "paid" ? 0 : 2614
-      return json({ data: { invoices: [invoiceOf(unpaidUuid, "INV-0002", state.unpaidStatus, unpaid), invoiceOf(paidUuid, "INV-0001", "paid", 0)], credit_notes: [] } })
+      return json({ data: { invoices: [invoiceOf(unpaidUuid, "INV-0002", state.unpaidStatus, unpaid, options.processing), invoiceOf(paidUuid, "INV-0001", "paid", 0)], credit_notes: [] } })
     }
     if (path === `/api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}`)
       return json({
         data: {
-          ...invoiceOf(unpaidUuid, "INV-0002", state.unpaidStatus, state.unpaidStatus === "paid" ? 0 : 2614),
+          ...invoiceOf(unpaidUuid, "INV-0002", state.unpaidStatus, state.unpaidStatus === "paid" ? 0 : 2614, options.processing),
           draft_note: null,
           tax_rate_name: null,
           tax_basis_points: null,
@@ -190,6 +191,20 @@ test("an email's link opens a declined invoice with Pay focused, and past due re
   await page.keyboard.press("Escape")
   await expect(page.getByText("An invoice is unpaid past its due date")).toBeVisible()
   await expect(page.getByText("Nothing is restricted, and every device and dashboard keeps working.", { exact: false })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("while a charge is processing, the invoice says so and offers no Pay", async ({ page }) => {
+  const { errors } = await setup(page, { card: true, processing: true })
+  await page.goto(`/billing?account=${accountUuid}`)
+  const row = page.getByRole("region", { name: "Invoices" }).getByRole("row", { name: /INV-0002/ })
+  await expect(row).toContainText("Payment processing")
+  await expect(row.getByRole("button", { name: /^Pay/ })).toHaveCount(0)
+
+  await page.goto(`/billing?account=${accountUuid}&invoice=${unpaidUuid}`)
+  const sheet = page.getByRole("dialog", { name: "Invoice INV-0002" })
+  await expect(sheet.getByText("Payment processing")).toBeVisible()
+  await expect(sheet.getByRole("button", { name: /^Pay/ })).toHaveCount(0)
   expect(errors).toEqual([])
 })
 

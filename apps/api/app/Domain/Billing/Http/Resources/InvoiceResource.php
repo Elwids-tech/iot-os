@@ -40,6 +40,8 @@ class InvoiceResource extends JsonResource
             'due_at' => $this->resource->due_at?->toIso8601String(),
             /** @var 'pending'|'paid'|'failed'|'credited'|'paid_outside' */
             'payment_status' => $this->resource->payment_status->value,
+            /** A card or Checkout payment is still being processed: nothing more can be paid until Stripe answers. */
+            'payment_processing' => (bool) $this->resource->paymentProcessing(),
             'drafted_at' => $this->resource->drafted_at->toIso8601String(),
             'issued_at' => $this->resource->issued_at?->toIso8601String(),
         ];

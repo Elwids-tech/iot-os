@@ -30,6 +30,8 @@ final class TrialMail extends Mailable
         public ?string $card,
         public bool $payments,
         public bool $charged = false,
+        public ?string $nextPlanName = null,
+        public bool $removed = false,
     ) {}
 
     public static function reminder(BillingAccount $account, PlanAssignment $trial): self
@@ -39,12 +41,12 @@ final class TrialMail extends Mailable
 
     /**
      * @param  PlanAssignment  $trial  the trial that ended
-     * @param  PlanAssignment  $next  what the account is on now: `paid` or `trial_unpaid`
+     * @param  PlanAssignment|null  $next  what the account is on now: `paid` or `trial_unpaid`, another plan, or null once taken off its plan
      */
-    public static function ended(BillingAccount $account, PlanAssignment $trial, PlanAssignment $next): self
+    public static function ended(BillingAccount $account, PlanAssignment $trial, ?PlanAssignment $next): self
     {
-        return new self('ended', $account->uuid, $account->name, $trial->plan->name, self::lastDay($next->started_at), self::card($account), Payments::enabled(),
-            $next->kind === PlanAssignmentKind::Paid);
+        return new self('ended', $account->uuid, $account->name, $trial->plan->name, self::lastDay($next?->started_at ?? $trial->ended_at), self::card($account), Payments::enabled(),
+            $next?->kind === PlanAssignmentKind::Paid, $next?->plan->name, $next === null);
     }
 
     public function envelope(): Envelope
@@ -63,6 +65,10 @@ final class TrialMail extends Mailable
                 ? sprintf('The trial of %s on the billing account %s ended on %s.', $this->planName, $this->accountName, $this->lastDay)
                 : sprintf('The trial of %s on the billing account %s runs until %s (UTC).', $this->planName, $this->accountName, $this->lastDay),
             'next' => match (true) {
+                $this->kind === 'ended' && $this->removed => 'The account is no longer on a plan.',
+                $this->kind === 'ended' && $this->nextPlanName !== null && $this->nextPlanName !== $this->planName => $this->charged
+                    ? sprintf('The account moved to %s and is charged from %s.', $this->nextPlanName, $from)
+                    : sprintf('The account moved to %s.', $this->nextPlanName),
                 $this->kind === 'ended' && $this->charged => sprintf('The account stays on %s and is charged from %s.', $this->planName, $from),
                 $this->kind === 'ended' && $this->payments => sprintf('The account stays on %s and is not charged. Add a card to keep the plan: it is charged from the day after.', $this->planName),
                 $this->kind === 'ended' => sprintf('The account stays on %s and is not charged until it becomes a paid plan.', $this->planName),

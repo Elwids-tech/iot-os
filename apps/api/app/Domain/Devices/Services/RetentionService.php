@@ -46,15 +46,21 @@ final class RetentionService
             default => [config('devices.default_retention_days'), 'default'],
         };
 
-        return ['days' => (int) $days,
+        $effective = ['days' => (int) $days,
             'source' => $source,
             'override_days' => $organization ? $override?->days : $platform?->days,
             'revision' => ($organization ? $override?->revision : $platform?->revision) ?? 0,
             'platform_days' => (int) $platformDays,
+            // What the platform falls back to without a default of its own.
+            'default_days' => (int) config('devices.default_retention_days'),
             // What an organization without its own override gets: its billing account's, else the platform's.
             'billing_days' => $billing,
             'pending_reduction' => $organization ? $this->pendingReduction($organization, (int) $days) : null,
             'cutoff' => now()->subDays((int) $days)->toIso8601String()];
+        // What cleanup uses now: longer than `days` while a billing change's grace runs.
+        $effective['cleanup_days'] = $organization ? $this->cleanupDays($organization, $effective) : (int) $days;
+
+        return $effective;
     }
 
     /**

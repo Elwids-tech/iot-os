@@ -14,7 +14,7 @@ All routes are under `/api`. Responses use the existing `{ "data": … }` envelo
   "kind": "data_points",            // alerts | sms | devices | data_points | retention_days | organizations
   "value": 1000000,                 // null = unlimited; retention: null = platform default
   "source": "plan",                 // override | plan | default
-  "override_note": null
+  "note": null                      // the override's note
 }
 
 // Usage for one kind in one month
@@ -115,7 +115,7 @@ Each route resolves the account among the signed-in person's own accounts and an
 | `GET /v1/billing-accounts/{account}/usage?month=` | Usage with organizations |
 | `GET /v1/billing-accounts/{account}/invoices` | Issued invoices and credit notes only |
 | `GET /v1/billing-accounts/{account}/invoices/{invoice}` (+ `.pdf`, `.csv`) | Issued only; a draft answers 404 |
-| `POST /v1/billing-accounts/{account}/invoices/{invoice}/checkout` | `{url}`: a Stripe Checkout session for the amount due; 409 when paid or payments are off |
+| `POST /v1/billing-accounts/{account}/invoices/{invoice}/checkout` | `{url}`: a Stripe Checkout session for the amount due; 409 when nothing is owed or a payment is processing, 404 while payments are off |
 | `POST /v1/billing-accounts/{account}/payment-method/checkout` | `{url}`: a Checkout session in setup mode |
 | `DELETE /v1/billing-accounts/{account}/payment-method` | Detaches the card |
 

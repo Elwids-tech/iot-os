@@ -25,7 +25,8 @@ final class RecordPaymentRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'integer', 'min:1'],
-            'note' => ['nullable', 'string', 'max:1000'],
+            /** How it was paid, such as a transfer's reference (spec 029 FR-044). */
+            'note' => ['required', 'string', 'max:1000'],
         ];
     }
 }

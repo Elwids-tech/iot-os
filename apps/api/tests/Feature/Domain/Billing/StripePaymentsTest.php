@@ -352,6 +352,39 @@ final class StripePaymentsTest extends TestCase
         $this->assertSame(333, app(InvoiceDrafter::class)->creditBalance($this->account));
     }
 
+    public function test_while_a_charge_is_processing_nothing_asks_the_owner_to_pay(): void
+    {
+        $this->withCard();
+        $this->stripe->on('POST', '/v1/payment_intents', fn (array $params): array => $this->intent('pi_wait', 'processing', (string) $params['metadata']['invoice_uuid'], (int) $params['amount']));
+        $invoice = $this->issued();
+        (new ChargeInvoice($invoice->id, 1))->handle(app(Payments::class));
+
+        $this->actingAs($this->owner, 'sanctum')->getJson($this->owned('/invoices'))->assertOk()->assertJsonPath('data.invoices.0.payment_processing', true);
+        // The due date's reminder waits for Stripe's answer; the account is still past due afterwards.
+        $this->artisan('billing:payment-reminders', ['--now' => '2026-11-17 09:00:00'])
+            ->expectsOutput('Sent 0 payment reminders, queued 0 card charges; 1 billing accounts are past due.')
+            ->assertSuccessful();
+
+        $this->webhook($this->event('evt_wait', 'payment_intent.succeeded', $this->intent('pi_wait', 'succeeded', $invoice->uuid, 333)))->assertOk();
+        $this->getJson($this->owned('/invoices'))->assertOk()->assertJsonPath('data.invoices.0.payment_processing', false);
+    }
+
+    public function test_a_payment_declined_on_stripes_page_is_emailed_as_such(): void
+    {
+        $invoice = $this->issued();
+
+        $this->webhook($this->event('evt_page', 'payment_intent.payment_failed', array_replace_recursive(
+            $this->intent('pi_page', 'requires_payment_method', $invoice->uuid, 333, 0, 'Your card has insufficient funds.'),
+            ['metadata' => ['method' => Payment::CHECKOUT]],
+        )))->assertOk();
+
+        Queue::assertPushed(DeliverBillingEmail::class, function (DeliverBillingEmail $job): bool {
+            return $job->mail instanceof PaymentMail && $job->mail->kind === 'failed' && $job->mail->method === Payment::CHECKOUT
+                && str_contains((string) $job->mail->content()->with['lead'], "on Stripe's page did not go through")
+                && $job->mail->content()->with['action'] === 'Pay the invoice';
+        });
+    }
+
     public function test_an_unsigned_or_wrongly_signed_webhook_is_refused(): void
     {
         $payload = (string) json_encode($this->event('evt_forged', 'payment_intent.succeeded', ['id' => 'pi_1']));
@@ -435,11 +468,15 @@ final class StripePaymentsTest extends TestCase
     {
         $invoice = $this->issued();
         $this->actingAs($this->admin, 'sanctum');
-        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 100, 'note' => null])
+        // How it was paid is recorded with it (FR-044).
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 100, 'note' => null])->assertUnprocessable()->assertJsonValidationErrors('note');
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 100, 'note' => 'Cheque 0042'])
             ->assertCreated()
             ->assertJsonPath('data.payment_status', 'pending')
             ->assertJsonPath('data.outstanding', 233);
-        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 234])->assertUnprocessable()->assertJsonValidationErrors('amount');
+        // Owners get a receipt for it, as for any payment that succeeds (FR-042).
+        Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof PaymentMail && $job->mail->kind === 'receipt' && $job->mail->amount === 100);
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 234, 'note' => 'Too much'])->assertUnprocessable()->assertJsonValidationErrors('amount');
 
         // A charge Stripe left processing is settled by asking Stripe.
         $this->withCard();
@@ -471,7 +508,7 @@ final class StripePaymentsTest extends TestCase
         $this->actingAs($this->admin, 'sanctum');
         $this->getJson('/api/v1/admin/billing/settings')->assertOk()->assertJsonPath('data.payments_enabled', false);
         $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/reconcile')->assertNotFound();
-        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 333])->assertCreated()->assertJsonPath('data.payment_status', 'paid_outside');
+        $this->postJson('/api/v1/admin/billing/invoices/'.$invoice->uuid.'/payments', ['amount' => 333, 'note' => 'Bank transfer'])->assertCreated()->assertJsonPath('data.payment_status', 'paid_outside');
         $this->assertSame([], $this->stripe->requests);
     }
 
