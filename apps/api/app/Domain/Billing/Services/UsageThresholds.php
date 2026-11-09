@@ -26,7 +26,8 @@ final class UsageThresholds
      */
     public function check(BillingAccount $account, AllowanceKind $kind, string $month, int $count, ?int $allowance): void
     {
-        if ($allowance === null) {
+        // Unlimited sends none, and nothing used sends none even against an allowance of 0.
+        if ($allowance === null || $count === 0) {
             return;
         }
 

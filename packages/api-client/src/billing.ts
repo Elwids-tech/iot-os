@@ -3,6 +3,8 @@
  * Plans, allowances and usage (specs 028 and 029, ADR-035).
  */
 
+import type { RetentionReduction } from "./devices"
+
 /** What a plan can limit. */
 export type AllowanceKind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations"
 
@@ -217,6 +219,8 @@ export type BillingAccountDetail = {
   created_at: string | null
   plan_assignment: PlanAssignment | null
   allowances: Allowance[]
+  /** The platform's retention in days, which a `retention_days` allowance of null means. Older payloads omit it. */
+  platform_retention_days?: number
   /** This month's usage, with each organization's share. */
   usage: Usage[]
   /** What the account pays on its plan, overrides included; null without a plan. */
@@ -254,6 +258,8 @@ export type OwnedBillingAccount = {
   /** `since` is when the account went onto the plan; `trial_ends_at` is when a limited trial ends. */
   plan: { uuid: string; name: string; since: string; kind: PlanAssignmentKind; trial_ends_at: string | null } | null
   allowances: Allowance[]
+  /** The platform's retention in days, which a `retention_days` allowance of null means. Older payloads omit it. */
+  platform_retention_days?: number
   /** This month's usage, with each organization's share. */
   usage: Usage[]
   /** What the account pays on its plan, overrides included; null without a plan. */
@@ -509,5 +515,5 @@ export type WaitingInvoice = {
 export type OrganizationRetention = {
   days: number
   source: "organization" | "billing_account" | "platform" | "default"
-  pending_reduction: { days: number; from: string } | null
+  pending_reduction: RetentionReduction | null
 }

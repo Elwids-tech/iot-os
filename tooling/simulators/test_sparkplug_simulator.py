@@ -32,6 +32,8 @@ class MetersTest(unittest.TestCase):
         self.assertEqual(meter_ids(3), ["meter-001", "meter-002", "meter-003"])
         self.assertEqual(meter_ids(1000)[-1], "meter-1000")
         self.assertEqual(meter_ids(0), [])
+        self.assertEqual(meter_ids(2, 601), ["meter-601", "meter-602"])
+        self.assertEqual(meter_ids(500, 601)[-1], "meter-1100")
 
     def test_birth_announces_every_meter_under_the_gateway_with_one_sequence(self):
         self.simulator.birth()

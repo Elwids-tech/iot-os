@@ -35,10 +35,12 @@ export const allowanceLabels: Record<AllowanceKind, string> = {
   organizations: "Organizations",
 }
 
-/** An allowance as text: a number, "Unlimited", or for retention days or the platform setting. */
-export function allowanceValue(kind: AllowanceKind, value: number | null): string {
-  if (value === null) return kind === "retention_days" ? "Platform setting" : "Unlimited"
-  return kind === "retention_days" ? `${value.toLocaleString()} ${value === 1 ? "day" : "days"}` : value.toLocaleString()
+/** An allowance as text: a number, "Unlimited", or for retention days, the platform's when the plan sets none. */
+export function allowanceValue(kind: AllowanceKind, value: number | null, platformRetentionDays?: number): string {
+  const days = (count: number) => `${count.toLocaleString()} ${count === 1 ? "day" : "days"}`
+  if (value === null && kind !== "retention_days") return "Unlimited"
+  if (value === null) return platformRetentionDays === undefined ? "Platform setting" : `${days(platformRetentionDays)} (platform setting)`
+  return kind === "retention_days" ? days(value) : value.toLocaleString()
 }
 
 /** An owned account's issued invoices and credit notes (spec 029 FR-036). */

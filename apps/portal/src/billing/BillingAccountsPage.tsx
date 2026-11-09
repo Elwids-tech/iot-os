@@ -392,7 +392,7 @@ export default function BillingAccountsPage() {
             {account.allowances.map((allowance) => (
               <div key={allowance.kind} className="flex min-w-0 flex-col">
                 <dt className="text-meta text-muted-foreground">{allowanceLabels[allowance.kind]}</dt>
-                <dd className="tabular-nums">{allowanceValue(allowance.kind, allowance.value)}</dd>
+                <dd className="tabular-nums">{allowanceValue(allowance.kind, allowance.value, account.platform_retention_days)}</dd>
               </div>
             ))}
           </dl>

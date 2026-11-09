@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Billing;
 
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Jobs\DeliverBillingEmail;
+use App\Domain\Billing\Mail\UsageThresholdMail;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\Allowances;
@@ -91,6 +93,27 @@ final class DataPointReportsTest extends TestCase
         $this->assertSame([1200, 200], $this->usage('2026-11-01'));
         $this->assertSame([['plan_assignment_id' => null, 'quantity' => 200]], DB::table('billing_overage')->where('kind', 'data_points')->get(['plan_assignment_id', 'quantity'])
             ->map(fn (object $row): array => ['plan_assignment_id' => $row->plan_assignment_id, 'quantity' => (int) $row->quantity])->all());
+    }
+
+    public function test_owners_are_warned_at_80_and_100_percent_of_the_data_point_allowance_once_a_month(): void
+    {
+        $owner = User::factory()->create();
+        $this->account->owners()->attach($owner->id, ['created_at' => now()]);
+        app(Allowances::class)->override($this->account, AllowanceKind::DataPoints, 1000, 'Test allowance', User::factory()->create());
+        $notices = fn (): array => DB::table('billing_notices')->where('billing_account_id', $this->account->id)->orderBy('key')->pluck('key')->all();
+
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T19:00:00Z', 799]]))->assertOk();
+        $this->assertSame([], $notices());
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T19:00:00Z', 800]]))->assertOk();
+        $this->assertSame(['data_points:2026-11:80'], $notices());
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 150]]))->assertOk();
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 200]]))->assertOk();
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 900]]))->assertOk();
+
+        $this->assertSame(['data_points:2026-11:100', 'data_points:2026-11:80'], $notices());
+        Queue::assertPushed(DeliverBillingEmail::class, 2);
+        Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof UsageThresholdMail
+            && [$job->mail->kind, $job->mail->percent, $job->mail->count, $job->mail->allowance] === ['data_points', 100, 1000, 1000]);
     }
 
     public function test_each_hour_counts_for_the_account_the_organization_was_on_then(): void

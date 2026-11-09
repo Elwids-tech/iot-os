@@ -13,6 +13,7 @@ use App\Domain\Billing\Services\MonthlyUsage;
 use App\Domain\Billing\Services\Prices;
 use App\Domain\Billing\Services\ResolvedAllowance;
 use App\Domain\Billing\Services\Usage;
+use App\Domain\Devices\Services\RetentionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -82,6 +83,8 @@ final class BillingAccountDetailResource extends JsonResource
             'plan_assignment' => $this->resource->openPlanAssignment === null
                 ? null
                 : new PlanAssignmentResource($this->resource->openPlanAssignment),
+            /** The platform's retention in days, which applies where the plan and overrides set none (spec 029 FR-023). */
+            'platform_retention_days' => (int) app(RetentionService::class)->effective()['days'],
             'allowances' => AllowanceResource::collection(array_values($this->allowances)),
             /**
              * What the account pays on its plan, overrides included; null without a plan (spec 029 FR-030).
