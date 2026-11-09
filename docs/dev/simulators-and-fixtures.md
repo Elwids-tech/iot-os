@@ -68,6 +68,16 @@ is how a bulk onboarding run's rebirths are counted
 The energy meter and RGB light are still announced, so they serve as sources of
 another type. `--meters` cannot be combined with `--gps`.
 
+**Load checks.** 500 onboarded meters reporting every 10 s are the platform's tested
+rate (50 messages a second). While they run,
+[`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) polls
+the runtime's committed telemetry every 100 ms. It reports the time from receipt to a
+message being visible in history, and the queue before storing starts. Run it once per
+runtime build under the same load and compare (spec 029 SC-004,
+[billing](../features/billing.md#data-points)). `--drop` removes its scratch table.
+Retire load-test devices afterwards with deactivate, then archive once the runtime
+has acknowledged.
+
 ### RGB light v2
 
 `--rgb-controls` on the prepare command creates a separate
