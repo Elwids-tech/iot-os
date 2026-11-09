@@ -201,6 +201,30 @@ final class DeviceLimitTest extends TestCase
         $this->requestActivation($this->configured($this->lakeside, 'meter-4'))->assertUnprocessable();
     }
 
+    public function test_a_move_or_a_lower_limit_raises_the_peak_and_warns_without_an_activation(): void
+    {
+        $owner = User::factory()->create();
+        $this->account->owners()->attach($owner->id, ['created_at' => now()]);
+        $this->limit(10);
+        $this->active($this->configured($this->acme, 'meter-1'));
+        $elsewhere = Organization::factory()->create(['name' => 'Harbour Works']);
+        foreach (range(2, 8) as $i) {
+            $this->active($this->configured($elsewhere, 'meter-'.$i));
+        }
+        $month = now()->utc()->format('Y-m');
+        $keys = fn (): array => DB::table('billing_notices')->where('billing_account_id', $this->account->id)->orderBy('key')->pluck('key')->all();
+        $this->assertSame([], $keys());
+
+        // Moving it in puts the account at 8 of 10: the peak and the 80% warning follow at once.
+        $this->putJson('/api/v1/admin/organizations/'.$elsewhere->uuid.'/billing-account', ['billing_account_uuid' => $this->account->uuid])->assertNoContent();
+        $this->assertSame(8, app(DeviceLimit::class)->peak($this->account, CarbonImmutable::now()));
+        $this->assertSame(["devices:{$month}:80"], $keys());
+
+        // Lowering the limit to 8 reaches it.
+        $this->limit(8);
+        $this->assertSame(["devices:{$month}:100", "devices:{$month}:80"], $keys());
+    }
+
     public function test_the_months_peak_is_recorded_and_earlier_months_show_it(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-20 10:00:00', 'UTC'));

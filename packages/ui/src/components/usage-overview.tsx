@@ -29,6 +29,8 @@ export type UsageFigure = {
   organizations?: { organization_uuid: string; name: string; count: number }[]
   final?: boolean
   reported_at?: string | null
+  stale?: boolean
+  stale_after_seconds?: number
   peak_this_month?: number
 }
 
@@ -54,19 +56,28 @@ export function usageMonths(now: Date = new Date(), count = 12): { value: string
   })
 }
 
-/** Picks a UTC month of usage, for a PanelActions slot. */
+/** How many UTC months from `since`'s to `now`'s, both included; twelve without `since`. */
+export function monthsSince(since: string | null | undefined, now: Date = new Date()): number {
+  const start = since ? new Date(since) : null
+  if (!start || Number.isNaN(start.getTime())) return 12
+  return Math.max(1, (now.getUTCFullYear() - start.getUTCFullYear()) * 12 + now.getUTCMonth() - start.getUTCMonth() + 1)
+}
+
+/** Picks a UTC month of usage, back to `since` (the account's start), for a PanelActions slot. */
 export function UsageMonthSelect({
   value,
   onChange,
+  since,
   now,
   className,
 }: {
   value: string
   onChange: (month: string) => void
+  since?: string | null
   now?: Date
   className?: string
 }) {
-  const months = React.useMemo(() => usageMonths(now), [now])
+  const months = React.useMemo(() => usageMonths(now, monthsSince(since, now)), [now, since])
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger size="sm" aria-label="Month" className={cn("w-60", className)}>
@@ -113,7 +124,12 @@ export function UsageMeters({ figures, now, className }: { figures: UsageFigure[
             noun={text.noun}
             freshness={
               figure.kind === "data_points"
-                ? { reportedAt: figure.reported_at ?? null, final: figure.final ?? false }
+                ? {
+                    reportedAt: figure.reported_at ?? null,
+                    final: figure.final ?? false,
+                    stale: figure.stale,
+                    staleAfterSeconds: figure.stale_after_seconds,
+                  }
                 : undefined
             }
             detail={peak !== undefined && peak > figure.count ? `Peak ${formatNumber(peak)}` : undefined}
@@ -185,13 +201,14 @@ export function UsageShares({ id, figures, now }: { id: string; figures: UsageFi
 /**
  * A billing account's Usage panel: a meter per allowance and, with `shares`, each
  * organization's part, for this UTC month (`figures`, already loaded with the page) or
- * an earlier one picked in its header (`load`).
+ * an earlier one picked in its header (`load`), back to `since`.
  */
 export function UsagePanel({
   id,
   description,
   figures,
   load,
+  since,
   shares = true,
   now,
 }: {
@@ -199,6 +216,8 @@ export function UsagePanel({
   description?: React.ReactNode
   figures: UsageFigure[]
   load: (month: string) => Promise<UsageFigure[]>
+  /** The account's start; the month picker goes back to it (twelve months when left out). */
+  since?: string | null
   shares?: boolean
   now?: number
 }) {
@@ -230,7 +249,7 @@ export function UsagePanel({
         <PanelTitle id={titleId}>Usage</PanelTitle>
         {description ? <PanelDescription>{description}</PanelDescription> : null}
         <PanelActions>
-          <UsageMonthSelect value={month} onChange={setMonth} now={now === undefined ? undefined : new Date(now)} />
+          <UsageMonthSelect value={month} onChange={setMonth} since={since} now={now === undefined ? undefined : new Date(now)} />
         </PanelActions>
       </PanelHeader>
       {shown === "failed" ? (

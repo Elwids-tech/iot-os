@@ -44,6 +44,7 @@ final class BillingAccountOwnerTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.uuid', $account->uuid)
+            ->assertJsonPath('data.0.created_at', $account->created_at->toIso8601String())
             ->assertJsonPath('data.0.organization_limit', 10)
             ->assertJsonPath('data.0.organizations_count', 2)
             ->assertJsonPath('data.0.organizations.0.name', 'Corner Shop')

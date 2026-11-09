@@ -73,10 +73,26 @@ final class DataPointReports
         DB::table('billing_data_point_buckets')->where($key)->update(['count' => $reported, 'updated_at' => now()]);
         $account = $row->billing_account_id === null ? null : BillingAccount::withTrashed()->find($row->billing_account_id);
 
-        // Readings of an organization that no longer exists are recorded and not counted.
+        // Readings of an organization nobody ever assigned are recorded and not counted. One
+        // deleted since still counts for its account, and in its share under its last name.
         if ($account !== null) {
-            $this->usage->add($account, Organization::withTrashed()->where('uuid', $organizationUuid)->first(), AllowanceKind::DataPoints, $hour, $increase);
+            $this->usage->add($account, $this->organization($organizationUuid), AllowanceKind::DataPoints, $hour, $increase);
         }
+    }
+
+    /**
+     * The organization, or one rebuilt from its assignments once it is deleted, so its
+     * share still adds up to the account's total (FR-017).
+     */
+    private function organization(string $uuid): ?Organization
+    {
+        $organization = Organization::withTrashed()->where('uuid', $uuid)->first();
+        if ($organization !== null) {
+            return $organization;
+        }
+        $name = DB::table('billing_account_assignments')->where('organization_uuid', $uuid)->orderByDesc('started_at')->value('organization_name');
+
+        return $name === null ? null : (new Organization)->forceFill(['uuid' => $uuid, 'name' => $name]);
     }
 
     /**

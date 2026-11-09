@@ -151,6 +151,20 @@ final class DeviceLimit
         return $rows->count();
     }
 
+    /**
+     * After an organization moves or the account's device limit changes: raises the
+     * month's peak to the devices holding a place now and checks the warnings at 80% and
+     * 100%, which otherwise only an activation would (spec 029 FR-007, FR-025).
+     */
+    public function recheck(BillingAccount $account): void
+    {
+        $count = $this->placed($account);
+        $at = CarbonImmutable::now();
+        $this->raisePeak($account, $count, $at);
+        $limit = $this->allowances->value($account->withoutRelations(), AllowanceKind::Devices);
+        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Devices, Usage::monthOf($at), $count, $limit));
+    }
+
     public static function refusal(int $limit): string
     {
         return sprintf("Your billing account's device limit (%s) is reached. Deactivate a device or contact the platform operator.", number_format($limit));

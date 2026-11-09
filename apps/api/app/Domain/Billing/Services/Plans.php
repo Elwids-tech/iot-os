@@ -121,6 +121,11 @@ final class Plans
 
                 PlanAllowance::query()->where('billing_plan_id', $locked->getKey())->delete();
                 $this->writeAllowances($locked, $allowances ?? []);
+                if (array_key_exists(AllowanceKind::Devices->value, $allowanceChanges)) {
+                    BillingAccount::query()
+                        ->whereHas('planAssignments', fn ($query) => $query->whereNull('ended_at')->where('billing_plan_id', $locked->getKey()))
+                        ->each(fn (BillingAccount $account) => app(DeviceLimit::class)->recheck($account));
+                }
             }
 
             if ($changes === [] && $allowanceChanges === []) {

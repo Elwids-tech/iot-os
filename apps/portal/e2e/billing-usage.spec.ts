@@ -82,6 +82,8 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
           {
             uuid: accountUuid,
             name: accountName,
+            // Made fifteen UTC months before this one: the month picker reaches back to it.
+            created_at: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 15, 15)).toISOString(),
             organization_limit: 10,
             organizations_count: 2,
             organizations: [
@@ -154,6 +156,7 @@ test("an owner sees the plan, usage with each organization's share, and an earli
   await expect(depotRow).toContainText("112,000")
 
   await usage.getByRole("combobox", { name: "Month" }).click()
+  await expect(page.getByRole("option")).toHaveCount(16)
   await page.getByRole("option").nth(1).click()
   await expect(alerts).toContainText("240 alerts of overage")
   // An earlier month leaves out today's allowance, its bar and what was left (FR-023).

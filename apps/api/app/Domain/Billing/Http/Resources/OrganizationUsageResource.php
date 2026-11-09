@@ -51,6 +51,8 @@ final class OrganizationUsageResource extends JsonResource
             'reported_at' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): ?string => $usage->account->reportedAt?->toIso8601ZuluString()),
             /** Data points only: the month is open and has not been reported for longer than usual. */
             'stale' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->account->stale),
+            /** Data points only: how long without a report before an open month is stale. */
+            'stale_after_seconds' => $this->when($usage->account->kind === AllowanceKind::DataPoints, fn (): int => (int) config('billing.usage_report_stale_seconds')),
             /** Devices only: the billing account has more devices holding a place than its limit allows. */
             'over_limit' => $this->when($usage->account->kind === AllowanceKind::Devices, fn (): bool => $usage->account->overLimit()),
         ];

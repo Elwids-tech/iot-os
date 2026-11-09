@@ -173,15 +173,21 @@ stored, for the billing account's data point allowance
   each message inserted to `device_runtime.usage_data_points` (organization, UTC hour)
   in the same transaction. A duplicate message stops at the ledger and a re-sent sample
   at the content match, so neither counts; calculated and invalid readings do.
-- **Reporting.** Every 60 seconds `Store.ReportUsage` sends, in one transaction with
-  the outbox rows, each bucket whose count grew or whose hour closed since it was last
-  reported, at most 500 per event. `count` is cumulative, not an increment. A bucket is
-  `final` once its hour ended more than a minute ago, and `final_through` (that hour
-  boundary) says every earlier hour is final across all organizations. With nothing to
-  send, an empty event still moves `final_through`, at most once an hour.
+- **Reporting.** Every 60 seconds, on its own ticker, `Store.ReportUsage` sends each
+  bucket whose count grew or whose hour closed since it was last reported, at most 500
+  per event, in one transaction with the outbox rows. It records what it reported in
+  one statement just before the commit, so storing waits on those rows for that
+  statement only. `count` is cumulative, not an increment. A bucket is `final` once its
+  hour ended more than a minute ago, and `final_through` (that hour boundary) says every
+  earlier hour is final across all organizations. With nothing to send, an empty event
+  still moves `final_through` when an hour closes. Otherwise a heartbeat with no buckets
+  goes out every two minutes, so the control plane's `generated_at` stays current on a
+  quiet deployment.
 - **Idempotent.** The envelope `uuid` is a UUID v5 of
   `usage.data_points#<final_through>#<sha256 of the buckets JSON>`, so an identical
-  replay deduplicates in `device_inbox`. Laravel keeps the highest count per bucket and
+  replay deduplicates in `device_inbox`. A heartbeat's is
+  `usage.data_points#heartbeat#<generated_at>`, so each one is new and a replay changes
+  nothing. Laravel keeps the highest count per bucket and
   counts only increases, so reordering is harmless too. `schema_version` other than 1
   is answered 422 and dead-lettered.
 - **Pruning.** Runtime buckets go after 40 days; Laravel's after 13 months.

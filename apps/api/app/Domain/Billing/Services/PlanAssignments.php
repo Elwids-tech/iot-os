@@ -51,6 +51,7 @@ final class PlanAssignments
                 'assigned_by' => $actor?->getKey(),
             ]);
 
+            app(DeviceLimit::class)->recheck($account);
             ActivityLog::record('billing_account.plan_assigned', null, $actor, $account, [
                 'from' => $open === null ? null : ['uuid' => $open->plan->uuid, 'name' => $open->plan->name],
                 'to' => ['uuid' => $plan->uuid, 'name' => $plan->name],
@@ -75,6 +76,7 @@ final class PlanAssignments
             }
 
             $open->forceFill(['ended_at' => now(), 'ended_by' => $actor->getKey(), 'end_reason' => 'removed'])->save();
+            app(DeviceLimit::class)->recheck($account);
             ActivityLog::record('billing_account.plan_removed', null, $actor, $account, [
                 'from' => ['uuid' => $open->plan->uuid, 'name' => $open->plan->name],
             ]);
@@ -89,6 +91,9 @@ final class PlanAssignments
     {
         $at ??= CarbonImmutable::now();
         $open?->forceFill(['ended_at' => $at, 'ended_by' => $actor?->getKey(), 'end_reason' => $endReason])->save();
+        if ($open?->billing_plan_id !== $plan->getKey()) {
+            app(DeviceLimit::class)->recheck($account);
+        }
 
         return PlanAssignment::query()->create([
             'billing_account_id' => $account->getKey(),

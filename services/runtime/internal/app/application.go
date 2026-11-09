@@ -94,7 +94,7 @@ type Application struct {
 	rebirth           map[string]time.Time
 	rebirthPending    map[string]rebirthRequest
 	// usageFinalThrough is the final_through of the last usage report written; only
-	// the maintenance loop touches it (spec 029 US3).
+	// the usage reporter's loop touches it (spec 029 US3).
 	usageFinalThrough time.Time
 	held              map[string]heldActivation // by device
 	heldFor           time.Duration             // bounds a hold; birthWait when zero
@@ -190,6 +190,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 	go a.relay(ctx)
 	go a.relayCommitted(ctx)
 	go a.maintenance(ctx)
+	go a.reportUsageEvery(ctx, time.Minute)
 	go a.seedConnectivity(ctx)
 	started = true
 	return a, nil
@@ -979,9 +980,6 @@ func (a *Application) maintenance(ctx context.Context) {
 			if count%2 == 0 {
 				a.emit("runtime.heartbeat.v1", map[string]any{"at": time.Now().UTC()})
 			}
-			if count%12 == 0 {
-				a.reportUsage(time.Now().UTC())
-			}
 			if count%6 == 0 {
 				if e := a.syncState(); e != nil {
 					a.Logger.Warn("control state refresh failed", "error", e)
@@ -995,6 +993,21 @@ func (a *Application) maintenance(ctx context.Context) {
 					nextCleanup = time.Now().Add(24 * time.Hour)
 				}
 			}
+		}
+	}
+}
+
+// reportUsageEvery reports usage on its own ticker, so a long retention cleanup in the
+// maintenance loop never holds reports back (spec 029 plan: reporter every 60 s).
+func (a *Application) reportUsageEvery(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.reportUsage(time.Now().UTC())
 		}
 	}
 }
