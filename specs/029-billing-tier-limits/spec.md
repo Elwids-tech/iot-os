@@ -526,9 +526,9 @@ method", and once an owner adds a card it is charged from the next day.
 
 - **Organization moved to another billing account mid-month** (spec 023). Its active
   devices move with it at once and may put the new account over its device limit;
-  nothing is deactivated. Data points stored before the move stay with the old account,
-  those after it count against the new one, and each account's invoice prices only its
-  own usage. Its effective retention follows the new account, and a move that shortens
+  nothing is deactivated. Data points count by the hour: the hour the move happens in,
+  and every hour before it, stay with the old account, and the hours after it count
+  against the new one (ADR-036). Each account's invoice prices only its own usage. Its effective retention follows the new account, and a move that shortens
   it gets the same 30-day grace as any billing change.
 - **Organization deleted** (spec 006). Its data points stay in the account's totals for
   that month, on its invoice and in history; its devices stop counting.
@@ -634,7 +634,9 @@ method", and once an owner adds a card it is charged from the next day.
 - **FR-012**: Reports MUST be durable and idempotent: counts survive restarts and
   outages of either side, are delivered at least once and are counted exactly once.
 - **FR-013**: Data points MUST be counted in the UTC month the runtime stored them, and
-  against the billing account the organization belonged to at that moment.
+  against the billing account the organization belonged to at the start of the UTC hour
+  they were stored in (counts are kept per hour,
+  [ADR-036](../../docs/adr/ADR-036-runtime-counts-data-points.md)).
 - **FR-014**: Until the runtime has reported up to the end of a month, or when it has
   not reported for more than five minutes, usage MUST be shown with the time of the
   last report and MUST NOT be presented as complete.

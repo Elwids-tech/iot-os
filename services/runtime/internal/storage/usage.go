@@ -25,6 +25,11 @@ const usageBatch = 500
 // usageRetention is how long buckets are kept; the control plane keeps its own totals.
 const usageRetention = 40 * 24 * time.Hour
 
+// usageHeartbeat is the longest the reporter stays silent: with nothing to report it
+// still writes an empty event this often, so a quiet deployment's counts do not read as
+// late (spec 029 FR-014; the control plane calls them stale after five minutes).
+const usageHeartbeat = 2 * time.Minute
+
 // ReportUsage writes usage.data_points.v1 events for every bucket whose count grew
 // since it was last reported, or whose hour has closed since, in one transaction that
 // also records what was reported. Counts are cumulative and event ids derive from the
@@ -63,18 +68,31 @@ func (s *Store) ReportUsage(ctx context.Context, now, since time.Time) (time.Tim
 		return since, e
 	}
 	if len(buckets) == 0 && !finalThrough.After(since) {
-		return since, nil
-	}
-	for start := 0; start == 0 || start < len(buckets); start += usageBatch {
-		batch := buckets[start:min(start+usageBatch, len(buckets))]
-		if e = writeUsageEvent(ctx, tx, now, finalThrough, batch); e != nil {
+		last, e := lastUsageEventAt(ctx, tx)
+		if e != nil || (!last.IsZero() && now.Sub(last) < usageHeartbeat) {
 			return since, e
 		}
-		for _, b := range batch {
-			if _, e = tx.Exec(ctx, `UPDATE device_runtime.usage_data_points SET reported_count=GREATEST(reported_count,$3), reported_final=reported_final OR $4
- WHERE organization_uuid=$1 AND hour=$2`, b.OrganizationUUID, b.Hour, b.Count, b.Final); e != nil {
-				return since, e
-			}
+		if e = writeUsageHeartbeat(ctx, tx, now, since); e != nil {
+			return since, e
+		}
+		return since, tx.Commit(ctx)
+	}
+	for start := 0; start == 0 || start < len(buckets); start += usageBatch {
+		if e = writeUsageEvent(ctx, tx, now, finalThrough, buckets[start:min(start+usageBatch, len(buckets))]); e != nil {
+			return since, e
+		}
+	}
+	// Recorded last, in one statement, just before the commit: storing upserts the same
+	// rows, so their locks are held for that statement only (spec 029 FR-015).
+	if len(buckets) > 0 {
+		organizations, hours, counts, finals := make([]string, len(buckets)), make([]time.Time, len(buckets)), make([]int64, len(buckets)), make([]bool, len(buckets))
+		for i, b := range buckets {
+			organizations[i], hours[i], counts[i], finals[i] = b.OrganizationUUID, b.Hour, b.Count, b.Final
+		}
+		if _, e = tx.Exec(ctx, `UPDATE device_runtime.usage_data_points u SET reported_count=GREATEST(u.reported_count,r.count), reported_final=u.reported_final OR r.final
+ FROM unnest($1::uuid[],$2::timestamptz[],$3::bigint[],$4::boolean[]) AS r(organization_uuid,hour,count,final)
+ WHERE u.organization_uuid=r.organization_uuid AND u.hour=r.hour`, organizations, hours, counts, finals); e != nil {
+			return since, e
 		}
 	}
 	if e = tx.Commit(ctx); e != nil {
@@ -117,6 +135,36 @@ func writeUsageEvent(ctx context.Context, tx pgx.Tx, now, finalThrough time.Time
 	}
 	_, e = tx.Exec(ctx, "INSERT INTO device_runtime.outbox(uuid,event) VALUES($1,$2) ON CONFLICT (uuid) DO NOTHING", id, event)
 	return e
+}
+
+// writeUsageHeartbeat writes an event with no buckets that only says the runtime is
+// reporting. Its id carries its time: identical content would otherwise make every
+// heartbeat after the first a duplicate. Replaying one changes nothing.
+func writeUsageHeartbeat(ctx context.Context, tx pgx.Tx, now, finalThrough time.Time) error {
+	id := UUIDv5(usageNamespace, "usage.data_points#heartbeat#"+now.UTC().Format(time.RFC3339Nano))
+	payload, e := json.Marshal(devices.UsageDataPoints{SchemaVersion: 1, GeneratedAt: now, FinalThrough: finalThrough, Buckets: []devices.UsageBucket{}})
+	if e != nil {
+		return e
+	}
+	event, e := json.Marshal(devices.Event{UUID: id, Type: UsageEventType, Payload: payload})
+	if e != nil {
+		return e
+	}
+	_, e = tx.Exec(ctx, "INSERT INTO device_runtime.outbox(uuid,event) VALUES($1,$2) ON CONFLICT (uuid) DO NOTHING", id, event)
+	return e
+}
+
+// lastUsageEventAt is when the newest usage event still in the outbox was generated, in
+// the reporter's own time.
+func lastUsageEventAt(ctx context.Context, tx pgx.Tx) (time.Time, error) {
+	var at *time.Time
+	if e := tx.QueryRow(ctx, `SELECT max((event->'payload'->>'generated_at')::timestamptz) FROM device_runtime.outbox WHERE event->>'type'=$1`, UsageEventType).Scan(&at); e != nil {
+		return time.Time{}, e
+	}
+	if at == nil {
+		return time.Time{}, nil
+	}
+	return *at, nil
 }
 
 // lastUsageWatermark is the final_through of the newest usage event still in the outbox.

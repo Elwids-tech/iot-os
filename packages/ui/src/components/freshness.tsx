@@ -51,11 +51,13 @@ const dots = {
 
 /**
  * When something last reported, rated against its expected interval: a dot
- * plus the relative time. Late readings also say so in text and colour.
+ * plus the relative time. Late readings also say so in text and colour. `late` marks
+ * it late whatever its age, for a server that already says so.
  */
 function Freshness({
   at,
   expectedSeconds,
+  late = false,
   never = "Never",
   now,
   timezone,
@@ -63,12 +65,14 @@ function Freshness({
 }: {
   at: string | null | undefined
   expectedSeconds?: number | null
+  late?: boolean
   never?: string
   now?: number
   timezone?: "browser" | "utc"
   className?: string
 }) {
-  const state = freshnessState(at, expectedSeconds, now)
+  const rated = freshnessState(at, expectedSeconds, now)
+  const state = late && at ? "late" : rated
   return (
     <span
       data-slot="freshness"

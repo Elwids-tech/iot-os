@@ -39,7 +39,10 @@ export const EarlierMonth: StoryObj = {
   ),
 }
 
-/** Data points come from the runtime's reports: provisional until the month is final, late after five minutes. */
+/**
+ * Data points come from the runtime's reports: provisional until the month is final,
+ * late once the API says `stale` or the report ages past its `stale_after_seconds`.
+ */
 export const Freshness: StoryObj = {
   render: () => (
     <div className="grid max-w-3xl gap-6 sm:grid-cols-2">
@@ -47,6 +50,7 @@ export const Freshness: StoryObj = {
       <AllowanceMeter label="Data points this month" count={812_345} allowance={1_000_000} noun={["data point", "data points"]} freshness={{ reportedAt: ago(12 * 60), final: false }} now={now} />
       <AllowanceMeter label="Data points in October" count={1_204_118} allowance={1_000_000} overage={204_118} noun={["data point", "data points"]} freshness={{ reportedAt: ago(30), final: true }} now={now} />
       <AllowanceMeter label="Data points this month" count={0} allowance={1_000_000} noun={["data point", "data points"]} freshness={{ reportedAt: null, final: false }} now={now} />
+      <AllowanceMeter label="Data points this month, server says stale" count={812_345} allowance={1_000_000} noun={["data point", "data points"]} freshness={{ reportedAt: ago(90), final: false, stale: true, staleAfterSeconds: 300 }} now={now} />
     </div>
   ),
 }

@@ -239,3 +239,39 @@ func TestUsageBucketsArePrunedAfterFortyDays(t *testing.T) {
 		t.Fatalf("after pruning %d buckets remain counted, want 1", got)
 	}
 }
+
+// With nothing to report, the reporter still writes an empty event every two minutes,
+// each with its own id, so a quiet deployment's counts do not read as late (spec 029
+// FR-014).
+func TestAQuietReporterStillReportsEveryTwoMinutes(t *testing.T) {
+	store, ctx, organization := historyStore(t)
+	started := time.Now().UTC().Add(-time.Second)
+	cleanUsageEvents(t, store, started)
+	now := time.Now().UTC()
+	if _, err := store.Pool.Exec(ctx, "INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES ($1,$2,4)", organization, now.Truncate(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	watermark, err := store.ReportUsage(ctx, now, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func() int { return len(usageEvents(t, store, started, organization)) }
+	reported := count()
+
+	// A minute later nothing changed and the last report is recent: nothing is written.
+	if _, err := store.ReportUsage(ctx, now.Add(time.Minute), watermark); err != nil || count() != reported {
+		t.Fatalf("wrote %d events a minute later (%v)", count()-reported, err)
+	}
+	// Three minutes later: one empty event.
+	if _, err := store.ReportUsage(ctx, now.Add(3*time.Minute), watermark); err != nil || count() != reported+1 {
+		t.Fatalf("wrote %d events three minutes later (%v)", count()-reported, err)
+	}
+	events := usageEvents(t, store, started, organization)
+	if heartbeat := events[len(events)-1]; len(heartbeat.Buckets) != 0 || !heartbeat.FinalThrough.Equal(watermark) {
+		t.Fatalf("heartbeat = %+v", heartbeat)
+	}
+	// It counts from the event it just wrote, whose own id never collides with the next.
+	if _, err := store.ReportUsage(ctx, now.Add(3*time.Minute+30*time.Second), watermark); err != nil || count() != reported+1 {
+		t.Fatalf("wrote %d events right after a heartbeat (%v)", count()-reported-1, err)
+	}
+}

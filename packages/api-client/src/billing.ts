@@ -57,6 +57,8 @@ export type Usage = {
   final?: boolean
   reported_at?: string | null
   stale?: boolean
+  /** Data points only: seconds without a report before an open month is stale. */
+  stale_after_seconds?: number
   peak_this_month?: number
   over_limit?: boolean
 }
@@ -77,6 +79,8 @@ export type OrganizationUsage = {
   final?: boolean
   reported_at?: string | null
   stale?: boolean
+  /** Data points only: seconds without a report before an open month is stale. */
+  stale_after_seconds?: number
   /** Devices only: the billing account has more devices than its limit allows. */
   over_limit?: boolean
 }
@@ -241,6 +245,8 @@ export type BillingAccountValues = {
 export type OwnedBillingAccount = {
   uuid: string
   name: string
+  /** When the account was made; earlier usage months go back to it. Older payloads omit it. */
+  created_at?: string | null
   /** Null when unlimited. */
   organization_limit: number | null
   organizations_count: number

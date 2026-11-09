@@ -53,6 +53,8 @@ final class OwnedBillingAccountResource extends JsonResource
         return [
             'uuid' => (string) $this->resource->uuid,
             'name' => (string) $this->resource->name,
+            /** When the account was made: the usage month picker goes back to it. */
+            'created_at' => $this->resource->created_at?->toIso8601String(),
             'organization_limit' => self::limit(app(Allowances::class)->value($this->resource, AllowanceKind::Organizations)),
             'organizations_count' => (int) $this->resource->organizations->count(),
             'organizations' => $this->organizationSummaries(),

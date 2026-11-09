@@ -6,8 +6,10 @@ namespace Tests\Feature\Domain\Billing;
 
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\BillingAccounts;
+use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
@@ -119,7 +121,7 @@ final class DataPointReportsTest extends TestCase
 
         $admin = User::factory()->create(['is_super_admin' => true]);
         $dataPoints = fn (string $month): array => collect($this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage?month='.$month)->assertOk()->json('data'))->firstWhere('kind', 'data_points');
-        $this->assertSame([false, '2026-11-07T20:42:00Z', false], [$dataPoints('2026-11')['final'], $dataPoints('2026-11')['reported_at'], $dataPoints('2026-11')['stale']]);
+        $this->assertSame([false, '2026-11-07T20:42:00Z', false, 300], [$dataPoints('2026-11')['final'], $dataPoints('2026-11')['reported_at'], $dataPoints('2026-11')['stale'], $dataPoints('2026-11')['stale_after_seconds']]);
         $this->assertTrue($dataPoints('2026-10')['final']);
 
         // Ten minutes without a report: the open month is stale.
@@ -128,6 +130,32 @@ final class DataPointReportsTest extends TestCase
         // Once the watermark passes the month's end, it is final.
         $this->send($this->report([], '2026-12-01T00:00:00Z'))->assertOk();
         $this->assertSame([true, false], [$dataPoints('2026-11')['final'], $dataPoints('2026-11')['stale']]);
+    }
+
+    public function test_a_deleted_organizations_late_report_still_counts_in_its_share(): void
+    {
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 10]]))->assertOk();
+        // Deleted for good: only its billing account assignments remember it.
+        DB::table('organizations')->where('id', $this->organization->id)->delete();
+
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 25]]))->assertOk();
+
+        $this->assertSame([25, 0], $this->usage('2026-11-01'));
+        $share = DB::table('billing_usage_shares')->where('kind', 'data_points')->sole();
+        $this->assertSame([self::ORGANIZATION, 'Lakeside Home', 25, null], [$share->organization_uuid, $share->organization_name, (int) $share->count, $share->organization_id]);
+    }
+
+    public function test_a_late_report_for_last_month_is_priced_against_last_months_plan(): void
+    {
+        $admin = User::factory()->create(['is_super_admin' => true]);
+        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 100])->create(), $admin);
+        $this->travelTo(CarbonImmutable::parse('2026-12-01 00:00:30', 'UTC'));
+        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 1000])->create(), $admin);
+
+        // November's last hour is reported after midnight, once December's plan is in force.
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-30T23:00:00Z', 150]], '2026-12-01T00:00:00Z'))->assertOk();
+
+        $this->assertSame([150, 50], $this->usage('2026-11-01'));
     }
 
     public function test_another_schema_version_fails_permanently(): void

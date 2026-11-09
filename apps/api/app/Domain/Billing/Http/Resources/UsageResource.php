@@ -62,6 +62,8 @@ final class UsageResource extends JsonResource
             'reported_at' => $this->when($usage->kind === AllowanceKind::DataPoints, fn (): ?string => $usage->reportedAt?->toIso8601ZuluString()),
             /** Data points only: the month is open and has not been reported for longer than usual. */
             'stale' => $this->when($usage->kind === AllowanceKind::DataPoints, fn (): bool => (bool) $usage->stale),
+            /** Data points only: how long without a report before an open month is stale (`BILLING_USAGE_REPORT_STALE_SECONDS`), so pages can age it themselves. */
+            'stale_after_seconds' => $this->when($usage->kind === AllowanceKind::DataPoints, fn (): int => (int) config('billing.usage_report_stale_seconds')),
             /** Devices only: the month's highest number of devices holding a place. */
             'peak_this_month' => $this->when($usage->kind === AllowanceKind::Devices, fn (): int => (int) $usage->peak),
             /** Devices only: more devices hold a place than the limit allows, after it was lowered or an organization moved in. */
