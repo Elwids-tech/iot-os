@@ -40,7 +40,7 @@ final class InvoiceDraftingTest extends TestCase
 
     private Organization $organization;
 
-    private BillingPlan $starter;
+    private BillingPlan $planA;
 
     private BillingPlan $larger;
 
@@ -51,19 +51,19 @@ final class InvoiceDraftingTest extends TestCase
         $this->admin = User::factory()->create(['is_super_admin' => true]);
         $this->account = BillingAccount::factory()->create(['name' => 'Example Account']);
         $this->organization = Organization::factory()->forBillingAccount($this->account)->create(['name' => 'North plant']);
-        $this->starter = BillingPlan::factory()->withAllowances(['alerts' => 3, 'data_points' => 1_000_000])->create(['name' => 'Plan A']);
+        $this->planA = BillingPlan::factory()->withAllowances(['alerts' => 3, 'data_points' => 1_000_000])->create(['name' => 'Plan A']);
         $this->larger = BillingPlan::factory()->withAllowances(['alerts' => 3, 'data_points' => 1_000_000])->create(['name' => 'Plan B']);
 
         // Prices set in September apply from October.
         $this->travelTo(CarbonImmutable::parse('2026-09-15 09:00', 'UTC'));
         $prices = app(Prices::class);
-        $prices->setPlanPrices($this->starter, ['base_price' => 3100, 'alert_overage_price' => 7, 'data_point_overage_price' => 250, 'data_point_block_size' => 1_000_000], $this->admin);
+        $prices->setPlanPrices($this->planA, ['base_price' => 3100, 'alert_overage_price' => 7, 'data_point_overage_price' => 250, 'data_point_block_size' => 1_000_000], $this->admin);
         $prices->setPlanPrices($this->larger, ['base_price' => 6200, 'alert_overage_price' => 5, 'data_point_overage_price' => 200, 'data_point_block_size' => 1_000_000], $this->admin);
     }
 
     public function test_a_mid_month_plan_change_prorates_by_day_from_the_assignment_in_force_at_midnight(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         // Assigned mid-day: Plan A still has 10 October, Plan B starts charging on the 11th.
         $this->assign('2026-10-10 12:00', $this->larger);
         $invoice = $this->draftOctober();
@@ -78,7 +78,7 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_overage_is_priced_per_assignment_and_data_points_by_whole_blocks(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $this->assign('2026-10-10 12:00', $this->larger);
         $usage = app(Usage::class);
         // Five alerts over Plan A's three, under Plan A.
@@ -103,7 +103,7 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_trial_days_and_trial_overage_are_shown_at_zero(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter, PlanAssignmentKind::Trial);
+        $this->assign('2026-09-20 08:00', $this->planA, PlanAssignmentKind::Trial);
         app(Usage::class)->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-05 10:00', 'UTC'), 5);
         $invoice = $this->draftOctober();
 
@@ -119,7 +119,7 @@ final class InvoiceDraftingTest extends TestCase
         $free = BillingPlan::factory()->create(['name' => 'Unpriced']);
         $this->assign('2026-09-20 08:00', $free);
         $quiet = BillingAccount::factory()->create(['name' => 'Quiet Account']);
-        $this->assign('2026-09-20 08:00', $this->starter, account: $quiet);
+        $this->assign('2026-09-20 08:00', $this->planA, account: $quiet);
         $this->finalThrough('2026-11-01 00:00');
         $this->travelTo(CarbonImmutable::parse('2026-11-02 02:10', 'UTC'));
         $this->artisan('billing:draft-invoices')->assertSuccessful();
@@ -132,21 +132,21 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_a_price_change_during_the_month_applies_from_the_next_month_only(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $this->travelTo(CarbonImmutable::parse('2026-10-12 09:00', 'UTC'));
-        $from = app(Prices::class)->setPlanPrices($this->starter, ['base_price' => 9900, 'alert_overage_price' => 7, 'data_point_overage_price' => 250, 'data_point_block_size' => 1_000_000], $this->admin);
+        $from = app(Prices::class)->setPlanPrices($this->planA, ['base_price' => 6400, 'alert_overage_price' => 7, 'data_point_overage_price' => 250, 'data_point_block_size' => 1_000_000], $this->admin);
         app(Prices::class)->override($this->account, PriceKind::BasePrice, 1, 'Agreed rate', $this->admin);
         $this->assertSame('2026-11-01', $from->toDateString());
 
         $this->assertSame(3100, $this->draftOctober()->subtotal);
         // November uses both: the override wins over the new plan price.
-        $this->assertSame(1, app(Prices::class)->for($this->account, $this->starter, CarbonImmutable::parse('2026-11-01', 'UTC'))['base_price']);
-        $this->assertSame(9900, app(Prices::class)->planPrices($this->starter, CarbonImmutable::parse('2026-11-01', 'UTC'))['base_price']);
+        $this->assertSame(1, app(Prices::class)->for($this->account, $this->planA, CarbonImmutable::parse('2026-11-01', 'UTC'))['base_price']);
+        $this->assertSame(6400, app(Prices::class)->planPrices($this->planA, CarbonImmutable::parse('2026-11-01', 'UTC'))['base_price']);
     }
 
     public function test_drafts_wait_for_final_usage_and_an_administrator_can_draft_anyway(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $this->finalThrough('2026-10-31 23:00');
         $this->travelTo(CarbonImmutable::parse('2026-11-04 02:10', 'UTC'));
         // September, never drafted, is final and drafted now (T138); October waits.
@@ -179,7 +179,7 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_a_month_without_a_plan_cannot_be_drafted(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $this->travelTo(CarbonImmutable::parse('2026-10-02 10:00', 'UTC'));
 
         $this->actingAs($this->admin, 'sanctum')
@@ -191,7 +191,7 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_recalculation_rebuilds_from_the_records_and_keeps_adjustments(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $invoice = $this->draftOctober();
         $this->actingAs($this->admin, 'sanctum');
         $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/adjustments", ['description' => 'Goodwill credit', 'amount' => -500, 'note' => 'Outage on 3 October'])
@@ -215,7 +215,7 @@ final class InvoiceDraftingTest extends TestCase
 
     public function test_stored_lines_and_totals_recompute_from_the_records(): void
     {
-        $this->assign('2026-09-20 08:00', $this->starter);
+        $this->assign('2026-09-20 08:00', $this->planA);
         $this->assign('2026-10-10 12:00', $this->larger, PlanAssignmentKind::Trial);
         $this->assign('2026-10-20 00:00', $this->larger);
         app(Usage::class)->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-25 10:00', 'UTC'), 10);

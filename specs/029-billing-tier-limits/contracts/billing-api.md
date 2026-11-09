@@ -58,7 +58,7 @@ under `admin.` and live in `app/Domain/Billing/routes/api.php`.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/admin/billing-accounts/{account}` | Existing (spec 023), now with `plan`, `assignment` (kind, trial end), `allowances[]`, `usage[]` (this month), `price_overrides[]`, `payment_method`, `past_due_since`, `billing_details` |
+| `GET /v1/admin/billing-accounts/{account}` | Existing (spec 023), now with `plan_assignment` (the plan, `kind`, `started_at`, `trial_ends_at`), `allowances[]`, `usage[]` (this month), `price_overrides[]`, `payment_method`, `past_due_since`, `billing_details` |
 | `PUT /v1/admin/billing-accounts/{account}/plan` | `{plan_uuid}`; `null` removes the plan. A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
 | `PUT /v1/admin/billing-accounts/{account}/allowances/{kind}` | `{value, note}` override |
 | `DELETE /v1/admin/billing-accounts/{account}/allowances/{kind}` | Remove an override |
@@ -78,7 +78,7 @@ FR-010, 029 FR-046).
 | `POST /v1/admin/billing-accounts/{account}/trial` | `{plan_uuid?, ends_at\|null}`; 409 if a trial is open |
 | `PATCH /v1/admin/billing-accounts/{account}/trial` | `{ends_at\|null, plan_uuid?}` extend, shorten, change plan |
 | `POST /v1/admin/billing-accounts/{account}/trial/end` | Ends now, following the card rule (029 FR-050) |
-| `POST /v1/admin/billing-accounts/{account}/trial/convert` | Turns it into a paid assignment of the same plan from the next 00:00 UTC |
+| `POST /v1/admin/billing-accounts/{account}/trial/convert` | Turns it into a paid assignment of the same plan at once; the rest of the day stays the trial's, so it is charged from the next 00:00 UTC |
 
 ### Settings and tax (029 US6)
 
@@ -111,7 +111,7 @@ Each route resolves the account among the signed-in person's own accounts and an
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/billing-accounts` | Existing, now with `plan`, `assignment` (trial and end date), `allowances[]`, this month's `usage[]`, `prices` (this month's, and next month's when different), `payment_method`, and the latest invoice summary. `sms` is omitted when the deployment has no SMS provider. |
+| `GET /v1/billing-accounts` | Existing, now with `plan` (`uuid`, `name`, `since`, `kind` and `trial_ends_at`), `allowances[]`, this month's `usage[]`, `prices` (this month's, and next month's when different), `payment_method`, and the latest invoice summary. `sms` is omitted when the deployment has no SMS provider. |
 | `GET /v1/billing-accounts/{account}/usage?month=` | Usage with organizations |
 | `GET /v1/billing-accounts/{account}/invoices` | Issued invoices and credit notes only |
 | `GET /v1/billing-accounts/{account}/invoices/{invoice}` (+ `.pdf`, `.csv`) | Issued only; a draft answers 404 |

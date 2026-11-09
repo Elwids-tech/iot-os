@@ -51,7 +51,7 @@ final class PlanAssignments
                 'assigned_by' => $actor?->getKey(),
             ]);
 
-            if ($open?->kind === PlanAssignmentKind::Trial) {
+            if ($open?->isTrial()) {
                 app(Trials::class)->endedBy($account, $open, $assignment, 'plan_changed', $actor);
             }
             app(DeviceLimit::class)->recheck($account);
@@ -79,7 +79,7 @@ final class PlanAssignments
             }
 
             $open->forceFill(['ended_at' => now(), 'ended_by' => $actor->getKey(), 'end_reason' => 'removed'])->save();
-            if ($open->kind === PlanAssignmentKind::Trial) {
+            if ($open->isTrial()) {
                 app(Trials::class)->endedBy($account, $open, null, 'plan_removed', $actor);
             }
             app(DeviceLimit::class)->recheck($account);
@@ -128,6 +128,23 @@ final class PlanAssignments
             ->whereNull('ended_at')
             ->with('plan')
             ->first();
+    }
+
+    /**
+     * The assignment whose prices apply to usage at an instant: the one in force then,
+     * except that a day which began on a trial stays the trial's until the next 00:00 UTC,
+     * as its base price does. A trial that turns paid mid-day is charged from the next
+     * day, overage included (spec 029 FR-050).
+     */
+    public function pricedAt(BillingAccount $account, CarbonImmutable $instant): ?PlanAssignment
+    {
+        $assignment = $this->at($account, $instant);
+        if ($assignment === null || $assignment->isTrial()) {
+            return $assignment;
+        }
+        $dayStart = $this->at($account, $instant->utc()->startOfDay());
+
+        return $dayStart?->isTrial() ? $dayStart : $assignment;
     }
 
     /**

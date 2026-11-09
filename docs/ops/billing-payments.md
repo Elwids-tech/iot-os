@@ -71,7 +71,7 @@ Payments only move forward, so a replayed or late event changes nothing.
 ## When something looks wrong
 
 - **An invoice stays pending after a charge.** Stripe may not have reached the
-  webhook. **Reconcile** on the invoice (`POST admin/billing/invoices/{uuid}/reconcile`)
+  webhook. **Check with Stripe** on the invoice (`POST admin/billing/invoices/{uuid}/reconcile`)
   asks Stripe for its pending payments and applies what Stripe says.
 - **An account is past due.** It has an invoice unpaid after its due date. Nothing is
   restricted. The flag clears once the invoice is paid, credited or recorded as paid.

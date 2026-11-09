@@ -60,7 +60,7 @@ final class Usage implements SmsAllowance
             $this->write($account, $organization, $kind, $month, $count, $overage, $quantity);
 
             if ($delta > 0) {
-                $this->recordOverage($account, $kind, $month, $this->assignments->at($account, $at)?->getKey(), $delta);
+                $this->recordOverage($account, $kind, $month, $this->assignments->pricedAt($account, $at)?->getKey(), $delta);
             }
 
             return [$count, $overage, $allowance];

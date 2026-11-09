@@ -46,6 +46,10 @@ final class Trials
             abort_if($open?->kind === PlanAssignmentKind::Trial, 409, 'This billing account is already on a trial. Change or end it instead.');
 
             $trial = $this->assignments->replace($open, $account, $plan, PlanAssignmentKind::Trial, $actor, 'changed', $endsAt);
+            // A trial that had ended without a card ends for good when a new one starts.
+            if ($open?->kind === PlanAssignmentKind::TrialUnpaid) {
+                $this->ended($account, $open, $trial, 'trial_started', $actor);
+            }
             ActivityLog::record('billing_account.trial_started', null, $actor, $account, [
                 'plan' => ['uuid' => $plan->uuid, 'name' => $plan->name],
                 'ends_at' => $endsAt?->toIso8601String(),
@@ -179,19 +183,21 @@ final class Trials
     }
 
     /**
-     * Audits the trial's end and, when a `trial` ended, emails the owners once.
+     * A trial, or one that ended without a card, closed by a plan change or removal
+     * (`PlanAssignments`) or by deleting the account (`BillingAccounts`), audited like any
+     * other end (spec 029 FR-048, FR-049). `$next` is null when the account was taken off
+     * its plan; with `$email` false the owners are not emailed.
      */
-    /**
-     * A trial ended by a plan change or removal (`PlanAssignments`), audited and emailed
-     * like any other end (spec 029 FR-048, FR-049). `$next` is null when the account was
-     * taken off its plan.
-     */
-    public function endedBy(BillingAccount $account, PlanAssignment $trial, ?PlanAssignment $next, string $reason, ?User $actor): void
+    public function endedBy(BillingAccount $account, PlanAssignment $trial, ?PlanAssignment $next, string $reason, ?User $actor, bool $email = true): void
     {
-        $this->ended($account, $trial, $next, $reason, $actor);
+        $this->ended($account, $trial, $next, $reason, $actor, $email);
     }
 
-    private function ended(BillingAccount $account, PlanAssignment $from, ?PlanAssignment $next, string $reason, ?User $actor): void
+    /**
+     * Audits every end of a `trial` or `trial_unpaid` as `trial_ended` and, when a `trial`
+     * ended, emails the owners once.
+     */
+    private function ended(BillingAccount $account, PlanAssignment $from, ?PlanAssignment $next, string $reason, ?User $actor, bool $email = true): void
     {
         ActivityLog::record('billing_account.trial_ended', null, $actor, $account, [
             'plan' => ['uuid' => $from->plan->uuid, 'name' => $from->plan->name],
@@ -201,7 +207,7 @@ final class Trials
             'at' => ($next?->started_at ?? $from->ended_at ?? CarbonImmutable::now())->toIso8601String(),
         ]);
 
-        if ($from->kind === PlanAssignmentKind::Trial) {
+        if ($email && $from->kind === PlanAssignmentKind::Trial) {
             $this->notices->send($account, 'trial_ended', 'trial:'.$from->uuid.':ended', TrialMail::ended($account, $from, $next));
         }
     }

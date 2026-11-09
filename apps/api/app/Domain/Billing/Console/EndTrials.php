@@ -44,7 +44,8 @@ final class EndTrials extends Command
                 /** @var CarbonImmutable $endsAt */
                 $endsAt = $trial->trial_ends_at;
                 $step = $endsAt->lessThanOrEqualTo($now->addDay()) ? '1d' : '7d';
-                $key = sprintf('trial:%s:%s:%s', $trial->uuid, $endsAt->utc()->toDateString(), $step);
+                // By account and end date: a trial moved to another plan keeps its reminders.
+                $key = sprintf('trial:%s:%s:%s', $trial->billingAccount->uuid, $endsAt->utc()->toDateString(), $step);
 
                 if ($notices->send($trial->billingAccount, 'trial_reminder', $key, TrialMail::reminder($trial->billingAccount, $trial))) {
                     $reminded++;

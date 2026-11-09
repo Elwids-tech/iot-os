@@ -81,7 +81,7 @@ async function mockApi(
         number: "INV-0001",
         payment_status: "pending",
         credit_notes: [],
-        lines: [{ id: 1, position: 1, kind: "base_price", description: "Starter · October 2026", quantity: 31, unit_price: null, amount: 2000, period_start: "2026-10-01", period_end: "2026-10-31", note: null }],
+        lines: [{ id: 1, position: 1, kind: "base_price", description: "Plan A · October 2026", quantity: 31, unit_price: null, amount: 2000, period_start: "2026-10-01", period_end: "2026-10-31", note: null }],
         history: [{ at: "2026-11-08T10:05:00Z", action: "issued", actor, description: null, amount: null, note: null, number: "INV-0001" }],
         payments: [{ uuid: "aaaa0000-0000-4000-8000-000000000001", method: "card", amount: 2000, attempt: 1, status: "pending", failure_reason: null, note: null, at: "2026-11-08T10:05:00Z" }],
       }
@@ -91,7 +91,7 @@ async function mockApi(
   const prices = () => ({ currency: "USD", current, next })
   const planDetail = () => ({
     uuid: plan,
-    name: "Starter",
+    name: "Plan A",
     description: null,
     archived: false,
     archived_at: null,
@@ -111,11 +111,11 @@ async function mockApi(
     organization_limit: 1,
     organizations_count: 0,
     created_at: "2026-10-01T08:00:00Z",
-    plan: { uuid: plan, name: "Starter" },
+    plan: { uuid: plan, name: "Plan A" },
     plan_assignment: {
       uuid: "99999999-9999-4999-8999-999999999999",
       kind: "paid",
-      plan: { uuid: plan, name: "Starter", archived: false },
+      plan: { uuid: plan, name: "Plan A", archived: false },
       started_at: "2026-10-09T00:00:00Z",
       trial_ends_at: null,
     },
@@ -244,7 +244,7 @@ async function mockApi(
         credit_notes: [],
         payments: [],
         lines: [
-          { id: 1, position: 1, kind: "base_price", description: "Starter · 9–31 Oct 2026 · 23 of 31 days at $20.00 a month", quantity: 23, unit_price: null, amount: 1484, period_start: "2026-10-09", period_end: "2026-10-31", note: null },
+          { id: 1, position: 1, kind: "base_price", description: "Plan A · 9–31 Oct 2026 · 23 of 31 days at $20.00 a month", quantity: 23, unit_price: null, amount: 1484, period_start: "2026-10-09", period_end: "2026-10-31", note: null },
           { id: 2, position: 2, kind: "alert_overage", description: "Alerts over the allowance", quantity: 2, unit_price: 50, amount: 100, period_start: null, period_end: null, note: null },
         ],
         history: [{ at, action: "drafted", actor, description: null, amount: null, note: (body as { note: string }).note, number: null }],
@@ -356,11 +356,11 @@ test("sets a plan's prices from next month and overrides one for an account", as
   await expect(page.getByRole("region", { name: "Prices" }).getByText("$20.00")).toBeVisible()
 
   await page.getByRole("button", { name: "Set prices" }).click()
-  const dialog = page.getByRole("dialog", { name: "Prices for Starter" })
+  const dialog = page.getByRole("dialog", { name: "Prices for Plan A" })
   await expect(dialog.getByText(/Applies from/)).toBeVisible()
   await dialog.getByRole("textbox", { name: "Base price" }).fill("31")
   await dialog.getByRole("button", { name: /Apply from/ }).click()
-  await expect(page.getByText(/Prices for Starter apply from/)).toBeVisible()
+  await expect(page.getByText(/Prices for Plan A apply from/)).toBeVisible()
   expect(sent.at(-1)?.body).toEqual({ base_price: 3100, alert_overage_price: 50, data_point_overage_price: 200, data_point_block_size: 1000000 })
   await expect(page.getByRole("region", { name: "Prices" }).getByText(/\$31\.00 from/)).toBeVisible()
 

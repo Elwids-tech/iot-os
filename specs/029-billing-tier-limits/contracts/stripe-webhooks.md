@@ -15,7 +15,7 @@ For each event it:
 
 | Stripe event | Matched by | Effect |
 | --- | --- | --- |
-| `checkout.session.completed`, `mode=setup` | `metadata.billing_account_uuid` | Retrieves the SetupIntent's payment method, makes it the customer's default (detaching the old one), and stores the brand, last four digits and expiry. If the open assignment is `trial_unpaid`, it opens `paid` from the next 00:00 UTC. Audited as `billing_account.payment_method_changed`. |
+| `checkout.session.completed`, `mode=setup` | `metadata.billing_account_uuid` | Retrieves the SetupIntent's payment method, makes it the customer's default (detaching the old one), and stores the brand, last four digits and expiry. If the open assignment is `trial_unpaid`, it opens `paid` at once, charged from the next 00:00 UTC (the rest of the day, overage included, stays the trial's). Audited as `billing_account.payment_method_changed`. |
 | `checkout.session.completed`, `mode=payment`, `payment_status=paid` | `metadata.invoice_uuid` | Records a `checkout` payment, `succeeded`, with the PaymentIntent id; the invoice becomes `paid` and the owners get a receipt. |
 | `payment_intent.succeeded` | `metadata.invoice_uuid` + PaymentIntent id | Marks the payment `succeeded`; the invoice becomes `paid` and the owners get a receipt. |
 | `payment_intent.payment_failed` | PaymentIntent id | Marks the payment `failed` with `last_payment_error.message`. The invoice becomes `failed` unless already paid. The owners get the reason and a link to pay. |
