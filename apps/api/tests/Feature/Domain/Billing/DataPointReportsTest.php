@@ -132,6 +132,7 @@ final class DataPointReportsTest extends TestCase
         $this->assertSame([true, false], [$dataPoints('2026-11')['final'], $dataPoints('2026-11')['stale']]);
     }
 
+<<<<<<< HEAD
     public function test_a_deleted_organizations_late_report_still_counts_in_its_share(): void
     {
         $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 10]]))->assertOk();
@@ -156,6 +157,34 @@ final class DataPointReportsTest extends TestCase
         $this->send($this->report([[self::ORGANIZATION, '2026-11-30T23:00:00Z', 150]], '2026-12-01T00:00:00Z'))->assertOk();
 
         $this->assertSame([150, 50], $this->usage('2026-11-01'));
+=======
+    public function test_reports_held_back_by_an_hour_long_outage_count_exactly_and_read_as_late(): void
+    {
+        // The runtime reports every minute while the control plane is down for an hour...
+        $reports = [];
+        foreach (range(1, 60) as $minute) {
+            $generated = CarbonImmutable::parse('2026-11-07 20:00', 'UTC')->addMinutes($minute)->toIso8601ZuluString();
+            $reports[] = $this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', $minute * 100]], '2026-11-07T20:00:00Z', $generated);
+        }
+
+        // ...and the reports arrive together half an hour after the last, out of order.
+        $this->travelTo(CarbonImmutable::parse('2026-11-07 21:30', 'UTC'));
+        usort($reports, fn (array $a, array $b): int => ($a['payload']['buckets'][0]['count'] * 7 % 6000) <=> ($b['payload']['buckets'][0]['count'] * 7 % 6000));
+        foreach ($reports as $report) {
+            $this->send($report)->assertOk();
+        }
+
+        $this->assertSame([6000, 0], $this->usage('2026-11-01'));
+        // Last reported when the runtime built its newest report, not when it arrived (FR-014, SC-005).
+        $admin = User::factory()->create(['is_super_admin' => true]);
+        $dataPoints = collect($this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/usage')->assertOk()->json('data'))->firstWhere('kind', 'data_points');
+        $this->assertSame(['2026-11-07T21:00:00Z', true], [$dataPoints['reported_at'], $dataPoints['stale']]);
+
+        // An older report arriving later never moves it back; a report claiming the future is taken as now.
+        $this->send($this->report([], '2026-11-07T20:00:00Z', '2026-11-07T20:30:00Z'))->assertOk();
+        $this->send($this->report([], '2026-11-07T20:00:00Z', '2026-11-07T22:00:00Z'))->assertOk();
+        $this->assertSame('2026-11-07T21:30:00Z', CarbonImmutable::parse((string) DB::table('billing_usage_watermarks')->value('reported_at'))->utc()->toIso8601ZuluString());
+>>>>>>> origin/main
     }
 
     public function test_another_schema_version_fails_permanently(): void
@@ -201,11 +230,11 @@ final class DataPointReportsTest extends TestCase
      * @param  list<array{0: string, 1: string, 2: int}>  $buckets  organization uuid, hour, cumulative count
      * @return array{uuid: string, type: string, payload: array<string, mixed>}
      */
-    private function report(array $buckets, string $finalThrough = '2026-11-07T20:00:00Z'): array
+    private function report(array $buckets, string $finalThrough = '2026-11-07T20:00:00Z', ?string $generatedAt = null): array
     {
         return ['uuid' => (string) Str::uuid(), 'type' => self::EVENT, 'payload' => [
             'schema_version' => 1,
-            'generated_at' => now()->utc()->toIso8601ZuluString(),
+            'generated_at' => $generatedAt ?? now()->utc()->toIso8601ZuluString(),
             'final_through' => $finalThrough,
             'buckets' => array_map(fn (array $bucket): array => [
                 'organization_uuid' => $bucket[0],

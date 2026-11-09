@@ -395,7 +395,8 @@ final class InvoiceDrafter
     }
 
     /**
-     * The credit notes whose credit is still unused, oldest used first.
+     * Where the credit still unused came from, oldest used first: credit notes, and
+     * invoices paid twice (spec 029 FR-035, FR-040).
      *
      * @return list<string>
      */
@@ -403,16 +404,18 @@ final class InvoiceDrafter
     {
         $rows = DB::table('billing_account_credits')
             ->leftJoin('billing_credit_notes', 'billing_credit_notes.id', '=', 'billing_account_credits.credit_note_id')
+            ->leftJoin('billing_invoices', 'billing_invoices.id', '=', 'billing_account_credits.invoice_id')
             ->where('billing_account_credits.billing_account_id', $account->getKey())
             ->orderBy('billing_account_credits.id')
-            ->get(['billing_account_credits.amount', 'billing_credit_notes.number']);
+            ->get(['billing_account_credits.amount', 'billing_credit_notes.number', 'billing_invoices.number as invoice_number']);
         $used = -(int) $rows->where('amount', '<', 0)->sum('amount');
         $sources = [];
         foreach ($rows->where('amount', '>', 0) as $row) {
             $left = (int) $row->amount - $used;
             $used = max(0, $used - (int) $row->amount);
-            if ($left > 0 && $row->number !== null) {
-                $sources[] = (string) $row->number;
+            $source = $row->number ?? ($row->invoice_number === null ? null : 'the overpayment of '.$row->invoice_number);
+            if ($left > 0 && $source !== null) {
+                $sources[] = (string) $source;
             }
         }
 

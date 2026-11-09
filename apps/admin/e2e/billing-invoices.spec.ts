@@ -44,7 +44,10 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 /** The mocked API, plus the request bodies the tests assert on. `issued` starts with INV-0001 issued, its card charge still processing. */
-async function mockApi(page: Page, { issued = false, pastDue = false, month = "2026-10-01" }: { issued?: boolean; pastDue?: boolean; month?: string } = {}) {
+async function mockApi(
+  page: Page,
+  { issued = false, pastDue = false, month = "2026-10-01", usageFinal = false }: { issued?: boolean; pastDue?: boolean; month?: string; usageFinal?: boolean } = {},
+) {
   const sent: { method: string; path: string; body: unknown }[] = []
   let settings = {
     legal_name: null as string | null,
@@ -159,6 +162,7 @@ async function mockApi(page: Page, { issued = false, pastDue = false, month = "2
   const detail = () => ({
     ...summary(),
     draft_note: invoice!.status === "draft" ? "Runtime is behind" : "Runtime is behind",
+    usage_final: usageFinal,
     tax_rate_name: details.tax_rate?.name ?? null,
     tax_basis_points: details.tax_rate?.basis_points ?? null,
     operator_details: invoice!.status === "issued" ? { legal_name: settings.legal_name, address: null, tax_registration_number: null, invoice_footer: null } : null,
@@ -421,6 +425,19 @@ test("drafts a waiting account's invoice anyway, adjusts it, issues it and credi
   await expect(page.getByRole("row", { name: /CN-0001 \$5\.00 \$5\.00 Partial outage/ })).toBeVisible()
   await page.getByRole("button", { name: "Actions for CN-0001" }).click()
   await expect(page.getByRole("menuitem", { name: "Download CSV" })).toHaveAttribute("href", /\/api\/v1\/admin\/billing\/credit-notes\/[0-9a-f-]+\.csv$/)
+})
+
+test("a draft made before usage was final asks to be recalculated once it is", async ({ page }) => {
+  await mockApi(page, { usageFinal: true })
+  await page.goto("/billing/invoices?tab=waiting")
+  await page.getByRole("button", { name: "Actions for Harbour Depot" }).click()
+  await page.getByRole("menuitem", { name: "Draft anyway" }).click()
+  await page.getByRole("dialog").getByRole("textbox", { name: "Note" }).fill("Runtime is behind")
+  await page.getByRole("dialog").getByRole("button", { name: "Draft invoice" }).click()
+
+  await expect(page.getByText("The month's usage is final now")).toBeVisible()
+  await expect(page.getByText("· recalculate before issuing")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Issue", exact: true })).toBeDisabled()
 })
 
 test("a draft of the running month is a preview that cannot be issued yet", async ({ page }) => {

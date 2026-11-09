@@ -433,6 +433,8 @@ export type CreditNote = {
 export type InvoiceDetail = InvoiceSummary & {
   /** Why it was drafted early; administrators only. */
   draft_note: string | null
+  /** The runtime has reported the month's usage to its end. A draft marked incomplete is recalculated before it can be issued. */
+  usage_final: boolean
   tax_rate_name: string | null
   tax_basis_points: number | null
   operator_details: { legal_name: string | null; address: string | null; tax_registration_number: string | null; invoice_footer: string | null } | null
@@ -482,6 +484,7 @@ export type InvoiceHistoryEntry = {
     | "payment_succeeded"
     | "payment_failed"
     | "payment_amount_mismatch"
+    | "overpaid"
   actor: { id: number; name: string } | null
   description: string | null
   amount: number | null

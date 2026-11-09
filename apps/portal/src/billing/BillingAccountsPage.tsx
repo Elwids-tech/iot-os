@@ -107,9 +107,10 @@ export default function BillingAccountsPage() {
   const accounts = useQuery({
     queryKey: billingAccountsKey,
     queryFn: () => api.ownedBillingAccounts(),
+    // Every two seconds while a saved card is confirmed, else every minute so usage stays current.
     refetchInterval: (query) => {
       const shown = query.state.data?.find((item) => item.uuid === state.get("account")) ?? query.state.data?.[0]
-      return savingCard && shown && !shown.payment_method && query.state.dataUpdateCount < CONFIRM_ATTEMPTS ? 2000 : false
+      return savingCard && shown && !shown.payment_method && query.state.dataUpdateCount < CONFIRM_ATTEMPTS ? 2000 : 60_000
     },
   })
   const [search, setSearch] = useState("")

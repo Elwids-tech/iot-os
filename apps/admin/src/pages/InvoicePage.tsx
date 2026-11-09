@@ -305,6 +305,8 @@ export function InvoicePage() {
   // A draft of the running month is a preview; it is issued once the month ends.
   const ends = monthEnd(invoice.month)
   const issuable = Date.parse(ends) <= Date.now()
+  // Drafted before the month's usage was final, which it is now: recalculate before issuing.
+  const stale = draft && invoice.usage_incomplete && invoice.usage_final
   // Stripe can settle a charge or Checkout payment still processing.
   const checkable = invoice.payments.some((payment) => payment.status === "pending" && payment.method !== "outside")
   const details = invoice.account_details
@@ -330,12 +332,16 @@ export function InvoicePage() {
           invoice.usage_incomplete ? (
             <Alert>
               <AlertCircleIcon />
-              <AlertTitle>{draft ? "Drafted" : "Issued"} before the month&apos;s usage was final</AlertTitle>
+              <AlertTitle>
+                {stale ? "The month's usage is final now" : `${draft ? "Drafted" : "Issued"} before the month's usage was final`}
+              </AlertTitle>
               <AlertDescription>
                 {invoice.draft_note ? `${invoice.draft_note}. ` : ""}
-                {draft
-                  ? "Recalculate once the runtime has reported the whole month; until then the invoice says its usage may be incomplete."
-                  : "The invoice says its usage may be incomplete."}
+                {stale
+                  ? "Recalculate to bring in what was counted since this draft, check it, then issue it."
+                  : draft
+                    ? "Recalculate once the runtime has reported the whole month; until then the invoice says its usage may be incomplete."
+                    : "The invoice says its usage may be incomplete."}
               </AlertDescription>
             </Alert>
           ) : null
@@ -572,7 +578,11 @@ export function InvoicePage() {
             <>
               Draft · <span className="tabular-nums">{money(invoice.amount_due)}</span> due{" "}
               <span className="text-muted-foreground">
-                {issuable ? "· not sent until issued" : `· a preview until the month ends; issue from ${formatDay(ends)}`}
+                {!issuable
+                  ? `· a preview until the month ends; issue from ${formatDay(ends)}`
+                  : stale
+                    ? "· recalculate before issuing"
+                    : "· not sent until issued"}
               </span>
             </>
           ) : (
@@ -606,7 +616,7 @@ export function InvoicePage() {
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setAdjusting(true)}>
               Add adjustment
             </Button>
-            <Button size="sm" disabled={busy || !issuable} onClick={() => setIssuing(true)}>
+            <Button size="sm" disabled={busy || !issuable || stale} onClick={() => setIssuing(true)}>
               Issue
             </Button>
           </>

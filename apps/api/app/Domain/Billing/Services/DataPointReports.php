@@ -32,6 +32,7 @@ final class DataPointReports
         // A version this code does not know can never be processed: 422 dead-letters it.
         abort_unless(($payload['schema_version'] ?? null) === 1, 422, 'Unsupported usage.data_points.v1 schema version.');
         $validator = Validator::make($payload, [
+            'generated_at' => ['required', 'date'],
             'final_through' => ['required', 'date'],
             'buckets' => ['present', 'list', 'max:500'],
             'buckets.*.organization_uuid' => ['required', 'uuid'],
@@ -45,7 +46,7 @@ final class DataPointReports
             $this->bucket((string) $bucket['organization_uuid'], CarbonImmutable::parse((string) $bucket['hour'])->utc(), (int) $bucket['count']);
         }
 
-        $this->watermark(CarbonImmutable::parse((string) $payload['final_through'])->utc());
+        $this->watermark(CarbonImmutable::parse((string) $payload['final_through'])->utc(), CarbonImmutable::parse((string) $payload['generated_at'])->utc());
     }
 
     private function bucket(string $organizationUuid, CarbonImmutable $hour, int $reported): void
@@ -116,16 +117,21 @@ final class DataPointReports
         return $current === null ? null : (int) $current;
     }
 
-    private function watermark(CarbonImmutable $finalThrough): void
+    /**
+     * Moves the watermark forward and records when the runtime last reported: when it
+     * built the report, not when it arrived, so a backlog of events reads as late
+     * (FR-014, SC-005). Both only move forward, and a report is never newer than now.
+     */
+    private function watermark(CarbonImmutable $finalThrough, CarbonImmutable $generatedAt): void
     {
-        $now = now();
-        DB::table('billing_usage_watermarks')->insertOrIgnore(['source' => self::SOURCE, 'final_through' => $finalThrough, 'reported_at' => $now]);
+        $reportedAt = $generatedAt->min(CarbonImmutable::now());
+        DB::table('billing_usage_watermarks')->insertOrIgnore(['source' => self::SOURCE, 'final_through' => $finalThrough, 'reported_at' => $reportedAt]);
         $stored = DB::table('billing_usage_watermarks')->where('source', self::SOURCE)->lockForUpdate()->first();
         $forward = CarbonImmutable::parse((string) $stored->final_through)->lessThan($finalThrough);
 
         DB::table('billing_usage_watermarks')->where('source', self::SOURCE)->update([
             'final_through' => $forward ? $finalThrough : $stored->final_through,
-            'reported_at' => $now,
+            'reported_at' => $reportedAt->max(CarbonImmutable::parse((string) $stored->reported_at)),
         ]);
     }
 }

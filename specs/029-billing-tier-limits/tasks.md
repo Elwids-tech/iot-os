@@ -1802,12 +1802,56 @@ account is charged when a card is saved, or flagged otherwise.
 
 ## Phase 16: Convergence
 
-- [ ] T144 Recalculate a draft's lines when it is issued if it was drafted before its month's usage was final (or refuse until it is recalculated), so a draft made early never goes out with part of the month's usage or a stale "possibly incomplete" mark, per FR-031, FR-038 and SC-009 (partial)
-- [ ] T145 Expire an invoice's open Checkout sessions when another payment for it starts or settles (or give them a short expiry), and turn a payment beyond what is owed into account credit or a review flag, so a late Checkout completion never pays an invoice twice unnoticed, per FR-040 and SC-010 (partial)
-- [ ] T146 Take a pending card or Checkout payment into account when a credit note or a payment recorded by hand settles an invoice (refuse while one is pending, or move what was overpaid into account credit when it succeeds), and refresh past due after a credit note, per FR-035, US6/AC7 and FR-043 (partial)
-- [ ] T147 Record when the runtime generated a data point report (`generated_at`, only moving forward) as `reported_at`, not when Laravel processed it, so a backlog of events shows as stale, per FR-014, SC-005 and Constitution VI (contradicts)
-- [ ] T148 Keep usage on screen current: refetch it at least every minute while the admin or portal usage panel or Settings → Usage is open, or let the "last reported" age tick, per SC-005 and US3/AC4 (partial)
-- [ ] T149 Add tests showing data point usage equal to the readings stored across a runtime restart and an hour-long control plane outage, per SC-002 (partial)
+- [x] T144 Recalculate a draft's lines when it is issued if it was drafted before its month's usage was final (or refuse until it is recalculated), so a draft made early never goes out with part of the month's usage or a stale "possibly incomplete" mark, per FR-031, FR-038 and SC-009 (partial)
+
+  As built (PR 19): `InvoiceIssuer` answers 409 for a draft marked incomplete once the month's
+  usage is final ("October 2026's usage is final now. Recalculate the draft, check it,
+  then issue it."). The invoice detail sends `usage_final`, and admin disables **Issue**
+  and asks for the recalculation. A draft still waiting for usage can be issued as
+  before, marked incomplete (FR-033).
+
+- [x] T145 Expire an invoice's open Checkout sessions when another payment for it starts or settles (or give them a short expiry), and turn a payment beyond what is owed into account credit or a review flag, so a late Checkout completion never pays an invoice twice unnoticed, per FR-040 and SC-010 (partial)
+
+  As built (PR 19): Checkout pages are created with `expires_at` 30 minutes out, Stripe's minimum.
+  `Payments::expireCheckouts` lists the customer's open sessions and expires the
+  invoice's ones. It runs when a card charge starts and after commit once the invoice is
+  settled; a Stripe error is reported and the pages expire on their own.
+  `Payments::succeeded` compares the payment with what was still owed before it, and the
+  rest goes to `billing_account_credits` (the invoice as its source) with
+  `billing_invoice.overpaid` audited and shown as `overpaid` in the history. The next
+  invoice's credit line names it ("Credit from the overpayment of INV-0001"). `settle`
+  leaves a settled invoice's status alone, `credited` included.
+
+- [x] T146 Take a pending card or Checkout payment into account when a credit note or a payment recorded by hand settles an invoice (refuse while one is pending, or move what was overpaid into account credit when it succeeds), and refresh past due after a credit note, per FR-035, US6/AC7 and FR-043 (partial)
+
+  As built (PR 19): Handled by T145's rule: a charge pending while a credit note or a payment by
+  hand settles the invoice turns into account credit when it succeeds, and a credited
+  invoice stays `credited`. `CreditNotes::issue` now refreshes the account's past due.
+
+- [x] T147 Record when the runtime generated a data point report (`generated_at`, only moving forward) as `reported_at`, not when Laravel processed it, so a backlog of events shows as stale, per FR-014, SC-005 and Constitution VI (contradicts)
+
+  As built (PR 19): `DataPointReports` requires `generated_at` (the contract already did) and
+  stores it as `reported_at`, only moving forward and never later than now, so `stale`
+  follows the runtime's reports, not their arrival.
+
+- [x] T148 Keep usage on screen current: refetch it at least every minute while the admin or portal usage panel or Settings → Usage is open, or let the "last reported" age tick, per SC-005 and US3/AC4 (partial)
+
+  As built (PR 19): `useNow` in the kit is one 15 s timer shared by every reader, refreshed once
+  per burst of mounting readers, so a new time is exact. `RelativeTime` and `Freshness`
+  use it whenever they are not given `now`, so ages tick everywhere on a page left open.
+  The portal's owner billing page and Settings → Usage refetch every minute. Admin's
+  account page ages its "last reported" time but does not refetch, so open edits are
+  kept.
+
+- [x] T149 Add tests showing data point usage equal to the readings stored across a runtime restart and an hour-long control plane outage, per SC-002 (partial)
+
+  As built (PR 19): Go `TestCountsStayExactAcrossARestart`: counts, a report, then a new `Store`
+  on the same database. A message delivered again is not counted, and reports stay
+  cumulative to the exact total. Laravel
+  `test_reports_held_back_by_an_hour_long_outage_count_exactly_and_read_as_late`: 60
+  minute-by-minute reports arrive half an hour late and out of order, and end at the
+  exact total, last reported at the newest `generated_at` and stale.
+
 - [ ] T150 Report usage every few minutes even when no bucket changed (or base staleness on the runtime's heartbeat), so a quiet deployment's data points do not read late for most of each hour, per FR-014 (contradicts)
 - [ ] T151 Keep the usage reporter from holding row locks that storing waits on (record what was reported apart from the counted buckets, or update them in one statement), and give the reporter its own ticker so a long cleanup cannot delay it, per FR-015 and plan: reporter every 60 s (partial)
 - [ ] T152 Drive the meters' "late" from the API's `stale` (`BILLING_USAGE_REPORT_STALE_SECONDS`) instead of a fixed 150 s, per plan: stale threshold and the billing docs (contradicts)
