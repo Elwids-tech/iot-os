@@ -146,6 +146,9 @@ final class BillingAccounts
             ]);
 
             $locked->forceFill(['billing_account_id' => $target->getKey()])->save();
+            // Its devices now count for the new account: peaks and warnings follow (FR-007, FR-025).
+            app(DeviceLimit::class)->recheck($from);
+            app(DeviceLimit::class)->recheck($target);
 
             // The event belongs to the organization, so it shows under its activity (spec 024).
             DeviceAudit::record('organization.billing_account_changed', $locked->getKey(), $actor->getKey(), $locked->uuid, [

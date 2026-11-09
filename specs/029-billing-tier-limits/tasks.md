@@ -1852,14 +1852,59 @@ account is charged when a card is saved, or flagged otherwise.
   minute-by-minute reports arrive half an hour late and out of order, and end at the
   exact total, last reported at the newest `generated_at` and stale.
 
-- [ ] T150 Report usage every few minutes even when no bucket changed (or base staleness on the runtime's heartbeat), so a quiet deployment's data points do not read late for most of each hour, per FR-014 (contradicts)
-- [ ] T151 Keep the usage reporter from holding row locks that storing waits on (record what was reported apart from the counted buckets, or update them in one statement), and give the reporter its own ticker so a long cleanup cannot delay it, per FR-015 and plan: reporter every 60 s (partial)
-- [ ] T152 Drive the meters' "late" from the API's `stale` (`BILLING_USAGE_REPORT_STALE_SECONDS`) instead of a fixed 150 s, per plan: stale threshold and the billing docs (contradicts)
-- [ ] T153 After an organization moves or an allowance, plan or limit changes, raise the device peak and check the device warnings at 80% and 100%, per 029 FR-007, FR-025 and edge case "Organization moved" (partial)
-- [ ] T154 Let the admin and portal usage month pickers reach every month since the account's first usage, not only the last twelve, per 028 FR-014, FR-019 and 029 FR-023 (partial)
-- [ ] T155 Count a late data point report for a deleted organization in that organization's share too (by its uuid), so the account total equals the shares and the invoice's usage rows, and correct the docs that say it is not counted, per 029 FR-017 and edge case "Organization deleted" (partial)
-- [ ] T156 Price a late data point report for an earlier month against that month's plan assignment rather than today's allowance, per plan: overage fixed as counted (D9) (partial)
-- [ ] T157 Amend spec 029's FR-013 and edge case "Organization moved mid-month" to say a move counts by the hour, as ADR-036 decided, per 029 FR-013 (contradicts)
+- [x] T150 Report usage every few minutes even when no bucket changed (or base staleness on the runtime's heartbeat), so a quiet deployment's data points do not read late for most of each hour, per FR-014 (contradicts)
+
+  As built (PR 20): with nothing changed and no hour closed, `ReportUsage` writes a heartbeat with
+  no buckets once the newest usage event's `generated_at` is two minutes old. Its id
+  (`usage.data_points#heartbeat#<generated_at>`) is new each time; content-derived ids
+  would have de-duplicated every heartbeat after the first. Laravel takes it as a report
+  (T147), so a quiet deployment's data points stay fresh.
+
+- [x] T151 Keep the usage reporter from holding row locks that storing waits on (record what was reported apart from the counted buckets, or update them in one statement), and give the reporter its own ticker so a long cleanup cannot delay it, per FR-015 and plan: reporter every 60 s (partial)
+
+  As built (PR 20): `ReportUsage` writes its events first, then records what it reported in one
+  `UPDATE … FROM unnest(…)` just before the commit, so storing waits on those rows for
+  that statement only. The reporter runs on its own 60 s ticker
+  (`reportUsageEvery`), outside the maintenance loop's cleanup.
+
+- [x] T152 Drive the meters' "late" from the API's `stale` (`BILLING_USAGE_REPORT_STALE_SECONDS`) instead of a fixed 150 s, per plan: stale threshold and the billing docs (contradicts)
+
+  As built (PR 20): data point usage entries carry `stale_after_seconds`
+  (`BILLING_USAGE_REPORT_STALE_SECONDS`) beside `stale`. `Freshness` takes `late` (the
+  server says so). `AllowanceMeter` and Settings → Usage rate the age against half the
+  threshold, so it reads late once it passes it, and mark it late whenever `stale` is
+  true.
+
+- [x] T153 After an organization moves or an allowance, plan or limit changes, raise the device peak and check the device warnings at 80% and 100%, per 029 FR-007, FR-025 and edge case "Organization moved" (partial)
+
+  As built (PR 20): `DeviceLimit::recheck` raises the month's peak to the devices holding a place
+  and checks the 80% and 100% warnings. It runs after a move (both accounts), a devices
+  override or its removal, a plan assignment, removal or trial plan move, and a plan
+  edit that changes its device allowance (every account on it).
+
+- [x] T154 Let the admin and portal usage month pickers reach every month since the account's first usage, not only the last twelve, per 028 FR-014, FR-019 and 029 FR-023 (partial)
+
+  As built (PR 20): the owner's account now carries `created_at`, and `UsagePanel` and
+  `UsageMonthSelect` take `since`. The picker offers every UTC month back to the
+  account's start (`monthsSince`, with tests), and twelve without one.
+
+- [x] T155 Count a late data point report for a deleted organization in that organization's share too (by its uuid), so the account total equals the shares and the invoice's usage rows, and correct the docs that say it is not counted, per 029 FR-017 and edge case "Organization deleted" (partial)
+
+  As built (PR 20): for a deleted organization, `DataPointReports` rebuilds it from its newest
+  billing account assignment (uuid and last name, no id). Its share then keeps adding up
+  with the account's total, and the docs say so.
+
+- [x] T156 Price a late data point report for an earlier month against that month's plan assignment rather than today's allowance, per plan: overage fixed as counted (D9) (partial)
+
+  As built (PR 20): `Allowances::valueAt` resolves the allowance at an instant: the account's
+  override (overrides keep no history), else the plan assigned then, else the default.
+  `Usage::add` uses it for a month before the current one.
+
+- [x] T157 Amend spec 029's FR-013 and edge case "Organization moved mid-month" to say a move counts by the hour, as ADR-036 decided, per 029 FR-013 (contradicts)
+
+  As built (PR 20): FR-013 and the "moved mid-month" edge case now say moves count by the hour:
+  the hour of the move and those before it stay with the old account.
+
 - [x] T158 End a trial through `Trials` when its plan is changed or removed, so the end is audited (`trial_ended`) and emailed, per FR-048 and FR-049 (partial)
 
   As built (PR 21): `PlanAssignments::assign` and `remove` end an open trial through

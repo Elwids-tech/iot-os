@@ -83,7 +83,7 @@ final class UsageVisibilityTest extends TestCase
                     ['organization_uuid' => $this->acme->uuid, 'name' => 'Acme Manufacturing', 'count' => 2],
                 ]],
                 // No runtime report yet: provisional and stale.
-                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'organizations' => [], 'final' => false, 'reported_at' => null, 'stale' => true],
+                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'organizations' => [], 'final' => false, 'reported_at' => null, 'stale' => true, 'stale_after_seconds' => 300],
                 ['kind' => 'devices', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'organizations' => [], 'peak_this_month' => 0, 'over_limit' => false],
             ]]);
 
@@ -133,7 +133,7 @@ final class UsageVisibilityTest extends TestCase
             ->assertExactJson(['data' => [
                 ['kind' => 'alerts', 'month' => $month, 'count' => 3, 'allowance' => 10, 'left' => 5, 'overage' => 0],
                 ['kind' => 'sms', 'month' => $month, 'count' => 2, 'allowance' => 5, 'left' => 3, 'overage' => 0],
-                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'final' => false, 'reported_at' => null, 'stale' => true],
+                ['kind' => 'data_points', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'final' => false, 'reported_at' => null, 'stale' => true, 'stale_after_seconds' => 300],
                 ['kind' => 'devices', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'over_limit' => false],
             ], 'retention' => ['days' => (int) config('devices.default_retention_days'), 'source' => 'default', 'pending_reduction' => null]]);
 

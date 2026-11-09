@@ -58,8 +58,8 @@ export function allowanceLine(
  * count and overage only: the API keeps no history of the allowance (spec 029 FR-023). `kind="level"` is for something held at once, such as active
  * devices, which has no overage but can be over its limit. Counts the runtime reports
  * (data points) pass `freshness`: a final month says so, an open one reads
- * "Provisional" with when it was last reported, late after five minutes (the API's
- * default for `stale`).
+ * "Provisional" with when it was last reported: late once the API says `stale`, or once
+ * it ages past the API's `stale_after_seconds` on screen.
  */
 export function AllowanceMeter({
   label,
@@ -82,7 +82,8 @@ export function AllowanceMeter({
   kind?: "monthly" | "level"
   /** Singular and plural for the "left" line, e.g. ["alert", "alerts"]. */
   noun?: [string, string]
-  freshness?: { reportedAt: string | null; final: boolean }
+  /** Data points: `stale` from the API marks it late, and `staleAfterSeconds` ages it on screen (300 when left out). */
+  freshness?: { reportedAt: string | null; final: boolean; stale?: boolean; staleAfterSeconds?: number }
   /** A note on the right of the last line when there is no freshness, e.g. a peak. */
   detail?: React.ReactNode
   /** A month before this one: no allowance, bar or status, as the allowance may have changed since. */
@@ -133,7 +134,13 @@ export function AllowanceMeter({
             <span>Final</span>
           ) : freshness.reportedAt ? (
             <span className="inline-flex items-center gap-1">
-              Provisional · last reported <Freshness at={freshness.reportedAt} expectedSeconds={150} now={now} />
+              Provisional · last reported{" "}
+              <Freshness
+                at={freshness.reportedAt}
+                expectedSeconds={(freshness.staleAfterSeconds ?? 300) / 2}
+                late={freshness.stale ?? false}
+                now={now}
+              />
             </span>
           ) : (
             <span>Provisional · not reported yet</span>

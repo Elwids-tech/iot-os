@@ -91,7 +91,8 @@ export function OrganizationAllowances({ usage, kinds: shown }: { usage: Organiz
                   "Final"
                 ) : item.reported_at ? (
                   <>
-                    Provisional · last reported <Freshness at={item.reported_at} expectedSeconds={150} />
+                    Provisional · last reported{" "}
+                    <Freshness at={item.reported_at} expectedSeconds={(item.stale_after_seconds ?? 300) / 2} late={item.stale ?? false} />
                   </>
                 ) : (
                   "Provisional · not reported yet"

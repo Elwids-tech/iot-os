@@ -12,6 +12,7 @@ use App\Domain\Billing\Models\PlanAllowance;
 use App\Domain\Billing\Models\PlanAssignment;
 use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +41,28 @@ final class Allowances
      *
      * @return array<string, ResolvedAllowance>
      */
+    /**
+     * The allowance that applied at an instant: the account's override (overrides keep
+     * no history), else that of the plan assigned then, else the deployment's default.
+     * Usage reported late for an earlier month is priced against it (spec 029 D9).
+     */
+    public function valueAt(BillingAccount $account, AllowanceKind $kind, CarbonImmutable $at): ?int
+    {
+        $override = AllowanceOverride::query()->where('billing_account_id', $account->getKey())->where('kind', $kind->value)->first();
+        if ($override !== null) {
+            return $override->value;
+        }
+
+        $planId = PlanAssignment::query()
+            ->where('billing_account_id', $account->getKey())
+            ->where('started_at', '<=', $at)
+            ->where(fn ($query) => $query->whereNull('ended_at')->orWhere('ended_at', '>', $at))
+            ->value('billing_plan_id');
+        $row = $planId === null ? null : PlanAllowance::query()->where('billing_plan_id', $planId)->where('kind', $kind->value)->first();
+
+        return $row === null ? self::number(((array) config('billing.defaults'))[$kind->value] ?? null) : $row->value;
+    }
+
     public function all(BillingAccount $account): array
     {
         $overrides = ($account->relationLoaded('allowanceOverrides')
@@ -88,6 +111,10 @@ final class Allowances
                 ['value', 'note', 'set_by', 'updated_at'],
             );
 
+            if ($kind === AllowanceKind::Devices) {
+                app(DeviceLimit::class)->recheck($account);
+            }
+
             ActivityLog::record('billing_account.allowance_overridden', null, $actor, $account, [
                 'kind' => $kind->value,
                 'from' => $before->value,
@@ -116,6 +143,9 @@ final class Allowances
                 ->where('kind', $kind->value)
                 ->delete();
             $after = $this->inherited($account, $kind);
+            if ($kind === AllowanceKind::Devices) {
+                app(DeviceLimit::class)->recheck($account);
+            }
 
             ActivityLog::record('billing_account.allowance_override_removed', null, $actor, $account, [
                 'kind' => $kind->value,

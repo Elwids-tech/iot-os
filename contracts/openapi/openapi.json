@@ -36866,6 +36866,10 @@
             "type": "boolean",
             "description": "Data points only: the month is open and has not been reported for longer than usual."
           },
+          "stale_after_seconds": {
+            "type": "integer",
+            "description": "Data points only: how long without a report before an open month is stale."
+          },
           "over_limit": {
             "type": "boolean",
             "description": "Devices only: the billing account has more devices holding a place than its limit allows."
@@ -36938,6 +36942,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the account was made: the usage month picker goes back to it."
           },
           "organization_limit": {
             "type": [
@@ -37157,6 +37168,7 @@
         "required": [
           "uuid",
           "name",
+          "created_at",
           "organization_limit",
           "organizations_count",
           "organizations",
@@ -40722,6 +40734,10 @@
           "stale": {
             "type": "boolean",
             "description": "Data points only: the month is open and has not been reported for longer than usual."
+          },
+          "stale_after_seconds": {
+            "type": "integer",
+            "description": "Data points only: how long without a report before an open month is stale (`BILLING_USAGE_REPORT_STALE_SECONDS`), so pages can age it themselves."
           },
           "peak_this_month": {
             "type": "integer",

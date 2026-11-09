@@ -755,6 +755,7 @@ export function BillingAccountPage() {
         description="Months are UTC. Alerts, SMS and data points over an allowance are overage; devices are a level."
         figures={account.usage}
         load={(month) => apiClient.adminBillingAccountUsage(account.uuid, month)}
+        since={account.created_at}
       />
       <Panel aria-labelledby="billing-invoices">
         <PanelHeader>

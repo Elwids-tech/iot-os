@@ -49,7 +49,10 @@ final class Usage implements SmsAllowance
 
         [$count, $overage, $allowance] = DB::transaction(function () use ($account, $organization, $kind, $at, $quantity, $month): array {
             $totals = $this->lock($account, $kind, $month);
-            $allowance = $this->allowances->value($account->withoutRelations(), $kind);
+            // Counted late for an earlier month: priced against the plan of then (D9).
+            $allowance = $month === self::monthOf(CarbonImmutable::now())
+                ? $this->allowances->value($account->withoutRelations(), $kind)
+                : $this->allowances->valueAt($account, $kind, $at);
             $count = (int) $totals->count + $quantity;
             $delta = $allowance === null ? 0 : max(0, min($quantity, $count - $allowance));
             $overage = (int) $totals->overage + $delta;

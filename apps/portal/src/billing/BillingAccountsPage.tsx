@@ -433,6 +433,7 @@ export default function BillingAccountsPage() {
         description="Months are UTC. Alerts and data points over an allowance are overage and never stop."
         figures={account.usage}
         load={(month) => api.ownedBillingAccountUsage(account.uuid, month)}
+        since={account.created_at}
       />
       <Panel aria-labelledby="billing-invoices">
         <PanelHeader>
