@@ -1590,6 +1590,16 @@ account is charged when a card is saved, or flagged otherwise.
   the related edge cases and success criteria, about 80 plan decisions and touch-points
   and 8 constitution principles. Nothing was critical or high; it added T126–T143
   (Phase 15), four medium. T142 and T143 are done here; run it again once the rest land.
+
+  Second run (PR 18): Phase 15 was built in PRs 15 and 16 and recorded in #191 (T141).
+  Three reviewers covered spec 028, 029 US1, US2 and US4 / US3 and US5 / US6–US8 with
+  the constitution and the plan's cross-cutting decisions. That is about 160
+  requirements and acceptance scenarios, about 60 plan decisions and 9 principles.
+  Every finding was checked against the code before it was added.
+  - Every Phase 15 fix holds.
+  - Nothing is critical or high, and the public-repo rule holds.
+  - It added T144–T167 (Phase 16): six medium (T144–T149) and eighteen low.
+  - Run it again once those land.
 - [x] T123 [P] Cross-check docs: `docs/features/billing.md`, `access.md`, `devices.md`,
   `alerts.md`, `docs/reference/events.md` and `docs/ops/billing-payments.md` describe
   what was built; fix any drift from code
@@ -1789,3 +1799,34 @@ account is charged when a card is saved, or flagged otherwise.
   notices (`billing_notices`, `Notices`) have no Eloquent models: each has one writer
   service that uses the query builder under its own locks. The service provider sits at
   the domain root like the other domains' providers.
+
+## Phase 16: Convergence
+
+- [ ] T144 Recalculate a draft's lines when it is issued if it was drafted before its month's usage was final (or refuse until it is recalculated), so a draft made early never goes out with part of the month's usage or a stale "possibly incomplete" mark, per FR-031, FR-038 and SC-009 (partial)
+- [ ] T145 Expire an invoice's open Checkout sessions when another payment for it starts or settles (or give them a short expiry), and turn a payment beyond what is owed into account credit or a review flag, so a late Checkout completion never pays an invoice twice unnoticed, per FR-040 and SC-010 (partial)
+- [ ] T146 Take a pending card or Checkout payment into account when a credit note or a payment recorded by hand settles an invoice (refuse while one is pending, or move what was overpaid into account credit when it succeeds), and refresh past due after a credit note, per FR-035, US6/AC7 and FR-043 (partial)
+- [ ] T147 Record when the runtime generated a data point report (`generated_at`, only moving forward) as `reported_at`, not when Laravel processed it, so a backlog of events shows as stale, per FR-014, SC-005 and Constitution VI (contradicts)
+- [ ] T148 Keep usage on screen current: refetch it at least every minute while the admin or portal usage panel or Settings → Usage is open, or let the "last reported" age tick, per SC-005 and US3/AC4 (partial)
+- [ ] T149 Add tests showing data point usage equal to the readings stored across a runtime restart and an hour-long control plane outage, per SC-002 (partial)
+- [ ] T150 Report usage every few minutes even when no bucket changed (or base staleness on the runtime's heartbeat), so a quiet deployment's data points do not read late for most of each hour, per FR-014 (contradicts)
+- [ ] T151 Keep the usage reporter from holding row locks that storing waits on (record what was reported apart from the counted buckets, or update them in one statement), and give the reporter its own ticker so a long cleanup cannot delay it, per FR-015 and plan: reporter every 60 s (partial)
+- [ ] T152 Drive the meters' "late" from the API's `stale` (`BILLING_USAGE_REPORT_STALE_SECONDS`) instead of a fixed 150 s, per plan: stale threshold and the billing docs (contradicts)
+- [ ] T153 After an organization moves or an allowance, plan or limit changes, raise the device peak and check the device warnings at 80% and 100%, per 029 FR-007, FR-025 and edge case "Organization moved" (partial)
+- [ ] T154 Let the admin and portal usage month pickers reach every month since the account's first usage, not only the last twelve, per 028 FR-014, FR-019 and 029 FR-023 (partial)
+- [ ] T155 Count a late data point report for a deleted organization in that organization's share too (by its uuid), so the account total equals the shares and the invoice's usage rows, and correct the docs that say it is not counted, per 029 FR-017 and edge case "Organization deleted" (partial)
+- [ ] T156 Price a late data point report for an earlier month against that month's plan assignment rather than today's allowance, per plan: overage fixed as counted (D9) (partial)
+- [ ] T157 Amend spec 029's FR-013 and edge case "Organization moved mid-month" to say a move counts by the hour, as ADR-036 decided, per 029 FR-013 (contradicts)
+- [ ] T158 End a trial through `Trials` when its plan is changed or removed, so the end is audited (`trial_ended`) and emailed, per FR-048 and FR-049 (partial)
+- [ ] T159 Refuse drafting an invoice for a month in which the account had no plan, per 029 edge case "No plan" and D2 (unrequested)
+- [ ] T160 Require a note on a payment recorded by hand, per FR-044 and US7/AC6 (partial)
+- [ ] T161 While a payment is pending, say "payment processing" in the portal and leave **Pay** out of reminders and the invoice instead of offering a page that answers 409, per edge case "A charge succeeds at the provider but its report is lost" (partial)
+- [ ] T162 Decide whether a payment recorded by hand sends owners a receipt, then send one or say otherwise in the spec and docs, per FR-042 (partial)
+- [ ] T163 Word the payment-failed email by how the payment was made, so a declined Checkout payment does not speak of a saved card, per US7/AC4 (partial)
+- [ ] T164 Add issuing's 422 (total below 0) to `contracts/openapi/supplements/billing.yaml` and re-export the contract, per Constitution IV and FR-052 (partial)
+- [ ] T165 Bring the feature's documents in line with the code, per plan: contracts and documentation (contradicts):
+  - `quickstart.md`: issuing a draft of the running month, which is now refused, and §2 step 4, where held items are now Failed and retryable, not Skipped.
+  - `contracts/stripe-webhooks.md`: a mismatched amount is kept and audited, not marked for review.
+  - `contracts/billing-api.md`: checkout answers 404 while payments are off, and the allowance field is `note`.
+  - `data-model.md`: the audit event is `billing_invoice.payment_recorded`.
+- [ ] T166 Show the device-limit refusal once on the portal's **Resume** dialog (`errorMessage` repeats `message` and `errors.device`), with an e2e case, per 029 US2/AC2 (partial)
+- [ ] T167 On Settings → Retention, while a billing floor runs, say in the confirmation that cleanup moves from the floor's period, and show the platform default's fallback as 400 days, not 90, per 029 FR-021 and FR-022 (partial)
