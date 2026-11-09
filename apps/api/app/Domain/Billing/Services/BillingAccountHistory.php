@@ -137,6 +137,8 @@ final class BillingAccountHistory
                                 match (true) {
                                     ($details['reason'] ?? null) === 'plan_changed' => 'ended by a plan change',
                                     ($details['reason'] ?? null) === 'plan_removed' => 'ended when the plan was removed',
+                                    ($details['reason'] ?? null) === 'trial_started' => 'ended by a new trial',
+                                    ($details['reason'] ?? null) === 'account_deleted' => 'ended when the account was deleted',
                                     ($details['to'] ?? null) === 'paid' => 'paid from '.CarbonImmutable::parse((string) ($details['at'] ?? 'now'))->utc()->subMicrosecond()->addDay()->format('j M Y'),
                                     default => 'ended without a payment method',
                                 },

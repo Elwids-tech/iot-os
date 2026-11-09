@@ -27,6 +27,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -47,7 +48,7 @@ final class TrialsTest extends TestCase
 
     private Organization $organization;
 
-    private BillingPlan $starter;
+    private BillingPlan $planA;
 
     private BillingPlan $larger;
 
@@ -62,18 +63,18 @@ final class TrialsTest extends TestCase
         $this->account = BillingAccount::factory()->create(['name' => 'Example Account']);
         $this->account->owners()->attach($this->owner->id, ['created_at' => now()]);
         $this->organization = Organization::factory()->forBillingAccount($this->account)->create(['name' => 'North plant']);
-        $this->starter = BillingPlan::factory()->withAllowances(['alerts' => 3, 'devices' => 5])->create(['name' => 'Plan A']);
+        $this->planA = BillingPlan::factory()->withAllowances(['alerts' => 3, 'devices' => 5])->create(['name' => 'Plan A']);
         $this->larger = BillingPlan::factory()->withAllowances(['alerts' => 10, 'devices' => 20])->create(['name' => 'Plan B']);
 
         $prices = app(Prices::class);
-        $prices->setPlanPrices($this->starter, ['base_price' => 3100, 'alert_overage_price' => 7, 'data_point_overage_price' => 0, 'data_point_block_size' => 1_000_000], $this->admin);
+        $prices->setPlanPrices($this->planA, ['base_price' => 3100, 'alert_overage_price' => 7, 'data_point_overage_price' => 0, 'data_point_block_size' => 1_000_000], $this->admin);
         $prices->setPlanPrices($this->larger, ['base_price' => 6200, 'alert_overage_price' => 5, 'data_point_overage_price' => 0, 'data_point_block_size' => 1_000_000], $this->admin);
     }
 
     public function test_limited_and_open_ended_trials_start_on_the_plan_and_owners_see_them(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
-        app(PlanAssignments::class)->assign($this->account, $this->starter, $this->admin);
+        app(PlanAssignments::class)->assign($this->account, $this->planA, $this->admin);
 
         // No plan given: the account's own. A 30-day trial runs until 30 October.
         $this->trial('POST', '', ['ends_at' => '2026-10-31T00:00:00Z'])
@@ -103,19 +104,19 @@ final class TrialsTest extends TestCase
         // Without a plan, or with an end in the past, nothing starts.
         $bare = BillingAccount::factory()->create();
         $this->trial('POST', '', ['ends_at' => null], $bare)->assertUnprocessable()->assertJsonValidationErrors('plan_uuid');
-        $this->trial('POST', '', ['plan_uuid' => $this->starter->uuid, 'ends_at' => '2026-09-30T00:00:00Z'], $bare)->assertUnprocessable()->assertJsonValidationErrors('ends_at');
+        $this->trial('POST', '', ['plan_uuid' => $this->planA->uuid, 'ends_at' => '2026-09-30T00:00:00Z'], $bare)->assertUnprocessable()->assertJsonValidationErrors('ends_at');
         $this->assertSame(0, PlanAssignment::query()->where('billing_account_id', $bare->id)->count());
 
         // Only platform administrators manage trials.
         $this->actingAs($this->owner, 'sanctum')
-            ->postJson('/api/v1/admin/billing-accounts/'.$bare->uuid.'/trial', ['plan_uuid' => $this->starter->uuid, 'ends_at' => null])
+            ->postJson('/api/v1/admin/billing-accounts/'.$bare->uuid.'/trial', ['plan_uuid' => $this->planA->uuid, 'ends_at' => null])
             ->assertForbidden();
     }
 
     public function test_the_plans_limits_usage_and_warnings_apply_during_a_trial(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
-        app(Trials::class)->start($this->account, $this->starter, null, $this->admin);
+        app(Trials::class)->start($this->account, $this->planA, null, $this->admin);
 
         $devices = app(Allowances::class)->resolve($this->account, AllowanceKind::Devices);
         $this->assertSame([5, 'plan'], [$devices->value, $devices->source]);
@@ -129,7 +130,7 @@ final class TrialsTest extends TestCase
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
         // The last trial day is 10 October; a card is saved, so it continues on the plan.
-        app(Trials::class)->start($this->account, $this->starter, CarbonImmutable::parse('2026-10-11 00:00', 'UTC'), $this->admin);
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-11 00:00', 'UTC'), $this->admin);
         $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242', 'pm_expires' => '2030-12'])->save();
         $usage = app(Usage::class);
         // Five alerts over the allowance during the trial.
@@ -159,7 +160,7 @@ final class TrialsTest extends TestCase
     public function test_a_trial_ended_without_a_card_is_flagged_uncharged_until_a_card_is_saved(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-30 09:00', 'UTC'));
-        app(Trials::class)->start($this->account, $this->starter, CarbonImmutable::parse('2026-10-11 00:00', 'UTC'), $this->admin);
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-11 00:00', 'UTC'), $this->admin);
 
         $this->travelTo(CarbonImmutable::parse('2026-10-11 00:05', 'UTC'));
         $this->artisan('billing:end-trials')->assertSuccessful();
@@ -171,10 +172,13 @@ final class TrialsTest extends TestCase
             ->assertJsonPath('data.0.uuid', $this->account->uuid)
             ->assertJsonPath('data.0.plan.kind', 'trial_unpaid');
 
-        // A card saved on 20 October: charged from the 21st.
+        // A card saved on 20 October: charged from the 21st, overage included.
         $this->travelTo(CarbonImmutable::parse('2026-10-20 15:00', 'UTC'));
         $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242'])->save();
         app(Trials::class)->paymentMethodAdded($this->account);
+        $usage = app(Usage::class);
+        $usage->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-20 16:00', 'UTC'), 5);
+        $usage->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-21 01:00', 'UTC'), 1);
         $paid = app(PlanAssignments::class)->current($this->account);
         $this->assertSame([PlanAssignmentKind::Paid, 'payment_method_added'], [$paid->kind, PlanAssignment::query()->where('kind', 'trial_unpaid')->sole()->end_reason]);
         $this->getJson('/api/v1/admin/billing-accounts?trial=ended_unpaid')->assertOk()->assertJsonCount(0, 'data');
@@ -187,6 +191,11 @@ final class TrialsTest extends TestCase
             $invoice->lines->whereIn('kind', [InvoiceLineKind::Trial, InvoiceLineKind::BasePrice])
                 ->map(fn ($line): array => [$line->kind->value, $line->amount, (int) $line->quantity])->values()->all(),
         );
+        // Two alerts over the allowance on the 20th are not charged; the one on the 21st is.
+        $this->assertSame(
+            [[2.0, 0, 'Not charged during trial'], [1.0, 7, null]],
+            $invoice->lines->where('kind', InvoiceLineKind::AlertOverage)->map(fn ($line): array => [(float) $line->quantity, $line->amount, $line->note])->values()->all(),
+        );
     }
 
     public function test_trials_are_checked_hourly_so_one_that_ended_during_an_outage_ends_soon_after(): void
@@ -198,7 +207,7 @@ final class TrialsTest extends TestCase
 
     public function test_a_plan_change_or_removal_during_a_trial_ends_it_audited_and_emailed(): void
     {
-        $this->trial('POST', '', ['plan_uuid' => $this->starter->uuid, 'ends_at' => '2026-10-15T00:00:00Z'])->assertOk();
+        $this->trial('POST', '', ['plan_uuid' => $this->planA->uuid, 'ends_at' => '2026-10-15T00:00:00Z'])->assertOk();
 
         // Moved to another plan during the trial.
         $this->actingAs($this->admin, 'sanctum')->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/plan', ['plan_uuid' => $this->larger->uuid])->assertOk();
@@ -219,13 +228,44 @@ final class TrialsTest extends TestCase
             && $job->mail->content()->with['next'] === 'The account is no longer on a plan.');
     }
 
+    public function test_every_exit_from_a_trial_ended_without_a_card_and_a_deleted_accounts_trial_is_audited_without_an_email(): void
+    {
+        $unpaid = function (BillingAccount $account): void {
+            app(Trials::class)->start($account, $this->planA, CarbonImmutable::now()->addDay(), $this->admin);
+            $this->travel(2)->days();
+            $this->artisan('billing:end-trials')->assertSuccessful();
+            $this->assertSame(PlanAssignmentKind::TrialUnpaid, app(PlanAssignments::class)->current($account)->kind);
+        };
+        $ends = fn (): array => DB::table('activity_log')->where('event', 'billing_account.trial_ended')->orderBy('id')->get()
+            ->map(fn (object $row): array => [json_decode($row->properties, true)['from'], json_decode($row->properties, true)['reason']])->all();
+
+        // A plan change, then a new trial, each end a trial that ended without a card.
+        $unpaid($this->account);
+        $this->actingAs($this->admin, 'sanctum')->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/plan', ['plan_uuid' => $this->larger->uuid])->assertOk();
+        $other = BillingAccount::factory()->ownedBy($this->owner)->create();
+        $unpaid($other);
+        app(Trials::class)->start($other, $this->planA, null, $this->admin);
+        // Deleting an account on a trial.
+        $this->actingAs($this->admin, 'sanctum')->deleteJson('/api/v1/admin/billing-accounts/'.$other->uuid)->assertNoContent();
+
+        $this->assertSame([
+            ['trial', 'trial_reached_end'], ['trial_unpaid', 'plan_changed'],
+            ['trial', 'trial_reached_end'], ['trial_unpaid', 'trial_started'],
+            ['trial', 'account_deleted'],
+        ], $ends());
+        // Only the two trials that reached their end emailed the owners.
+        $this->assertSame(2, DB::table('billing_notices')->where('kind', 'trial_ended')->count());
+        $changes = collect($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->assertOk()->json('data.history'))->pluck('changes')->flatten(1);
+        $this->assertSame('ended by a plan change', $changes->where('field', 'trial')->first()['to'] ?? null);
+    }
+
     public function test_owners_are_reminded_7_days_and_1_day_before_a_limited_trial_ends_once_each(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
-        app(Trials::class)->start($this->account, $this->starter, CarbonImmutable::parse('2026-10-31 00:00', 'UTC'), $this->admin);
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-31 00:00', 'UTC'), $this->admin);
         $open = BillingAccount::factory()->create();
         $open->owners()->attach($this->owner->id, ['created_at' => now()]);
-        app(Trials::class)->start($open, $this->starter, null, $this->admin);
+        app(Trials::class)->start($open, $this->planA, null, $this->admin);
 
         $this->artisan('billing:end-trials', ['--now' => '2026-10-23 00:05'])->expectsOutput('Ended 0 trials and sent 0 trial reminders.');
         $this->artisan('billing:end-trials', ['--now' => '2026-10-24 00:05'])->expectsOutput('Ended 0 trials and sent 1 trial reminders.');
@@ -234,8 +274,7 @@ final class TrialsTest extends TestCase
         $this->artisan('billing:end-trials', ['--now' => '2026-10-30 12:00'])->expectsOutput('Ended 0 trials and sent 0 trial reminders.');
 
         $reminders = DB::table('billing_notices')->where('kind', 'trial_reminder')->orderBy('key')->pluck('key')->all();
-        $trial = PlanAssignment::query()->where('billing_account_id', $this->account->id)->sole();
-        $this->assertSame(["trial:{$trial->uuid}:2026-10-31:1d", "trial:{$trial->uuid}:2026-10-31:7d"], $reminders);
+        $this->assertSame(["trial:{$this->account->uuid}:2026-10-31:1d", "trial:{$this->account->uuid}:2026-10-31:7d"], $reminders);
         // With no card saved, the owners are asked for one.
         Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof TrialMail
             && $job->mail->kind === 'reminder' && $job->mail->lastDay === '30 October 2026' && $job->mail->card === null);
@@ -244,12 +283,32 @@ final class TrialsTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-10-30 13:00', 'UTC'));
         app(Trials::class)->change($this->account, CarbonImmutable::parse('2026-11-14 00:00', 'UTC'), null, $this->admin);
         $this->artisan('billing:end-trials', ['--now' => '2026-11-07 00:05'])->expectsOutput('Ended 0 trials and sent 1 trial reminders.');
+        // Moved to another plan with the same end: not reminded again.
+        app(Trials::class)->change($this->account, CarbonImmutable::parse('2026-11-14 00:00', 'UTC'), $this->larger, $this->admin);
+        $this->artisan('billing:end-trials', ['--now' => '2026-11-07 06:00'])->expectsOutput('Ended 0 trials and sent 0 trial reminders.');
+    }
+
+    public function test_reminders_sent_before_are_keyed_by_the_account(): void
+    {
+        $assignment = (string) Str::uuid();
+        DB::table('billing_notices')->insert([
+            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$assignment}:2026-10-31:7d", 'sent_at' => now()],
+            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$this->account->uuid}:2026-10-31:1d", 'sent_at' => now()],
+            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$assignment}:2026-10-31:1d", 'sent_at' => now()],
+        ]);
+
+        (require database_path('migrations/2026_11_18_000000_key_trial_reminders_by_account.php'))->up();
+
+        $this->assertSame(
+            ["trial:{$this->account->uuid}:2026-10-31:1d", "trial:{$this->account->uuid}:2026-10-31:7d"],
+            DB::table('billing_notices')->where('kind', 'trial_reminder')->orderBy('key')->pluck('key')->all(),
+        );
     }
 
     public function test_administrators_extend_shorten_move_end_and_convert_a_trial(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
-        $this->trial('POST', '', ['plan_uuid' => $this->starter->uuid, 'ends_at' => '2026-10-31T00:00:00Z'])->assertOk();
+        $this->trial('POST', '', ['plan_uuid' => $this->planA->uuid, 'ends_at' => '2026-10-31T00:00:00Z'])->assertOk();
 
         $this->trial('PATCH', '', ['ends_at' => '2026-11-15T00:00:00Z'])
             ->assertOk()
@@ -299,11 +358,11 @@ final class TrialsTest extends TestCase
     public function test_the_list_filters_trials_and_an_organization_can_start_on_one(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));
-        app(Trials::class)->start($this->account, $this->starter, CarbonImmutable::parse('2026-10-06 00:00', 'UTC'), $this->admin);
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-06 00:00', 'UTC'), $this->admin);
         $later = BillingAccount::factory()->create(['name' => 'Later Trial']);
-        app(Trials::class)->start($later, $this->starter, CarbonImmutable::parse('2026-12-01 00:00', 'UTC'), $this->admin);
+        app(Trials::class)->start($later, $this->planA, CarbonImmutable::parse('2026-12-01 00:00', 'UTC'), $this->admin);
         $paid = BillingAccount::factory()->create(['name' => 'Paid Account']);
-        app(PlanAssignments::class)->assign($paid, $this->starter, $this->admin);
+        app(PlanAssignments::class)->assign($paid, $this->planA, $this->admin);
         $this->actingAs($this->admin, 'sanctum');
 
         $names = fn (string $filter): array => collect($this->getJson('/api/v1/admin/billing-accounts?trial='.$filter)->assertOk()->json('data'))->pluck('name')->sort()->values()->all();

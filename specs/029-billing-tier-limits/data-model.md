@@ -89,7 +89,7 @@ writes a row with a `NULL` value from next month.
 | started_at | timestamptz | |
 | ended_at | timestamptz null | |
 | trial_ends_at | timestamptz null | `trial` only; null for an open-ended trial |
-| end_reason | string(32) null | `changed`, `removed`, `trial_reached_end`, `trial_ended_by_admin`, `trial_converted`, `payment_method_added` |
+| end_reason | string(32) null | `changed`, `removed`, `trial_reached_end`, `trial_ended_by_admin`, `trial_converted`, `payment_method_added`, `account_deleted` |
 | assigned_by, ended_by | user id null | null when the platform did it |
 
 - A partial unique index on (billing_account_id) `WHERE ended_at IS NULL` allows one
@@ -98,9 +98,14 @@ writes a row with a `NULL` value from next month.
 - The kinds move like this:
   - `trial` goes to `paid` at its end if a payment method exists, otherwise to
     `trial_unpaid`.
-  - `trial_unpaid` goes to `paid` from the next 00:00 UTC once a card is added, or by
-    an administrator.
-  - Any kind can be ended by a plan change or plan removal.
+  - `trial_unpaid` goes to `paid` once a card is added, or by an administrator. The
+    `paid` assignment opens at once, but the rest of that day stays the trial's, base
+    price and overage alike (`PlanAssignments::pricedAt`), so it is charged from the
+    next 00:00 UTC.
+  - Any kind can be ended by a plan change or plan removal, and deleting the account
+    ends its open assignment (`account_deleted`). Every end of a `trial` or
+    `trial_unpaid` is audited as `billing_account.trial_ended` with `from`, `to` and
+    `reason`.
 
 ## Usage
 
@@ -332,7 +337,7 @@ The new events are:
 - `billing_account.allowance_overridden`, `.allowance_override_removed`;
 - `billing_account.price_overridden`;
 - `billing_account.trial_started`, `.trial_changed`, `.trial_ended`;
-- `billing_account.payment_method_changed`;
+- `billing_account.payment_method_changed`, `.payment_method_removed`;
 - `billing_account.billing_details_updated`;
 - `billing_settings.updated`;
 - `billing_tax_rate.created`, `.updated`, `.archived`;

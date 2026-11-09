@@ -88,8 +88,8 @@ entries nor the routes: a platform administrator who may only manage retention o
 - **A billing account's page** has a **Plan** panel (change or remove the plan) and an
   **Allowances** panel listing each kind with its value, where it comes from
   (override, plan or default) and the override's note, with **Override** and
-  **Remove override**. Its **Usage** panel has a month picker (this UTC month and the
-  eleven before it), a meter per allowance and each organization's share. The account
+  **Remove override**. Its **Usage** panel has a month picker (UTC months back to the
+  account's start), a meter per allowance and each organization's share. The account
   list has a Plan column and filter, and a Usage filter: **80% or more used** or
   **Used up**, the device limit included.
 - The account's **Prices** panel lists each price this month and from next month, with
@@ -574,20 +574,25 @@ overage at 0.
   flagged, still not charged). Saving a card then makes it `paid`
   (`Trials::paymentMethodAdded`, called when Stripe confirms the card), and an
   administrator can convert it. Invoices charge each day by the assignment in force at
-  00:00 UTC, so a trial that ends during a day is charged from the next; overage counted
-  after the switch is charged.
+  00:00 UTC, so a trial that ends during a day is charged from the next. Overage follows
+  the same rule (`PlanAssignments::pricedAt`): what is counted on a day that began on a
+  trial is not charged, even after a card is saved or the trial converted that day.
 - **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
   passed, at their end even when the job runs late (so a trial that ended while the
   control plane was down ends within the hour after it is back), then sends `trial_reminder` emails
-  for limited trials ending within 7 days and within 1 day, once each per trial and end
-  date (so an extended trial is reminded again). Each asks for a card when none is
-  saved. Ending a trial sends `trial_ended` once, saying whether the plan is now charged.
+  for limited trials ending within 7 days and within 1 day, once each per account and
+  end date (`trial:{account}:{date}:7d|1d`), so an extended trial is reminded again and
+  one moved to another plan is not. Each asks for a card when none is saved. Ending a
+  trial sends `trial_ended` once, saying whether the plan is now charged.
 - **Portal.** The owner's **Plan** panel shows "Trial until {day}" or "Trial, no end
   date", and "Add a card to keep your plan" with **Add a card** while a trial ends within
   7 days or ended without a card.
 
 The account's history and the audit catalogue add `trial_started`, `trial_changed` and
-`trial_ended`. Dates come from `@iot-os/ui/lib/trials` (`trialLastDay`, `trialEndsAt`,
+`trial_ended`. Every end of a `trial` or `trial_unpaid` is audited as `trial_ended`
+with `from`, `to` and `reason`: its end date, an administrator, a plan change or
+removal, a new trial, a saved card, or deleting the account. Only a `trial`'s end emails
+the owners, and deleting the account emails no one. Dates come from `@iot-os/ui/lib/trials` (`trialLastDay`, `trialEndsAt`,
 `trialText`, `trialEndingSoon`).
 
 ## API

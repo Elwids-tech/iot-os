@@ -66,6 +66,12 @@ final class PlanAssignment extends Model
         return $this->belongsTo(BillingAccount::class)->withTrashed();
     }
 
+    /** A trial, running or ended without a card: either is not charged (spec 029 US8). */
+    public function isTrial(): bool
+    {
+        return $this->kind !== PlanAssignmentKind::Paid;
+    }
+
     /**
      * @param  Builder<self>  $query
      */

@@ -35,7 +35,7 @@ final class PlanAdministrationTest extends TestCase
     {
         $uuid = $this->actingAs($this->administrator, 'sanctum')
             ->postJson('/api/v1/admin/billing-plans', [
-                'name' => 'Growth',
+                'name' => 'Plan B',
                 'description' => 'For teams with a few sites.',
                 'allowances' => [
                     'alerts' => 3,
@@ -47,7 +47,7 @@ final class PlanAdministrationTest extends TestCase
                 ],
             ])
             ->assertCreated()
-            ->assertJsonPath('data.name', 'Growth')
+            ->assertJsonPath('data.name', 'Plan B')
             ->assertJsonPath('data.archived', false)
             ->assertJsonPath('data.accounts_count', 0)
             ->assertJsonPath('data.allowances', [
@@ -68,17 +68,17 @@ final class PlanAdministrationTest extends TestCase
     public function test_a_kind_left_out_is_not_set_on_the_plan(): void
     {
         $this->actingAs($this->administrator, 'sanctum')
-            ->postJson('/api/v1/admin/billing-plans', ['name' => 'Starter', 'allowances' => ['alerts' => 10]])
+            ->postJson('/api/v1/admin/billing-plans', ['name' => 'Plan A', 'allowances' => ['alerts' => 10]])
             ->assertCreated()
             ->assertJsonPath('data.allowances', [['kind' => 'alerts', 'value' => 10]]);
     }
 
     public function test_plan_values_are_validated(): void
     {
-        BillingPlan::factory()->create(['name' => 'Growth']);
+        BillingPlan::factory()->create(['name' => 'Plan B']);
         $this->actingAs($this->administrator, 'sanctum');
 
-        $this->postJson('/api/v1/admin/billing-plans', ['name' => 'GROWTH'])
+        $this->postJson('/api/v1/admin/billing-plans', ['name' => 'PLAN B'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name' => 'A plan with this name already exists.']);
         $this->postJson('/api/v1/admin/billing-plans', ['name' => 'A', 'allowances' => ['retention_days' => null]])
@@ -101,7 +101,7 @@ final class PlanAdministrationTest extends TestCase
 
     public function test_changing_the_allowances_of_a_plan_in_use_needs_the_number_of_accounts_confirmed(): void
     {
-        $plan = BillingPlan::factory()->withAllowances(['alerts' => 3])->create(['name' => 'Growth']);
+        $plan = BillingPlan::factory()->withAllowances(['alerts' => 3])->create(['name' => 'Plan B']);
         BillingAccount::factory()->count(2)->onPlan($plan)->create();
         $this->actingAs($this->administrator, 'sanctum');
 
@@ -120,9 +120,9 @@ final class PlanAdministrationTest extends TestCase
             ->assertJsonPath('data.history.0.changes', [['field' => 'alerts', 'from' => '3', 'to' => '5']]);
 
         // A rename needs no confirmation.
-        $this->patchJson('/api/v1/admin/billing-plans/'.$plan->uuid, ['name' => 'Growth 2026'])
+        $this->patchJson('/api/v1/admin/billing-plans/'.$plan->uuid, ['name' => 'Plan B 2026'])
             ->assertOk()
-            ->assertJsonPath('data.name', 'Growth 2026');
+            ->assertJsonPath('data.name', 'Plan B 2026');
     }
 
     public function test_an_unused_plan_changes_without_confirmation_and_unchanged_values_record_nothing(): void
@@ -208,18 +208,18 @@ final class PlanAdministrationTest extends TestCase
 
     public function test_plans_are_listed_and_searched_with_their_account_counts(): void
     {
-        $growth = BillingPlan::factory()->withAllowances(['devices' => 50])->create(['name' => 'Growth']);
-        BillingPlan::factory()->create(['name' => 'Starter']);
-        BillingAccount::factory()->count(3)->onPlan($growth)->create();
+        $planB = BillingPlan::factory()->withAllowances(['devices' => 50])->create(['name' => 'Plan B']);
+        BillingPlan::factory()->create(['name' => 'Plan A']);
+        BillingAccount::factory()->count(3)->onPlan($planB)->create();
 
         $this->actingAs($this->administrator, 'sanctum')
-            ->getJson('/api/v1/admin/billing-plans?search=gro')
+            ->getJson('/api/v1/admin/billing-plans?search=b')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.name', 'Growth')
+            ->assertJsonPath('data.0.name', 'Plan B')
             ->assertJsonPath('data.0.accounts_count', 3)
             ->assertJsonPath('data.0.allowances', [['kind' => 'devices', 'value' => 50]]);
-        $this->getJson('/api/v1/admin/billing-plans/'.$growth->uuid)
+        $this->getJson('/api/v1/admin/billing-plans/'.$planB->uuid)
             ->assertOk()
             ->assertJsonCount(3, 'data.accounts');
     }
@@ -244,7 +244,7 @@ final class PlanAdministrationTest extends TestCase
             ->assertJsonPath('data.capabilities.manage_organizations', false);
 
         $this->getJson('/api/v1/admin/billing-plans')->assertForbidden();
-        $this->postJson('/api/v1/admin/billing-plans', ['name' => 'Growth'])->assertForbidden();
+        $this->postJson('/api/v1/admin/billing-plans', ['name' => 'Plan B'])->assertForbidden();
         $this->getJson('/api/v1/admin/billing-plans/'.$plan->uuid)->assertForbidden();
         $this->patchJson('/api/v1/admin/billing-plans/'.$plan->uuid, ['name' => 'Other'])->assertForbidden();
         $this->postJson('/api/v1/admin/billing-plans/'.$plan->uuid.'/archive')->assertForbidden();

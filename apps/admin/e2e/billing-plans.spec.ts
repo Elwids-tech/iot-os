@@ -40,8 +40,8 @@ type Account = {
   overrides: Partial<Record<Kind, { value: number | null; note: string }>>
 }
 
-const starter = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-const growth = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+const planA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+const planB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 const created = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 const harbour = "11111111-1111-4111-8111-111111111111"
 const lakeside = "22222222-2222-4222-8222-222222222222"
@@ -49,16 +49,16 @@ const lakeside = "22222222-2222-4222-8222-222222222222"
 function fixtures() {
   const plans: Plan[] = [
     {
-      uuid: starter,
-      name: "Starter",
+      uuid: planA,
+      name: "Plan A",
       description: null,
       archived_at: null,
       allowances: { alerts: 100, devices: 10 },
       ever_assigned: true,
     },
     {
-      uuid: growth,
-      name: "Growth",
+      uuid: planB,
+      name: "Plan B",
       description: "For multi-site customers.",
       archived_at: null,
       allowances: { alerts: 1000, devices: 50, organizations: 5 },
@@ -66,8 +66,8 @@ function fixtures() {
     },
   ]
   const accounts: Account[] = [
-    { uuid: harbour, name: "Harbour Depot", plan: starter, overrides: {} },
-    { uuid: lakeside, name: "Lakeside Group", plan: starter, overrides: {} },
+    { uuid: harbour, name: "Harbour Depot", plan: planA, overrides: {} },
+    { uuid: lakeside, name: "Lakeside Group", plan: planA, overrides: {} },
     { uuid: "33333333-3333-4333-8333-333333333333", name: "Corner Shop", plan: null, overrides: {} },
   ]
   return { plans, accounts }
@@ -262,7 +262,7 @@ test("creates a plan, then edits one that billing accounts are on after confirmi
   await page.getByRole("link", { name: "Plans" }).click()
 
   await expect(page.getByRole("heading", { name: "Plans" })).toBeVisible()
-  await expect(page.getByRole("row", { name: /Starter Alerts 100 · Devices 10 2 Active/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Plan A Alerts 100 · Devices 10 2 Active/ })).toBeVisible()
 
   await page.getByRole("button", { name: "New plan" }).click()
   const dialog = page.getByRole("dialog", { name: "New plan" })
@@ -282,7 +282,7 @@ test("creates a plan, then edits one that billing accounts are on after confirmi
   })
   await expect(page.getByText("90 days")).toBeVisible()
 
-  await page.goto(`/plans/${starter}`)
+  await page.goto(`/plans/${planA}`)
   await expect(page.getByRole("row", { name: /Harbour Depot Paid/ })).toBeVisible()
   await page.getByRole("button", { name: "Edit", exact: true }).click()
   await page.getByRole("spinbutton", { name: "Alerts per month" }).fill("150")
@@ -291,7 +291,7 @@ test("creates a plan, then edits one that billing accounts are on after confirmi
   const confirm = page.getByRole("alertdialog", { name: "This changes 2 billing accounts" })
   await expect(confirm).toBeVisible()
   await confirm.getByRole("button", { name: "Change 2 accounts" }).click()
-  await expect(page.getByText("Starter saved")).toBeVisible()
+  await expect(page.getByText("Plan A saved")).toBeVisible()
   expect(sent.at(-1)?.body).toMatchObject({ allowances: { alerts: 150, devices: 10 }, confirm_affected: 2 })
   await expect(page.getByText("150", { exact: true })).toBeVisible()
 })
@@ -300,23 +300,23 @@ test("archives a plan, lists it under Archived, and never deletes a used plan", 
   const { sent } = await mockApi(page)
   await page.goto("/plans")
 
-  await page.getByRole("button", { name: "Actions for Starter" }).click()
+  await page.getByRole("button", { name: "Actions for Plan A" }).click()
   await expect(page.getByRole("menuitem", { name: "Delete: it was used, archive it instead" })).toBeDisabled()
   await page.getByRole("menuitem", { name: "Archive plan" }).click()
-  await expect(page.getByText("Starter archived")).toBeVisible()
-  expect(sent.at(-1)).toMatchObject({ method: "POST", path: `/api/v1/admin/billing-plans/${starter}/archive` })
-  await expect(page.getByRole("row", { name: /Starter/ })).toHaveCount(0)
+  await expect(page.getByText("Plan A archived")).toBeVisible()
+  expect(sent.at(-1)).toMatchObject({ method: "POST", path: `/api/v1/admin/billing-plans/${planA}/archive` })
+  await expect(page.getByRole("row", { name: /Plan A\b/ })).toHaveCount(0)
 
   await page.goto("/plans?archived=archived")
-  await expect(page.getByRole("row", { name: /Starter .* Archived/ })).toBeVisible()
-  await expect(page.getByRole("row", { name: /Growth/ })).toHaveCount(0)
+  await expect(page.getByRole("row", { name: /Plan A .* Archived/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Plan B\b/ })).toHaveCount(0)
 
   await page.goto("/plans")
-  await page.getByRole("button", { name: "Actions for Growth" }).click()
+  await page.getByRole("button", { name: "Actions for Plan B" }).click()
   await page.getByRole("menuitem", { name: "Delete plan" }).click()
-  await page.getByRole("alertdialog", { name: "Delete Growth?" }).getByRole("button", { name: "Delete plan" }).click()
-  await expect(page.getByText("Growth deleted")).toBeVisible()
-  await expect(page.getByRole("row", { name: /Growth/ })).toHaveCount(0)
+  await page.getByRole("alertdialog", { name: "Delete Plan B?" }).getByRole("button", { name: "Delete plan" }).click()
+  await expect(page.getByText("Plan B deleted")).toBeVisible()
+  await expect(page.getByRole("row", { name: /Plan B\b/ })).toHaveCount(0)
 })
 
 test("puts a billing account on a plan, overrides an allowance and removes both", async ({ page }) => {
@@ -324,12 +324,12 @@ test("puts a billing account on a plan, overrides an allowance and removes both"
   await page.goto("/billing-accounts/33333333-3333-4333-8333-333333333333")
 
   await expect(page.getByText("No plan. The account gets the deployment's default allowances.")).toBeVisible()
-  await choose(page, "Choose a plan", /Growth/)
-  await expect(page.getByText("Corner Shop is now on Growth")).toBeVisible()
+  await choose(page, "Choose a plan", /Plan B\b/)
+  await expect(page.getByText("Corner Shop is now on Plan B")).toBeVisible()
   expect(sent.at(-1)).toMatchObject({
     method: "PUT",
     path: "/api/v1/admin/billing-accounts/33333333-3333-4333-8333-333333333333/plan",
-    body: { plan_uuid: growth },
+    body: { plan_uuid: planB },
   })
   await expect(page.getByRole("row", { name: /Active devices 50 Plan/ })).toBeVisible()
   await expect(page.getByText("0 of 5 organizations")).toBeVisible()
@@ -353,7 +353,7 @@ test("puts a billing account on a plan, overrides an allowance and removes both"
   await expect(page.getByText("Active devices for Corner Shop is back to 50")).toBeVisible()
 
   await page.getByRole("button", { name: "Remove plan" }).click()
-  await page.getByRole("alertdialog", { name: "Take Corner Shop off Growth?" }).getByRole("button", { name: "Remove plan" }).click()
+  await page.getByRole("alertdialog", { name: "Take Corner Shop off Plan B?" }).getByRole("button", { name: "Remove plan" }).click()
   await expect(page.getByText("Corner Shop is no longer on a plan")).toBeVisible()
   expect(sent.at(-1)?.body).toEqual({ plan_uuid: null })
 })
@@ -376,14 +376,14 @@ test("asks before a plan change shortens telemetry retention, then confirms it",
   })
   await page.goto("/billing-accounts/33333333-3333-4333-8333-333333333333")
 
-  await choose(page, "Choose a plan", /Growth/)
+  await choose(page, "Choose a plan", /Plan B\b/)
   const dialog = page.getByRole("alertdialog", { name: "Shorten telemetry retention for 1 organization?" })
   await expect(dialog.getByText("Corner Shop HQ")).toBeVisible()
   await expect(dialog.getByText("400 → 7 days")).toBeVisible()
   await dialog.getByRole("button", { name: "Shorten retention" }).click()
 
-  await expect(page.getByText("Corner Shop is now on Growth")).toBeVisible()
-  expect(sent.at(-1)?.body).toEqual({ plan_uuid: growth, confirm_retention: true })
+  await expect(page.getByText("Corner Shop is now on Plan B")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ plan_uuid: planB, confirm_retention: true })
 })
 
 test("creates an organization with a new billing account on a plan", async ({ page }) => {
@@ -394,7 +394,7 @@ test("creates an organization with a new billing account on a plan", async ({ pa
   const dialog = page.getByRole("dialog", { name: "New organization" })
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Bay Kiosk")
   await expect(dialog.getByRole("combobox", { name: /^Plan/ })).toHaveText(/No plan/)
-  await choose(page, /^Plan/, /Starter/)
+  await choose(page, /^Plan/, /Plan A\b/)
   await dialog.getByRole("button", { name: "Create organization" }).click()
 
   await expect(page.getByText("Bay Kiosk created")).toBeVisible()
@@ -402,7 +402,7 @@ test("creates an organization with a new billing account on a plan", async ({ pa
     name: "Bay Kiosk",
     slug: "bay-kiosk",
     new_billing_account: { name: "Bay Kiosk", contact_email: null },
-    plan_uuid: starter,
+    plan_uuid: planA,
   })
 })
 
@@ -410,7 +410,7 @@ test("plan pages fit a phone without sideways scrolling", async ({ page }) => {
   await mockApi(page)
   await page.setViewportSize({ width: 375, height: 812 })
 
-  for (const path of ["/plans", `/plans/${starter}`, `/billing-accounts/${harbour}`]) {
+  for (const path of ["/plans", `/plans/${planA}`, `/billing-accounts/${harbour}`]) {
     await page.goto(path)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

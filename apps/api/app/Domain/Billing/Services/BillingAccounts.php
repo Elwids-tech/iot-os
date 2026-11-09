@@ -80,7 +80,11 @@ final class BillingAccounts
             abort_if($locked->invoices()->where('status', Invoice::ISSUED)->exists(), 409, 'This billing account has issued invoices, so it cannot be deleted.');
             $locked->invoices()->where('status', Invoice::DRAFT)->get()->each->delete();
             // Its plan ends with it, so plan counts and lists leave it out (spec 028 FR-002).
+            $open = $locked->planAssignments()->whereNull('ended_at')->with('plan')->first();
             $locked->planAssignments()->whereNull('ended_at')->update(['ended_at' => now(), 'ended_by' => $actor->getKey(), 'end_reason' => 'account_deleted']);
+            if ($open?->isTrial()) {
+                app(Trials::class)->endedBy($locked, $open->refresh(), null, 'account_deleted', $actor, email: false);
+            }
 
             $locked->delete();
             DeviceAudit::record('billing_account.deleted', null, $actor->getKey(), $locked->uuid, ['name' => $locked->name]);

@@ -2002,10 +2002,36 @@ account is charged when a card is saved, or flagged otherwise.
   organization and day (two reductions minutes apart are one warning, from the first
   period to the last), and a floor whose end changes nothing gets no warning.
 
-- [ ] T169 Rename the example plans in the billing API tests (`PlanAdministrationTest`, `PlanAssignmentTest`, `InvoiceDraftingTest`) and the admin billing e2e (`billing-plans`, `billing-trials`, `billing-invoices`) to neutral names such as "Plan A" or "Example plan", and give their prices made-up amounts, so no fixture reads like a tier on a price list, per 028 Assumptions ("this spec names none") and the public-repository rule (contradicts)
-- [ ] T170 Price the overage counted after a trial turns paid (a card saved on a `trial_unpaid` account, or **Convert**) at 0 until the next 00:00 UTC, so the account is charged from the next day as the trial email, the portal and the account history say; today `PlanAssignments::replace` opens the paid assignment at once and the rest of that day's alert and data point overage is priced, per 029 FR-050, US8/AC6, plan "Trials", data-model "kinds move like this", `stripe-webhooks.md` (`checkout.session.completed`, setup) and `billing-api.md` (`trial/convert`) (contradicts)
-- [ ] T171 Key trial reminders by billing account and end date (or carry the steps already sent across `Trials::change`), so moving a trial to another plan does not send the 7-day or 1-day reminder again, per 029 FR-049 and SC-008 (partial)
-- [ ] T172 Audit `trial_ended` for every exit from `trial_unpaid` (a plan change or removal, a new trial) and for a trial closed by deleting the account, without the owner email, or correct T114's note and `docs/features/billing.md` to name the exits audited only as plan changes, per 029 FR-048 and T114 (partial)
+- [x] T169 Rename the example plans in the billing API tests (`PlanAdministrationTest`, `PlanAssignmentTest`, `InvoiceDraftingTest`) and the admin billing e2e (`billing-plans`, `billing-trials`, `billing-invoices`) to neutral names such as "Plan A" or "Example plan", and give their prices made-up amounts, so no fixture reads like a tier on a price list, per 028 Assumptions ("this spec names none") and the public-repository rule (contradicts)
+
+  As built (PR 24): the billing API tests and the admin billing e2e name their example
+  plans "Plan A" and "Plan B", and the price change test uses a made-up amount.
+
+- [x] T170 Price the overage counted after a trial turns paid (a card saved on a `trial_unpaid` account, or **Convert**) at 0 until the next 00:00 UTC, so the account is charged from the next day as the trial email, the portal and the account history say; today `PlanAssignments::replace` opens the paid assignment at once and the rest of that day's alert and data point overage is priced, per 029 FR-050, US8/AC6, plan "Trials", data-model "kinds move like this", `stripe-webhooks.md` (`checkout.session.completed`, setup) and `billing-api.md` (`trial/convert`) (contradicts)
+
+  As built (PR 24): `PlanAssignments::pricedAt` gives the assignment whose prices
+  apply to usage at an instant: the one in force then, except that a day which began on
+  a trial (`trial` or `trial_unpaid`) stays the trial's until the next 00:00 UTC, as its
+  base price does. `Usage::add` records overage against it, so overage counted after a
+  card is saved or a trial converted that day is not charged. The paid assignment still
+  opens at once; the data model and both contracts say so.
+
+- [x] T171 Key trial reminders by billing account and end date (or carry the steps already sent across `Trials::change`), so moving a trial to another plan does not send the 7-day or 1-day reminder again, per 029 FR-049 and SC-008 (partial)
+
+  As built (PR 24): reminders are keyed `trial:{account}:{end date}:7d|1d`, and
+  migration `2026_11_18_000000_key_trial_reminders_by_account` rewrites the keys sent
+  so far (dropping a duplicate of the same date). Moving a trial to another plan with the
+  same end sends nothing again; extending it still does.
+
+- [x] T172 Audit `trial_ended` for every exit from `trial_unpaid` (a plan change or removal, a new trial) and for a trial closed by deleting the account, without the owner email, or correct T114's note and `docs/features/billing.md` to name the exits audited only as plan changes, per 029 FR-048 and T114 (partial)
+
+  As built (PR 24): a plan change or removal from `trial_unpaid`, a new trial replacing
+  it, and deleting an account on either kind of trial are audited as `trial_ended`
+  (reasons `plan_changed`, `plan_removed`, `trial_started`, `account_deleted`). Only a
+  `trial`'s end emails the owners, and deleting the account emails no one. The history
+  reads "ended by a new trial" and "ended when the account was deleted".
+  `PlanAssignment::isTrial` covers both kinds.
+
 - [x] T173 Put the new `final_through` only on the last event of a reporter pass that writes more than one (the earlier ones carry the previous watermark), so the control plane never reads a month as final while some of its buckets are still on their way in a later inbox batch, per ADR-036, `contracts/usage-data-points-event.md` and 029 FR-014 and FR-031 (partial)
 
   As built (PR 23): a pass's earlier events carry the previous watermark (or, with
@@ -2060,5 +2086,13 @@ account is charged when a card is saved, or flagged otherwise.
   reporter's asynchronous commit, and a deleted organization counting for the account
   it had at that hour; `docs/reference/events.md` likewise.
 
-- [ ] T180 Correct the specification documents: in `contracts/billing-api.md` the admin account detail sends `plan_assignment` and the owner list sends `plan` with `kind` and `trial_ends_at` (no `assignment`); `data-model.md` adds `account_deleted` to `end_reason` and `billing_account.payment_method_removed` to the audit list, per the plan's documentation rule and T137 (contradicts)
-- [ ] T181 Correct `docs/features/billing.md` (the month picker goes back to the account's start, not twelve months) and `docs/ops/billing-payments.md` (the invoice action is **Check with Stripe**, not **Reconcile**), per T154 and the plan's documentation rule (contradicts)
+- [x] T180 Correct the specification documents: in `contracts/billing-api.md` the admin account detail sends `plan_assignment` and the owner list sends `plan` with `kind` and `trial_ends_at` (no `assignment`); `data-model.md` adds `account_deleted` to `end_reason` and `billing_account.payment_method_removed` to the audit list, per the plan's documentation rule and T137 (contradicts)
+
+  As built (PR 24): `billing-api.md` names `plan_assignment` and the owner's `plan`
+  fields; `data-model.md` adds `account_deleted`, `.payment_method_removed` and how
+  `trial_unpaid` turns paid; `stripe-webhooks.md` says the same.
+
+- [x] T181 Correct `docs/features/billing.md` (the month picker goes back to the account's start, not twelve months) and `docs/ops/billing-payments.md` (the invoice action is **Check with Stripe**, not **Reconcile**), per T154 and the plan's documentation rule (contradicts)
+
+  As built (PR 24): `billing.md` says the month picker goes back to the account's start,
+  and the ops doc names **Check with Stripe**. `billing.md` also covers T170–T172.

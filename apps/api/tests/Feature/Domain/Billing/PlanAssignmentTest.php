@@ -55,14 +55,14 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_allowances_resolve_override_then_plan_then_default(): void
     {
-        $plan = BillingPlan::factory()->withAllowances(['devices' => 50, 'organizations' => 10])->create(['name' => 'Growth']);
+        $plan = BillingPlan::factory()->withAllowances(['devices' => 50, 'organizations' => 10])->create(['name' => 'Plan B']);
         $account = BillingAccount::factory()->create();
         $other = BillingAccount::factory()->create();
         $this->actingAs($this->administrator, 'sanctum');
 
         $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/plan', ['plan_uuid' => $plan->uuid])
             ->assertOk()
-            ->assertJsonPath('data.plan_assignment.plan.name', 'Growth')
+            ->assertJsonPath('data.plan_assignment.plan.name', 'Plan B')
             ->assertJsonPath('data.plan_assignment.kind', 'paid')
             ->assertJsonPath('data.organization_limit', 10);
         $this->putJson('/api/v1/admin/billing-accounts/'.$other->uuid.'/plan', ['plan_uuid' => $plan->uuid])->assertOk();
@@ -91,13 +91,13 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_an_override_survives_plan_changes_and_can_be_unlimited(): void
     {
-        $starter = BillingPlan::factory()->withAllowances(['alerts' => 100])->create();
-        $growth = BillingPlan::factory()->withAllowances(['alerts' => 1000])->create();
-        $account = BillingAccount::factory()->onPlan($starter)->create();
+        $planA = BillingPlan::factory()->withAllowances(['alerts' => 100])->create();
+        $planB = BillingPlan::factory()->withAllowances(['alerts' => 1000])->create();
+        $account = BillingAccount::factory()->onPlan($planA)->create();
         $this->actingAs($this->administrator, 'sanctum');
 
         $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/allowances/alerts', ['value' => null, 'note' => 'Pilot'])->assertOk();
-        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/plan', ['plan_uuid' => $growth->uuid])
+        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/plan', ['plan_uuid' => $planB->uuid])
             ->assertOk()
             ->assertJsonPath('data.allowances.0', ['kind' => 'alerts', 'value' => null, 'source' => 'override', 'note' => 'Pilot']);
     }
@@ -120,17 +120,17 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_assignments_follow_one_another_and_answer_for_past_instants(): void
     {
-        $starter = BillingPlan::factory()->create(['name' => 'Starter']);
-        $growth = BillingPlan::factory()->create(['name' => 'Growth']);
+        $planA = BillingPlan::factory()->create(['name' => 'Plan A']);
+        $planB = BillingPlan::factory()->create(['name' => 'Plan B']);
         $account = BillingAccount::factory()->create();
         $assignments = app(PlanAssignments::class);
 
         $this->travelTo(CarbonImmutable::parse('2026-11-01 09:00:00'));
-        $assignments->assign($account, $starter, $this->administrator);
+        $assignments->assign($account, $planA, $this->administrator);
         $this->travelTo(CarbonImmutable::parse('2026-11-10 12:00:00'));
-        $assignments->assign($account, $growth, $this->administrator);
+        $assignments->assign($account, $planB, $this->administrator);
         // Assigning the plan the account is already on changes nothing.
-        $assignments->assign($account, $growth, $this->administrator);
+        $assignments->assign($account, $planB, $this->administrator);
         $this->travelTo(CarbonImmutable::parse('2026-11-20 08:00:00'));
         $assignments->remove($account, $this->administrator);
 
@@ -140,8 +140,8 @@ final class PlanAssignmentTest extends TestCase
         $this->assertSame(['changed', 'removed'], $rows->pluck('end_reason')->all());
 
         $this->assertNull($assignments->at($account, CarbonImmutable::parse('2026-10-31 23:59:59')));
-        $this->assertSame('Starter', $assignments->at($account, CarbonImmutable::parse('2026-11-05 00:00:00'))?->plan->name);
-        $this->assertSame('Growth', $assignments->at($account, CarbonImmutable::parse('2026-11-10 12:00:00'))?->plan->name);
+        $this->assertSame('Plan A', $assignments->at($account, CarbonImmutable::parse('2026-11-05 00:00:00'))?->plan->name);
+        $this->assertSame('Plan B', $assignments->at($account, CarbonImmutable::parse('2026-11-10 12:00:00'))?->plan->name);
         $this->assertNull($assignments->at($account, CarbonImmutable::parse('2026-11-25 00:00:00')));
         $this->assertNull($assignments->current($account));
     }
@@ -162,7 +162,7 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_an_organization_is_created_with_a_new_billing_account_on_a_plan(): void
     {
-        $plan = BillingPlan::factory()->create(['name' => 'Growth']);
+        $plan = BillingPlan::factory()->create(['name' => 'Plan B']);
         $archived = BillingPlan::factory()->archived()->create();
         $existing = BillingAccount::factory()->create();
         $this->actingAs($this->administrator, 'sanctum');
@@ -174,7 +174,7 @@ final class PlanAssignmentTest extends TestCase
             'plan_uuid' => $plan->uuid,
         ])->assertCreated();
         $account = Organization::query()->where('slug', 'corner-shop')->firstOrFail()->billingAccount;
-        $this->assertSame('Growth', app(PlanAssignments::class)->current($account)?->plan->name);
+        $this->assertSame('Plan B', app(PlanAssignments::class)->current($account)?->plan->name);
 
         $this->postJson('/api/v1/admin/organizations', ['name' => 'A', 'slug' => 'a', 'plan_uuid' => $archived->uuid])
             ->assertUnprocessable()
@@ -187,16 +187,16 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_the_billing_account_list_shows_and_filters_by_plan(): void
     {
-        $growth = BillingPlan::factory()->create(['name' => 'Growth']);
-        BillingAccount::factory()->onPlan($growth)->create(['name' => 'On Growth']);
+        $planB = BillingPlan::factory()->create(['name' => 'Plan B']);
+        BillingAccount::factory()->onPlan($planB)->create(['name' => 'On Plan B']);
         BillingAccount::factory()->create(['name' => 'On Nothing']);
         $this->actingAs($this->administrator, 'sanctum');
 
-        $this->getJson('/api/v1/admin/billing-accounts?plan='.$growth->uuid)
+        $this->getJson('/api/v1/admin/billing-accounts?plan='.$planB->uuid)
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.name', 'On Growth')
-            ->assertJsonPath('data.0.plan', ['uuid' => $growth->uuid, 'name' => 'Growth', 'kind' => 'paid', 'trial_ends_at' => null]);
+            ->assertJsonPath('data.0.name', 'On Plan B')
+            ->assertJsonPath('data.0.plan', ['uuid' => $planB->uuid, 'name' => 'Plan B', 'kind' => 'paid', 'trial_ends_at' => null]);
         $this->getJson('/api/v1/admin/billing-accounts?plan=none')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
@@ -206,7 +206,7 @@ final class PlanAssignmentTest extends TestCase
 
     public function test_the_account_history_shows_plan_and_allowance_changes(): void
     {
-        $plan = BillingPlan::factory()->create(['name' => 'Growth']);
+        $plan = BillingPlan::factory()->create(['name' => 'Plan B']);
         $account = BillingAccount::factory()->create();
         $this->actingAs($this->administrator, 'sanctum');
 
@@ -216,6 +216,6 @@ final class PlanAssignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.history.0.action', 'updated')
             ->assertJsonPath('data.history.0.changes', [['field' => 'devices', 'from' => 'Unlimited', 'to' => '20']])
-            ->assertJsonPath('data.history.1.changes', [['field' => 'plan', 'from' => null, 'to' => 'Growth']]);
+            ->assertJsonPath('data.history.1.changes', [['field' => 'plan', 'from' => null, 'to' => 'Plan B']]);
     }
 }

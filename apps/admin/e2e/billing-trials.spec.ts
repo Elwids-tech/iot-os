@@ -12,8 +12,8 @@ const superAdmin = {
   organizations: [],
 }
 
-const starter = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-const growth = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+const planA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+const planB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 const shop = "33333333-3333-4333-8333-333333333333"
 const DAY = 86_400_000
 
@@ -24,8 +24,8 @@ const shortDay = (day: string) =>
   new Date(Date.parse(`${day}T00:00:00Z`)).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
 
 const plans = [
-  { uuid: starter, name: "Starter" },
-  { uuid: growth, name: "Growth" },
+  { uuid: planA, name: "Plan A" },
+  { uuid: planB, name: "Plan B" },
 ]
 
 type Assignment = { kind: "paid" | "trial" | "trial_unpaid"; plan: string; trial_ends_at: string | null }
@@ -38,11 +38,11 @@ async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, json: body })
 }
 
-/** The mocked API: Corner Shop on Starter, paid, with no card; plus the request bodies. */
+/** The mocked API: Corner Shop on Plan A, paid, with no card; plus the request bodies. */
 async function mockApi(page: Page) {
   const sent: { method: string; path: string; body: unknown }[] = []
   const lists: string[] = []
-  let assignment: Assignment = { kind: "paid", plan: starter, trial_ends_at: null }
+  let assignment: Assignment = { kind: "paid", plan: planA, trial_ends_at: null }
   const planOf = (uuid: string) => plans.find((plan) => plan.uuid === uuid)!
   const detail = () => ({
     uuid: shop,
@@ -101,11 +101,11 @@ async function mockApi(page: Page) {
     }
     if (path === "/api/v1/admin/billing-accounts" && method === "GET") {
       lists.push(url.search)
-      const ending = { kind: "trial" as const, plan: starter, trial_ends_at: dayAfter(utcDay(3)) }
+      const ending = { kind: "trial" as const, plan: planA, trial_ends_at: dayAfter(utcDay(3)) }
       const rows = [
         summary("11111111-1111-4111-8111-111111111111", "Harbour Depot", ending),
-        summary("22222222-2222-4222-8222-222222222222", "Lakeside Group", { kind: "trial_unpaid", plan: growth, trial_ends_at: null }),
-        summary(shop, "Corner Shop", { kind: "paid", plan: starter, trial_ends_at: null }),
+        summary("22222222-2222-4222-8222-222222222222", "Lakeside Group", { kind: "trial_unpaid", plan: planB, trial_ends_at: null }),
+        summary(shop, "Corner Shop", { kind: "paid", plan: planA, trial_ends_at: null }),
       ]
       return json(route, paginated(url.searchParams.get("trial") === "ending" ? rows.slice(0, 1) : rows))
     }
@@ -164,30 +164,30 @@ test("starts a trial, extends it, ends it without a card and converts it to paid
   await plan.getByRole("button", { name: "Start trial" }).click()
   const dialog = page.getByRole("dialog", { name: "Start a trial for Corner Shop" })
   // The account's plan, for 30 days with today, by default.
-  await expect(dialog.getByRole("combobox", { name: "Plan" })).toHaveText(/Starter/)
+  await expect(dialog.getByRole("combobox", { name: "Plan" })).toHaveText(/Plan A\b/)
   await expect(dialog.getByLabel("Last day (UTC)")).toHaveValue(utcDay(29))
   const lastDay = utcDay(20)
   await dialog.getByLabel("Last day (UTC)").fill(lastDay)
   await dialog.getByRole("button", { name: "Start trial" }).click()
 
-  await expect(page.getByText("Corner Shop is on a trial of Starter")).toBeVisible()
-  expect(sent.at(-1)).toEqual({ method: "POST", path: `/api/v1/admin/billing-accounts/${shop}/trial`, body: { plan_uuid: starter, ends_at: dayAfter(lastDay) } })
+  await expect(page.getByText("Corner Shop is on a trial of Plan A")).toBeVisible()
+  expect(sent.at(-1)).toEqual({ method: "POST", path: `/api/v1/admin/billing-accounts/${shop}/trial`, body: { plan_uuid: planA, ends_at: dayAfter(lastDay) } })
   await expect(plan.getByText("Trial", { exact: true })).toBeVisible()
   await expect(plan.getByText(`until ${shortDay(lastDay)}`, { exact: false })).toBeVisible()
 
-  // Open-ended, on Growth.
+  // Open-ended, on Plan B.
   await plan.getByRole("button", { name: "Change trial" }).click()
   const change = page.getByRole("dialog", { name: "Change the trial of Corner Shop" })
   await expect(change.getByLabel("Last day (UTC)")).toHaveValue(lastDay)
-  await choose(page, "Plan", /Growth/)
+  await choose(page, "Plan", /Plan B\b/)
   await change.getByRole("radio", { name: /No end date/ }).click()
   await change.getByRole("button", { name: "Save trial" }).click()
   await expect(page.getByText("Trial changed")).toBeVisible()
-  expect(sent.at(-1)).toEqual({ method: "PATCH", path: `/api/v1/admin/billing-accounts/${shop}/trial`, body: { plan_uuid: growth, ends_at: null } })
+  expect(sent.at(-1)).toEqual({ method: "PATCH", path: `/api/v1/admin/billing-accounts/${shop}/trial`, body: { plan_uuid: planB, ends_at: null } })
   await expect(plan.getByText("no end date", { exact: false })).toBeVisible()
 
   await plan.getByRole("button", { name: "End trial" }).click()
-  const end = page.getByRole("alertdialog", { name: "End the trial of Growth now?" })
+  const end = page.getByRole("alertdialog", { name: "End the trial of Plan B now?" })
   await expect(end.getByText("There is no saved card", { exact: false })).toBeVisible()
   await end.getByRole("button", { name: "End trial" }).click()
   await expect(page.getByText("The trial ended. Corner Shop is not charged until an owner saves a card")).toBeVisible()
@@ -196,7 +196,7 @@ test("starts a trial, extends it, ends it without a card and converts it to paid
 
   await plan.getByRole("button", { name: "Convert to paid" }).click()
   await page.getByRole("alertdialog", { name: "Convert Corner Shop to paid?" }).getByRole("button", { name: "Convert to paid" }).click()
-  await expect(page.getByText("Corner Shop is on Growth, charged from tomorrow")).toBeVisible()
+  await expect(page.getByText("Corner Shop is on Plan B, charged from tomorrow")).toBeVisible()
   expect(sent.at(-1)?.path).toBe(`/api/v1/admin/billing-accounts/${shop}/trial/convert`)
   await expect(plan.getByText("Paid")).toBeVisible()
 })
@@ -220,23 +220,23 @@ test("asks before a trial's plan shortens telemetry retention, then confirms it"
 
   await page.getByRole("button", { name: "Start trial" }).click()
   const dialog = page.getByRole("dialog", { name: "Start a trial for Corner Shop" })
-  await choose(page, "Plan", /Growth/)
+  await choose(page, "Plan", /Plan B\b/)
   await dialog.getByRole("radio", { name: /No end date/ }).click()
   await dialog.getByRole("button", { name: "Start trial" }).click()
   const confirm = page.getByRole("alertdialog", { name: "Shorten telemetry retention for 1 organization?" })
   await expect(confirm.getByText("400 → 30 days")).toBeVisible()
   await confirm.getByRole("button", { name: "Shorten retention" }).click()
 
-  await expect(page.getByText("Corner Shop is on a trial of Growth")).toBeVisible()
-  expect(sent.at(-1)?.body).toEqual({ plan_uuid: growth, ends_at: null, confirm_retention: true })
+  await expect(page.getByText("Corner Shop is on a trial of Plan B")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ plan_uuid: planB, ends_at: null, confirm_retention: true })
 })
 
 test("marks trials in the list and filters those ending within 7 days", async ({ page }) => {
   const { lists } = await mockApi(page)
   await page.goto("/billing-accounts")
 
-  await expect(page.getByRole("row", { name: new RegExp(`Harbour Depot .* Starter Trial until ${shortDay(utcDay(3))}`) })).toBeVisible()
-  await expect(page.getByRole("row", { name: /Lakeside Group .* Growth Trial ended, no payment method/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: new RegExp(`Harbour Depot .* Plan A Trial until ${shortDay(utcDay(3))}`) })).toBeVisible()
+  await expect(page.getByRole("row", { name: /Lakeside Group .* Plan B Trial ended, no payment method/ })).toBeVisible()
   await page.getByRole("button", { name: "Filters" }).click()
   await page.getByRole("combobox", { name: "Trial" }).click()
   await page.getByRole("option", { name: "Ending within 7 days" }).click()
@@ -253,7 +253,7 @@ test("creates an organization whose new billing account starts on an open-ended 
   const dialog = page.getByRole("dialog", { name: "New organization" })
   await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Bay Kiosk")
   await expect(dialog.getByRole("checkbox", { name: /Start on a trial/ })).toHaveCount(0)
-  await choose(page, /^Plan/, /Starter/)
+  await choose(page, /^Plan/, /Plan A\b/)
   await dialog.getByRole("checkbox", { name: /Start on a trial/ }).click()
   await dialog.getByRole("radio", { name: /No end date/ }).click()
   await dialog.getByRole("button", { name: "Create organization" }).click()
@@ -263,6 +263,6 @@ test("creates an organization whose new billing account starts on an open-ended 
     name: "Bay Kiosk",
     slug: "bay-kiosk",
     new_billing_account: { name: "Bay Kiosk", contact_email: null },
-    trial: { plan_uuid: starter, ends_at: null },
+    trial: { plan_uuid: planA, ends_at: null },
   })
 })
