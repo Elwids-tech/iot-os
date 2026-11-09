@@ -225,6 +225,18 @@ final class DeviceLimitTest extends TestCase
         $this->assertSame(["devices:{$month}:100", "devices:{$month}:80"], $keys());
     }
 
+    public function test_a_limit_of_0_with_no_active_devices_sends_no_warning(): void
+    {
+        $this->account->owners()->attach(User::factory()->create()->id, ['created_at' => now()]);
+
+        $this->limit(0);
+
+        $this->assertSame(0, DB::table('billing_notices')->where('billing_account_id', $this->account->id)->count());
+        // The first activation at 0 is refused, so 0 of 0 never warns.
+        $this->requestActivation($this->configured($this->acme, 'meter-1'))->assertUnprocessable();
+        $this->assertSame(0, DB::table('billing_notices')->where('billing_account_id', $this->account->id)->count());
+    }
+
     public function test_the_months_peak_is_recorded_and_earlier_months_show_it(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-20 10:00:00', 'UTC'));

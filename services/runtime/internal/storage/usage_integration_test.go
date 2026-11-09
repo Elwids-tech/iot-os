@@ -332,3 +332,69 @@ func TestAQuietReporterStillReportsEveryTwoMinutes(t *testing.T) {
 		t.Fatalf("wrote %d events right after a heartbeat (%v)", count()-reported-1, err)
 	}
 }
+
+// A pass with more buckets than one event carries moves the watermark only in its last
+// event, and each event gets its own time, so the relay sends that one last (ADR-036).
+func TestOnlyAPassesLastEventMovesTheWatermark(t *testing.T) {
+	store, ctx, _ := historyStore(t)
+	started := time.Now().UTC().Add(-time.Second)
+	cleanUsageEvents(t, store, started)
+	now := time.Now().UTC().Truncate(time.Hour).Add(30 * time.Minute)
+	closed, previous := now.Add(-2*time.Hour).Truncate(time.Hour), now.Add(-3*time.Hour).Truncate(time.Hour)
+	organizations := make([]string, usageBatch+1)
+	for i := range organizations {
+		organizations[i] = UUID()
+	}
+	if _, err := store.Pool.Exec(ctx, "INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) SELECT o,$2,1 FROM unnest($1::uuid[]) AS o", organizations, closed); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = store.Pool.Exec(context.Background(), "DELETE FROM device_runtime.usage_data_points WHERE organization_uuid=ANY($1::uuid[])", organizations)
+	})
+
+	watermark, err := store.ReportUsage(ctx, now, previous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.Pool.Query(ctx, "SELECT (event->'payload'->>'final_through')::timestamptz, created_at FROM device_runtime.outbox WHERE event->>'type'=$1 AND created_at>=$2 ORDER BY created_at", UsageEventType, started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type written struct{ finalThrough, createdAt time.Time }
+	var events []written
+	for rows.Next() {
+		var event written
+		if err := rows.Scan(&event.finalThrough, &event.createdAt); err != nil {
+			t.Fatal(err)
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 2 {
+		t.Fatalf("%d buckets went out in %d events", len(organizations), len(events))
+	}
+	for i, event := range events {
+		want := previous
+		if i == len(events)-1 {
+			want = watermark
+		}
+		if !event.finalThrough.Equal(want) {
+			t.Fatalf("event %d of %d carries %s, want %s", i+1, len(events), event.finalThrough, want)
+		}
+		if i > 0 && !event.createdAt.After(events[i-1].createdAt) {
+			t.Fatalf("events %d and %d share a time", i, i+1)
+		}
+	}
+
+	// A restarted reporter reads the furthest watermark, not whichever event came first.
+	tx, err := store.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if got, err := lastUsageWatermark(ctx, tx); err != nil || !got.Equal(watermark) {
+		t.Fatalf("restart reads %s (%v), want %s", got, err, watermark)
+	}
+}

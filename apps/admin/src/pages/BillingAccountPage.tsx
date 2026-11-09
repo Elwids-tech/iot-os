@@ -201,7 +201,9 @@ export function BillingAccountPage() {
         header: "Value",
         hideable: false,
         value: (allowance) => allowance.value ?? "",
-        cell: (allowance) => <span className="tabular-nums">{allowanceValue(allowance.kind, allowance.value)}</span>,
+        cell: (allowance) => (
+          <span className="tabular-nums">{allowanceValue(allowance.kind, allowance.value, account?.platform_retention_days)}</span>
+        ),
       },
       {
         id: "source",
@@ -223,7 +225,7 @@ export function BillingAccountPage() {
           ),
       },
     ],
-    [],
+    [account?.platform_retention_days],
   )
 
   const prices = account?.prices
@@ -756,6 +758,7 @@ export function BillingAccountPage() {
         figures={account.usage}
         load={(month) => apiClient.adminBillingAccountUsage(account.uuid, month)}
         since={account.created_at}
+        refreshEvery={60_000}
       />
       <Panel aria-labelledby="billing-invoices">
         <PanelHeader>

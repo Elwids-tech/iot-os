@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/internal/events/usage.data_points.v1.schema.json",
   "title": "usage.data_points.v1",
-  "description": "Cumulative counts of stored readings per organization and UTC hour (spec 029 US3, ADR-036). Producer: runtime usage reporter (Store.ReportUsage), written to device_runtime.outbox every 60 s in the transaction that marks the buckets reported, relayed on iot.runtime.usage.data_points.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which applies only increases per bucket to billing usage (DataPointReports). At least once; deduplicate by uuid, a UUID v5 of usage.data_points#<final_through>#<sha256 of the buckets JSON>, in device_inbox. Counts are cumulative, so replays and reordering are harmless. Times are RFC 3339 UTC.",
+  "description": "Cumulative counts of stored readings per organization and UTC hour (spec 029 US3, ADR-036). Producer: runtime usage reporter (Store.ReportUsage), written to device_runtime.outbox every 60 s in the transaction that marks the buckets reported, relayed on iot.runtime.usage.data_points.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which applies only increases per bucket to billing usage (DataPointReports). At least once; deduplicate by uuid, a UUID v5 of usage.data_points#<final_through>#<sha256 of the buckets JSON> (a heartbeat's: usage.data_points#heartbeat#<generated_at>), in device_inbox. With nothing to report, an event with no buckets goes out every two minutes as a heartbeat. Only the last event of a reporter pass advances final_through. Counts are cumulative, so replays and reordering are harmless; an organization deleted since still counts for the account it had at that hour. Times are RFC 3339 UTC.",
   "type": "object",
   "properties": {
     "uuid": {
@@ -29,7 +29,7 @@
           "format": "date-time"
         },
         "buckets": {
-          "description": "0 to 500 buckets. An event with none still advances final_through.",
+          "description": "0 to 500 buckets. An event with none advances final_through or is a heartbeat.",
           "type": "array",
           "maxItems": 500,
           "items": {

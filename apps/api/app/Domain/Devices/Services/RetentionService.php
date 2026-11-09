@@ -90,20 +90,43 @@ final class RetentionService
     }
 
     /**
-     * The shorter period a running floor holds back, and when it starts: the last floor
-     * above the effective period to end.
+     * The shorter period running floors hold back: `days` from `from`, when the last of
+     * them ends, and `steps`, each date cleanup shortens and the period it keeps from
+     * then. Two reductions within a grace step down twice (spec 029 FR-020, FR-022).
      *
-     * @return array{days: int, from: string}|null
+     * @return array{days: int, from: string, steps: list<array{days: int, from: string}>}|null
      */
     private function pendingReduction(Organization $organization, int $days): ?array
     {
-        $until = DB::table('telemetry_retention_floors')
+        $floors = DB::table('telemetry_retention_floors')
             ->where('organization_id', $organization->getKey())
             ->where('until', '>', now())
             ->where('days', '>', $days)
-            ->max('until');
+            ->orderBy('until')
+            ->get(['days', 'until'])
+            ->values();
+        $steps = [];
+        $kept = max($days, (int) $floors->max('days'));
 
-        return $until === null ? null : ['days' => $days, 'from' => CarbonImmutable::parse((string) $until)->utc()->toIso8601ZuluString()];
+        foreach ($floors as $index => $floor) {
+            // Once this floor ends, cleanup keeps the longest period still held back.
+            $next = (int) max($days, (int) $floors->slice($index + 1)->max('days'));
+            $from = CarbonImmutable::parse((string) $floor->until)->utc()->toIso8601ZuluString();
+            if ($next < $kept) {
+                if ($steps !== [] && $steps[array_key_last($steps)]['from'] === $from) {
+                    array_pop($steps);
+                }
+                $steps[] = ['days' => (int) $next, 'from' => (string) $from];
+                $kept = $next;
+            }
+        }
+
+        if ($steps === []) {
+            return null;
+        }
+        $last = $steps[array_key_last($steps)];
+
+        return ['days' => (int) $last['days'], 'from' => (string) $last['from'], 'steps' => $steps];
     }
 
     public function update(?Organization $organization, ?int $days, int $revision, bool $confirmed, int $actor): array

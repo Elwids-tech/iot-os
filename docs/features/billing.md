@@ -230,7 +230,8 @@ organization and UTC hour (`usage.data_points.v1`,
   month counted after midnight, is priced against the allowance of the plan in force at
   its hour (the account's override when one is set), not today's.
 - **Finality.** `billing_usage_watermarks` keeps the runtime's `final_through`, which
-  only moves forward, and when it last reported: the newest report's `generated_at`
+  only moves forward (a reporter pass of more than 500 buckets writes several events,
+  and only the last, sent last, advances it), and when it last reported: the newest report's `generated_at`
   (never later than now), not when the report arrived, so a backlog of events reads as
   late. A month's `data_points` entry is
   `final` once the watermark passes the month's end; until then the count may still
@@ -297,7 +298,9 @@ naming the account, the allowance, what is used and left, and linking to
 - Once per threshold, allowance and month: `Notices` inserts a `billing_notices` row
   keyed `{kind}:{YYYY-MM}:{80|100}` and queues the emails in the same transaction only
   when it was inserted. An allowance that jumps past both thresholds at once sends both.
-- Thresholds are checked after the counting transaction commits. Unlimited allowances
+- Thresholds are checked after the counting transaction commits. Nothing used sends
+  none, even against an allowance of 0 (an account given a device limit of 0 with no
+  active devices is not warned). Unlimited allowances
   send nothing, and an account with no owners gets no notice.
 - `DeliverBillingEmail` sends one email per owner on the `alerts` database queue (five
   tries, backoff 1, 5 and 15 minutes), and skips anyone who is no longer an owner or
@@ -330,10 +333,15 @@ In the apps (spec 029 US5):
   `Freshness`), and the portal asks for usage again every minute. `UsagePanel`
   combines the meters, a month picker that goes back to the account's start, and each
   organization's share; the admin
-  account page and the portal's Billing accounts page both use it.
+  account page and the portal's Billing accounts page both use it. On the admin page,
+  which loads the account once, the panel reloads this month itself every minute
+  (`refreshEvery`), leaving open dialogs alone; on both apps an earlier month whose
+  data points are not final yet reloads every minute until they are.
 - **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
   a **Plan** panel (the plan and since when, each allowance, retention included), the
-  **Usage** panel and its **Organizations**.
+  **Usage** panel and its **Organizations**. Retention the plan leaves to the platform
+  shows the platform's days, "400 days (platform setting)": both account responses
+  carry `platform_retention_days`, and admin's **Allowances** panel shows the same.
 - **Managers** see **Settings → Usage**, shown only with `Device.manage`: their
   organization's active devices, data points, alerts and SMS this month, what is left
   of each on the account (never its own count), and its retention with where it comes
@@ -363,11 +371,21 @@ retention.
   are the effective period raised to any running floor, so two reductions in a row
   keep the longest period of the last 30 days, and undoing a change in time deletes
   nothing. Organizations with their own override are untouched.
+- **Steps.** `pending_reduction` is `{days, from, steps}`: `days` from `from` once the
+  last floor ends, and `steps`, each date cleanup shortens and the period it keeps from
+  then. After 90 → 30 days and, five days later, 30 → 7, cleanup keeps 90 days until
+  the first floor ends, then 30 until the second does, then 7. Settings → Retention
+  reads "cleanup keeps 90 days, then 30 days from …, then 7 days from …", and the
+  portal's Settings → Usage says when history older than each period goes.
 - **Emails.** Owners get [`RetentionReducedMail`](../../apps/api/app/Domain/Billing/Mail/RetentionReducedMail.php)
   at each change (`retention_reduction`, keyed by its floor, so a second change the same
   day is emailed too), and `billing:retention-warnings` (daily at 08:00) sends it again
   7 days before the floor ends (`retention_warning`, once per organization and date),
-  unless the change was undone. `billing:prune` removes floors that ended.
+  naming the step cleanup takes then (90 → 30 above, then 30 → 7 before the second);
+  steps on the same day make one warning, from the period before the first to the one
+  after the last. A floor whose end changes nothing gets no warning: the change was
+  undone, or a later floor keeps the period and is warned about itself. `billing:prune` removes floors
+  that ended.
 - **Direct changes** on Settings → Retention (an organization override or the platform
   default) keep their immediate behaviour and make no floor. A confirmed shorter
   organization override also ends that organization's running floors, so it applies at
@@ -632,6 +650,6 @@ where `allowance` is the allowance now and an earlier month's `left` is null, pl
 `stale` for `data_points`. The manager's leaves out `organizations` and
 `peak_this_month`, and its `count` is the organization's own. It also carries
 `retention`: `{days, source, pending_reduction}`, where `source` is `organization`,
-`billing_account`, `platform` or `default` and `pending_reduction` is `{days, from}`
-while a billing change's grace runs. An owner's account `plan` carries `since`, `kind`
+`billing_account`, `platform` or `default` and `pending_reduction` is
+`{days, from, steps}` while a billing change's grace runs. An owner's account `plan` carries `since`, `kind`
 and `trial_ends_at`.
