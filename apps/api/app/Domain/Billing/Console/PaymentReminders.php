@@ -49,7 +49,8 @@ final class PaymentReminders extends Command
             ->chunkById(200, function (Collection $invoices) use ($notices, $today, &$reminded, &$charged): void {
                 foreach ($invoices as $invoice) {
                     /** @var Invoice $invoice */
-                    if ($invoice->outstanding() <= 0) {
+                    // Nothing to ask for while Stripe has not answered a payment; the step goes out later if it fails.
+                    if ($invoice->outstanding() <= 0 || $invoice->paymentProcessing()) {
                         continue;
                     }
 

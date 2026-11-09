@@ -282,7 +282,10 @@ final class Payments
         });
     }
 
-    /** A payment an administrator recorded as made another way (FR-044). */
+    /**
+     * A payment an administrator recorded as made another way (FR-044). Owners get a
+     * receipt, as for every payment that succeeds (FR-042).
+     */
     public function recordOutside(Invoice $invoice, int $amount, ?string $note, User $actor): Payment
     {
         return DB::transaction(function () use ($invoice, $amount, $note, $actor): Payment {
@@ -306,6 +309,7 @@ final class Payments
             ]);
             $this->settle($locked);
             ActivityLog::record('billing_invoice.payment_recorded', null, $actor, $locked, ['amount' => $amount, 'note' => $note]);
+            $this->notices->send($locked->billingAccount, 'receipt', 'payment:'.$payment->uuid, PaymentMail::receipt($locked, $locked->billingAccount, $amount));
 
             return $payment;
         });
@@ -424,7 +428,7 @@ final class Payments
             $invoice->forceFill(['payment_status' => PaymentStatus::Failed])->save();
         }
         ActivityLog::record('billing_invoice.payment_failed', null, null, $invoice, ['amount' => $payment->amount, 'reason' => $reason]);
-        $this->notices->send($account, 'payment_failed', 'payment:'.$payment->uuid, PaymentMail::failed($invoice, $account, $payment->amount, $reason));
+        $this->notices->send($account, 'payment_failed', 'payment:'.$payment->uuid, PaymentMail::failed($invoice, $account, $payment->amount, $reason, $payment->method));
     }
 
     /**

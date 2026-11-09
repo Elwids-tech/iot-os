@@ -359,7 +359,10 @@ retention.
 - **Direct changes** on Settings → Retention (an organization override or the platform
   default) keep their immediate behaviour and make no floor. A confirmed shorter
   organization override also ends that organization's running floors, so it applies at
-  the next cleanup (FR-021).
+  the next cleanup (FR-021). The retention response carries `cleanup_days` (what cleanup
+  uses now, longer during a grace) and `default_days` (the platform's own fallback, 400
+  by default). The confirmation reduces from what cleanup uses and says it ends the
+  grace.
 
 ## Prices and invoices
 
@@ -378,11 +381,12 @@ every division rounds half up.
   address, tax number, invoice footer and number prefixes (`INV-`, `CN-`), saved with a
   revision (409 when stale). Tax rates are named, in basis points, archived rather than
   deleted. Each account has a billing address, an optional tax number and a rate or none.
-- **Drafting.** `billing:draft-invoices` (daily at 02:10) drafts each ended month's
-  invoice for each account that had a plan during it and has none for it, once the
-  runtime has reported data points to the month's end. Every month since the first plan
-  assignment is checked, so a month the job missed, or whose usage became final late, is
-  drafted on the next run. Each UTC day is charged to the assignment in force at 00:00, so a plan
+- **Drafting.** A month in which the account had no plan cannot be drafted (422, D2).
+  `billing:draft-invoices` (daily at 02:10) drafts each ended month's invoice for each
+  account that had a plan during it and has none for it, once the runtime has reported
+  data points to the month's end. Every month since the first plan assignment is
+  checked, so a month the job missed, or whose usage became final late, is drafted on
+  the next run. Each UTC day is charged to the assignment in force at 00:00, so a plan
   assigned mid-day starts charging the next day; consecutive days of one assignment make
   one line with the base price prorated by day, and trial days are shown at 0. Overage
   from `billing_overage` is priced per assignment at that plan's prices for the month,
@@ -486,10 +490,14 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   to account credit for the next invoice, shown as "Credit from the overpayment of
   INV-…", is audited (`billing_invoice.overpaid`, history `overpaid`), and leaves a
   settled invoice's status as it was.
-- **Emails** go to the owners once each: a `receipt` per payment, a `payment_failed`
-  email with the card issuer's reason, and a `payment_reminder` on the due date and
-  seven days after. Each links to `/billing?account=…&invoice=…`. The invoice email now
-  links to the invoice too.
+- **Emails** go to the owners once each:
+  - a `receipt` per payment, a payment recorded by hand included (FR-042);
+  - a `payment_failed` email with the card issuer's reason, worded for a saved card or
+    for Stripe's page as the payment was made;
+  - a `payment_reminder` on the due date and seven days after.
+
+  Each links to `/billing?account=…&invoice=…`. The invoice email now links to the
+  invoice too.
 - **Reminders and past due.** `billing:payment-reminders` (daily at 09:00 UTC,
   `--now=`) sends each reminder once and charges a saved card again, within 30 days of
   the due date; past that the invoice is left to administrators, so a reminder whose
@@ -497,9 +505,13 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   invoice unpaid after its due date get `past_due_since`, kept from the first day; the
   flag clears once none is. Nothing else changes for the account's organizations
   (FR-043).
+- **While a payment is processing.** A card or Stripe page payment Stripe has not
+  answered yet sets the invoice's `payment_processing`. The portal shows
+  "Payment processing" instead of **Pay**, and reminders wait. The step goes out on a
+  later run if the payment fails.
 - **By hand.** An administrator records a payment made another way, up to what is still
-  owed, with a note, whether or not cards are on. **Check with Stripe** (`reconcile`)
-  asks Stripe about pending payments: by the PaymentIntent, or, for a charge whose
+  owed, with a required note on how it was paid, whether or not cards are on. **Check
+  with Stripe** (`reconcile`) asks Stripe about pending payments: by the PaymentIntent, or, for a charge whose
   answer was lost, by searching its metadata for the payment's uuid. Finding none ten
   minutes on, longer than Stripe's search takes to catch up, means the card was never
   charged: the payment fails, the owners are emailed, and the next attempt or **Pay**
@@ -521,7 +533,8 @@ overage at 0.
   assignment and open the next at one instant (`PlanAssignments::replace`), so the
   history answers "was the account on a trial at instant X". Extending or shortening
   changes `trial_ends_at` in place. A trial's plan can shorten retention, which needs
-  confirmation like a plan change.
+  confirmation like a plan change. Changing or removing the plan during a trial ends it
+  too, audited and emailed as any end ("moved to {plan}" or "no longer on a plan").
 - **The card rule** (FR-050). When a trial ends, the account stays on its plan: `paid`
   with a saved card, otherwise `trial_unpaid` ("trial ended, no payment method":
   flagged, still not charged). Saving a card then makes it `paid`

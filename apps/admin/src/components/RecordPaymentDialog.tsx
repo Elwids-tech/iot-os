@@ -63,11 +63,15 @@ export function RecordPaymentDialog({
       setErrors({ amount: [`Enter an amount above 0 and up to ${money(invoice.outstanding)}, what is still owed.`] })
       return
     }
+    if (!values.note.trim()) {
+      setErrors({ note: ["Say how it was paid, such as the transfer's reference."] })
+      return
+    }
     setErrors(null)
     setFormError(null)
     setIsSubmitting(true)
     try {
-      const saved = await apiClient.recordInvoicePayment(invoice.uuid, { amount, note: values.note.trim() || null })
+      const saved = await apiClient.recordInvoicePayment(invoice.uuid, { amount, note: values.note.trim() })
       toast.success(`Payment of ${money(amount)} recorded`)
       onSaved(saved)
       onClose()
@@ -109,8 +113,8 @@ export function RecordPaymentDialog({
                 value={values.note}
                 maxLength={1000}
                 rows={2}
-                optional
-                help="Such as the transfer's reference. Owners never see it."
+                required
+                help="How it was paid, such as the transfer's reference. Owners never see it."
                 error={field("note")}
                 onChange={(event) => setValues((current) => ({ ...current, note: event.target.value }))}
               />

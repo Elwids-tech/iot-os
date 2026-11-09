@@ -40,14 +40,16 @@ export function invoiceLines<T extends { kind: string; description: string }>(li
 }
 
 /**
- * What a `payment` Status shows for an invoice: its payment status, or `overdue` once
- * an issued invoice still awaiting payment is past its due date. Drafts have none.
+ * What a `payment` Status shows for an invoice: its payment status, `processing` while
+ * Stripe has not answered a payment yet, or `overdue` once an issued invoice still
+ * awaiting payment is past its due date. Drafts have none.
  */
 export function paymentState(
-  invoice: { status: string; payment_status: string; due_at: string | null },
+  invoice: { status: string; payment_status: string; due_at: string | null; payment_processing?: boolean },
   now: number = Date.now(),
 ): string | null {
   if (invoice.status !== "issued") return null
+  if (invoice.payment_processing && ["pending", "failed"].includes(invoice.payment_status)) return "processing"
   if (invoice.payment_status === "pending" && invoice.due_at && Date.parse(invoice.due_at) < now) return "overdue"
   return invoice.payment_status
 }

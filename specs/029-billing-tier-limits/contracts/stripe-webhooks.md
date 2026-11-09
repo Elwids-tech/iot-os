@@ -26,8 +26,10 @@ For each event it:
 - **Payment status only moves forward.** An older `payment_failed` arriving after
   `succeeded` changes nothing.
 - **Amounts are checked.** A succeeded amount different from the payment's amount is
-  recorded as received, and the invoice is marked for review instead of paid. This
-  should not happen; it guards against a mismatched session.
+  kept as received and audited (`billing_invoice.payment_amount_mismatch`) for an
+  administrator to review. What goes beyond what was still owed becomes account
+  credit (`billing_invoice.overpaid`). This should not happen; it guards against a
+  mismatched session.
 - **Charges are idempotent.** The off-session charge uses the idempotency key
   `invoice:{invoice_uuid}:{attempt}`, so a retried job never charges twice.
 - **Payments can be switched off.** With no `STRIPE_SECRET`, the route and payment

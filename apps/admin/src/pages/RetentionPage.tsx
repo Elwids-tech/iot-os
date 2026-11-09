@@ -61,7 +61,10 @@ export function RetentionPage() {
   const proposed = inherited ? null : Number(days),
     effective =
       // Without its own override an organization gets its billing account's retention, else the platform default.
-      proposed ?? (org === "platform" ? 90 : (setting?.billing_days ?? setting?.platform_days ?? 90))
+      proposed ??
+      (org === "platform" ? (setting?.default_days ?? 400) : (setting?.billing_days ?? setting?.platform_days ?? setting?.default_days ?? 400))
+  // While a billing change's grace runs, cleanup keeps a longer period than `days`, and confirming ends it.
+  const current = setting?.cleanup_days ?? setting?.days
   const dirty = Boolean(
     setting &&
     (inherited !== (setting.override_days === null) ||
@@ -330,8 +333,11 @@ export function RetentionPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reduce measurement retention?</AlertDialogTitle>
             <AlertDialogDescription>
-              Reduce from {setting?.days} to {effective} days. At the next daily
-              cleanup, measurements received before{" "}
+              Reduce from {current} to {effective} days.{" "}
+              {setting?.pending_reduction
+                ? `This also ends the grace a billing change gave this organization, which keeps ${current} days until ${formatDateTime(setting.pending_reduction.from)}. `
+                : ""}
+              At the next daily cleanup, measurements received before{" "}
               {formatDateTime(new Date(Date.now() - effective * 86400000).toISOString())}{" "}
               will be eligible for permanent deletion.{" "}
               {org === "platform"

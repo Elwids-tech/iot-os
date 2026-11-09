@@ -340,6 +340,10 @@ export type RetentionSetting = {
   override_days: number | null
   revision: number
   platform_days: number
+  /** What the platform falls back to without a default of its own. Older payloads omit it. */
+  default_days?: number
+  /** What cleanup uses now: the previous, longer period while a billing change's grace runs. Older payloads omit it. */
+  cleanup_days?: number
   /** The billing account's retention for an organization, or null when it sets none. */
   billing_days?: number | null
   /**

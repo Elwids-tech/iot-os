@@ -372,6 +372,8 @@ export type InvoiceLineKind = "base_price" | "trial" | "alert_overage" | "data_p
  */
 export type InvoiceSummary = {
   uuid: string
+  /** A card or Stripe page payment is still being processed: nothing more can be paid until Stripe answers. */
+  payment_processing: boolean
   /** Null until issued. */
   number: string | null
   status: InvoiceStatus

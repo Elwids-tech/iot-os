@@ -469,6 +469,21 @@ async function fitsPhone(page: Page) {
     .toBe(true)
 }
 
+test("resuming a device at the billing account's limit says why once", async ({ page }) => {
+  const refusal = "Your billing account's device limit (3) is reached. Deactivate a device or contact the platform operator."
+  await setup(page, { details: { [meterId]: { ...detail, lifecycle: "deactivated", presence: "offline", operation: null } } })
+  await page.route(`**/api/v1/organizations/${org}/devices/${meterId}/lifecycle`, (route) =>
+    route.fulfill({ status: 422, json: { message: refusal, errors: { device: [refusal] } } }),
+  )
+  await page.goto(`${base}/devices/${meterId}`)
+
+  await page.getByRole("button", { name: "Device actions" }).click()
+  await page.getByRole("menuitem", { name: "Resume device" }).click()
+  await page.getByRole("alertdialog").getByRole("button", { name: "Resume device" }).click()
+  await expect(page.getByText(refusal)).toHaveCount(1)
+  await expect(page.getByText(`${refusal} ${refusal}`)).toHaveCount(0)
+})
+
 test("device directory links profiles and gateways, hides archived devices and filters by lifecycle", async ({ page }) => {
   const state = await setup(page, { devices: [meter, idle, retired] })
   await page.goto(`${base}/devices`)

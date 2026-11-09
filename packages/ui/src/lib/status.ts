@@ -219,6 +219,8 @@ const domains = {
   /** What is owed on an issued invoice (spec 029 US6, US7). */
   payment: {
     pending: { tone: "info", label: "Awaiting payment" },
+    /** A card or Stripe page payment is still being processed: nothing more is asked for until Stripe answers. */
+    processing: { tone: "info", label: "Payment processing" },
     paid: { tone: "good", label: "Paid" },
     failed: { tone: "critical", label: "Payment failed" },
     credited: { tone: "muted", label: "Credited" },

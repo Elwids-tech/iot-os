@@ -181,14 +181,24 @@ final class Trials
     /**
      * Audits the trial's end and, when a `trial` ended, emails the owners once.
      */
-    private function ended(BillingAccount $account, PlanAssignment $from, PlanAssignment $next, string $reason, ?User $actor): void
+    /**
+     * A trial ended by a plan change or removal (`PlanAssignments`), audited and emailed
+     * like any other end (spec 029 FR-048, FR-049). `$next` is null when the account was
+     * taken off its plan.
+     */
+    public function endedBy(BillingAccount $account, PlanAssignment $trial, ?PlanAssignment $next, string $reason, ?User $actor): void
+    {
+        $this->ended($account, $trial, $next, $reason, $actor);
+    }
+
+    private function ended(BillingAccount $account, PlanAssignment $from, ?PlanAssignment $next, string $reason, ?User $actor): void
     {
         ActivityLog::record('billing_account.trial_ended', null, $actor, $account, [
             'plan' => ['uuid' => $from->plan->uuid, 'name' => $from->plan->name],
             'from' => $from->kind->value,
-            'to' => $next->kind->value,
+            'to' => $next?->kind->value,
             'reason' => $reason,
-            'at' => $next->started_at->toIso8601String(),
+            'at' => ($next?->started_at ?? $from->ended_at ?? CarbonImmutable::now())->toIso8601String(),
         ]);
 
         if ($from->kind === PlanAssignmentKind::Trial) {

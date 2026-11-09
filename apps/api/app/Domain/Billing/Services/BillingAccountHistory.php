@@ -134,9 +134,12 @@ final class BillingAccountHistory
                             new BillingAccountChange(
                                 'trial',
                                 ($details['plan']['name'] ?? '').(($details['from'] ?? null) === 'trial_unpaid' ? ', ended without a payment method' : ''),
-                                ($details['to'] ?? null) === 'paid'
-                                    ? 'paid from '.CarbonImmutable::parse((string) ($details['at'] ?? 'now'))->utc()->subMicrosecond()->addDay()->format('j M Y')
-                                    : 'ended without a payment method',
+                                match (true) {
+                                    ($details['reason'] ?? null) === 'plan_changed' => 'ended by a plan change',
+                                    ($details['reason'] ?? null) === 'plan_removed' => 'ended when the plan was removed',
+                                    ($details['to'] ?? null) === 'paid' => 'paid from '.CarbonImmutable::parse((string) ($details['at'] ?? 'now'))->utc()->subMicrosecond()->addDay()->format('j M Y'),
+                                    default => 'ended without a payment method',
+                                },
                             ),
                         ]],
                         'billing_account.allowance_overridden', 'billing_account.allowance_override_removed' => ['changes' => [

@@ -47,6 +47,10 @@ final class InvoiceDrafter
         return DB::transaction(function () use ($account, $month, $actor, $note): Invoice {
             // Read fresh under the lock: the caller's model may hold an old tax rate.
             $account = BillingAccount::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
+            // A month without a plan has nothing to invoice (spec 029 D2).
+            if (! $account->planAssignments()->where('started_at', '<', $month->addMonthNoOverflow())->where(fn ($query) => $query->whereNull('ended_at')->orWhere('ended_at', '>', $month))->exists()) {
+                throw ValidationException::withMessages(['month' => sprintf('%s had no plan in %s, so there is nothing to invoice.', $account->name, $month->format('F Y'))]);
+            }
             abort_if(
                 Invoice::query()->where('billing_account_id', $account->getKey())->whereDate('month', $month->toDateString())->exists(),
                 409,

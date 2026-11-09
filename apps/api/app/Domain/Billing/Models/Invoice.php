@@ -115,6 +115,14 @@ final class Invoice extends Model
         return max(0, $this->amount_due - (int) $this->creditNotes()->sum('applied') - $this->paid());
     }
 
+    /** A card or Checkout payment towards it is still pending (spec 029 US7). */
+    public function paymentProcessing(): bool
+    {
+        return $this->relationLoaded('payments')
+            ? $this->payments->contains(fn (Payment $payment): bool => $payment->status === Payment::PENDING && $payment->method !== Payment::OUTSIDE)
+            : $this->payments()->where('status', Payment::PENDING)->where('method', '!=', Payment::OUTSIDE)->exists();
+    }
+
     /** The payments towards it that succeeded (spec 029 US7). */
     public function paid(): int
     {

@@ -1323,7 +1323,8 @@ export class ApiClient {
   }
 
   /** Records a payment made another way, such as a bank transfer, up to what is still owed. */
-  async recordInvoicePayment(invoiceUuid: string, values: { amount: number; note?: string | null }): Promise<InvoiceDetail> {
+  /** A payment made another way; `note` says how (spec 029 FR-044). */
+  async recordInvoicePayment(invoiceUuid: string, values: { amount: number; note: string }): Promise<InvoiceDetail> {
     return this.invoiceAction(invoiceUuid, "payments", values)
   }
 

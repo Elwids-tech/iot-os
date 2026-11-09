@@ -33,7 +33,8 @@ scenario. Constitution IX: rebuild first, then exercise the running application.
    device stays registered.
 3. Deactivate one device and activate the fourth. Expect success; usage shows 3 of 3.
 4. Run a bulk onboarding of 5 devices behind a gateway with one place free. Expect one
-   activated device and four items Skipped with the limit reason.
+   activated device and four items Failed with the limit reason, their devices kept
+   registered; once the limit is raised, **Retry failed** activates them.
 
 ## 3. Alerts, SMS and data points (028 US3, 029 US3)
 
@@ -70,9 +71,11 @@ scenario. Constitution IX: rebuild first, then exercise the running application.
 
 1. Admin → **Billing settings**: enter the operator's details and a tax rate, and give
    the account that rate. Set plan prices; they apply from next month.
-2. To test without waiting a month, draft for the current month with **Draft anyway**.
-   The draft is marked incomplete. Check the prorated base price, the overage lines,
-   the tax and the total.
+2. To see a month in progress, draft it with **Draft anyway**. The draft is marked
+   incomplete and is a preview: it cannot be issued until the month ends (409, and
+   **Issue** is disabled). Check the prorated base price, the overage lines, the tax and
+   the total. To issue in a test, draft an ended month whose usage is final, or move the
+   clock (`billing:draft-invoices --now=`).
 3. Add a credit adjustment and issue. Expect the next invoice number, no further
    edits, and one email to the billing contact and each owner. The owner can download
    the PDF and CSV in the portal. A member sees nothing.

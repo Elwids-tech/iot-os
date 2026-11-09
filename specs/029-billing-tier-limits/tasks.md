@@ -1860,17 +1860,71 @@ account is charged when a card is saved, or flagged otherwise.
 - [ ] T155 Count a late data point report for a deleted organization in that organization's share too (by its uuid), so the account total equals the shares and the invoice's usage rows, and correct the docs that say it is not counted, per 029 FR-017 and edge case "Organization deleted" (partial)
 - [ ] T156 Price a late data point report for an earlier month against that month's plan assignment rather than today's allowance, per plan: overage fixed as counted (D9) (partial)
 - [ ] T157 Amend spec 029's FR-013 and edge case "Organization moved mid-month" to say a move counts by the hour, as ADR-036 decided, per 029 FR-013 (contradicts)
-- [ ] T158 End a trial through `Trials` when its plan is changed or removed, so the end is audited (`trial_ended`) and emailed, per FR-048 and FR-049 (partial)
-- [ ] T159 Refuse drafting an invoice for a month in which the account had no plan, per 029 edge case "No plan" and D2 (unrequested)
-- [ ] T160 Require a note on a payment recorded by hand, per FR-044 and US7/AC6 (partial)
-- [ ] T161 While a payment is pending, say "payment processing" in the portal and leave **Pay** out of reminders and the invoice instead of offering a page that answers 409, per edge case "A charge succeeds at the provider but its report is lost" (partial)
-- [ ] T162 Decide whether a payment recorded by hand sends owners a receipt, then send one or say otherwise in the spec and docs, per FR-042 (partial)
-- [ ] T163 Word the payment-failed email by how the payment was made, so a declined Checkout payment does not speak of a saved card, per US7/AC4 (partial)
-- [ ] T164 Add issuing's 422 (total below 0) to `contracts/openapi/supplements/billing.yaml` and re-export the contract, per Constitution IV and FR-052 (partial)
-- [ ] T165 Bring the feature's documents in line with the code, per plan: contracts and documentation (contradicts):
+- [x] T158 End a trial through `Trials` when its plan is changed or removed, so the end is audited (`trial_ended`) and emailed, per FR-048 and FR-049 (partial)
+
+  As built (PR 21): `PlanAssignments::assign` and `remove` end an open trial through
+  `Trials::endedBy`, which audits `trial_ended` (`to` the new assignment's kind, or none)
+  and emails the owners: "The account moved to {plan}" or "The account is no longer on a
+  plan." The account's history says "ended by a plan change" or "ended when the plan was
+  removed".
+
+- [x] T159 Refuse drafting an invoice for a month in which the account had no plan, per 029 edge case "No plan" and D2 (unrequested)
+
+  As built (PR 21): `InvoiceDrafter` answers 422 on `month` ("{account} had no plan in
+  {month}, so there is nothing to invoice.") instead of drafting an empty invoice.
+
+- [x] T160 Require a note on a payment recorded by hand, per FR-044 and US7/AC6 (partial)
+
+  As built (PR 21): `RecordPaymentRequest` requires `note` (up to 1000 characters).
+  Admin's **Record payment** dialog marks it required and asks how it was paid, such as
+  the transfer's reference.
+
+- [x] T161 While a payment is pending, say "payment processing" in the portal and leave **Pay** out of reminders and the invoice instead of offering a page that answers 409, per edge case "A charge succeeds at the provider but its report is lost" (partial)
+
+  As built (PR 21): `Invoice::paymentProcessing()` is true while a card or Stripe page
+  payment is pending; `InvoiceResource` returns it as `payment_processing`. The kit's
+  `paymentState` shows "Payment processing", the portal leaves **Pay** out, and
+  `billing:payment-reminders` skips the invoice (the step goes out on a later run if the
+  payment fails).
+
+- [x] T162 Decide whether a payment recorded by hand sends owners a receipt, then send one or say otherwise in the spec and docs, per FR-042 (partial)
+
+  As built (PR 21): decided to send one. `Payments::recordOutside` sends owners the
+  `receipt` email like any payment that succeeds (once per payment); the spec's FR-042
+  already asks for it, and the billing docs say so.
+
+- [x] T163 Word the payment-failed email by how the payment was made, so a declined Checkout payment does not speak of a saved card, per US7/AC4 (partial)
+
+  As built (PR 21): `PaymentMail::failed` takes the payment's method. A Stripe page
+  payment reads "Paying {amount} ... on Stripe's page did not go through." with **Pay the
+  invoice**; a saved card keeps its wording and "Pay the invoice or update the card".
+
+- [x] T164 Add issuing's 422 (total below 0) to `contracts/openapi/supplements/billing.yaml` and re-export the contract, per Constitution IV and FR-052 (partial)
+
+  As built (PR 21): the issue operation in `supplements/billing.yaml` has
+  `422: ValidationFailed`, and its 409 names the stale draft (T144); the contract is
+  re-exported.
+
+- [x] T165 Bring the feature's documents in line with the code, per plan: contracts and documentation (contradicts):
   - `quickstart.md`: issuing a draft of the running month, which is now refused, and §2 step 4, where held items are now Failed and retryable, not Skipped.
   - `contracts/stripe-webhooks.md`: a mismatched amount is kept and audited, not marked for review.
   - `contracts/billing-api.md`: checkout answers 404 while payments are off, and the allowance field is `note`.
   - `data-model.md`: the audit event is `billing_invoice.payment_recorded`.
-- [ ] T166 Show the device-limit refusal once on the portal's **Resume** dialog (`errorMessage` repeats `message` and `errors.device`), with an e2e case, per 029 US2/AC2 (partial)
-- [ ] T167 On Settings → Retention, while a billing floor runs, say in the confirmation that cleanup moves from the floor's period, and show the platform default's fallback as 400 days, not 90, per 029 FR-021 and FR-022 (partial)
+
+  As built (PR 21): `quickstart.md` issues an ended month and lists held items as
+  Failed and retryable; `stripe-webhooks.md` keeps and audits a mismatched amount;
+  `billing-api.md` gives checkout's 404 while payments are off and the allowance field
+  `note`; `data-model.md` names `billing_invoice.payment_recorded`.
+
+- [x] T166 Show the device-limit refusal once on the portal's **Resume** dialog (`errorMessage` repeats `message` and `errors.device`), with an e2e case, per 029 US2/AC2 (partial)
+
+  As built (PR 21): the portal's `errorMessage` drops repeated parts, so Laravel's
+  message and its lone `errors.device` read once. The devices e2e resumes a device at the
+  limit and sees the refusal once.
+
+- [x] T167 On Settings → Retention, while a billing floor runs, say in the confirmation that cleanup moves from the floor's period, and show the platform default's fallback as 400 days, not 90, per 029 FR-021 and FR-022 (partial)
+
+  As built (PR 21): the retention response adds `cleanup_days` (what cleanup uses now,
+  longer during a grace) and `default_days` (the platform's fallback). The confirmation
+  reduces from `cleanup_days` and, while a floor runs, says confirming ends its grace;
+  the fallback shown is `default_days`, 400 by default.

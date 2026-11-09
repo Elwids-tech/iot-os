@@ -165,8 +165,14 @@ final class RetentionFollowsPlanTest extends TestCase
     {
         $this->putJson($this->planUrl(), ['plan_uuid' => $this->short->uuid, 'confirm_retention' => true])->assertOk();
         $this->assertSame(90, app(RetentionService::class)->cleanupDays($this->lakeside));
+        // Settings → Retention says what cleanup uses now, and the platform's fallback.
+        $this->getJson($this->retentionUrl($this->lakeside))->assertOk()
+            ->assertJsonPath('data.days', 7)
+            ->assertJsonPath('data.cleanup_days', 90)
+            ->assertJsonPath('data.default_days', 400);
 
         $this->putJson($this->retentionUrl($this->lakeside), ['days' => 3, 'revision' => 0, 'confirmed_reduction' => true])->assertOk()
+            ->assertJsonPath('data.cleanup_days', 3)
             ->assertJsonPath('data.days', 3)
             ->assertJsonPath('data.pending_reduction', null);
 

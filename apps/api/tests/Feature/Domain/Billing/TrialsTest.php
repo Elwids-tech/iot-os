@@ -196,6 +196,29 @@ final class TrialsTest extends TestCase
         $this->assertSame('5 * * * *', $event?->expression);
     }
 
+    public function test_a_plan_change_or_removal_during_a_trial_ends_it_audited_and_emailed(): void
+    {
+        $this->trial('POST', '', ['plan_uuid' => $this->starter->uuid, 'ends_at' => '2026-10-15T00:00:00Z'])->assertOk();
+
+        // Moved to another plan during the trial.
+        $this->actingAs($this->admin, 'sanctum')->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/plan', ['plan_uuid' => $this->larger->uuid])->assertOk();
+        $ended = DB::table('activity_log')->where('event', 'billing_account.trial_ended')->latest('id')->first();
+        $this->assertSame(['plan_changed', 'trial', 'paid'], [json_decode($ended->properties, true)['reason'], json_decode($ended->properties, true)['from'], json_decode($ended->properties, true)['to']]);
+        Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof TrialMail && $job->mail->kind === 'ended'
+            && str_contains((string) $job->mail->content()->with['next'], 'moved to Plan B'));
+        $changes = collect($this->getJson('/api/v1/admin/billing-accounts/'.$this->account->uuid)->assertOk()->json('data.history'))->pluck('changes')->flatten(1);
+        $this->assertSame('ended by a plan change', $changes->firstWhere('field', 'trial')['to'] ?? null);
+
+        // A new trial, then the plan is taken away.
+        $this->trial('POST', '', ['ends_at' => '2026-10-15T00:00:00Z'])->assertOk();
+        $this->putJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/plan', ['plan_uuid' => null])->assertOk();
+        $removed = json_decode((string) DB::table('activity_log')->where('event', 'billing_account.trial_ended')->latest('id')->value('properties'), true);
+        $this->assertSame(['plan_removed', null], [$removed['reason'], $removed['to']]);
+        $this->assertSame(2, DB::table('billing_notices')->where('kind', 'trial_ended')->count());
+        Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof TrialMail && $job->mail->removed
+            && $job->mail->content()->with['next'] === 'The account is no longer on a plan.');
+    }
+
     public function test_owners_are_reminded_7_days_and_1_day_before_a_limited_trial_ends_once_each(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-01 09:00', 'UTC'));

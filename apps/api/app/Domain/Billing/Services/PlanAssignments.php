@@ -51,6 +51,9 @@ final class PlanAssignments
                 'assigned_by' => $actor?->getKey(),
             ]);
 
+            if ($open?->kind === PlanAssignmentKind::Trial) {
+                app(Trials::class)->endedBy($account, $open, $assignment, 'plan_changed', $actor);
+            }
             ActivityLog::record('billing_account.plan_assigned', null, $actor, $account, [
                 'from' => $open === null ? null : ['uuid' => $open->plan->uuid, 'name' => $open->plan->name],
                 'to' => ['uuid' => $plan->uuid, 'name' => $plan->name],
@@ -75,6 +78,9 @@ final class PlanAssignments
             }
 
             $open->forceFill(['ended_at' => now(), 'ended_by' => $actor->getKey(), 'end_reason' => 'removed'])->save();
+            if ($open->kind === PlanAssignmentKind::Trial) {
+                app(Trials::class)->endedBy($account, $open, null, 'plan_removed', $actor);
+            }
             ActivityLog::record('billing_account.plan_removed', null, $actor, $account, [
                 'from' => ['uuid' => $open->plan->uuid, 'name' => $open->plan->name],
             ]);
