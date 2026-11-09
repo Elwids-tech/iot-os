@@ -187,6 +187,10 @@ accepted until its deactivation is accepted or it is archived
   bulk onboarding tells apart: each source beyond the limit stays registered with its
   device and the reason, and its item fails, so **Retry failed** activates the same
   devices once the limit is raised ([devices](devices.md#bulk-onboarding)).
+- **Moves and limit changes.** `DeviceLimit::recheck` runs after an organization moves
+  (for both accounts), and after a devices override, a plan change or a plan's device
+  allowance changes. It raises the month's peak and checks the 80% and 100% warnings,
+  which otherwise only an activation would.
 - **Peak.** `billing_device_peaks` keeps each month's highest count. Claims raise it
   with the count after, releases with the count before, and `billing:device-peaks`
   (daily at 00:15 UTC) records each account's current count, for a month in which
@@ -214,11 +218,17 @@ organization and UTC hour (`usage.data_points.v1`,
   row lock, and counts only the increase through `Usage::add`, in the bucket's month.
   Replays, lower counts and reports out of order change nothing.
 - **Attribution.** A bucket is fixed, when first seen, to the billing account whose
-  assignment covered its hour (`billing_account_assignments`), so an hour before a
-  move counts for the old account and an hour after it for the new one. A bucket of an
-  organization that no longer exists is kept with no account and is not counted.
+  assignment covered its hour (`billing_account_assignments`): moves count by the hour.
+  The hour of a move and every hour before it count for the old account, and the hours
+  after it for the new one (FR-013, ADR-036).
+  - An organization deleted since still counts for the account it was on, in its share
+    under its last name.
+  - A bucket of an organization no account ever had is kept with no account and is not
+    counted.
 - **Overage.** Readings are never stopped; what goes past the allowance is overage, as
-  for alerts.
+  for alerts. A report arriving late for an earlier month, such as the last minute of a
+  month counted after midnight, is priced against the allowance of the plan in force at
+  its hour (the account's override when one is set), not today's.
 - **Finality.** `billing_usage_watermarks` keeps the runtime's `final_through`, which
   only moves forward, and when it last reported: the newest report's `generated_at`
   (never later than now), not when the report arrived, so a backlog of events reads as
@@ -314,10 +324,12 @@ In the apps (spec 029 US5):
   Settings → Usage. An earlier month shows its count and overage only, without today's
   allowance, bar or status: the allowance may have changed since, and no history of it
   is kept. Data points read **Provisional** with when the runtime last reported (late
-  after five minutes, the API's `stale`) until their month is **Final**. The age keeps
-  ticking on a page left open (`useNow` in the kit drives every `RelativeTime` and
+  once the API says `stale`, or once the report ages past the API's
+  `stale_after_seconds`, `BILLING_USAGE_REPORT_STALE_SECONDS`) until their month is
+  **Final**. The age keeps ticking on a page left open (`useNow` in the kit drives every `RelativeTime` and
   `Freshness`), and the portal asks for usage again every minute. `UsagePanel`
-  combines the meters, a month picker and each organization's share; the admin
+  combines the meters, a month picker that goes back to the account's start, and each
+  organization's share; the admin
   account page and the portal's Billing accounts page both use it.
 - **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
   a **Plan** panel (the plan and since when, each allowance, retention included), the
