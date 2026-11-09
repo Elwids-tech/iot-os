@@ -132,32 +132,6 @@ final class DataPointReportsTest extends TestCase
         $this->assertSame([true, false], [$dataPoints('2026-11')['final'], $dataPoints('2026-11')['stale']]);
     }
 
-<<<<<<< HEAD
-    public function test_a_deleted_organizations_late_report_still_counts_in_its_share(): void
-    {
-        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 10]]))->assertOk();
-        // Deleted for good: only its billing account assignments remember it.
-        DB::table('organizations')->where('id', $this->organization->id)->delete();
-
-        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 25]]))->assertOk();
-
-        $this->assertSame([25, 0], $this->usage('2026-11-01'));
-        $share = DB::table('billing_usage_shares')->where('kind', 'data_points')->sole();
-        $this->assertSame([self::ORGANIZATION, 'Lakeside Home', 25, null], [$share->organization_uuid, $share->organization_name, (int) $share->count, $share->organization_id]);
-    }
-
-    public function test_a_late_report_for_last_month_is_priced_against_last_months_plan(): void
-    {
-        $admin = User::factory()->create(['is_super_admin' => true]);
-        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 100])->create(), $admin);
-        $this->travelTo(CarbonImmutable::parse('2026-12-01 00:00:30', 'UTC'));
-        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 1000])->create(), $admin);
-
-        // November's last hour is reported after midnight, once December's plan is in force.
-        $this->send($this->report([[self::ORGANIZATION, '2026-11-30T23:00:00Z', 150]], '2026-12-01T00:00:00Z'))->assertOk();
-
-        $this->assertSame([150, 50], $this->usage('2026-11-01'));
-=======
     public function test_reports_held_back_by_an_hour_long_outage_count_exactly_and_read_as_late(): void
     {
         // The runtime reports every minute while the control plane is down for an hour...
@@ -184,7 +158,32 @@ final class DataPointReportsTest extends TestCase
         $this->send($this->report([], '2026-11-07T20:00:00Z', '2026-11-07T20:30:00Z'))->assertOk();
         $this->send($this->report([], '2026-11-07T20:00:00Z', '2026-11-07T22:00:00Z'))->assertOk();
         $this->assertSame('2026-11-07T21:30:00Z', CarbonImmutable::parse((string) DB::table('billing_usage_watermarks')->value('reported_at'))->utc()->toIso8601ZuluString());
->>>>>>> origin/main
+    }
+
+    public function test_a_deleted_organizations_late_report_still_counts_in_its_share(): void
+    {
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 10]]))->assertOk();
+        // Deleted for good: only its billing account assignments remember it.
+        DB::table('organizations')->where('id', $this->organization->id)->delete();
+
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-07T20:00:00Z', 25]]))->assertOk();
+
+        $this->assertSame([25, 0], $this->usage('2026-11-01'));
+        $share = DB::table('billing_usage_shares')->where('kind', 'data_points')->sole();
+        $this->assertSame([self::ORGANIZATION, 'Lakeside Home', 25, null], [$share->organization_uuid, $share->organization_name, (int) $share->count, $share->organization_id]);
+    }
+
+    public function test_a_late_report_for_last_month_is_priced_against_last_months_plan(): void
+    {
+        $admin = User::factory()->create(['is_super_admin' => true]);
+        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 100])->create(), $admin);
+        $this->travelTo(CarbonImmutable::parse('2026-12-01 00:00:30', 'UTC'));
+        app(PlanAssignments::class)->assign($this->account, BillingPlan::factory()->withAllowances(['data_points' => 1000])->create(), $admin);
+
+        // November's last hour is reported after midnight, once December's plan is in force.
+        $this->send($this->report([[self::ORGANIZATION, '2026-11-30T23:00:00Z', 150]], '2026-12-01T00:00:00Z'))->assertOk();
+
+        $this->assertSame([150, 50], $this->usage('2026-11-01'));
     }
 
     public function test_another_schema_version_fails_permanently(): void
