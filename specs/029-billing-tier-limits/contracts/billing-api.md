@@ -27,6 +27,8 @@ All routes are under `/api`. Responses use the existing `{ "data": … }` envelo
   "overage": 0,
   "final": false,                   // data points only; alerts, SMS, devices are always current
   "reported_at": "2026-11-07T20:41:00Z", // data points only
+  "stale": false,                   // data points only: an open month not reported for longer than stale_after_seconds
+  "stale_after_seconds": 300,       // data points only (BILLING_USAGE_REPORT_STALE_SECONDS), so pages can age it themselves
   "organizations": [ { "organization_uuid": "…", "name": "…", "count": 400000 } ] // omitted for managers
 }
 
@@ -47,9 +49,9 @@ under `admin.` and live in `app/Domain/Billing/routes/api.php`.
 | Method and path | Purpose |
 | --- | --- |
 | `GET /v1/admin/billing-plans?search&archived` | List: name, allowances, price for this and next month, number of accounts, archived |
-| `POST /v1/admin/billing-plans` | `{name, description?, allowances: {kind: value\|null}}` |
+| `POST /v1/admin/billing-plans` | `{name, description?, allowances?: {kind: value\|null}}`. Each kind is optional; a kind left out falls back to the deployment's default, which is how retention is left to the platform. |
 | `GET /v1/admin/billing-plans/{plan}` | Detail with history |
-| `PATCH /v1/admin/billing-plans/{plan}` | `{name?, description?, allowances?, confirm_affected?: int}`. Changing allowances on a plan in use needs `confirm_affected` equal to the current number of accounts (else 409 with that number). A shorter `retention_days` also returns the deletion date and affected organizations in its 409. |
+| `PATCH /v1/admin/billing-plans/{plan}` | `{name?, description?, allowances?, confirm_affected?: int, confirm_retention?: bool}`. `allowances`, when given, is the plan's complete set: a kind left out falls back to the default. Changing allowances on a plan in use needs `confirm_affected` equal to the current number of accounts (else 409 with that number). Once that matches, a shorter `retention_days` needs `confirm_retention: true` (else 409 with the deletion date and affected organizations). |
 | `PUT /v1/admin/billing-plans/{plan}/prices` | `{base_price, alert_overage_price, data_point_overage_price, data_point_block_size}`, effective from the next month; the response says from when |
 | `POST /v1/admin/billing-plans/{plan}/archive`, `/restore` | |
 | `DELETE /v1/admin/billing-plans/{plan}` | 409 if it has ever been assigned |
@@ -58,14 +60,15 @@ under `admin.` and live in `app/Domain/Billing/routes/api.php`.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/admin/billing-accounts/{account}` | Existing (spec 023), now with `plan_assignment` (the plan, `kind`, `started_at`, `trial_ends_at`), `allowances[]`, `usage[]` (this month), `price_overrides[]`, `payment_method`, `past_due_since`, `billing_details` |
+| `GET /v1/admin/billing-accounts/{account}` | Existing (spec 023), now with `created_at` (the month pickers start there), `plan_assignment` (the plan, `kind`, `started_at`, `trial_ends_at`), `allowances[]`, `usage[]` (this month), `platform_retention_days` (what a retention left to the platform keeps), `price_overrides[]`, `payment_method`, `past_due_since`, `billing_details` |
 | `PUT /v1/admin/billing-accounts/{account}/plan` | `{plan_uuid}`; `null` removes the plan. A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
-| `PUT /v1/admin/billing-accounts/{account}/allowances/{kind}` | `{value, note}` override |
-| `DELETE /v1/admin/billing-accounts/{account}/allowances/{kind}` | Remove an override |
+| `PUT /v1/admin/billing-accounts/{account}/allowances/{kind}` | `{value, note, confirm_retention?}` override. A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
+| `DELETE /v1/admin/billing-accounts/{account}/allowances/{kind}` | Remove an override; `confirm_retention` (body or query) as above when the plan's retention is shorter |
 | `PUT /v1/admin/billing-accounts/{account}/prices/{price}` | `{value\|null, note}`, from next month |
 | `PATCH /v1/admin/billing-accounts/{account}/billing-details` | `{billing_address, tax_number, tax_rate_uuid\|null}` |
 | `GET /v1/admin/billing-accounts/{account}/usage?month=` | Usage for a month, with organizations |
 | `GET /v1/admin/billing-accounts?plan=&usage_at_least=80&trial=active\|ending\|ended_unpaid&past_due=1` | The spec 023 list, with the 028/029 filters added. `usage_at_least` covers this month's alerts, SMS and data points and the current device count. |
+| `PUT /v1/admin/organizations/{organization}/billing-account` | `{billing_account_uuid, confirm_retention?}` moves an organization (spec 023). When the new account's retention is shorter it needs `confirm_retention: true` (else 409 with the date). |
 
 Creating an organization (`POST /v1/admin/organizations`) accepts, with
 `new_billing_account`, `plan_uuid?` and `trial?: {plan_uuid, ends_at\|null}` (028
@@ -75,8 +78,8 @@ FR-010, 029 FR-046).
 
 | Method and path | Purpose |
 | --- | --- |
-| `POST /v1/admin/billing-accounts/{account}/trial` | `{plan_uuid?, ends_at\|null}`; 409 if a trial is open |
-| `PATCH /v1/admin/billing-accounts/{account}/trial` | `{ends_at\|null, plan_uuid?}` extend, shorten, change plan |
+| `POST /v1/admin/billing-accounts/{account}/trial` | `{plan_uuid?, ends_at\|null, confirm_retention?}`; 409 if a trial is open, or when the trial's plan keeps a shorter retention and `confirm_retention` is not `true` |
+| `PATCH /v1/admin/billing-accounts/{account}/trial` | `{ends_at\|null, plan_uuid?, confirm_retention?}` extend, shorten, change plan; a plan with a shorter retention needs `confirm_retention` as above |
 | `POST /v1/admin/billing-accounts/{account}/trial/end` | Ends now, following the card rule (029 FR-050) |
 | `POST /v1/admin/billing-accounts/{account}/trial/convert` | Turns it into a paid assignment of the same plan at once; the rest of the day stays the trial's, so it is charged from the next 00:00 UTC |
 
@@ -111,7 +114,7 @@ Each route resolves the account among the signed-in person's own accounts and an
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/billing-accounts` | Existing, now with `plan` (`uuid`, `name`, `since`, `kind` and `trial_ends_at`), `allowances[]`, this month's `usage[]`, `prices` (this month's, and next month's when different), `payment_method`, and the latest invoice summary. `sms` is omitted when the deployment has no SMS provider. |
+| `GET /v1/billing-accounts` | Existing, now with `created_at` (the month pickers start there), `plan` (`uuid`, `name`, `since`, `kind` and `trial_ends_at`), `allowances[]`, this month's `usage[]`, `platform_retention_days`, `prices` (this month's, and next month's when different), `payment_method`, and the latest invoice summary. `sms` is omitted when the deployment has no SMS provider. |
 | `GET /v1/billing-accounts/{account}/usage?month=` | Usage with organizations |
 | `GET /v1/billing-accounts/{account}/invoices` | Issued invoices and credit notes only |
 | `GET /v1/billing-accounts/{account}/invoices/{invoice}` (+ `.pdf`, `.csv`) | Issued only; a draft answers 404 |

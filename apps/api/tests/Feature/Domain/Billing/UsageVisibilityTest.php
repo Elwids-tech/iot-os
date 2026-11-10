@@ -58,7 +58,7 @@ final class UsageVisibilityTest extends TestCase
         $this->lakeside = Organization::factory()->forBillingAccount($this->account)->create(['name' => 'Lakeside Home']);
         $this->owner = User::factory()->create(['name' => 'Olive Owner']);
         $this->account->owners()->attach($this->owner->id, ['created_at' => now()]);
-        $plan = BillingPlan::factory()->withAllowances(['alerts' => 10, 'sms' => 5])->create(['name' => 'Integrator plan']);
+        $plan = BillingPlan::factory()->withAllowances(['alerts' => 10, 'sms' => 5])->create(['name' => 'Plan A']);
         app(PlanAssignments::class)->assign($this->account, $plan, $this->admin);
 
         $now = CarbonImmutable::now();
@@ -89,7 +89,7 @@ final class UsageVisibilityTest extends TestCase
 
         $this->getJson('/api/v1/billing-accounts')
             ->assertOk()
-            ->assertJsonPath('data.0.plan.name', 'Integrator plan')
+            ->assertJsonPath('data.0.plan.name', 'Plan A')
             ->assertJsonPath('data.0.plan.since', $this->account->fresh()->openPlanAssignment->started_at->toIso8601String())
             ->assertJsonPath('data.0.usage.0.count', 5)
             ->assertJsonPath('data.0.usage.1.kind', 'sms')
@@ -137,7 +137,7 @@ final class UsageVisibilityTest extends TestCase
                 ['kind' => 'devices', 'month' => $month, 'count' => 0, 'allowance' => null, 'left' => null, 'overage' => 0, 'over_limit' => false],
             ], 'retention' => ['days' => (int) config('devices.default_retention_days'), 'source' => 'default', 'pending_reduction' => null]]);
 
-        foreach (['Integrator Billing', 'Lakeside Home', $this->lakeside->uuid, $this->account->uuid, 'Integrator plan'] as $hidden) {
+        foreach (['Integrator Billing', 'Lakeside Home', $this->lakeside->uuid, $this->account->uuid, 'Plan A'] as $hidden) {
             $this->assertStringNotContainsString($hidden, (string) $response->getContent());
         }
     }

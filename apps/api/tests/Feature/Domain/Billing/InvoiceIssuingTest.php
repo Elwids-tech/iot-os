@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Billing;
 
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Enums\PaymentStatus;
 use App\Domain\Billing\Jobs\DeliverBillingEmail;
 use App\Domain\Billing\Mail\InvoiceDocumentMail;
@@ -16,6 +17,7 @@ use App\Domain\Billing\Services\InvoiceIssuer;
 use App\Domain\Billing\Services\InvoicePdf;
 use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Billing\Services\Prices;
+use App\Domain\Billing\Services\Usage;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
@@ -128,6 +130,22 @@ final class InvoiceIssuingTest extends TestCase
         $csv = (string) $this->get("/api/v1/admin/billing/invoices/{$invoice->uuid}.csv")->assertOk()->getContent();
         $this->assertStringContainsString('invoice,INV-0001,month,2026-10,currency,USD', $csv);
         $this->assertStringContainsString('total,3.83', $csv);
+    }
+
+    public function test_typed_text_in_a_csv_shows_as_text_instead_of_running_as_a_formula(): void
+    {
+        $this->acme->forceFill(['name' => '=1+2'])->save();
+        app(Usage::class)->add($this->account, $this->acme, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-10', 'UTC'), 1);
+        $invoice = $this->draft();
+        $this->postJson("/api/v1/admin/billing/invoices/{$invoice->uuid}/adjustments", ['description' => '-10% goodwill', 'amount' => -100, 'note' => '@note'])->assertOk();
+
+        $csv = (string) $this->get("/api/v1/admin/billing/invoices/{$invoice->uuid}.csv")->assertOk()->getContent();
+        $this->assertStringContainsString(",adjustment,\"'-10% goodwill\",1,-1.00,-1.00,\n", $csv);
+        $this->assertStringContainsString(",'=1+2,alerts,1\n", $csv);
+
+        $issued = app(InvoiceIssuer::class)->issue($invoice->refresh(), $this->admin);
+        $note = $this->postJson("/api/v1/admin/billing/invoices/{$issued->uuid}/credit-notes", ['amount' => 100, 'reason' => '+outage'])->assertCreated()->json('data');
+        $this->assertStringContainsString("reason,'+outage\n", (string) $this->get("/api/v1/admin/billing/credit-notes/{$note['uuid']}.csv")->assertOk()->getContent());
     }
 
     public function test_issued_invoices_never_change_and_numbers_have_no_gaps(): void

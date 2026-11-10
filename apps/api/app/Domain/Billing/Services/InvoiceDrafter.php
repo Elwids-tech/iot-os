@@ -43,6 +43,7 @@ final class InvoiceDrafter
         if ($month->greaterThan(CarbonImmutable::now()->utc()->startOfMonth())) {
             throw ValidationException::withMessages(['month' => 'A month that has not started cannot be invoiced.']);
         }
+        $this->endOverdueTrial($account);
 
         return DB::transaction(function () use ($account, $month, $actor, $note): Invoice {
             // Read fresh under the lock: the caller's model may hold an old tax rate.
@@ -83,6 +84,8 @@ final class InvoiceDrafter
     /** Rebuilds a draft from the records, keeping its adjustments. */
     public function recalculate(Invoice $invoice, User $actor): Invoice
     {
+        $this->endOverdueTrial(BillingAccount::withTrashed()->findOrFail($invoice->billing_account_id));
+
         return DB::transaction(function () use ($invoice, $actor): Invoice {
             $locked = $this->lockedDraft($invoice);
             $locked->forceFill(['usage_incomplete' => $locked->usage_incomplete && ! $this->usageFinal($locked->month)])->save();
@@ -91,6 +94,20 @@ final class InvoiceDrafter
 
             return $locked->refresh();
         });
+    }
+
+    /**
+     * Ends the account's limited trial when it is past its end and the hourly run has not
+     * ended it yet, so a draft charges the days after the end (spec 029 FR-050, SC-009).
+     *
+     * @return CarbonImmutable|null the trial's end, when this ended it
+     */
+    public function endOverdueTrial(BillingAccount $account): ?CarbonImmutable
+    {
+        $now = CarbonImmutable::now();
+        $open = app(PlanAssignments::class)->current($account);
+
+        return $open?->isDueToEnd($now) && app(Trials::class)->endIfDue($account, $now) ? $open->trial_ends_at : null;
     }
 
     /** A charge (positive) or credit (negative) on a draft, with a note (FR-034). */

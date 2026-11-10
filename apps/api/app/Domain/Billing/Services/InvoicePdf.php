@@ -50,18 +50,18 @@ final class InvoicePdf
         foreach ($invoice->lines->reject(fn ($line) => $line->kind === InvoiceLineKind::Credit) as $line) {
             // An adjustment's note is for administrators; the description is what the customer reads.
             $note = $line->kind === InvoiceLineKind::Adjustment ? null : $line->note;
-            $row([$line->position, $line->kind->value, $line->description, rtrim(rtrim((string) $line->quantity, '0'), '.'), $decimal($line->unit_price), $decimal($line->amount), $note]);
+            $row([$line->position, $line->kind->value, self::text($line->description), rtrim(rtrim((string) $line->quantity, '0'), '.'), $decimal($line->unit_price), $decimal($line->amount), self::text($note)]);
         }
         $row([]);
         $row(['subtotal', $decimal($invoice->subtotal)]);
-        $row(['tax', $decimal($invoice->tax), $invoice->tax_rate_name, $invoice->tax_basis_points]);
+        $row(['tax', $decimal($invoice->tax), self::text($invoice->tax_rate_name), $invoice->tax_basis_points]);
         $row(['total', $decimal($invoice->total)]);
-        $row(['credit_applied', $decimal($invoice->credit_applied), $credit?->description]);
+        $row(['credit_applied', $decimal($invoice->credit_applied), self::text($credit?->description)]);
         $row(['amount_due', $decimal($invoice->amount_due)]);
         $row([]);
         $row(['organization_uuid', 'organization', 'kind', 'count']);
         foreach ($this->usage($invoice) as $usage) {
-            $row([$usage->organization_uuid, $usage->organization_name, $usage->kind, $usage->count]);
+            $row([$usage->organization_uuid, self::text($usage->organization_name), $usage->kind, $usage->count]);
         }
         rewind($out);
 
@@ -78,7 +78,7 @@ final class InvoicePdf
         $row(['credit_note', $note->number, 'invoice', $invoice->number, 'month', $invoice->month->format('Y-m'), 'currency', $invoice->currency]);
         $row(['issued_at', $note->issued_at->toIso8601String()]);
         $row([]);
-        $row(['reason', $note->reason]);
+        $row(['reason', self::text($note->reason)]);
         $row(['amount', self::decimal($note->amount)]);
         $row(['taken_off_invoice', self::decimal($note->applied)]);
         $row(['credit_for_next_invoice', self::decimal($note->amount - $note->applied)]);
@@ -98,6 +98,15 @@ final class InvoicePdf
             ->orderBy('kind')
             ->get()
             ->all();
+    }
+
+    /**
+     * Typed text made safe to open in a spreadsheet: a cell that starts like a formula
+     * gets a leading `'`, so it shows as text instead of running.
+     */
+    private static function text(?string $value): ?string
+    {
+        return $value !== null && preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'".$value : $value;
     }
 
     private static function decimal(?int $amount): string

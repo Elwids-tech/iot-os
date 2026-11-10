@@ -72,11 +72,13 @@ announces `meter-0601` to `meter-1100`.
 
 **Load checks.** 500 onboarded meters reporting every 10 s are the platform's tested
 rate (50 messages a second). While they run,
-[`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) polls
-the runtime's committed telemetry every 100 ms. It reports the time from receipt to a
-message being visible in history, and the queue before storing starts. Run it once per
-runtime build under the same load and compare (spec 029 SC-004,
-[billing](../features/billing.md#data-points)). `--drop` removes its scratch table.
+[`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) waits,
+then reads each message's commit time from PostgreSQL (`pg_xact_commit_timestamp` of its
+observation rows). It reports the time from receipt to a message being in history, the
+queue before storing starts and the storing transaction itself, with no polling delay.
+It needs `track_commit_timestamp` on, which takes a database restart (`ALTER SYSTEM`,
+then `ALTER SYSTEM RESET` afterwards). Run it once per runtime build under the same load
+and compare (spec 029 SC-004, [billing](../features/billing.md#data-points)).
 Retire load-test devices afterwards with deactivate, then archive once the runtime
 has acknowledged. An archived device keeps its source id ("already onboarded"), so
 the next load check takes new numbers with `--meters-from`.

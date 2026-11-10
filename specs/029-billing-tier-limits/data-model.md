@@ -141,7 +141,9 @@ price each row at that assignment's plan, or at 0 for `trial` and `trial_unpaid`
 ### `billing_device_peaks`
 
 The primary key is (billing_account_id, month). Column: `peak`. It is raised whenever
-a claim takes the count above it.
+the count of devices holding a place goes above it: on a claim or release,
+`DeviceLimit::recheck` after a move or a plan or allowance change, and daily by
+`billing:device-peaks` for a month in which no device came or went.
 
 ### `billing_data_point_buckets`
 
@@ -186,8 +188,10 @@ The cleanup days sent in `/state` are the effective days raised to the highest f
 whose `until` is still ahead. Floors are pruned once expired.
 
 `RetentionService::effective` returns `source` ∈ `organization`, `billing_account`,
-`platform` or `default`, plus `pending_reduction` (`{days, from}`) when a floor is
-active.
+`platform` or `default`, plus `pending_reduction` when a floor is active: `{days, from,
+steps}`, where `days` and `from` are the final period and when it applies, and `steps`
+lists each date cleanup shortens and the period it keeps from then (two reductions within
+one grace step down twice).
 
 ## Billing accounts (spec 023 table, changed)
 

@@ -37,7 +37,8 @@ each month on ([Prices and invoices](#prices-and-invoices)). Each allowance has 
 
 A value is a whole number of 0 or more, or **unlimited** (`null`). Retention is never
 unlimited. A plan lists only the kinds it sets; a kind it leaves out falls back to
-the deployment default.
+the deployment default. The plan requests take each kind as optional, in the contract
+too, since leaving retention out is how a plan keeps the platform's period.
 
 A billing account has at most one plan at a time. Its allowance for each kind is its
 **override**, else its plan's allowance, else the deployment default
@@ -243,32 +244,39 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  SC-004 (within 5%) is held at p95 and p99 of the time from the runtime receiving a
-  message to it being visible in history. p50 is recorded too, but the probe's 100 ms
-  polling makes a difference of a few milliseconds there noise. Measured with
-  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) at
-  the tested rate (500 simulated water meters, each reporting every 10 s, 50 messages
-  a second): 10 minutes with counting, 10 without (a temporary build without the
-  upsert), then 10 with counting again. The probe polls every 100 ms, which adds about
-  50 ms to every figure.
-  - **2026-11-09, after the reporter's asynchronous commit (T174):**
+  **SC-004's "within 5%" is not met**: counting adds about 2 ms at p50 and 7–9 ms at p99
+  to the time from the runtime receiving a message to its readings being in history,
+  which is 30–60% of a path that takes 5–14 ms without it. The owner decides between
+  restating SC-004 as an absolute bound and counting outside the storing transaction,
+  which would change ADR-036 (T191).
+  - **How it is measured.** [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py)
+    reads each message's commit time from PostgreSQL (`pg_xact_commit_timestamp` of its
+    observation rows, with `track_commit_timestamp` on), so nothing polls and the
+    figures carry no probe delay. The tested rate is 500 simulated water meters, each
+    reporting every 10 s (50 messages a second). Each run lasts 10 minutes after a
+    2-minute warm-up: with counting, without it (a temporary build without the upsert),
+    then with counting again.
+  - **2026-11-10 (T191):**
 
-    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 |
-    | --- | --- | --- | --- | --- | --- | --- |
-    | With counting | 29,800 | 59 ms | 105 ms | 113 ms | 153 ms | 5 ms |
-    | Without counting | 29,800 | 57 ms | 105 ms | 112 ms | 141 ms | 3 ms |
-    | With counting again | 29,800 | 62 ms | 108 ms | 115 ms | 131 ms | 5 ms |
+    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 | Storing p50 |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | With counting | 29,850 | 7.0 ms | 14.2 ms | 20.8 ms | 845 ms | 5.8 ms | 1.1 ms |
+    | Without counting | 29,850 | 5.2 ms | 10.7 ms | 14.3 ms | 105 ms | 4.2 ms | 1.0 ms |
+    | With counting again | 29,892 | 7.2 ms | 15.0 ms | 22.9 ms | 550 ms | 6.0 ms | 1.1 ms |
 
-    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%), so SC-004
-    holds. p50 is +3.5% and +8.8%, while the two counting runs differ from each other
-    by 5%: about 2 ms, which is what counting adds before storing starts. No message in any run
-    took more than 153 ms.
-  - **2026-11-08, before it (T141):** p50 62, 61 and 64 ms; p95 108, 106 and 111 ms;
-    p99 126, 113 and 119 ms (counting, without, counting). Each counting run had 6–7
-    messages over 500 ms (at most 1.5 s) near the database's five-minute checkpoints,
-    and the run without had none, most likely because the reporter's row locks on the
-    hour's buckets lasted through a commit waiting on a slow fsync. With the
-    asynchronous commit that tail did not come back.
+    Queue is the time to the transaction writing its outbox row, storing the time from
+    there to the commit. The upsert itself barely shows in storing; most of what
+    counting adds is waiting. The storage consumer takes one message at a time
+    (`MaxAckPending(1)`), so each transaction's extra time, its commit included, delays
+    every message behind it.
+  - **Earlier runs (T141 on 2026-11-08, T174 on 2026-11-09)** polled the outbox every
+    100 ms. That wait made up most of every figure (p50 57–64 ms, p95 105–111 ms), so
+    their conclusion that p95 and p99 were within 5% could not show a difference of a
+    few milliseconds. Before the reporter's asynchronous commit (T174), each counting
+    run had 6–7 messages over 500 ms near the database's five-minute checkpoints. After
+    it, no message in those runs took longer than 153 ms. In T191's counting runs the
+    slowest message took 845 ms and 550 ms, against 105 ms without counting, so the slow
+    tail is rarer, not gone.
   - **Readings kept.** No reading was dropped in any run.
 
 ### SMS allowance
@@ -281,7 +289,9 @@ bound to `Usage`:
   provider. Under the row lock it counts the parts when they fit in what is left, and
   answers `false` otherwise; the sender then cancels the message with "SMS allowance
   used up for this month", and the other channels are unaffected. Two messages
-  competing for the last part: one goes, the other is cancelled.
+  competing for the last part: one goes, the other is cancelled. A refused message has
+  found the allowance used up, so it sends the 100% warning (and the 80% one, if not yet
+  sent), also when a lower allowance left the count above it.
 - `release(account, organization, parts, reservedAt)` when the provider refuses the
   message before accepting it. It gives the parts back to the month they were
   reserved in, never below 0.
@@ -459,7 +469,10 @@ every division rounds half up.
   change: `outstanding` is derived.
 - **Documents and email.** PDFs are rendered on request with dompdf from
   `resources/views/billing/invoice.blade.php`; an invoice's CSV holds the lines, totals
-  and usage, a credit note's its reason and amounts.
+  and usage, a credit note's its reason and amounts. Typed text in a CSV (organization
+  names, descriptions, notes, reasons, the tax rate's name) that starts like a
+  spreadsheet formula (`=`, `+`, `-`, `@`, a tab or a carriage return) gets a leading
+  `'`, so a spreadsheet shows it instead of running it; amounts stay numbers.
   An issued invoice or credit note is emailed once each to the billing contact and every
   owner (`invoice_issued`, `credit_note_issued` notices), with the PDF attached. Owners
   see issued invoices only; a draft answers 404.
@@ -587,7 +600,10 @@ overage at 0.
   trial is not charged, even after a card is saved or the trial converted that day.
   Overage counted after a limited trial's end but before the hourly run has ended it
   ends the trial first (`Trials::endIfDue`, as the run would), so it is priced on what
-  follows from the trial's end.
+  follows from the trial's end. Drafting and recalculating an invoice end such a trial
+  first too (`InvoiceDrafter::endOverdueTrial`), so the days after its end are charged.
+  Issuing ends it as well, and answers 409 ("Recalculate the draft…") when that changes
+  the days of the draft's month.
 - **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
   passed, at their end even when the job runs late (so a trial that ended while the
   control plane was down ends within the hour after it is back), then sends `trial_reminder` emails
