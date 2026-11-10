@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import type { Device, DiscoveryCandidate, Gateway } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
@@ -16,9 +16,10 @@ import { Freshness, RelativeTime } from "@iot-os/ui/components/freshness"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
 import { statusOf } from "@iot-os/ui/lib/status"
 import { EntityPage, PropertyList } from "@iot-os/ui/templates/entity-page"
-import { CpuIcon, EllipsisIcon, RouterIcon } from "lucide-react"
+import { CpuIcon, EllipsisIcon, RouterIcon, ScanSearchIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { Confirm, RequestError } from "../components/forms"
 import { TechnicalDetails } from "./GatewaysPage"
@@ -37,10 +38,16 @@ async function everyPage<T>(load: (page: number) => Promise<{ data: T[]; meta: {
   return all
 }
 
+/** One table per tab; Devices is the default and leaves the address without `?tab`. */
+const tabs = { devices: "Devices", sources: "Sources" } as const
+type GatewayTab = keyof typeof tabs
+
 /** One gateway: its presence, the devices behind it and the sources it announces. */
 export function GatewayPage() {
   const { org, capabilities } = useDeviceOrganization()
   const { gatewayUuid = "" } = useParams()
+  const [params, setParams] = useSearchParams()
+  const tab: GatewayTab = params.get("tab") === "sources" ? "sources" : "devices"
   const [firmware, setFirmware] = useState(false)
   const [provisioning, setProvisioning] = useState(false)
   const gateways = useQuery({
@@ -74,6 +81,13 @@ export function GatewayPage() {
     [devices.data, gatewayUuid],
   )
   const back = { to: gatewayPath(org), label: "Gateways" }
+
+  function show(next: GatewayTab) {
+    const values = new URLSearchParams(params)
+    if (next === "devices") values.delete("tab")
+    else values.set("tab", next)
+    setParams(values, { replace: true })
+  }
 
   const deviceColumns = useMemo<DataColumn<Device>[]>(
     () => [
@@ -130,125 +144,137 @@ export function GatewayPage() {
     )
 
   return (
-    <EntityPage
-      title={gateway.name}
-      icon={<RouterIcon />}
-      code={gateway.edge_node_id}
-      back={back}
-      actions={
-        <>
-          <Button variant="outline" size="sm" onClick={() => setFirmware(true)}>
-            <CpuIcon data-icon="inline-start" />
-            Firmware
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-sm" aria-label="Gateway actions">
-                <EllipsisIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {capabilities.connections && (
-                <DropdownMenuItem onSelect={() => setProvisioning(true)}>Apply gateway access</DropdownMenuItem>
-              )}
-              <DropdownMenuItem asChild>
-                <Link to={discoveryPath(org, gateway.uuid)}>Open in discovery</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      }
-      status={
-        <>
-          <Status value={gateway.presence} />
-          <span className="text-muted-foreground">
-            Last seen <RelativeTime at={gateway.last_seen_at} never="never" />
-          </span>
-        </>
-      }
-      notices={
-        gateway.offline_alert ? (
-          <Alert>
-            <AlertTitle>Gateway offline</AlertTitle>
-            <AlertDescription>
-              <p>
-                {gateway.offline_alert.cause
-                  ? `${statusOf(gateway.offline_alert.cause, "offline_cause").label}. `
-                  : ""}
-                Its devices are offline with it; they open no alerts of their own until it is back.
-                {gateway.offline_alert.since && (
-                  <>
-                    {" "}Offline since <RelativeTime at={gateway.offline_alert.since} />.
-                  </>
+    <Tabs value={tab} onValueChange={(value) => show(value as GatewayTab)} className="gap-0">
+      <EntityPage
+        title={gateway.name}
+        icon={<RouterIcon />}
+        code={gateway.edge_node_id}
+        back={back}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setFirmware(true)}>
+              <CpuIcon data-icon="inline-start" />
+              Firmware
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon-sm" aria-label="Gateway actions">
+                  <EllipsisIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {capabilities.connections && (
+                  <DropdownMenuItem onSelect={() => setProvisioning(true)}>Apply gateway access</DropdownMenuItem>
                 )}
-              </p>
-              <Link
-                className="underline underline-offset-4"
-                to={`/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(gateway.offline_alert.uuid)}`}
-              >
-                Open the alert
-              </Link>
-            </AlertDescription>
-          </Alert>
-        ) : undefined
-      }
-      rail={
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Properties</PanelTitle>
-          </PanelHeader>
-          <PanelContent className="flex flex-col gap-2">
-            <PropertyList
-              items={[
-                { label: "Connection", value: connection?.name ?? <span className="text-muted-foreground">Unknown</span> },
-                { label: "Sources", value: gateway.sources_count === 1 ? "1 source" : `${gateway.sources_count} sources` },
-                { label: "Devices", value: gatewayDevices ? gatewayDevices.length : "…" },
-              ]}
-            />
-            <TechnicalDetails
-              key={gateway.uuid}
-              rows={[
-                { label: "Edge node ID", value: gateway.edge_node_id },
-                { label: "Group ID", value: gateway.group_id },
-                { label: "Gateway ID", value: gateway.uuid },
-              ]}
-            />
-          </PanelContent>
-        </Panel>
-      }
-    >
-      <section aria-labelledby="gateway-devices" className="flex flex-col gap-3">
-        <h2 id="gateway-devices" className="skin-label text-heading">Devices</h2>
-        <DataTable
-          id="gateway-devices"
-          label="Devices on this gateway"
-          noun={["device", "devices"]}
-          rows={gatewayDevices}
-          rowKey={(d) => d.uuid}
-          rowHref={(d) => devicePath(org, d.uuid)}
-          columns={deviceColumns}
-          error={devices.error ? <RequestError error={devices.error} /> : undefined}
-          empty={<EmptyState inset title="No devices use this gateway" description="Devices appear here once a source from this gateway is assigned to them." />}
-        />
-      </section>
-      <section aria-labelledby="gateway-sources" className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <h2 id="gateway-sources" className="skin-label text-heading">Sources</h2>
-          <Button asChild variant="link" size="sm" className="ml-auto h-auto p-0">
-            <Link to={discoveryPath(org, gateway.uuid)}>Open in discovery</Link>
-          </Button>
-        </div>
-        <DataTable
-          id="gateway-sources"
-          label="Sources from this gateway"
-          noun={["source", "sources"]}
-          rows={sources.data?.data}
-          rowKey={(c) => c.uuid}
-          columns={sourceColumns}
-          error={sources.error ? <RequestError error={sources.error} /> : undefined}
-          empty={<EmptyState inset title="No sources announced yet" />}
-        />
-      </section>
+                <DropdownMenuItem asChild>
+                  <Link to={discoveryPath(org, gateway.uuid)}>Open in discovery</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+        status={
+          <>
+            <Status value={gateway.presence} />
+            <span className="text-muted-foreground">
+              Last seen <RelativeTime at={gateway.last_seen_at} never="never" />
+            </span>
+          </>
+        }
+        tabs={
+          <TabsList variant="line" className="justify-start px-1" aria-label="Gateway sections">
+            {(Object.keys(tabs) as GatewayTab[]).map((value) => (
+              <TabsTrigger key={value} value={value} className="flex-none">
+                {tabs[value]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        }
+        notices={
+          gateway.offline_alert ? (
+            <Alert>
+              <AlertTitle>Gateway offline</AlertTitle>
+              <AlertDescription>
+                <p>
+                  {gateway.offline_alert.cause
+                    ? `${statusOf(gateway.offline_alert.cause, "offline_cause").label}. `
+                    : ""}
+                  Its devices are offline with it; they open no alerts of their own until it is back.
+                  {gateway.offline_alert.since && (
+                    <>
+                      {" "}Offline since <RelativeTime at={gateway.offline_alert.since} />.
+                    </>
+                  )}
+                </p>
+                <Link
+                  className="underline underline-offset-4"
+                  to={`/organizations/${encodeURIComponent(org)}/alerts/${encodeURIComponent(gateway.offline_alert.uuid)}`}
+                >
+                  Open the alert
+                </Link>
+              </AlertDescription>
+            </Alert>
+          ) : undefined
+        }
+        rail={
+          <Panel>
+            <PanelHeader>
+              <PanelTitle>Properties</PanelTitle>
+            </PanelHeader>
+            <PanelContent className="flex flex-col gap-2">
+              <PropertyList
+                items={[
+                  { label: "Connection", value: connection?.name ?? <span className="text-muted-foreground">Unknown</span> },
+                  { label: "Sources", value: gateway.sources_count === 1 ? "1 source" : `${gateway.sources_count} sources` },
+                  { label: "Devices", value: gatewayDevices ? gatewayDevices.length : "…" },
+                ]}
+              />
+              <TechnicalDetails
+                key={gateway.uuid}
+                rows={[
+                  { label: "Edge node ID", value: gateway.edge_node_id },
+                  { label: "Group ID", value: gateway.group_id },
+                  { label: "Gateway ID", value: gateway.uuid },
+                ]}
+              />
+            </PanelContent>
+          </Panel>
+        }
+      >
+        <TabsContent value="devices">
+          <DataTable
+            id="gateway-devices"
+            label="Devices on this gateway"
+            noun={["device", "devices"]}
+            rows={gatewayDevices}
+            rowKey={(d) => d.uuid}
+            rowHref={(d) => devicePath(org, d.uuid)}
+            columns={deviceColumns}
+            error={devices.error ? <RequestError error={devices.error} /> : undefined}
+            empty={<EmptyState inset title="No devices use this gateway" description="Devices appear here once a source from this gateway is assigned to them." />}
+          />
+        </TabsContent>
+        <TabsContent value="sources">
+          <DataTable
+            id="gateway-sources"
+            label="Sources from this gateway"
+            noun={["source", "sources"]}
+            rows={sources.data?.data}
+            rowKey={(c) => c.uuid}
+            columns={sourceColumns}
+            toolbar={
+              <Button asChild variant="outline" size="sm">
+                <Link to={discoveryPath(org, gateway.uuid)}>
+                  <ScanSearchIcon data-icon="inline-start" />
+                  Open in discovery
+                </Link>
+              </Button>
+            }
+            error={sources.error ? <RequestError error={sources.error} /> : undefined}
+            empty={<EmptyState inset title="No sources announced yet" />}
+          />
+        </TabsContent>
+      </EntityPage>
       {firmware && (
         <GatewayFirmwareDialog
           org={org}
@@ -270,6 +296,6 @@ export function GatewayPage() {
           await gateways.refetch()
         }}
       />
-    </EntityPage>
+    </Tabs>
   )
 }

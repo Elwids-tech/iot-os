@@ -30,8 +30,10 @@ drops the lock, so operations must keep a single instance.
 
 In **Connect → Connections**, create a broker connection and apply its broker
 access; in **Fleet → Gateways**, register gateways (Sparkplug edge nodes) and
-apply their access. Each gateway has its own page with credentials, technical
-details and its devices. A connection is
+apply their access. Each gateway has its own page: a properties rail with its
+connection and technical details, beside two tabs, **Devices** (the devices behind
+it) and **Sources** (what it announces, with a link to discovery). The address keeps
+the tab (`?tab=sources`), so links and reloads open it. A connection is
 one Sparkplug group with its own namespace; each gateway gets scoped credentials.
 Laravel provisions them through the broker's admin API
 ([`BrokerProvisioner`](../../apps/api/app/Domain/Devices/Services/BrokerProvisioner.php)).
