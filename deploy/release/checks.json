@@ -15,10 +15,22 @@
     "api.v1.admin.assistant-settings.show",
     "api.v1.admin.assistant-settings.update",
     "api.v1.admin.assistant-settings.keys.destroy",
-    "api.v1.admin.assistant-settings.test"
+    "api.v1.admin.assistant-settings.test",
+    "api.v1.admin.billing-plans.index",
+    "api.v1.admin.billing.settings.show",
+    "api.v1.admin.billing.invoices.issue",
+    "api.v1.billing-accounts.usage.show",
+    "api.v1.billing-accounts.invoices.checkout.returned",
+    "stripe.webhook"
   ],
-  "tables": ["assistant_settings", "assistant_provider_keys"],
+  "tables": [
+    "assistant_settings", "assistant_provider_keys",
+    "billing_plans", "billing_plan_allowances", "billing_plan_assignments", "billing_usage",
+    "billing_invoices", "billing_payments", "billing_provider_events"
+  ],
   "columns": {
-    "organization_invitations": ["grants_super_admin"]
+    "organization_invitations": ["grants_super_admin"],
+    "billing_accounts": ["past_due_since", "pm_saved_at"],
+    "devices": ["limit_place_at"]
   }
 }

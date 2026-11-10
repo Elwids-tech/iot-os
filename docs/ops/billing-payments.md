@@ -41,6 +41,14 @@ Payments only move forward, so a replayed or late event changes nothing.
 
 ## A release
 
+Billing can ship before it is used. Leave the four values out and card payments stay
+off: every payment route and the webhook answer 404, and administrators record payments
+by hand. An account on no plan keeps working as before: alerts, devices and data points
+stay unlimited, retention follows the platform setting, and no warning or invoice is
+sent. Billing starts for an account when an administrator gives it a plan or a trial.
+
+To turn card payments on:
+
 1. Add the four values to the private `environment` file
    ([release](release.md)). The release compose passes them to the API and its
    workers.
