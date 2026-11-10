@@ -840,6 +840,8 @@ test("a polling source saves only its settings, fetches records and adds one as 
   const start = page.getByLabel("Start polling from");
   await expect(start).toHaveAttribute("min", /T/);
   await page.getByRole("button", { name: "Deploy tested revision" }).click();
+  // The click returns before the request is sent.
+  await expect.poll(() => requests.find((r) => r.path.endsWith("/deploy"))).toBeDefined();
   const deploy = requests.find((r) => r.path.endsWith("/deploy"))?.body;
   const startAt = Date.parse(deploy.cursor_start_at);
   expect(Math.abs(Date.now() - 3_600_000 - startAt)).toBeLessThan(5 * 60_000);
