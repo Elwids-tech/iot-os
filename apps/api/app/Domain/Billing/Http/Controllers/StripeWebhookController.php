@@ -53,9 +53,28 @@ final class StripeWebhookController extends WebhookController
     }
 
     /**
+     * The card on file changes only through `Payments`, which audits it; Cashier would
+     * rewrite or clear it from the customer's default payment method.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handleCustomerUpdated(array $payload): Response
+    {
+        return $this->successMethod();
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     protected function handleCustomerDeleted(array $payload): Response
+    {
+        return $this->successMethod();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handlePaymentMethodAutomaticallyUpdated(array $payload): Response
     {
         return $this->successMethod();
     }

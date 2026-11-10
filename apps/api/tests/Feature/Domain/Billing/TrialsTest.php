@@ -157,6 +157,43 @@ final class TrialsTest extends TestCase
         $this->assertSame(2100 + 14, $invoice->subtotal);
     }
 
+    public function test_overage_counted_after_a_trials_end_before_the_hourly_run_ends_it_first_and_is_charged(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+        $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242', 'pm_expires' => '2030-12'])->save();
+        $usage = app(Usage::class);
+        // One alert over the allowance on the trial's last day.
+        $usage->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::parse('2026-10-20 23:58', 'UTC'), 4);
+
+        // Two minutes after the end, before the hourly run at 00:05: the alert ends the trial first.
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:02', 'UTC'));
+        $usage->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::now(), 1);
+        $paid = app(PlanAssignments::class)->current($this->account);
+        $this->assertSame([PlanAssignmentKind::Paid, '2026-10-21 00:00:00'], [$paid->kind, $paid->started_at->utc()->format('Y-m-d H:i:s')]);
+        $this->assertSame('trial_reached_end', PlanAssignment::query()->where('kind', 'trial')->sole()->end_reason);
+        // The hourly run finds nothing left to end.
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:05', 'UTC'));
+        $this->artisan('billing:end-trials')->expectsOutput('Ended 0 trials and sent 0 trial reminders.')->assertSuccessful();
+
+        $invoice = $this->draftOctober();
+        $this->assertSame(
+            [[1.0, 0, 'Not charged during trial'], [1.0, 7, null]],
+            $invoice->lines->where('kind', InvoiceLineKind::AlertOverage)->map(fn ($line): array => [(float) $line->quantity, $line->amount, $line->note])->values()->all(),
+        );
+    }
+
+    public function test_a_limited_trial_is_not_ended_by_usage_within_the_allowance(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:02', 'UTC'));
+        app(Usage::class)->add($this->account, $this->organization, AllowanceKind::Alerts, CarbonImmutable::now(), 1);
+
+        $this->assertSame(PlanAssignmentKind::Trial, app(PlanAssignments::class)->current($this->account)->kind);
+    }
+
     public function test_a_trial_ended_without_a_card_is_flagged_uncharged_until_a_card_is_saved(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-30 09:00', 'UTC'));
@@ -293,14 +330,19 @@ final class TrialsTest extends TestCase
         $assignment = (string) Str::uuid();
         DB::table('billing_notices')->insert([
             ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$assignment}:2026-10-31:7d", 'sent_at' => now()],
+            // Already keyed by the account, as `billing:end-trials` sends it now: kept.
             ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$this->account->uuid}:2026-10-31:1d", 'sent_at' => now()],
-            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$assignment}:2026-10-31:1d", 'sent_at' => now()],
+            // Sent under both keys: one stays.
+            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$this->account->uuid}:2026-11-30:1d", 'sent_at' => now()],
+            ['billing_account_id' => $this->account->id, 'kind' => 'trial_reminder', 'key' => "trial:{$assignment}:2026-11-30:1d", 'sent_at' => now()],
         ]);
 
+        // A second run (after a rollback) changes nothing.
+        (require database_path('migrations/2026_11_18_000000_key_trial_reminders_by_account.php'))->up();
         (require database_path('migrations/2026_11_18_000000_key_trial_reminders_by_account.php'))->up();
 
         $this->assertSame(
-            ["trial:{$this->account->uuid}:2026-10-31:1d", "trial:{$this->account->uuid}:2026-10-31:7d"],
+            ["trial:{$this->account->uuid}:2026-10-31:1d", "trial:{$this->account->uuid}:2026-10-31:7d", "trial:{$this->account->uuid}:2026-11-30:1d"],
             DB::table('billing_notices')->where('kind', 'trial_reminder')->orderBy('key')->pluck('key')->all(),
         );
     }

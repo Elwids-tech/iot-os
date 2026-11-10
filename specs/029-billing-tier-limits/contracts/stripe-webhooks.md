@@ -13,6 +13,11 @@ For each event it:
 2. handles the event types below, in one transaction;
 3. ignores every other type.
 
+Cashier's own handlers for subscriptions, customers and cards (`customer.updated`,
+`payment_method.automatically_updated` among them) are switched off in
+`StripeWebhookController`, so an event the endpoint should not receive never changes
+the stored card.
+
 | Stripe event | Matched by | Effect |
 | --- | --- | --- |
 | `checkout.session.completed`, `mode=setup` | `metadata.billing_account_uuid` | Retrieves the SetupIntent's payment method, makes it the customer's default (detaching the old one), and stores the brand, last four digits and expiry. If the open assignment is `trial_unpaid`, it opens `paid` at once, charged from the next 00:00 UTC (the rest of the day, overage included, stays the trial's). Audited as `billing_account.payment_method_changed`. |

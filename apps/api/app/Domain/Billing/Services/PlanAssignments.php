@@ -97,11 +97,7 @@ final class PlanAssignments
     {
         $at ??= CarbonImmutable::now();
         $open?->forceFill(['ended_at' => $at, 'ended_by' => $actor?->getKey(), 'end_reason' => $endReason])->save();
-        if ($open?->billing_plan_id !== $plan->getKey()) {
-            app(DeviceLimit::class)->recheck($account);
-        }
-
-        return PlanAssignment::query()->create([
+        $next = PlanAssignment::query()->create([
             'billing_account_id' => $account->getKey(),
             'billing_plan_id' => $plan->getKey(),
             'kind' => $kind,
@@ -109,6 +105,12 @@ final class PlanAssignments
             'trial_ends_at' => $trialEndsAt,
             'assigned_by' => $actor?->getKey(),
         ])->setRelation('plan', $plan);
+        // Once the next plan is open, so the warnings use its device limit (spec 029 FR-025).
+        if ($open?->billing_plan_id !== $plan->getKey()) {
+            app(DeviceLimit::class)->recheck($account);
+        }
+
+        return $next;
     }
 
     /**

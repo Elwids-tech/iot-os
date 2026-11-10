@@ -147,19 +147,30 @@ final class Trials
             ->with('billingAccount')
             ->get()
             ->each(function (PlanAssignment $due) use ($asOf, &$ended): void {
-                DB::transaction(function () use ($due, $asOf, &$ended): void {
-                    // Changed since it was read: converted, ended or extended meanwhile.
-                    $open = $this->assignments->lock($due->billingAccount);
-                    if ($open === null || ! $open->is($due) || $open->trial_ends_at === null || $open->trial_ends_at->greaterThan($asOf)) {
-                        return;
-                    }
-
-                    $this->finish($due->billingAccount, $open, 'trial_reached_end', null, $open->trial_ends_at->min(CarbonImmutable::now()));
-                    $ended++;
-                });
+                $ended += $this->endIfDue($due->billingAccount, $asOf) ? 1 : 0;
             });
 
         return $ended;
+    }
+
+    /**
+     * Ends the account's limited trial once its end has passed, from its end. Besides the
+     * hourly run, usage past the allowance calls it, so overage counted between the end and
+     * that run is priced on what follows the trial (spec 029 FR-050).
+     */
+    public function endIfDue(BillingAccount $account, CarbonImmutable $asOf): bool
+    {
+        return DB::transaction(function () use ($account, $asOf): bool {
+            // Changed since it was read: converted, ended or extended meanwhile.
+            $open = $this->assignments->lock($account);
+            if ($open === null || ! $open->isDueToEnd($asOf)) {
+                return false;
+            }
+
+            $this->finish($account, $open, 'trial_reached_end', null, $open->trial_ends_at->min(CarbonImmutable::now()));
+
+            return true;
+        });
     }
 
     /**

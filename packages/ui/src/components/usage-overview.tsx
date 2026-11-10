@@ -9,6 +9,7 @@ import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@iot-os/ui/components/select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { useNow } from "@iot-os/ui/hooks/use-now"
 import { formatNumber } from "@iot-os/ui/lib/format"
 import { cn } from "@iot-os/ui/lib/utils"
 
@@ -77,7 +78,12 @@ export function UsageMonthSelect({
   now?: Date
   className?: string
 }) {
-  const months = React.useMemo(() => usageMonths(now, monthsSince(since, now)), [now, since])
+  // Keyed by the month, so the list turns over when a UTC month ends and not on every render.
+  const current = monthKey(now ?? new Date())
+  const months = React.useMemo(() => {
+    const start = new Date(`${current}-01T00:00:00Z`)
+    return usageMonths(start, monthsSince(since, start))
+  }, [current, since])
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger size="sm" aria-label="Month" className={cn("w-60", className)}>
@@ -203,7 +209,9 @@ export function UsageShares({ id, figures, now }: { id: string; figures: UsageFi
  * organization's part, for this UTC month (`figures`, already loaded with the page) or
  * an earlier one picked in its header (`load`), back to `since`. With `refreshEvery` it
  * reloads this month itself, for a page that loads it once (spec 028 SC-004); an
- * earlier month still waiting for its usage reloads every minute until it is final.
+ * earlier month still waiting for its usage reloads every minute until it is final,
+ * trying again after a failure. Left open past the end of a UTC month, the panel moves
+ * to the new one and loads it until the page's figures catch up.
  */
 export function UsagePanel({
   id,
@@ -226,16 +234,27 @@ export function UsagePanel({
   refreshEvery?: number
   now?: number
 }) {
-  const thisMonth = monthKey(new Date(now ?? Date.now()))
-  const [month, setMonth] = React.useState(thisMonth)
+  const clock = useNow()
+  const thisMonth = monthKey(new Date(now ?? clock))
+  // Null follows this month, so the panel moves on when a UTC month ends.
+  const [picked, setPicked] = React.useState<string | null>(null)
+  const month = picked ?? thisMonth
   const [earlier, setEarlier] = React.useState<{ month: string; figures: UsageFigure[] | "failed" } | null>(null)
   const [attempt, setAttempt] = React.useState(0)
   // This month as last reloaded here; the page's own figures win again when they change.
   const [latest, setLatest] = React.useState<UsageFigure[] | null>(null)
-  React.useEffect(() => setLatest(null), [figures])
+  // The month the page's figures were this month's: after a UTC month ends they are the last one's.
+  const [figuresOf, setFiguresOf] = React.useState(thisMonth)
+  React.useEffect(() => {
+    setLatest(null)
+    setFiguresOf(thisMonth)
+    // Only when the page's figures change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [figures])
+  const fromPage = month === thisMonth && figuresOf === thisMonth
 
   React.useEffect(() => {
-    if (!refreshEvery || month !== thisMonth) return
+    if (!refreshEvery || !fromPage) return
     let current = true
     const timer = window.setInterval(() => {
       load(thisMonth)
@@ -248,18 +267,23 @@ export function UsagePanel({
     }
     // load is a fresh closure on every render of the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshEvery, month, thisMonth])
+  }, [refreshEvery, fromPage, thisMonth])
 
   const provisional =
     earlier !== null && earlier.month === month && earlier.figures !== "failed" && earlier.figures.some((figure) => figure.final === false)
   React.useEffect(() => {
     if (!provisional) return
     let current = true
-    const timer = window.setTimeout(() => {
-      load(month)
-        .then((loaded) => current && setEarlier({ month, figures: loaded }))
-        .catch(() => undefined)
-    }, 60_000)
+    let timer = 0
+    const reload = () => {
+      timer = window.setTimeout(() => {
+        load(month)
+          .then((loaded) => current && setEarlier({ month, figures: loaded }))
+          // A failed reload keeps the figures shown and tries again a minute later.
+          .catch(() => current && reload())
+      }, 60_000)
+    }
+    reload()
     return () => {
       current = false
       window.clearTimeout(timer)
@@ -269,7 +293,7 @@ export function UsagePanel({
   }, [provisional, month, earlier])
 
   React.useEffect(() => {
-    if (month === thisMonth) return
+    if (fromPage) return
     let current = true
     setEarlier(null)
     load(month)
@@ -280,9 +304,9 @@ export function UsagePanel({
     }
     // load is a fresh closure on every render of the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, thisMonth, attempt])
+  }, [month, fromPage, attempt])
 
-  const shown = month === thisMonth ? (latest ?? figures) : earlier?.month === month ? earlier.figures : undefined
+  const shown = fromPage ? (latest ?? figures) : earlier?.month === month ? earlier.figures : undefined
   const titleId = `${id}-title`
 
   return (
@@ -291,7 +315,12 @@ export function UsagePanel({
         <PanelTitle id={titleId}>Usage</PanelTitle>
         {description ? <PanelDescription>{description}</PanelDescription> : null}
         <PanelActions>
-          <UsageMonthSelect value={month} onChange={setMonth} since={since} now={now === undefined ? undefined : new Date(now)} />
+          <UsageMonthSelect
+            value={month}
+            onChange={(value) => setPicked(value === thisMonth ? null : value)}
+            since={since}
+            now={new Date(now ?? clock)}
+          />
         </PanelActions>
       </PanelHeader>
       {shown === "failed" ? (

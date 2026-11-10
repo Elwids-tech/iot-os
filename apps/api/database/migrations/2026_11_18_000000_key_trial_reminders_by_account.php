@@ -26,9 +26,10 @@ return new class extends Migration
                     return;
                 }
                 $key = implode(':', ['trial', $notice->uuid, $parts[2], $parts[3]]);
-                $taken = DB::table('billing_notices')->where('billing_account_id', $notice->billing_account_id)->where('kind', 'trial_reminder')->where('key', $key)->exists();
+                $taken = DB::table('billing_notices')->where('billing_account_id', $notice->billing_account_id)->where('kind', 'trial_reminder')->where('key', $key)->where('id', '!=', $notice->id)->exists();
 
                 // Two assignments of one trial already reminded on the same date: keep one.
+                // A row already keyed by the account is not taken by itself and stays.
                 $taken
                     ? DB::table('billing_notices')->where('id', $notice->id)->delete()
                     : DB::table('billing_notices')->where('id', $notice->id)->update(['key' => $key]);
