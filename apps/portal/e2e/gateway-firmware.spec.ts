@@ -107,7 +107,10 @@ async function setup(page: Page, { connections = true, healthProfile = true, sel
     }
     if (path.endsWith("/sparkplug-connections"))
       return page1([{ uuid: gateway.connection_uuid, name: "Plant broker", group_id: "plant", host_id: "h", status: "ready", diagnostic: null }])
-    if (path.endsWith("/devices")) return page1(devices)
+    if (path.endsWith("/devices")) {
+      const gatewayUuid = url.searchParams.get("gateway_uuid")
+      return page1(devices.filter((d) => !gatewayUuid || d.candidate.gateway.uuid === gatewayUuid))
+    }
     if (path.endsWith("/discovery-candidates")) return page1([])
     if (path.endsWith("/device-profiles")) {
       const search = (url.searchParams.get("search") ?? "").toLowerCase()

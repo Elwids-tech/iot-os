@@ -258,11 +258,13 @@ async function setup(page: Page, options: Options = {}) {
       const lifecycle = url.searchParams.get("lifecycle")
       const statuses = url.searchParams.getAll("status[]")
       const profileUuid = url.searchParams.get("profile_uuid")
+      const gatewayUuid = url.searchParams.get("gateway_uuid")
       const rows = (options.devices ?? [meter, idle]).filter(
         (d) =>
           (!lifecycle || (lifecycle === "current" ? d.lifecycle !== "archived" : d.lifecycle === lifecycle)) &&
           (!statuses.length || statuses.includes(listStatus(d)) || (statuses.includes("offline_alert") && Boolean(d.offline_alert))) &&
-          (!profileUuid || d.profile?.uuid === profileUuid),
+          (!profileUuid || d.profile?.uuid === profileUuid) &&
+          (!gatewayUuid || d.candidate?.gateway.uuid === gatewayUuid),
       )
       const perPage = Number(url.searchParams.get("per_page") ?? 25)
       if (!options.serverSort)
@@ -709,8 +711,13 @@ test("gateways list their devices and discovery shows a clearable gateway filter
   // Broker connections have their own page under Connect.
   await page.goto(`${base}/connections`)
   await expect(page.getByRole("button", { name: "Provision", exact: true })).toBeVisible()
-  // Links from before the gateway page still open it.
+  // Links from before the gateway page still open it, and it asks only for its own devices.
+  const gatewayDevices = page.waitForRequest((r) => {
+    const url = new URL(r.url())
+    return url.pathname.endsWith("/devices") && url.searchParams.get("gateway_uuid") === gatewayId
+  })
   await page.goto(`${base}/gateways?gateway=${gatewayId}`)
+  await gatewayDevices
   await expect(page).toHaveURL(`${base}/gateways/${gatewayId}`)
   await expect(page.getByRole("heading", { name: "Simulator gateway", level: 1 })).toBeVisible()
   await expect(page.getByRole("link", { name: "Energy Meter Simulator" })).toBeVisible()

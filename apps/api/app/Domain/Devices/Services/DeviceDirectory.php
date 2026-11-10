@@ -32,13 +32,15 @@ final class DeviceDirectory
     private const OFFLINE_KINDS = [Alert::DEVICE_OFFLINE, Alert::GATEWAY_OFFLINE];
 
     /**
-     * @param  array{search?: ?string, lifecycle?: ?string, profile_uuid?: ?string, site_uuid?: ?string, tag?: ?string, presence?: ?string, status?: ?list<string>}  $filters
+     * @param  array{search?: ?string, lifecycle?: ?string, profile_uuid?: ?string, site_uuid?: ?string, gateway_uuid?: ?string, tag?: ?string, presence?: ?string, status?: ?list<string>}  $filters
      * @return Builder<Device>
      */
     public function query(Organization $organization, array $filters): Builder
     {
         return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'openInstallation.candidate.adapter:id,status', ...DeviceView::CONNECTIVITY])
             ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
+            // Devices reach a gateway through the source they were configured from.
+            ->when($filters['gateway_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('candidate.gateway', fn ($gateway) => $gateway->where('organization_id', $organization->id)->where('uuid', $uuid)))
             ->when($filters['tag'] ?? null, fn ($q, $tag) => $q->whereJsonContains('tags', trim($tag)))
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($s).'%'])))
             ->when($filters['lifecycle'] ?? null, fn ($q, $s) => $s === 'current' ? $q->where('lifecycle', '!=', 'archived') : $q->where('lifecycle', $s))

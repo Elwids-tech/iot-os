@@ -411,6 +411,40 @@ final class DeviceDomainTest extends TestCase
         $this->assertNotNull($light);
     }
 
+    public function test_devices_can_be_listed_by_the_gateway_of_their_source(): void
+    {
+        $gateway = function (Organization $organization, string $edge): SparkplugGateway {
+            $connection = SparkplugConnection::create(['organization_id' => $organization->id, 'name' => $edge, 'group_id' => $edge, 'host_id' => $edge, 'username' => $edge, 'password' => 'test-secret', 'status' => 'ready']);
+
+            return SparkplugGateway::create(['organization_id' => $organization->id, 'sparkplug_connection_id' => $connection->id, 'name' => $edge, 'edge_node_id' => $edge]);
+        };
+        $behind = function (SparkplugGateway $gateway, Device $device, string $source): void {
+            $candidate = DiscoveryCandidate::create(['organization_id' => $gateway->organization_id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => $source, 'metrics' => [], 'birth_revision' => 1]);
+            $device->forceFill(['device_discovery_candidate_id' => $candidate->id])->save();
+        };
+        $north = $gateway($this->organization, 'gateway-north');
+        $south = $gateway($this->organization, 'gateway-south');
+        $behind($north, $this->registered('by-gateway-north-1'), 'north-1');
+        $behind($north, $this->registered('by-gateway-north-2'), 'north-2');
+        $behind($south, $this->registered('by-gateway-south'), 'south');
+        $this->registered('by-gateway-none');
+
+        $codes = fn (string $query) => collect($this->getJson($this->prefix.'/devices?per_page=100&'.$query)->assertOk()->json('data'))->pluck('code')->sort()->values()->all();
+        $this->assertSame(['by-gateway-north-1', 'by-gateway-north-2'], $codes('gateway_uuid='.$north->uuid));
+        $this->assertSame(['by-gateway-south'], $codes('gateway_uuid='.$south->uuid));
+        $this->assertSame(['by-gateway-north-2'], $codes('gateway_uuid='.$north->uuid.'&search=north-2'));
+        $this->assertSame([], $codes('gateway_uuid='.Str::uuid()));
+        $this->getJson($this->prefix.'/devices?gateway_uuid=not-a-uuid')->assertUnprocessable()->assertJsonValidationErrors('gateway_uuid');
+
+        // Another organization's gateway lists none of this organization's devices, and none of its own here.
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $foreign = $gateway($other, 'gateway-foreign');
+        $foreignDevice = Device::create(['organization_id' => $other->id, 'name' => 'Foreign meter', 'code' => 'by-gateway-foreign']);
+        $behind($foreign, $foreignDevice, 'foreign');
+        $this->assertSame([], $codes('gateway_uuid='.$foreign->uuid));
+        $this->getJson('/api/v1/organizations/'.$other->uuid.'/devices?gateway_uuid='.$north->uuid)->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_devices_filter_by_the_list_status_and_leave_out_archived_as_current(): void
     {
         $states = [

@@ -1830,6 +1830,8 @@ export class ApiClient {
       /** Devices whose applied (or last applied) configuration uses this profile. */
       profile_uuid?: string
       site_uuid?: string
+      /** Devices configured from a source behind this gateway. */
+      gateway_uuid?: string
       tag?: string
       /** name, code, last_seen or created; a leading "-" sorts descending. */
       sort?: string

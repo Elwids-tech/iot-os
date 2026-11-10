@@ -21796,6 +21796,17 @@
             }
           },
           {
+            "name": "gateway_uuid",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
             "name": "tag",
             "in": "query",
             "schema": {
