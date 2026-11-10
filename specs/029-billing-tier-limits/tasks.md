@@ -2195,11 +2195,54 @@ account is charged when a card is saved, or flagged otherwise.
 
 ## Phase 19: Convergence
 
-- [ ] T190 Make each `allowances.*` key optional in the plan request rules (`PlanAllowanceRules`), so the exported `StorePlanRequest` and `UpdatePlanRequest` stop listing all six kinds as required and `retention_days` can be left to the platform default the only way the API allows, by leaving it out. Re-export `contracts/openapi/openapi.json` and add a check that a partial `allowances` body, such as the admin plan form's, matches the request schema. Today the code, the schema's own description, the api-client's `Partial` type and `PlanAdministrationTest` all treat the kinds as optional, so every request the admin app sends breaks the published schema and a client generated from it cannot leave retention to the platform, per 029 FR-052, US1/AC1, 028 FR-024 and Constitution IV (contradicts)
+- [x] T190 Make each `allowances.*` key optional in the plan request rules (`PlanAllowanceRules`), so the exported `StorePlanRequest` and `UpdatePlanRequest` stop listing all six kinds as required and `retention_days` can be left to the platform default the only way the API allows, by leaving it out. Re-export `contracts/openapi/openapi.json` and add a check that a partial `allowances` body, such as the admin plan form's, matches the request schema. Today the code, the schema's own description, the api-client's `Partial` type and `PlanAdministrationTest` all treat the kinds as optional, so every request the admin app sends breaks the published schema and a client generated from it cannot leave retention to the platform, per 029 FR-052, US1/AC1, 028 FR-024 and Constitution IV (contradicts)
+
+  As built (PR 27): Scramble reads Laravel's `array:<keys>` as every key required, so
+  `PlanAllowanceRules` takes `allowances` as an `array` and rejects an unknown kind in a
+  closure rule ("The allowances may only set …"). The exported `StorePlanRequest` and
+  `UpdatePlanRequest` list no kind as required. `PlanAdministrationTest` checks a body
+  with only `alerts` against both schemas. The trap is in `docs/dev/gotchas.md`.
+
 - [ ] T191 Measure the time from the runtime receiving a reading to it being visible in history, with and without counting at the tested load, using a probe that a 100 ms poll does not quantise (for example each outbox row's commit time from `pg_xact_commit_timestamp` with `track_commit_timestamp` on). If counting stays within 5%, record the figures in `docs/features/billing.md`. If it does not, take the result to the owner, since moving the count out of the storing transaction would change ADR-036, and say in `billing.md` what is met. Today `billing.md` says SC-004 holds at p95 and p99, but the probe's 0–100 ms polling wait makes up most of each figure, so a difference of a few milliseconds cannot show, while the unpolled queue time rises from 3 to 5 ms with counting, per 029 SC-004, FR-015, T174 and T189 (partial)
-- [ ] T192 Neutralise spreadsheet formulas in the invoice and credit note CSVs (`InvoicePdf::csv`, `InvoicePdf::creditNoteCsv`): prefix a text cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return with `'`, leaving amounts and counts numeric. Organization names (which owners and organization administrators set), line descriptions, credit reasons and the tax rate's name reach the file as typed, so an owner or administrator opening it in a spreadsheet would run a formula someone else wrote. Add a test with an organization named like a formula, per 029 FR-036 (partial)
-- [ ] T193 Check the SMS thresholds when `Usage::reserve` refuses, treating a refused SMS as the allowance used up (key `sms:{month}:100`), and recheck the SMS thresholds when a plan change, plan edit or override lowers the allowance to or below this month's count. Today a refusal returns before `UsageThresholds::check`, so at 99 of 100 a two-part SMS is refused with "SMS allowance used up for this month" and owners get no email, and after the allowance drops below the count every SMS is refused and neither email is sent. Add tests for both, per 028 FR-016, FR-023, US4/AC2 and SC-005 (partial)
-- [ ] T194 End an overdue limited trial (`Trials::endIfDue`) before `InvoiceDrafter` drafts or recalculates an account's month and before `InvoiceIssuer` issues it, so a draft made while the hourly `billing:end-trials` has not yet ended a trial past its end (after a scheduler outage, or a draft made by hand before the next :05 run) does not price the days after the end at 0 and then disagree with the backdated paid assignment. Add a test, per 029 SC-009, FR-050, the edge case "Trial ends while the control plane is down" and T184 (partial)
-- [ ] T195 Rename the "Integrator plan" in `UsageVisibilityTest` to a neutral name such as "Plan A", as T169 did for the other billing tests, per the public-repository rule and T169 (partial)
-- [ ] T196 Bring `contracts/billing-api.md` and `data-model.md` up to the code. In `billing-api.md`: add `confirm_retention` and its 409 to the plan edit, override (set and remove) and trial (start and change) rows; list the organization move (`PUT admin/organizations/{organization}/billing-account`, which takes `confirm_retention`); say a plan's `allowances` is its complete set, so a kind left out falls back to the default; add `stale` and `stale_after_seconds` to the Usage shape; add `created_at` and `platform_retention_days` to the owner's account and the admin detail. In `data-model.md`: `pending_reduction` carries `steps` (T168), and a device peak is raised by releases, `recheck` and `billing:device-peaks` as well as claims, per 029 FR-052, the plan's documentation rule and T152, T168, T177 (contradicts)
-- [ ] T197 Correct `plan.md` (Billing services) and research R15: Cashier 16 does not load its migrations (it only publishes them), so `Cashier::ignoreMigrations()` does not exist; `BillingServiceProvider` calls `Cashier::ignoreRoutes()`, as T099's note says, per the plan's documentation rule (contradicts)
+- [x] T192 Neutralise spreadsheet formulas in the invoice and credit note CSVs (`InvoicePdf::csv`, `InvoicePdf::creditNoteCsv`): prefix a text cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return with `'`, leaving amounts and counts numeric. Organization names (which owners and organization administrators set), line descriptions, credit reasons and the tax rate's name reach the file as typed, so an owner or administrator opening it in a spreadsheet would run a formula someone else wrote. Add a test with an organization named like a formula, per 029 FR-036 (partial)
+
+  As built (PR 27): `InvoicePdf` writes typed text (line descriptions and notes, the tax
+  rate's name, the credit line, organization names, a credit note's reason) through
+  `text()`, which puts `'` before a value starting with `=`, `+`, `-`, `@`, a tab or a
+  carriage return. Amounts and counts stay numbers. `InvoiceIssuingTest` uses an
+  organization named `=1+2`, an adjustment `-10% goodwill` and a credit reason `+outage`.
+
+- [x] T193 Check the SMS thresholds when `Usage::reserve` refuses, treating a refused SMS as the allowance used up (key `sms:{month}:100`), and recheck the SMS thresholds when a plan change, plan edit or override lowers the allowance to or below this month's count. Today a refusal returns before `UsageThresholds::check`, so at 99 of 100 a two-part SMS is refused with "SMS allowance used up for this month" and owners get no email, and after the allowance drops below the count every SMS is refused and neither email is sent. Add tests for both, per 028 FR-016, FR-023, US4/AC2 and SC-005 (partial)
+
+  As built (PR 27): a refused `reserve` checks the SMS thresholds with the count taken
+  as the allowance (used up), so it sends the 100% warning, and the 80% one if not yet
+  sent. A lower allowance is warned about at the next refused SMS rather than when it is
+  set, as alerts and data points warn at their next count. `SmsAllowanceTest` covers 99
+  of 100 with a two-part message, and an allowance lowered below the count.
+
+- [x] T194 End an overdue limited trial (`Trials::endIfDue`) before `InvoiceDrafter` drafts or recalculates an account's month and before `InvoiceIssuer` issues it, so a draft made while the hourly `billing:end-trials` has not yet ended a trial past its end (after a scheduler outage, or a draft made by hand before the next :05 run) does not price the days after the end at 0 and then disagree with the backdated paid assignment. Add a test, per 029 SC-009, FR-050, the edge case "Trial ends while the control plane is down" and T184 (partial)
+
+  As built (PR 27): `InvoiceDrafter::endOverdueTrial` ends an overdue limited trial
+  (`Trials::endIfDue`) before `draft` and `recalculate`. `InvoiceIssuer::issue` calls it
+  too, before its transaction. When that ends a trial whose end falls before the end of
+  the draft's month, issuing answers 409 "The trial ended on … Recalculate the draft,
+  check it, then issue it." `TrialsTest` drafts October with the hourly run missed, and
+  issues a preview drafted while the trial ran.
+
+- [x] T195 Rename the "Integrator plan" in `UsageVisibilityTest` to a neutral name such as "Plan A", as T169 did for the other billing tests, per the public-repository rule and T169 (partial)
+
+  As built (PR 27): `UsageVisibilityTest` names its plan "Plan A".
+
+- [x] T196 Bring `contracts/billing-api.md` and `data-model.md` up to the code. In `billing-api.md`: add `confirm_retention` and its 409 to the plan edit, override (set and remove) and trial (start and change) rows; list the organization move (`PUT admin/organizations/{organization}/billing-account`, which takes `confirm_retention`); say a plan's `allowances` is its complete set, so a kind left out falls back to the default; add `stale` and `stale_after_seconds` to the Usage shape; add `created_at` and `platform_retention_days` to the owner's account and the admin detail. In `data-model.md`: `pending_reduction` carries `steps` (T168), and a device peak is raised by releases, `recheck` and `billing:device-peaks` as well as claims, per 029 FR-052, the plan's documentation rule and T152, T168, T177 (contradicts)
+
+  As built (PR 27): `billing-api.md` gains `confirm_retention` on the plan edit, override
+  and trial rows, the organization move row, the complete-set rule for `allowances`,
+  `stale` and `stale_after_seconds` in the Usage shape, and `created_at` and
+  `platform_retention_days` on both account responses. `data-model.md` describes
+  `pending_reduction.steps` and every way a device peak rises.
+
+- [x] T197 Correct `plan.md` (Billing services) and research R15: Cashier 16 does not load its migrations (it only publishes them), so `Cashier::ignoreMigrations()` does not exist; `BillingServiceProvider` calls `Cashier::ignoreRoutes()`, as T099's note says, per the plan's documentation rule (contradicts)
+
+  As built (PR 27): `plan.md` and R15 say Cashier 16 only publishes its migrations,
+  `BillingServiceProvider` calls `Cashier::ignoreRoutes()`, and payments need both
+  Stripe secrets.

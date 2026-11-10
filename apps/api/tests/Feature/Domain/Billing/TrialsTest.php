@@ -15,6 +15,7 @@ use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Models\PlanAssignment;
 use App\Domain\Billing\Services\Allowances;
+use App\Domain\Billing\Services\InvoiceDrafter;
 use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Billing\Services\Prices;
 use App\Domain\Billing\Services\Trials;
@@ -181,6 +182,40 @@ final class TrialsTest extends TestCase
             [[1.0, 0, 'Not charged during trial'], [1.0, 7, null]],
             $invoice->lines->where('kind', InvoiceLineKind::AlertOverage)->map(fn ($line): array => [(float) $line->quantity, $line->amount, $line->note])->values()->all(),
         );
+    }
+
+    public function test_drafting_ends_a_trial_past_its_end_that_the_hourly_run_missed_and_charges_the_days_after(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+        $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242', 'pm_expires' => '2030-12'])->save();
+
+        // The scheduler was down: no hourly run ended the trial before the draft.
+        $invoice = $this->draftOctober();
+
+        $this->assertSame('trial_reached_end', PlanAssignment::query()->where('kind', 'trial')->sole()->end_reason);
+        $this->assertSame(
+            [['trial', 0, 20], ['base_price', 1100, 11]],
+            $invoice->lines->whereIn('kind', [InvoiceLineKind::Trial, InvoiceLineKind::BasePrice])
+                ->map(fn ($line): array => [$line->kind->value, $line->amount, (int) $line->quantity])->values()->all(),
+        );
+    }
+
+    public function test_issuing_a_draft_made_before_a_trial_was_ended_asks_for_it_to_be_recalculated(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+        // A preview of the running month, drafted while the trial still ran.
+        $this->travelTo(CarbonImmutable::parse('2026-10-15 10:00', 'UTC'));
+        $draft = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-10-01', 'UTC'), $this->admin, null);
+        $this->assertSame(PlanAssignmentKind::Trial, app(PlanAssignments::class)->current($this->account)->kind);
+
+        $this->travelTo(CarbonImmutable::parse('2026-11-02 10:00', 'UTC'));
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")
+            ->assertConflict()
+            ->assertJsonPath('message', 'The trial ended on 21 October 2026. Recalculate the draft, check it, then issue it.');
+        $this->assertSame('trial_reached_end', PlanAssignment::query()->where('kind', 'trial')->sole()->end_reason);
     }
 
     public function test_a_limited_trial_is_not_ended_by_usage_within_the_allowance(): void

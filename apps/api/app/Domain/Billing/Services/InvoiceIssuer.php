@@ -33,7 +33,9 @@ final class InvoiceIssuer
 
     public function issue(Invoice $invoice, User $actor): Invoice
     {
-        $issued = DB::transaction(function () use ($invoice, $actor): Invoice {
+        $trialEnded = $this->drafter->endOverdueTrial(BillingAccount::withTrashed()->findOrFail($invoice->billing_account_id));
+
+        $issued = DB::transaction(function () use ($invoice, $actor, $trialEnded): Invoice {
             $locked = Invoice::query()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
             abort_if($locked->isIssued(), 409, sprintf('Invoice %s is already issued.', $locked->number));
             // A draft of the running month is a preview: issued now, it would charge days to
@@ -49,6 +51,12 @@ final class InvoiceIssuer
             abort_if($locked->usage_incomplete && $this->drafter->usageFinal($locked->month), 409, sprintf(
                 "%s's usage is final now. Recalculate the draft, check it, then issue it.",
                 $locked->month->format('F Y'),
+            ));
+            // Drafting ends a trial past its end first; one ended only now changed the days
+            // the draft charges (FR-050, SC-009).
+            abort_if($trialEnded?->lessThan($ends) === true, 409, sprintf(
+                'The trial ended on %s. Recalculate the draft, check it, then issue it.',
+                $trialEnded?->format('j F Y'),
             ));
             // The account row serializes its credit: two issues cannot spend it twice.
             $account = BillingAccount::withTrashed()->whereKey($locked->billing_account_id)->lockForUpdate()->firstOrFail();

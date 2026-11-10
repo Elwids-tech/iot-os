@@ -14,6 +14,7 @@ use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
+use Tests\Support\Contract\ContractDocument;
 use Tests\TestCase;
 
 /**
@@ -71,6 +72,16 @@ final class PlanAdministrationTest extends TestCase
             ->postJson('/api/v1/admin/billing-plans', ['name' => 'Plan A', 'allowances' => ['alerts' => 10]])
             ->assertCreated()
             ->assertJsonPath('data.allowances', [['kind' => 'alerts', 'value' => 10]]);
+    }
+
+    public function test_the_contract_accepts_a_partial_set_of_allowances(): void
+    {
+        $contract = ContractDocument::committed();
+        $body = json_decode((string) json_encode(['name' => 'Plan A', 'allowances' => ['alerts' => 10]]), false);
+
+        foreach (['StorePlanRequest', 'UpdatePlanRequest'] as $schema) {
+            $this->assertNull($contract->validate($body, ContractDocument::pointer(['components', 'schemas', $schema])), $schema);
+        }
     }
 
     public function test_plan_values_are_validated(): void

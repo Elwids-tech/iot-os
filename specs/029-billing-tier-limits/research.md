@@ -310,9 +310,11 @@ Laravel Cashier.
 - **Decision**:
   - Require `laravel/cashier` 16.x (16.9 supports Laravel 13). `BillingAccount` uses
     `Billable`, and `Cashier::useCustomerModel(BillingAccount::class)`.
-  - Cashier's subscription migrations are not run (`Cashier::ignoreMigrations()`).
-    Only its customer columns are added to `billing_accounts`: `stripe_id`,
-    `pm_type`, `pm_last_four`, plus `pm_expires`.
+  - Cashier's subscription migrations are not run: Cashier 16 only publishes them, so
+    nothing needs switching off (there is no `Cashier::ignoreMigrations()`), and
+    `Cashier::ignoreRoutes()` leaves the webhook route to the domain. Only its customer
+    columns are added to `billing_accounts`: `stripe_id`, `pm_type`, `pm_last_four`,
+    plus `pm_expires`.
   - Saving a card: a Stripe Checkout session in `setup` mode, on Stripe's own page.
     `checkout.session.completed` sets the payment method as the customer's default
     and stores brand, last four and expiry.

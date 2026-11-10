@@ -245,9 +245,10 @@ reference the account, not the organization.
 
 `App\Domain\Billing\Listeners\StripeEvents` handles Cashier's `WebhookReceived`
 ([contract](contracts/stripe-webhooks.md)). `BillingAccount` uses Cashier's
-`Billable`, registered with `Cashier::useCustomerModel(BillingAccount::class)`;
-`Cashier::ignoreMigrations()` is set in `BillingServiceProvider`. Payments are off
-when `cashier.secret` is empty.
+`Billable`, registered with `Cashier::useCustomerModel(BillingAccount::class)`.
+Cashier 16 only publishes its migrations, so none run; `BillingServiceProvider` calls
+`Cashier::ignoreRoutes()`, and the webhook is the domain's own controller. Payments are
+off unless both `cashier.secret` and `cashier.webhook.secret` are set.
 
 ### Changes outside the domain
 

@@ -83,27 +83,25 @@ final class Usage implements SmsAllowance
         self::assertCounted(AllowanceKind::Sms, $parts);
         $month = self::monthOf($at);
 
-        $reserved = DB::transaction(function () use ($account, $organization, $parts, $month): ?array {
+        [$reserved, $count, $allowance] = DB::transaction(function () use ($account, $organization, $parts, $month): array {
             $totals = $this->lock($account, AllowanceKind::Sms, $month);
             $allowance = $this->allowances->value($account->withoutRelations(), AllowanceKind::Sms);
             $count = (int) $totals->count + $parts;
 
             if ($allowance !== null && $count > $allowance) {
-                return null;
+                return [false, (int) $totals->count, $allowance];
             }
 
             $this->write($account, $organization, AllowanceKind::Sms, $month, $count, (int) $totals->overage, $parts);
 
-            return [$count, $allowance];
+            return [true, $count, $allowance];
         });
 
-        if ($reserved === null) {
-            return false;
-        }
+        // A refused SMS has found the allowance used up (028 FR-016), so it warns as 100%,
+        // also after a lower allowance left the count above it.
+        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Sms, $month, $reserved ? $count : max($count, (int) $allowance), $allowance));
 
-        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Sms, $month, $reserved[0], $reserved[1]));
-
-        return true;
+        return $reserved;
     }
 
     public function release(BillingAccount $account, Organization $organization, int $parts, CarbonImmutable $reservedAt): void

@@ -61,6 +61,34 @@ final class SmsAllowanceTest extends TestCase
         $this->assertSame(0, DB::table('billing_overage')->count());
     }
 
+    public function test_owners_are_told_the_allowance_is_used_up_when_an_sms_is_refused(): void
+    {
+        $this->account->owners()->attach(User::factory()->create()->id, ['created_at' => now()]);
+        $this->allow(100);
+        $now = CarbonImmutable::now();
+        $month = $now->format('Y-m');
+
+        $this->assertTrue($this->sms->reserve($this->account, $this->organization, 99, $now));
+        $this->assertSame(["sms:{$month}:80"], $this->notices());
+        // Two parts do not fit in the one that is left: used up for this month.
+        $this->assertFalse($this->sms->reserve($this->account, $this->organization, 2, $now));
+        $this->assertSame(["sms:{$month}:100", "sms:{$month}:80"], $this->notices());
+    }
+
+    public function test_owners_are_told_once_a_lower_allowance_refuses_an_sms(): void
+    {
+        $this->account->owners()->attach(User::factory()->create()->id, ['created_at' => now()]);
+        $this->allow(100);
+        $now = CarbonImmutable::now();
+        $this->assertTrue($this->sms->reserve($this->account, $this->organization, 50, $now));
+        $this->assertSame([], $this->notices());
+
+        $this->allow(40);
+        $this->assertFalse($this->sms->reserve($this->account, $this->organization, 1, $now));
+        $month = $now->format('Y-m');
+        $this->assertSame(["sms:{$month}:100", "sms:{$month}:80"], $this->notices());
+    }
+
     public function test_an_allowance_of_zero_refuses_everything_and_unlimited_refuses_nothing(): void
     {
         $now = CarbonImmutable::now();
@@ -170,6 +198,14 @@ final class SmsAllowanceTest extends TestCase
             ->first();
 
         return [(int) $row?->count, (int) $row?->overage];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function notices(): array
+    {
+        return DB::table('billing_notices')->where('billing_account_id', $this->account->id)->where('kind', 'usage_threshold')->orderBy('key')->pluck('key')->all();
     }
 
     private function share(): int

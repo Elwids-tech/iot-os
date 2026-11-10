@@ -207,6 +207,12 @@ Things that have cost time before. Add to this list when something surprises you
   The activity feed returns details as a list of `{key, value}` text pairs instead, and
   its 200 body is described by hand in `contracts/openapi/supplements/activity.yaml`
   because Scramble reads values taken from a DTO's array properties as strings.
+- **Scramble reads `array:<keys>` as every key required.** Laravel's `array:a,b` only
+  limits which keys an array may have, but the export lists all of them under
+  `required`, so a request that leaves one out breaks the published schema. Where the
+  keys are optional, use `array` and reject unknown keys in a closure rule, as
+  `PlanAllowanceRules` does; only responses are checked against the contract, so no test
+  notices on its own.
 - **A deployment's `status` is never `applied`.** `automation_deployments.status` is
   `pending`, `succeeded` or `failed`; `applied` belongs to the workflow's and the
   device's `deployment_status`. Many test fixtures still seed deployments with

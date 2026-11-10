@@ -37,7 +37,8 @@ each month on ([Prices and invoices](#prices-and-invoices)). Each allowance has 
 
 A value is a whole number of 0 or more, or **unlimited** (`null`). Retention is never
 unlimited. A plan lists only the kinds it sets; a kind it leaves out falls back to
-the deployment default.
+the deployment default. The plan requests take each kind as optional, in the contract
+too, since leaving retention out is how a plan keeps the platform's period.
 
 A billing account has at most one plan at a time. Its allowance for each kind is its
 **override**, else its plan's allowance, else the deployment default
@@ -281,7 +282,9 @@ bound to `Usage`:
   provider. Under the row lock it counts the parts when they fit in what is left, and
   answers `false` otherwise; the sender then cancels the message with "SMS allowance
   used up for this month", and the other channels are unaffected. Two messages
-  competing for the last part: one goes, the other is cancelled.
+  competing for the last part: one goes, the other is cancelled. A refused message has
+  found the allowance used up, so it sends the 100% warning (and the 80% one, if not yet
+  sent), also when a lower allowance left the count above it.
 - `release(account, organization, parts, reservedAt)` when the provider refuses the
   message before accepting it. It gives the parts back to the month they were
   reserved in, never below 0.
@@ -459,7 +462,10 @@ every division rounds half up.
   change: `outstanding` is derived.
 - **Documents and email.** PDFs are rendered on request with dompdf from
   `resources/views/billing/invoice.blade.php`; an invoice's CSV holds the lines, totals
-  and usage, a credit note's its reason and amounts.
+  and usage, a credit note's its reason and amounts. Typed text in a CSV (organization
+  names, descriptions, notes, reasons, the tax rate's name) that starts like a
+  spreadsheet formula (`=`, `+`, `-`, `@`, a tab or a carriage return) gets a leading
+  `'`, so a spreadsheet shows it instead of running it; amounts stay numbers.
   An issued invoice or credit note is emailed once each to the billing contact and every
   owner (`invoice_issued`, `credit_note_issued` notices), with the PDF attached. Owners
   see issued invoices only; a draft answers 404.
@@ -587,7 +593,10 @@ overage at 0.
   trial is not charged, even after a card is saved or the trial converted that day.
   Overage counted after a limited trial's end but before the hourly run has ended it
   ends the trial first (`Trials::endIfDue`, as the run would), so it is priced on what
-  follows from the trial's end.
+  follows from the trial's end. Drafting and recalculating an invoice end such a trial
+  first too (`InvoiceDrafter::endOverdueTrial`), so the days after its end are charged.
+  Issuing ends it as well, and answers 409 ("Recalculate the draft…") when that changes
+  the days of the draft's month.
 - **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
   passed, at their end even when the job runs late (so a trial that ended while the
   control plane was down ends within the hour after it is back), then sends `trial_reminder` emails

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Http\Requests;
 
 use App\Domain\Billing\Enums\AllowanceKind;
+use Closure;
 
 /**
  * The `allowances` map shared by plan requests: each kind is optional, a whole number
@@ -13,11 +14,21 @@ use App\Domain\Billing\Enums\AllowanceKind;
 final class PlanAllowanceRules
 {
     /**
-     * @return array<string, list<string>>
+     * @return array<string, list<string|Closure>>
      */
     public static function rules(): array
     {
-        $rules = ['allowances' => ['sometimes', 'array:'.implode(',', AllowanceKind::values())]];
+        $rules = ['allowances' => [
+            'sometimes',
+            'array',
+            // Only known kinds. Not `array:<kinds>`, which the contract export reads as every
+            // kind required, while a kind left out falls back to the default.
+            static function (string $attribute, mixed $value, Closure $fail): void {
+                if (is_array($value) && array_diff(array_keys($value), AllowanceKind::values()) !== []) {
+                    $fail('The :attribute may only set '.implode(', ', AllowanceKind::values()).'.');
+                }
+            },
+        ]];
 
         foreach (AllowanceKind::cases() as $kind) {
             $rules['allowances.'.$kind->value] = [
