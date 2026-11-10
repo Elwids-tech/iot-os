@@ -5,7 +5,6 @@ import { Fragment, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import type {
-  Device,
   Gateway,
   SparkplugConnection,
 } from "@iot-os/api-client"
@@ -37,7 +36,13 @@ import {
   SaveBar,
 } from "../components/forms"
 import { GatewayFirmwareDialog } from "./GatewayFirmwareDialog"
-import { connectionsPath, discoveryPath, gatewayPath, useDeviceOrganization } from "./shared"
+import {
+  connectionsPath,
+  discoveryPath,
+  gatewayDevicesQuery,
+  gatewayPath,
+  useDeviceOrganization,
+} from "./shared"
 
 export function GatewaysPage() {
   const { org, capabilities } = useDeviceOrganization()
@@ -59,28 +64,6 @@ export function GatewaysPage() {
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
-  // Devices per gateway come from the device list; each device carries its source's gateway.
-  const devices = useQuery({
-    queryKey: ["devices", org, "all"],
-    queryFn: async () => {
-      const all: Device[] = []
-      for (let next = 1, last = 1; next <= last; next++) {
-        const result = await api.devices(org, { page: next, per_page: 100 })
-        all.push(...result.data)
-        last = result.meta.last_page
-      }
-      return all
-    },
-    refetchInterval: 30000,
-    refetchIntervalInBackground: false,
-  })
-  const byGateway = new Map<string, Device[]>()
-  for (const device of devices.data ?? [])
-    if (device.candidate)
-      byGateway.set(device.candidate.gateway.uuid, [
-        ...(byGateway.get(device.candidate.gateway.uuid) ?? []),
-        device,
-      ])
   const [editor, setEditor] = useState<"connection" | "gateway" | null>(null),
     [error, setError] = useState<unknown>(null),
     [provision, setProvision] = useState<
@@ -89,6 +72,11 @@ export function GatewaysPage() {
       | null
     >(null),
     [firmware, setFirmware] = useState<Gateway | null>(null)
+  // The Firmware dialog suggests the profiles of the gateway's devices, loaded once it opens.
+  const firmwareDevices = useQuery({
+    ...gatewayDevicesQuery(org, firmware?.uuid ?? ""),
+    enabled: Boolean(firmware),
+  })
   const ready = connections.data?.data.some((c) => c.status === "ready")
   // Links from before the gateway page used ?gateway=; send them to the page.
   if (legacy) return <Navigate to={gatewayPath(org, legacy)} replace />
@@ -118,8 +106,8 @@ export function GatewaysPage() {
       header: "Devices",
       align: "end",
       summary: "sum",
-      value: (g) => (devices.data ? (byGateway.get(g.uuid)?.length ?? 0) : null),
-      cell: (g) => <span className="tabular-nums">{devices.data ? (byGateway.get(g.uuid)?.length ?? 0) : ""}</span>,
+      value: (g) => g.devices_count ?? null,
+      cell: (g) => <span className="tabular-nums">{g.devices_count}</span>,
     },
     { id: "last-seen", header: "Last seen", align: "end", value: (g) => g.last_seen_at, cell: (g) => <RelativeTime at={g.last_seen_at} /> },
   ]
@@ -255,7 +243,7 @@ export function GatewaysPage() {
         <GatewayFirmwareDialog
           org={org}
           gateway={firmware}
-          devices={devices.data ? (byGateway.get(firmware.uuid) ?? []) : devices.isError ? [] : undefined}
+          devices={firmwareDevices.isError ? [] : firmwareDevices.data}
           canManage={capabilities.connections}
           onClose={() => setFirmware(null)}
         />

@@ -24792,6 +24792,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
+        "description": "The organization's gateways. Each carries `sources_count`, the sources it has reported, and `devices_count`, the organization's devices configured from one of those sources in every lifecycle, archived included; the gateway's own devices list with `GET devices?gateway_uuid=`.",
         "x-schema-status": "pending"
       },
       "post": {

@@ -7,6 +7,7 @@ namespace App\Domain\Devices\Models;
 use App\Domain\Automation\Models\Alert;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class SparkplugGateway extends DeviceModel
@@ -28,6 +29,12 @@ final class SparkplugGateway extends DeviceModel
     public function candidates(): HasMany
     {
         return $this->hasMany(DiscoveryCandidate::class);
+    }
+
+    /** Devices configured from a source behind this gateway, in every lifecycle. */
+    public function devices(): HasManyThrough
+    {
+        return $this->hasManyThrough(Device::class, DiscoveryCandidate::class, 'sparkplug_gateway_id', 'device_discovery_candidate_id');
     }
 
     /** The open Gateway offline alert of this gateway (spec 018), if any. */
