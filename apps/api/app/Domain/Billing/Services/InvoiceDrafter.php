@@ -97,6 +97,25 @@ final class InvoiceDrafter
     }
 
     /**
+     * Whether a draft's lines are still what its month's records give (SC-009). One
+     * calculated before its month ended, or before a trial ended or a plan changed, is
+     * not. Descriptions are left out, so renaming a plan does not count.
+     */
+    public function linesCurrent(Invoice $invoice, BillingAccount $account): bool
+    {
+        $shape = fn (InvoiceLineKind $kind, float $quantity, ?int $unit, int $amount, ?string $from, ?string $to, ?int $assignment): string => (string) json_encode([$kind->value, $quantity, $unit, $amount, $from, $to, $assignment]);
+        $stored = $invoice->lines()
+            ->whereNotIn('kind', [InvoiceLineKind::Adjustment->value, InvoiceLineKind::Credit->value])
+            ->orderBy('position')
+            ->get()
+            ->map(fn (InvoiceLine $line): string => $shape($line->kind, (float) $line->quantity, $line->unit_price, $line->amount, $line->period_start?->toDateString(), $line->period_end?->toDateString(), $line->plan_assignment_id))
+            ->all();
+        $now = array_map(fn (array $line): string => $shape($line['kind'], (float) $line['quantity'], $line['unit_price'], $line['amount'], $line['period_start'], $line['period_end'], $line['plan_assignment_id']), $this->computeLines($account, $invoice->month));
+
+        return $stored === $now;
+    }
+
+    /**
      * Ends the account's limited trial when it is past its end and the hourly run has not
      * ended it yet, so a draft charges the days after the end (spec 029 FR-050, SC-009).
      *

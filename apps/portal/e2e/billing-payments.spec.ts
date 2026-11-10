@@ -51,6 +51,7 @@ async function setup(page: Page, options: Options = {}) {
     paidLooks: 0,
     unpaidStatus: options.failed ? "failed" : "pending",
     posts: [] as string[],
+    returnedWith: "",
   }
   const organization = {
     uuid: org,
@@ -105,6 +106,12 @@ async function setup(page: Page, options: Options = {}) {
       return route.fulfill({ status: 204 })
     }
     if (path === `/api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}/checkout`) return json({ data: { url: `${stripe}/c/pay` } })
+    if (path === `/api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}/checkout/returned`) {
+      // The API asks Stripe how the session stands: paid already, before Stripe's event.
+      state.returnedWith = (JSON.parse(request.postData() ?? "{}") as { session?: string }).session ?? ""
+      state.unpaidStatus = "paid"
+      return route.fulfill({ status: 204 })
+    }
     if (path === `/api/v1/billing-accounts/${accountUuid}/invoices`) {
       if (state.posts.includes(`POST /api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}/checkout`) && state.paidLooks++ >= 1) state.unpaidStatus = "paid"
       const unpaid = state.unpaidStatus === "paid" ? 0 : 2614
@@ -178,6 +185,16 @@ test("an owner pays an unpaid invoice on Stripe's page and replaces or removes t
   await expect(page.getByText("Card removed")).toBeVisible()
   expect(state.posts).toContain(`DELETE /api/v1/billing-accounts/${accountUuid}/payment-method`)
   await expect(card.getByRole("button", { name: "Add card" })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test("back from Stripe's page with the session, the payment is looked up at once", async ({ page }) => {
+  const { errors, state } = await setup(page, { card: true })
+  await page.goto(`/billing?account=${accountUuid}&invoice=${unpaidUuid}&paid=1&session=cs_test_1`)
+  await expect(page.getByText("Payment received for INV-0002")).toBeVisible()
+  expect(state.posts).toContain(`POST /api/v1/billing-accounts/${accountUuid}/invoices/${unpaidUuid}/checkout/returned`)
+  expect(state.returnedWith).toBe("cs_test_1")
+  await expect(page).not.toHaveURL(/session=/)
   expect(errors).toEqual([])
 })
 

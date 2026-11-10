@@ -38,7 +38,9 @@ each month on ([Prices and invoices](#prices-and-invoices)). Each allowance has 
 A value is a whole number of 0 or more, or **unlimited** (`null`). Retention is never
 unlimited. A plan lists only the kinds it sets; a kind it leaves out falls back to
 the deployment default. The plan requests take each kind as optional, in the contract
-too, since leaving retention out is how a plan keeps the platform's period.
+too, since leaving retention out is how a plan keeps the platform's period. An edit's
+`allowances` is the plan's complete set, so an empty one puts every kind back on the
+default (`PlanAllowanceRules::keepEmpty`).
 
 A billing account has at most one plan at a time. Its allowance for each kind is its
 **override**, else its plan's allowance, else the deployment default
@@ -265,11 +267,13 @@ organization and UTC hour (`usage.data_points.v1`,
     | Without counting | 29,850 | 5.2 ms | 10.7 ms | 14.3 ms | 105 ms | 4.2 ms | 1.0 ms |
     | With counting again | 29,892 | 7.2 ms | 15.0 ms | 22.9 ms | 550 ms | 6.0 ms | 1.1 ms |
 
-    Queue is the time to the transaction writing its outbox row, storing the time from
-    there to the commit. The upsert itself barely shows in storing; most of what
-    counting adds is waiting. The storage consumer takes one message at a time
-    (`MaxAckPending(1)`), so each transaction's extra time, its commit included, delays
-    every message behind it.
+    Each figure ends at the storing transaction's commit timestamp, which PostgreSQL
+    takes as it writes the commit record, before the flush that makes the readings
+    visible, so it leaves out that one flush. Queue is the time to the transaction's
+    start, storing the time from there to the commit timestamp. The upsert itself barely
+    shows in storing; most of what counting adds is waiting. The storage consumer takes
+    one message at a time (`MaxAckPending(1)`), so each transaction's extra time, its
+    flush included, delays every message behind it.
   - **Earlier runs (T141 on 2026-11-08, T174 on 2026-11-09)** polled the outbox every
     100 ms. That wait made up most of every figure (p50 57–64 ms, p95 105–111 ms), so
     their conclusion that p95 and p99 were within 5% could not show a difference of a
@@ -277,8 +281,11 @@ organization and UTC hour (`usage.data_points.v1`,
     run had 6–7 messages over 500 ms near the database's five-minute checkpoints. After
     it, no message in those runs took longer than 153 ms. In T191's counting runs the
     slowest message took 845 ms and 550 ms, against 105 ms without counting, so the slow
-    tail is rarer, not gone.
-  - **Readings kept.** No reading was dropped in any run.
+    tail is not gone; T191's probe reports only the slowest, not how many.
+  - **Readings kept.** Each 10-minute window stored 29,850 to 29,892 messages against
+    the 30,000 the simulator's schedule gives, the same with and without counting. The
+    runs did not compare with what the simulator sent, so they show that counting loses
+    nothing more, not that nothing was lost.
 
 ### SMS allowance
 
@@ -292,7 +299,8 @@ bound to `Usage`:
   used up for this month", and the other channels are unaffected. Two messages
   competing for the last part: one goes, the other is cancelled. A refused message has
   found the allowance used up, so it sends the 100% warning (and the 80% one, if not yet
-  sent), also when a lower allowance left the count above it.
+  sent), also when a lower allowance left the count above it. The email gives what was
+  really used, and when some is left says there is too little for the next message.
 - `release(account, organization, parts, reservedAt)` when the provider refuses the
   message before accepting it. It gives the parts back to the month they were
   reserved in, never below 0.
@@ -456,8 +464,12 @@ every division rounds half up.
 - **Issuing.** Only once the invoice's month has ended (409 before: a draft of the
   running month is a preview). A draft made before its month's usage was final must be
   recalculated once it is (409 until then, and admin's **Issue** asks for it; the
-  detail's `usage_final` says so), so it never goes out without what came in since. In
-  one transaction: the next number from a locked counter row
+  detail's `usage_final` says so), so it never goes out without what came in since.
+  Issuing also ends a limited trial past its end first, then refuses (409, "…records
+  changed since this draft was calculated…") a draft whose lines differ from what the
+  month's records give now (`InvoiceDrafter::linesCurrent`; descriptions aside), such as
+  a preview drafted before a trial ended or the plan changed, until it is recalculated.
+  In one transaction: the next number from a locked counter row
   (`billing_number_sequences`, so no gaps); snapshots of the operator's and the account's
   details and the tax rate; tax on the subtotal; the account's credit applied; due in
   `BILLING_INVOICE_DUE_DAYS` (14). An invoice with nothing to pay is paid. From then on
@@ -521,13 +533,24 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   then charges what is still owed off-session, with the idempotency key
   `invoice:{uuid}:{attempt}` and the payment's uuid in the PaymentIntent's metadata:
   attempt 1 at issue, 2 on the due date, 3 seven days after. A retried job sends the same
-  request, so Stripe charges once. When every try loses Stripe's answer, the pending
-  payment blocks the next attempt and the Checkout page until Stripe's event arrives or
-  an administrator checks with Stripe.
+  request, so Stripe charges once. When every try loses Stripe's answer (a timeout, a
+  rate limit or Stripe's own error), the pending payment blocks the next attempt and the
+  Checkout page until Stripe's event arrives or an administrator checks with Stripe. A
+  request Stripe refuses outright (any other 4xx, such as a card detached meanwhile)
+  charged nothing, so the payment fails at once with Stripe's reason, and the owner is
+  emailed. Less than the smallest card payment (`BILLING_CARD_MINIMUM`, 50 minor units
+  for USD) is never sent to Stripe: no charge is made, Checkout answers 409 saying so,
+  and an administrator records the payment when it is made.
 - **Paying online.** An owner can pay what is still owed on a Checkout page in payment
-  mode, which answers 409 when nothing is owed or a payment is still processing. The
-  page expires after 30 minutes (Stripe's minimum), and the invoice's open pages are
-  expired once a card charge starts or the invoice is settled.
+  mode, which answers 409 when nothing is owed, a payment is still processing or the
+  amount is below the smallest card payment. The page expires after 30 minutes
+  (Stripe's minimum), and the invoice's open pages are expired once a card charge starts
+  or the invoice is settled. Stripe returns the owner with the session's id
+  (`{CHECKOUT_SESSION_ID}`), and the portal posts it to `checkout/returned`: the API
+  asks Stripe how that session's payment stands and records it as the event would, so
+  the invoice reads processing or paid before the event arrives, and Pay is not offered
+  again meanwhile (US7/AC7). A session for another invoice or customer changes
+  nothing.
 - **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
   secret (403 otherwise). Cashier's own subscription, customer and card handlers
   (`customer.updated`, `payment_method.automatically_updated` among them) are switched
@@ -603,8 +626,11 @@ overage at 0.
   ends the trial first (`Trials::endIfDue`, as the run would), so it is priced on what
   follows from the trial's end. Drafting and recalculating an invoice end such a trial
   first too (`InvoiceDrafter::endOverdueTrial`), so the days after its end are charged.
-  Issuing ends it as well, and answers 409 ("Recalculate the draft…") when that changes
-  the days of the draft's month.
+  Issuing ends it as well, and then refuses a draft calculated before it ended (see
+  Issuing above). A card saved after the trial's end but before it was ended (the run
+  or a draft came later) counts as saved afterwards: the trial ends `trial_unpaid` at its
+  end and turns `paid` when the card was saved (`pm_saved_at`), so it is charged from
+  the next day, with one ended email.
 - **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
   passed, at their end even when the job runs late (so a trial that ended while the
   control plane was down ends within the hour after it is back), then sends `trial_reminder` emails
@@ -645,7 +671,7 @@ Admin routes need `PlatformAdministration.manage-organizations`:
 | `POST admin/billing-accounts/{uuid}/invoices` | `{month, note}`: draft anyway (409 when one exists) |
 | `GET admin/billing/invoices/{uuid}`, `.pdf`, `.csv` | Lines, usage, credit notes and `history` (drafting, adjustments, issuing, credit notes, newest first); documents |
 | `POST admin/billing/invoices/{uuid}/recalculate`, `/adjustments`, `DELETE …/adjustments/{line}` | Drafts only (409 once issued) |
-| `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it; 409 until its month has ended |
+| `POST admin/billing/invoices/{uuid}/issue` | Number, fix and email it; 409 if already issued, until its month has ended, when its usage became final after it was drafted, or when the month's records changed since it was calculated (recalculate first) |
 | `POST admin/billing/invoices/{uuid}/credit-notes`, `GET admin/billing/credit-notes/{uuid}.pdf`, `.csv` | `{amount, reason}` on an issued invoice; documents |
 | `POST admin/billing/invoices/{uuid}/payments` | `{amount, note}`: a payment made another way, up to what is still owed (201) |
 | `POST admin/billing/invoices/{uuid}/reconcile` | Applies Stripe's state to pending payments; 404 while payments are off |
@@ -678,7 +704,8 @@ Owner and manager routes:
 | `GET billing-accounts/{uuid}/invoices` | Issued invoices and credit notes |
 | `GET billing-accounts/{uuid}/invoices/{uuid}`, `.pdf`, `.csv`; `GET billing-accounts/{uuid}/credit-notes/{uuid}.pdf`, `.csv` | Issued only; a draft or another account's answers 404 |
 | `POST billing-accounts/{uuid}/payment-method/checkout`, `DELETE billing-accounts/{uuid}/payment-method` | `{url}` of Stripe's page to save a card; remove it. 404 while payments are off |
-| `POST billing-accounts/{uuid}/invoices/{uuid}/checkout` | `{url}` of Stripe's page to pay what is owed; 409 when nothing is |
+| `POST billing-accounts/{uuid}/invoices/{uuid}/checkout` | `{url}` of Stripe's page to pay what is owed; 409 when nothing is, a payment is processing, or it is below the smallest card payment |
+| `POST billing-accounts/{uuid}/invoices/{uuid}/checkout/returned` | `{session}`, back from Stripe's page: records the payment as Stripe has it; 204 |
 | `GET organizations/{uuid}/usage` | This month's usage as a manager sees it, and the organization's `retention`; needs `Device.manage` |
 
 A usage entry is `{kind, month, count, allowance, left, overage, organizations}`,

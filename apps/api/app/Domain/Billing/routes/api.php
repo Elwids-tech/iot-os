@@ -205,6 +205,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('auth:sanctum')->group(function
     Route::post('billing-accounts/{billingAccount}/invoices/{invoice}/checkout', [OwnedPaymentController::class, 'invoiceCheckout'])
         ->whereUuid(['billingAccount', 'invoice'])
         ->name('billing-accounts.invoices.checkout');
+    Route::post('billing-accounts/{billingAccount}/invoices/{invoice}/checkout/returned', [OwnedPaymentController::class, 'invoiceCheckoutReturned'])
+        ->whereUuid(['billingAccount', 'invoice'])
+        ->name('billing-accounts.invoices.checkout.returned');
 });
 
 // Stripe's signed events (spec 029 FR-041, contracts/stripe-webhooks.md); 404 while payments are off.

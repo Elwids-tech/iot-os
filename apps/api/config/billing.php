@@ -42,4 +42,10 @@ return [
     'currency' => strtoupper((string) env('BILLING_CURRENCY', 'USD')),
     'invoice_due_days' => (int) env('BILLING_INVOICE_DUE_DAYS', 14),
     'invoice_wait_days' => (int) env('BILLING_INVOICE_WAIT_DAYS', 3),
+
+    /*
+    | The smallest amount Stripe charges a card in this currency, in minor units (50 for
+    | USD). Less is never sent to Stripe: it is left for an administrator to record.
+    */
+    'card_minimum' => (int) env('BILLING_CARD_MINIMUM', 50),
 ];

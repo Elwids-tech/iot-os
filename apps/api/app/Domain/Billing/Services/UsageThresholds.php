@@ -24,7 +24,11 @@ final class UsageThresholds
      * Called after a count changes, with the month's total and the allowance it was
      * counted against.
      */
-    public function check(BillingAccount $account, AllowanceKind $kind, string $month, int $count, ?int $allowance): void
+    /**
+     * `$shown` is the count the email gives when the threshold is decided from another:
+     * a refused SMS counts as the allowance used up, while what was used stays as it is.
+     */
+    public function check(BillingAccount $account, AllowanceKind $kind, string $month, int $count, ?int $allowance, ?int $shown = null): void
     {
         // Unlimited sends none, and nothing used sends none even against an allowance of 0.
         if ($allowance === null || $count === 0) {
@@ -41,7 +45,7 @@ final class UsageThresholds
                 $account,
                 'usage_threshold',
                 sprintf('%s:%s:%d', $kind->value, substr($month, 0, 7), $percent),
-                new UsageThresholdMail((string) $account->uuid, (string) $account->name, $kind->value, $month, $percent, $count, $allowance),
+                new UsageThresholdMail((string) $account->uuid, (string) $account->name, $kind->value, $month, $percent, $shown ?? $count, $allowance),
             );
         }
     }

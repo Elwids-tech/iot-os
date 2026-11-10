@@ -50,6 +50,25 @@ final class OwnedPaymentController
         return response()->json(['data' => ['url' => $this->payments->checkoutForInvoice($found)]]);
     }
 
+    /**
+     * Back from Stripe's page with the session's id: records the payment as Stripe has it,
+     * before its event arrives, so the invoice reads processing or paid.
+     */
+    public function invoiceCheckoutReturned(Request $request, string $billingAccount, string $invoice): Response
+    {
+        $request->validate([
+            /** The Checkout session Stripe returned to the portal with. */
+            'session' => ['required', 'string', 'starts_with:cs_', 'max:255'],
+        ]);
+        $found = $this->account($request, $billingAccount)->invoices()
+            ->where('uuid', $invoice)
+            ->where('status', Invoice::ISSUED)
+            ->firstOrFail();
+        $this->payments->checkoutReturned($found, (string) $request->input('session'));
+
+        return response()->noContent();
+    }
+
     private function account(Request $request, string $uuid): BillingAccount
     {
         abort_unless(Payments::enabled(), 404);

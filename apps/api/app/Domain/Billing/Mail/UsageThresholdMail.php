@@ -48,6 +48,8 @@ final class UsageThresholdMail extends Mailable
                 // Devices are a level, not a monthly amount.
                 $kind === AllowanceKind::Devices && $this->usedUp() => sprintf('The billing account %s has reached its device limit.', $this->accountName),
                 $kind === AllowanceKind::Devices => sprintf('The billing account %s has %d%% of its device limit active.', $this->accountName, $this->percent),
+                // A refused SMS: some is left, but not enough for the message.
+                $kind === AllowanceKind::Sms && $this->usedUp() && $this->count < $this->allowance => sprintf('The billing account %s has too little of its %s left for %s to send the next SMS.', $this->accountName, $kind->label(), $month),
                 $this->usedUp() => sprintf('The billing account %s has used up its %s for %s.', $this->accountName, $kind->label(), $month),
                 default => sprintf('The billing account %s has used %d%% of its %s for %s.', $this->accountName, $this->percent, $kind->label(), $month),
             },
@@ -58,7 +60,9 @@ final class UsageThresholdMail extends Mailable
                 AllowanceKind::Alerts => 'Alerts past the allowance are still recorded and sent on every channel, and are counted as overage.',
                 AllowanceKind::DataPoints => 'Readings past the allowance are still stored and shown in history, and are counted as overage.',
                 AllowanceKind::Sms => $this->usedUp()
-                    ? 'Further SMS are cancelled until next month. Email and the other channels are unaffected.'
+                    ? ($this->count < $this->allowance
+                        ? 'SMS that do not fit in what is left are cancelled until next month. Email and the other channels are unaffected.'
+                        : 'Further SMS are cancelled until next month. Email and the other channels are unaffected.')
                     : 'Once it is used up, SMS are cancelled until next month. Email and the other channels are unaffected.',
                 AllowanceKind::Devices => 'At the limit, activating another device is refused until one is deactivated. Registering devices and editing their configuration are not affected.',
                 default => null,

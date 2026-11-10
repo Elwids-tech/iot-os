@@ -25,7 +25,7 @@ import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
 import { InvoiceDetail } from "./InvoiceDetail"
 import { cardName, PaymentMethodPanel } from "./PaymentMethodPanel"
-import { addCard, payable, payOnline } from "./payments"
+import { addCard, checkoutReturned, payable, payOnline } from "./payments"
 import {
   allowanceLabels,
   allowanceValue,
@@ -97,7 +97,8 @@ const CONFIRM_ATTEMPTS = 20
  * allowances and prices, its usage by month with each organization's share (spec 028
  * US4, spec 029 US5), its card, issued invoices and credit notes, paid online on
  * Stripe's pages (spec 029 US6, US7), and the organizations it pays for. Back from
- * Stripe (`card=saved`, `paid=1`), it asks again until Stripe's event has arrived.
+ * Stripe (`card=saved`, `paid=1`), it asks again until Stripe's event has arrived; a
+ * payment's `session` has the API look the payment up at once.
  */
 export default function BillingAccountsPage() {
   const state = useUrlState()
@@ -135,6 +136,15 @@ export default function BillingAccountsPage() {
       state.set({ card: null })
     }
   }, [savingCard, account?.payment_method, state])
+  // Stripe's return carries the session: have the API record the payment as Stripe has it.
+  const session = paying ? state.get("session") : ""
+  useEffect(() => {
+    if (!session || !account) return
+    state.set({ session: null })
+    void checkoutReturned(account.uuid, paying, session).then(() =>
+      queryClient.invalidateQueries({ queryKey: ownedInvoicesKey(account.uuid) }),
+    )
+  }, [session, paying, account, state, queryClient])
   useEffect(() => {
     if (paid) {
       toast.success(`Payment received for ${paid.number}`)
@@ -430,7 +440,7 @@ export default function BillingAccountsPage() {
       <UsagePanel
         key={account.uuid}
         id="billing-usage"
-        description="Months are UTC. Alerts and data points over an allowance are overage and never stop."
+        description="Months are UTC. Alerts and data points over an allowance are overage and never stop. Owners are emailed once at 80% and once at 100% of each limited allowance a month."
         figures={account.usage}
         load={(month) => api.ownedBillingAccountUsage(account.uuid, month)}
         since={account.created_at}

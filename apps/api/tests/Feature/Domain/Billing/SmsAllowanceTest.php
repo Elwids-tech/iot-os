@@ -6,6 +6,8 @@ namespace Tests\Feature\Domain\Billing;
 
 use App\Domain\Billing\Contracts\SmsAllowance;
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Billing\Jobs\DeliverBillingEmail;
+use App\Domain\Billing\Mail\UsageThresholdMail;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\Usage;
@@ -14,6 +16,7 @@ use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -63,6 +66,7 @@ final class SmsAllowanceTest extends TestCase
 
     public function test_owners_are_told_the_allowance_is_used_up_when_an_sms_is_refused(): void
     {
+        Queue::fake();
         $this->account->owners()->attach(User::factory()->create()->id, ['created_at' => now()]);
         $this->allow(100);
         $now = CarbonImmutable::now();
@@ -73,6 +77,12 @@ final class SmsAllowanceTest extends TestCase
         // Two parts do not fit in the one that is left: used up for this month.
         $this->assertFalse($this->sms->reserve($this->account, $this->organization, 2, $now));
         $this->assertSame(["sms:{$month}:100", "sms:{$month}:80"], $this->notices());
+        // The email gives what was used, and says why the message did not go.
+        Queue::assertPushed(DeliverBillingEmail::class, function (DeliverBillingEmail $job): bool {
+            $with = $job->mail instanceof UsageThresholdMail && $job->mail->percent === 100 ? $job->mail->content()->with : null;
+
+            return $with !== null && $with['used'] === '99' && $with['left'] === '1' && str_contains((string) $with['lead'], 'too little of its SMS allowance left');
+        });
     }
 
     public function test_owners_are_told_once_a_lower_allowance_refuses_an_sms(): void

@@ -201,21 +201,70 @@ final class TrialsTest extends TestCase
         );
     }
 
-    public function test_issuing_a_draft_made_before_a_trial_was_ended_asks_for_it_to_be_recalculated(): void
+    public function test_a_draft_calculated_before_its_trial_ended_is_issued_only_once_recalculated(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
         app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
         // A preview of the running month, drafted while the trial still ran.
         $this->travelTo(CarbonImmutable::parse('2026-10-15 10:00', 'UTC'));
         $draft = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-10-01', 'UTC'), $this->admin, null);
-        $this->assertSame(PlanAssignmentKind::Trial, app(PlanAssignments::class)->current($this->account)->kind);
+        // The hourly run ends the trial, with a card saved, so the rest of October is paid.
+        $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242', 'pm_expires' => '2030-12'])->save();
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:05', 'UTC'));
+        $this->artisan('billing:end-trials')->assertSuccessful();
 
         $this->travelTo(CarbonImmutable::parse('2026-11-02 10:00', 'UTC'));
-        $this->actingAs($this->admin, 'sanctum')
-            ->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")
-            ->assertConflict()
-            ->assertJsonPath('message', 'The trial ended on 21 October 2026. Recalculate the draft, check it, then issue it.');
+        $this->actingAs($this->admin, 'sanctum');
+        $refused = "October 2026's records changed since this draft was calculated. Recalculate the draft, check it, then issue it.";
+        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")->assertConflict()->assertJsonPath('message', $refused);
+        // Asking again changes nothing until it is recalculated.
+        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")->assertConflict()->assertJsonPath('message', $refused);
+
+        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/recalculate")->assertOk();
+        $this->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")->assertOk()->assertJsonPath('data.status', 'issued');
+        $this->assertSame(
+            [['trial', 0, 20], ['base_price', 1100, 11]],
+            $draft->refresh()->lines->whereIn('kind', [InvoiceLineKind::Trial, InvoiceLineKind::BasePrice])
+                ->map(fn ($line): array => [$line->kind->value, $line->amount, (int) $line->quantity])->values()->all(),
+        );
+    }
+
+    public function test_issuing_ends_a_trial_past_its_end_before_checking_the_draft(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+        $this->travelTo(CarbonImmutable::parse('2026-10-15 10:00', 'UTC'));
+        $draft = app(InvoiceDrafter::class)->draft($this->account, CarbonImmutable::parse('2026-10-01', 'UTC'), $this->admin, null);
+
+        // No hourly run since: issuing ends the trial, then finds the draft out of date.
+        $this->travelTo(CarbonImmutable::parse('2026-11-02 10:00', 'UTC'));
+        $this->actingAs($this->admin, 'sanctum')->postJson("/api/v1/admin/billing/invoices/{$draft->uuid}/issue")->assertConflict();
         $this->assertSame('trial_reached_end', PlanAssignment::query()->where('kind', 'trial')->sole()->end_reason);
+    }
+
+    public function test_a_card_saved_after_the_end_but_before_the_run_is_charged_from_the_next_day(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 08:00', 'UTC'));
+        app(Trials::class)->start($this->account, $this->planA, CarbonImmutable::parse('2026-10-21 00:00', 'UTC'), $this->admin);
+        // The trial ended at 00:00; the owner saves a card at 00:03, before the 00:05 run.
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:03', 'UTC'));
+        $this->account->forceFill(['pm_type' => 'visa', 'pm_last_four' => '4242', 'pm_expires' => '2030-12', 'pm_saved_at' => now()])->save();
+        $this->travelTo(CarbonImmutable::parse('2026-10-21 00:05', 'UTC'));
+        $this->artisan('billing:end-trials')->assertSuccessful();
+
+        $this->assertSame(
+            [['trial', '2026-10-21 00:00', 'trial_reached_end'], ['trial_unpaid', '2026-10-21 00:03', 'payment_method_added'], ['paid', null, null]],
+            PlanAssignment::query()->where('billing_account_id', $this->account->id)->orderBy('id')->get()
+                ->map(fn (PlanAssignment $assignment): array => [$assignment->kind->value, $assignment->ended_at?->utc()->format('Y-m-d H:i'), $assignment->end_reason])->all(),
+        );
+        $this->assertSame(1, DB::table('billing_notices')->where('kind', 'trial_ended')->count());
+
+        $invoice = $this->draftOctober();
+        $this->assertSame(
+            [['trial', 0, 20], ['trial', 0, 1], ['base_price', 1000, 10]],
+            $invoice->lines->whereIn('kind', [InvoiceLineKind::Trial, InvoiceLineKind::BasePrice])
+                ->map(fn ($line): array => [$line->kind->value, $line->amount, (int) $line->quantity])->values()->all(),
+        );
     }
 
     public function test_a_limited_trial_is_not_ended_by_usage_within_the_allowance(): void

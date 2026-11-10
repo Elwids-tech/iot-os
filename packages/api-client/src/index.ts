@@ -1478,6 +1478,14 @@ export class ApiClient {
     ).then((response) => response.data)
   }
 
+  /** Back from Stripe's page: the API asks Stripe how the session's payment stands and records it. */
+  async invoiceCheckoutReturned(billingAccountUuid: string, invoiceUuid: string, session: string): Promise<void> {
+    await this.request(
+      `/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}/checkout/returned`,
+      { method: "POST", body: JSON.stringify({ session }) },
+    )
+  }
+
   /** Where an owner downloads an issued invoice as PDF or CSV (session cookie). */
   ownedInvoiceDocumentUrl(billingAccountUuid: string, invoiceUuid: string, format: "pdf" | "csv"): string {
     return `${this.baseUrl}/api/v1/billing-accounts/${encodeURIComponent(billingAccountUuid)}/invoices/${encodeURIComponent(invoiceUuid)}.${format}`

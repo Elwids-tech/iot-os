@@ -1,4 +1,4 @@
-import type { InvoiceSummary } from "@iot-os/api-client"
+import { ApiError, type InvoiceSummary } from "@iot-os/api-client"
 import { toast } from "sonner"
 import { api } from "../lib/api"
 
@@ -14,9 +14,19 @@ export async function payOnline(accountUuid: string, invoice: Pick<InvoiceSummar
   try {
     const { url } = await api.invoiceCheckout(accountUuid, invoice.uuid)
     window.location.assign(url)
-  } catch {
-    toast.error(`Could not open Stripe's page for ${invoice.number}. Try again.`)
+  } catch (error) {
+    // A 409 says why it cannot be paid online: nothing owed, a payment processing, or too little for a card.
+    const reason = error instanceof ApiError && error.status === 409 ? (error.payload as { message?: string } | null)?.message : undefined
+    toast.error(reason ?? `Could not open Stripe's page for ${invoice.number}. Try again.`)
   }
+}
+
+/**
+ * Back from Stripe's page: the API asks Stripe how the payment stands, so the invoice reads
+ * processing or paid before Stripe's event arrives. Failing that, the event still settles it.
+ */
+export async function checkoutReturned(accountUuid: string, invoiceUuid: string, session: string): Promise<void> {
+  await api.invoiceCheckoutReturned(accountUuid, invoiceUuid, session).catch(() => undefined)
 }
 
 /** Opens Stripe's page to save a card; it comes back to Billing accounts. False when it could not open. */

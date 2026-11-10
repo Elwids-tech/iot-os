@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Contract\ContractDocument;
 use Tests\TestCase;
 
 /**
@@ -100,6 +101,36 @@ final class PlanAssignmentTest extends TestCase
         $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/plan', ['plan_uuid' => $planB->uuid])
             ->assertOk()
             ->assertJsonPath('data.allowances.0', ['kind' => 'alerts', 'value' => null, 'source' => 'override', 'note' => 'Pilot']);
+    }
+
+    public function test_the_contract_accepts_the_override_and_new_account_bodies_the_api_takes(): void
+    {
+        $contract = ContractDocument::committed();
+        $body = fn (array $values): object => json_decode((string) json_encode($values), false);
+        $schema = fn (string $name): string => ContractDocument::pointer(['components', 'schemas', $name]);
+
+        foreach ([80, null, 1_000_000] as $value) {
+            $this->assertNull($contract->validate($body(['value' => $value, 'note' => 'Agreed']), $schema('OverrideAllowanceRequest')), (string) json_encode($value));
+        }
+        // A new account without a contact email, and a trial without an end.
+        $this->assertNull($contract->validate($body(['name' => 'Example', 'slug' => 'example', 'new_billing_account' => ['name' => 'Example'], 'trial' => ['plan_uuid' => '7d0f3c5e-2b1a-4c8d-9e6f-0a1b2c3d4e5f']]), $schema('StoreOrganizationRequest')));
+    }
+
+    public function test_override_values_are_checked_against_their_kind(): void
+    {
+        $account = BillingAccount::factory()->create();
+        $this->actingAs($this->administrator, 'sanctum');
+
+        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/allowances/retention_days', ['value' => 0, 'note' => 'x'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['value' => 'The value must be between 1 and 36,500.']);
+        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/allowances/organizations', ['value' => 100_001, 'note' => 'x'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['value' => 'The value must be between 0 and 100,000.']);
+        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/allowances/retention_days', ['value' => null, 'note' => 'x'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['value' => 'Retention cannot be unlimited. Enter a number of days.']);
+        $this->putJson('/api/v1/admin/billing-accounts/'.$account->uuid.'/allowances/organizations', ['value' => 100_000, 'note' => 'x'])->assertOk();
     }
 
     public function test_override_values_are_validated(): void

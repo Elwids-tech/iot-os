@@ -218,9 +218,17 @@ Things that have cost time before. Add to this list when something surprises you
 - **Scramble reads `array:<keys>` as every key required.** Laravel's `array:a,b` only
   limits which keys an array may have, but the export lists all of them under
   `required`, so a request that leaves one out breaks the published schema. Where the
-  keys are optional, use `array` and reject unknown keys in a closure rule, as
-  `PlanAllowanceRules` does; only responses are checked against the contract, so no test
-  notices on its own.
+  keys are optional, use `array` with `App\Support\Validation\OnlyKeys`, as
+  `PlanAllowanceRules` and `StoreOrganizationRequest` do. Two traps come with it:
+  - `validated()` rebuilds a plain `array` parent from its child keys, so an empty one
+    (`{}`) disappears. Where empty means something, such as a plan's complete set of
+    allowances, put it back (`PlanAllowanceRules::keepEmpty`).
+  - Rules that depend on the route (an override's bounds by kind) export as nonsense
+    (`minimum: 0, maximum: 0`), because the export reads `rules()` without a route.
+    Keep `rules()` literal and check the rest in `after()`.
+
+  Only responses are checked against the contract, so add a test that validates a
+  request body against its schema (`ContractDocument::validate`).
 - **A deployment's `status` is never `applied`.** `automation_deployments.status` is
   `pending`, `succeeded` or `failed`; `applied` belongs to the workflow's and the
   device's `deployment_status`. Many test fixtures still seed deployments with

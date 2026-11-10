@@ -525,7 +525,7 @@ export function InvoicePage() {
             <PanelHeader>
               <PanelTitle id="invoice-payments">Payments</PanelTitle>
               <PanelDescription>
-                Card charges are tried at issue, on the due date and a week after. Payments made another way are recorded here.
+                Card charges are tried at issue, on the due date and a week after, except for less than the smallest card payment. Payments made another way are recorded here.
               </PanelDescription>
             </PanelHeader>
             <PanelContent flush>

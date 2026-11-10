@@ -14,8 +14,10 @@ use App\Domain\Billing\Support\Money;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Cashier\Cashier;
+use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\CardException;
 
@@ -72,6 +74,7 @@ final class Payments
         $owed = $invoice->outstanding();
         abort_if($owed <= 0, 409, sprintf('Nothing is owed on invoice %s.', $invoice->number));
         abort_if($invoice->payments()->where('status', Payment::PENDING)->exists(), 409, sprintf('A payment for invoice %s is still being processed.', $invoice->number));
+        abort_if($owed < self::minimum(), 409, sprintf('What is owed on invoice %s, %s, is less than the smallest card payment. Pay it as agreed with the platform operator.', $invoice->number, Money::format($owed)));
 
         $account = $invoice->billingAccount;
         $this->customer($account);
@@ -89,7 +92,8 @@ final class Payments
             'metadata' => ['invoice_uuid' => $invoice->uuid],
             'payment_intent_data' => ['metadata' => ['invoice_uuid' => $invoice->uuid, 'method' => Payment::CHECKOUT]],
             'expires_at' => now()->addMinutes(self::CHECKOUT_MINUTES)->getTimestamp(),
-            'success_url' => $this->portal($account, ['invoice' => $invoice->uuid, 'paid' => '1']),
+            // Stripe fills in the session's id, so the page can ask how the payment stands.
+            'success_url' => $this->portal($account, ['invoice' => $invoice->uuid, 'paid' => '1']).'&session={CHECKOUT_SESSION_ID}',
             'cancel_url' => $this->portal($account, ['invoice' => $invoice->uuid]),
         ]);
 
@@ -97,6 +101,27 @@ final class Payments
     }
 
     /** Detaches the saved card from the Stripe customer and forgets it. */
+    /**
+     * The owner is back from Stripe's page (US7/AC7): asks Stripe how the session's
+     * payment stands and records it as its event would, so the invoice reads processing
+     * or paid at once. A session for another invoice or customer changes nothing, and if
+     * Stripe cannot be reached the event still settles it later.
+     */
+    public function checkoutReturned(Invoice $invoice, string $sessionId): ?Payment
+    {
+        try {
+            $session = Cashier::stripe()->checkout->sessions->retrieve($sessionId, ['expand' => ['payment_intent']])->toArray();
+        } catch (ApiErrorException) {
+            return null;
+        }
+        $intent = $session['payment_intent'] ?? null;
+        if (($session['metadata']['invoice_uuid'] ?? null) !== $invoice->uuid || ($session['customer'] ?? null) !== $invoice->billingAccount->stripe_id || ! is_array($intent)) {
+            return null;
+        }
+
+        return $this->applyIntent($intent);
+    }
+
     public function removePaymentMethod(BillingAccount $account, User $actor): void
     {
         $default = $this->defaultPaymentMethodId($account);
@@ -104,7 +129,7 @@ final class Payments
             Cashier::stripe()->paymentMethods->detach($default);
         }
 
-        $account->forceFill(['pm_type' => null, 'pm_last_four' => null, 'pm_expires' => null])->save();
+        $account->forceFill(['pm_type' => null, 'pm_last_four' => null, 'pm_expires' => null, 'pm_saved_at' => null])->save();
         ActivityLog::record('billing_account.payment_method_removed', null, $actor, $account);
     }
 
@@ -153,7 +178,7 @@ final class Payments
         $account = is_string($customer) ? BillingAccount::query()->where('stripe_id', $customer)->first() : null;
 
         if ($account !== null && $account->pm_type !== null && $this->defaultPaymentMethodId($account) === null) {
-            $account->forceFill(['pm_type' => null, 'pm_last_four' => null, 'pm_expires' => null])->save();
+            $account->forceFill(['pm_type' => null, 'pm_last_four' => null, 'pm_expires' => null, 'pm_saved_at' => null])->save();
             ActivityLog::record('billing_account.payment_method_removed', null, null, $account);
         }
     }
@@ -186,7 +211,8 @@ final class Payments
                 // Only this attempt's own charge, with its answer lost, is sent again.
                 return $pending->method === Payment::CARD && $pending->attempt === $attempt && $pending->provider_reference === null ? $pending : null;
             }
-            if (! $locked->isIssued() || $owed <= 0 || $locked->payments()->where('method', Payment::CARD)->where('attempt', $attempt)->exists()) {
+            // Less than Stripe charges is left for an administrator to record (FR-044).
+            if (! $locked->isIssued() || $owed < self::minimum() || $locked->payments()->where('method', Payment::CARD)->where('attempt', $attempt)->exists()) {
                 return null;
             }
 
@@ -220,11 +246,33 @@ final class Payments
             if (! is_array($intent)) {
                 throw $exception;
             }
+        } catch (ApiErrorException $exception) {
+            // Refused outright, so nothing was charged: the payment fails with Stripe's reason.
+            // A timeout, a rate limit or Stripe's own error leaves it pending for the job's
+            // retry or **Check with Stripe**, as the charge may have gone through.
+            $status = $exception->getHttpStatus();
+            if ($exception instanceof ApiConnectionException || $status === null || $status === 429 || $status >= 500) {
+                throw $exception;
+            }
+            DB::transaction(function () use ($payment, $exception): void {
+                $locked = Payment::query()->whereKey($payment->getKey())->lockForUpdate()->firstOrFail();
+                if ($locked->status === Payment::PENDING) {
+                    $this->failed($locked, $exception->getError()?->message ?? $exception->getMessage());
+                }
+            });
+
+            return $payment->fresh();
         }
 
         $payment->forceFill(['provider_reference' => (string) $intent['id']])->save();
 
         return $this->applyIntent($intent);
+    }
+
+    /** The smallest card payment in the billing currency, in minor units. */
+    public static function minimum(): int
+    {
+        return max(1, (int) config('billing.card_minimum'));
     }
 
     /** One key per invoice and attempt, so Stripe charges each attempt once. */
@@ -256,7 +304,9 @@ final class Payments
             }
 
             if ($payment === null) {
-                $invoice = Invoice::query()->where('uuid', (string) ($intent['metadata']['invoice_uuid'] ?? ''))->where('status', Invoice::ISSUED)->first();
+                // A payment the platform did not start carries no invoice.
+                $invoiceUuid = (string) ($intent['metadata']['invoice_uuid'] ?? '');
+                $invoice = Str::isUuid($invoiceUuid) ? Invoice::query()->where('uuid', $invoiceUuid)->where('status', Invoice::ISSUED)->first() : null;
                 if ($invoice === null) {
                     return null;
                 }
@@ -385,6 +435,7 @@ final class Payments
             'pm_type' => (string) ($card['brand'] ?? $method['type'] ?? 'card'),
             'pm_last_four' => isset($card['last4']) ? (string) $card['last4'] : null,
             'pm_expires' => isset($card['exp_year'], $card['exp_month']) ? sprintf('%04d-%02d', $card['exp_year'], $card['exp_month']) : null,
+            'pm_saved_at' => now(),
         ])->save();
         ActivityLog::record('billing_account.payment_method_changed', null, null, $account, ['brand' => $account->pm_type, 'last_four' => $account->pm_last_four]);
         $this->trials->paymentMethodAdded($account);

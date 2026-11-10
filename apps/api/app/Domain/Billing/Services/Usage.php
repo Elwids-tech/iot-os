@@ -99,7 +99,7 @@ final class Usage implements SmsAllowance
 
         // A refused SMS has found the allowance used up (028 FR-016), so it warns as 100%,
         // also after a lower allowance left the count above it.
-        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Sms, $month, $reserved ? $count : max($count, (int) $allowance), $allowance));
+        DB::afterCommit(fn () => $this->thresholds->check($account, AllowanceKind::Sms, $month, $reserved ? $count : max($count, (int) $allowance), $allowance, shown: $count));
 
         return $reserved;
     }
