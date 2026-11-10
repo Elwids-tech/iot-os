@@ -2315,14 +2315,94 @@ account is charged when a card is saved, or flagged otherwise.
 
 ## Phase 20: Convergence
 
-- [ ] T198 Keep an empty `allowances` set in a plan request's validated data, so `PATCH {allowances: {}}` clears every allowance of a plan (with the 409 for a plan in use, then confirmed) instead of answering 200 and changing nothing. Since T190 the parent is plain `array` with child rules, and Laravel's `validated()` rebuilds it from the child keys present, dropping an empty one; the admin form sends exactly that body when every field is cleared, so a plan cannot be put back on all defaults. Add a test, and add the `validated()` pitfall to the `array:<keys>` gotcha, per 028 FR-003, US1/AC3, 029 US1/AC1, `billing-api.md` ("its complete set") and T190 (contradicts)
-- [ ] T199 Correct the exported request schemas Scramble cannot infer: `OverrideAllowanceRequest.value` is published as an integer from 0 to 0 and not nullable, because its bounds depend on the route's kind, so every non-zero or unlimited override the API, the api-client and the admin dialog send breaks the contract; and `StoreOrganizationRequest`'s `new_billing_account` and `trial` use `array:<keys>`, so the schema requires `contact_email` and `ends_at`, which the API treats as optional. Describe `value` as a nullable integer within the widest bounds (per-kind limits in its description), apply T190's fix to the organization fields without T198's pitfall, re-export, and check an override body with `value: 80` and with `null` against the schema, per 028 FR-024, 029 FR-052 and Constitution IV (contradicts)
-- [ ] T200 Refuse issuing a draft whose lines may be out of date: one last calculated before its month ended (a preview), until it is recalculated, instead of T194's 409, which only the request that ends the trial sees (the Issue dialog stays open and a second click issues the stale lines). Today a preview drafted mid-month and issued after the month ends, while usage is not yet final, goes out with the plan days of the time it was drafted: a trial the hourly run ended since, or a plan changed since, are not on it. Update the issue 409's description in `supplements/billing.yaml` (it lacks T194's reason today), re-export, and list issue's 409s in `billing-api.md` and `billing.md`, per 029 FR-038, SC-009, FR-050, T144 and T194 (partial)
-- [ ] T201 Show a Checkout payment as processing from the moment the owner returns from Stripe's page, before Stripe's event arrives: record it as a pending payment (for example from the session id in `success_url`, `{CHECKOUT_SESSION_ID}`) so the invoice reads Payment processing, Pay is held back and **Check with Stripe** can look it up. Today `checkoutForInvoice` records nothing, so until the event arrives the invoice keeps its earlier status (failed or unpaid) with Pay focused, and the owner can pay twice, per 029 US7/AC7, FR-041, SC-010, the edge case "A charge succeeds at the provider but its report is lost" and Constitution VI (partial)
-- [ ] T202 Fail a card charge's pending payment, with Stripe's message, when Stripe refuses the PaymentIntent request outright (a 4xx other than a card decline, such as an amount below Stripe's minimum charge or a card detached meanwhile), and keep it pending only on timeouts and 5xx. Today `Payments::charge` catches only `CardException`: any other refusal fails `ChargeInvoice` after three tries and leaves the payment pending with no reference, which hides Pay, blocks Checkout with a 409 and stops reminders and retries until an administrator runs **Check with Stripe** (nothing reconciles on a schedule). Handle amounts below Stripe's minimum explicitly (leave them to an administrator and say so) in both the charge and `checkoutForInvoice`, which answers 500 for them, per 029 US7/AC4, FR-041, FR-042 and Constitutions VI and VII (partial)
-- [ ] T203 Charge a trial that ends without a card from the day after a card is saved, even when the card is saved between the trial's end and the run that ends it: `Trials::finish` decides `paid` or `trial_unpaid` from the card on file when the hourly run (or a draft or usage) ends the trial, and backdates the next assignment to `trial_ends_at`, so a card saved at 00:03 is charged for that day. Open `trial_unpaid` at the end when the card was saved after it, then `paid` from the card's save time (record when a card is saved), per 029 FR-050, US8/AC6 and `data-model.md` (contradicts)
-- [ ] T204 Export the billing lists' query parameters the controllers read but Scramble cannot see: `search`, `per_page` and `plan` (a plan uuid or `none`) on `GET admin/billing-accounts`, `search` and `per_page` on `GET admin/billing-plans`, and document `plan=none` in `billing-api.md`, per 028 FR-002, FR-020 and FR-024 (partial)
-- [ ] T205 Word the warning that a refused SMS sends with the real count: at 99 of 100 a refused two-part message emails "used 100, 0 left" and "Further SMS are cancelled until next month", while the account shows 99 and a one-part SMS still goes. Decide the threshold from the allowance taken as used up, but pass the real count to `UsageThresholdMail` and say there is not enough left for the next message, per 028 FR-023 and T193 (partial)
-- [ ] T206 Tell owners in the product that they are emailed once at 80% and once at 100% of each limited allowance a month: the Usage panel's description on the owner's Billing accounts page, or a help topic that `/billing` maps to (it maps to Getting started today). `billing-usage.md` and the page's one-line explanations do not mention the warnings, per 029 FR-053 and US5/AC2 (partial)
-- [ ] T207 Say exactly what `tooling/measure-history-latency.py` measures, in the script and `billing.md`: `visible` ends at the commit timestamp, which PostgreSQL takes before the storing commit's WAL flush, and `queued` ends when the transaction starts (the outbox row's `created_at` is `now()`), not when it writes the outbox row. Drop "rarer" from the slow-tail sentence (the probe reports only the maximum), and either check "no reading was dropped" against what the simulator sent or say what it rests on, per 029 SC-004 as restated, T191 and the plan's documentation rule (contradicts)
-- [ ] T208 Correct `plan.md` where it still describes behaviour from before Phase 15: the daily job drafts every ended month whose usage is final, not "last month" (Invoices summary, `InvoiceDrafter` bullet); `billing:end-trials` runs hourly at :05 and `billing:device-peaks` at 00:15, not every job daily (Emails table, Scheduler); and Cashier's webhook route is not mounted (HTTP), per the plan's documentation rule and T138, T143, T197 (contradicts)
+- [x] T198 Keep an empty `allowances` set in a plan request's validated data, so `PATCH {allowances: {}}` clears every allowance of a plan (with the 409 for a plan in use, then confirmed) instead of answering 200 and changing nothing. Since T190 the parent is plain `array` with child rules, and Laravel's `validated()` rebuilds it from the child keys present, dropping an empty one; the admin form sends exactly that body when every field is cleared, so a plan cannot be put back on all defaults. Add a test, and add the `validated()` pitfall to the `array:<keys>` gotcha, per 028 FR-003, US1/AC3, 029 US1/AC1, `billing-api.md` ("its complete set") and T190 (contradicts)
+
+  As built (PR 32): `PlanAllowanceRules::keepEmpty` puts an empty `allowances` back into
+  the values the plan controller hands on, so `PATCH {allowances: {}}` clears every kind
+  (409 for a plan in use, then confirmed). `PlanAdministrationTest` covers it; the gotcha
+  names the `validated()` trap. Checked on the stack: a plan with alerts and retention
+  cleared to `[]`.
+
+- [x] T199 Correct the exported request schemas Scramble cannot infer: `OverrideAllowanceRequest.value` is published as an integer from 0 to 0 and not nullable, because its bounds depend on the route's kind, so every non-zero or unlimited override the API, the api-client and the admin dialog send breaks the contract; and `StoreOrganizationRequest`'s `new_billing_account` and `trial` use `array:<keys>`, so the schema requires `contact_email` and `ends_at`, which the API treats as optional. Describe `value` as a nullable integer within the widest bounds (per-kind limits in its description), apply T190's fix to the organization fields without T198's pitfall, re-export, and check an override body with `value: 80` and with `null` against the schema, per 028 FR-024, 029 FR-052 and Constitution IV (contradicts)
+
+  As built (PR 32): `App\Support\Validation\OnlyKeys` replaces `array:<keys>` for
+  plan allowances and for `StoreOrganizationRequest`'s `new_billing_account` and `trial`.
+  The override's `rules()` are literal (a nullable integer from 0 to 1e12), and the
+  kind's own bounds are checked in `after()` ("The value must be between 1 and
+  36,500."; "Retention cannot be unlimited…"). `PlanAssignmentTest` checks override
+  bodies with `80`, `null` and 1,000,000, and an organization body without a contact
+  email or trial end, against the exported schemas.
+
+- [x] T200 Refuse issuing a draft whose lines may be out of date: one last calculated before its month ended (a preview), until it is recalculated, instead of T194's 409, which only the request that ends the trial sees (the Issue dialog stays open and a second click issues the stale lines). Today a preview drafted mid-month and issued after the month ends, while usage is not yet final, goes out with the plan days of the time it was drafted: a trial the hourly run ended since, or a plan changed since, are not on it. Update the issue 409's description in `supplements/billing.yaml` (it lacks T194's reason today), re-export, and list issue's 409s in `billing-api.md` and `billing.md`, per 029 FR-038, SC-009, FR-050, T144 and T194 (partial)
+
+  As built (PR 32): `InvoiceDrafter::linesCurrent` compares a draft's lines (kind,
+  quantity, unit price, amount, period and assignment; not descriptions, adjustments or
+  credit) with `computeLines` for its month. `InvoiceIssuer::issue` ends an overdue trial
+  first, then answers 409 "{month}'s records changed since this draft was calculated…"
+  until it is recalculated; T194's one-shot 409 is gone. `TrialsTest` issues a preview
+  twice after the hourly run ended its trial (409 both times), recalculates and issues.
+  The supplement, `billing-api.md` and `billing.md` list issue's 409s.
+
+- [x] T201 Show a Checkout payment as processing from the moment the owner returns from Stripe's page, before Stripe's event arrives: record it as a pending payment (for example from the session id in `success_url`, `{CHECKOUT_SESSION_ID}`) so the invoice reads Payment processing, Pay is held back and **Check with Stripe** can look it up. Today `checkoutForInvoice` records nothing, so until the event arrives the invoice keeps its earlier status (failed or unpaid) with Pay focused, and the owner can pay twice, per 029 US7/AC7, FR-041, SC-010, the edge case "A charge succeeds at the provider but its report is lost" and Constitution VI (partial)
+
+  As built (PR 32): Checkout's `success_url` ends `&session={CHECKOUT_SESSION_ID}`. The
+  portal posts it once to the new `POST billing-accounts/{account}/invoices/{invoice}/checkout/returned`
+  (204), and `Payments::checkoutReturned` retrieves the session with its PaymentIntent
+  and applies it as the event would, ignoring a session for another invoice or customer.
+  `applyIntent` also ignores an intent without a valid `invoice_uuid` (one PostgreSQL
+  answered 500 for). Tests: `StripePaymentsTest` (processing, then paid, then the event
+  changes nothing) and a portal e2e. On the stack with Stripe test mode, an invoice paid
+  on Stripe's page was looked up from its real session: the same single payment, and
+  the session presented for another invoice was ignored.
+
+- [x] T202 Fail a card charge's pending payment, with Stripe's message, when Stripe refuses the PaymentIntent request outright (a 4xx other than a card decline, such as an amount below Stripe's minimum charge or a card detached meanwhile), and keep it pending only on timeouts and 5xx. Today `Payments::charge` catches only `CardException`: any other refusal fails `ChargeInvoice` after three tries and leaves the payment pending with no reference, which hides Pay, blocks Checkout with a 409 and stops reminders and retries until an administrator runs **Check with Stripe** (nothing reconciles on a schedule). Handle amounts below Stripe's minimum explicitly (leave them to an administrator and say so) in both the charge and `checkoutForInvoice`, which answers 500 for them, per 029 US7/AC4, FR-041, FR-042 and Constitutions VI and VII (partial)
+
+  As built (PR 32): `Payments::charge` fails the pending payment with Stripe's message on
+  any `ApiErrorException` with a 4xx other than 429, and rethrows timeouts, 429 and 5xx.
+  `billing.card_minimum` (`BILLING_CARD_MINIMUM`, 50) is the smallest card payment: less
+  is never charged, and Checkout answers 409 "What is owed on invoice …, 0.40, is less
+  than the smallest card payment…", which the portal now shows. Admin's Payments panel
+  says so. On the stack, a 0.40 invoice on an account with a saved test card was issued
+  with no charge, and its Checkout answered that 409.
+
+- [x] T203 Charge a trial that ends without a card from the day after a card is saved, even when the card is saved between the trial's end and the run that ends it: `Trials::finish` decides `paid` or `trial_unpaid` from the card on file when the hourly run (or a draft or usage) ends the trial, and backdates the next assignment to `trial_ends_at`, so a card saved at 00:03 is charged for that day. Open `trial_unpaid` at the end when the card was saved after it, then `paid` from the card's save time (record when a card is saved), per 029 FR-050, US8/AC6 and `data-model.md` (contradicts)
+
+  As built (PR 32): `billing_accounts.pm_saved_at` (migration `2026_11_19_000000`) is set
+  when a card is saved. `Trials::finish` ends a trial whose card was saved after its end
+  as `trial_unpaid` at the end, then `paid` from the save time, with one ended email
+  naming the paid outcome. `TrialsTest` saves the card at 00:03 for a 00:00 end and
+  drafts October with that day at 0. On the stack: a trial ended at 19:07:19 and its card
+  was saved at 19:07:33, and the run then recorded `trial_unpaid` until 19:07:33 and
+  `paid` after, with one email ("charged from 11 November 2026").
+
+- [x] T204 Export the billing lists' query parameters the controllers read but Scramble cannot see: `search`, `per_page` and `plan` (a plan uuid or `none`) on `GET admin/billing-accounts`, `search` and `per_page` on `GET admin/billing-plans`, and document `plan=none` in `billing-api.md`, per 028 FR-002, FR-020 and FR-024 (partial)
+
+  As built (PR 32): the account list's and plan list's `validate()` calls declare
+  `search`, `plan`, `archived` and `per_page`, so the export lists them; `billing-api.md`
+  documents `plan=none`.
+
+- [x] T205 Word the warning that a refused SMS sends with the real count: at 99 of 100 a refused two-part message emails "used 100, 0 left" and "Further SMS are cancelled until next month", while the account shows 99 and a one-part SMS still goes. Decide the threshold from the allowance taken as used up, but pass the real count to `UsageThresholdMail` and say there is not enough left for the next message, per 028 FR-023 and T193 (partial)
+
+  As built (PR 32): `UsageThresholds::check` takes the count to show; a refused SMS
+  decides the threshold from the allowance but shows what was used, and the email says
+  there is too little left for the next SMS. On the stack: "Used: 99 of 100", "has too
+  little of its SMS allowance left … to send the next SMS".
+
+- [x] T206 Tell owners in the product that they are emailed once at 80% and once at 100% of each limited allowance a month: the Usage panel's description on the owner's Billing accounts page, or a help topic that `/billing` maps to (it maps to Getting started today). `billing-usage.md` and the page's one-line explanations do not mention the warnings, per 029 FR-053 and US5/AC2 (partial)
+
+  As built (PR 32): the owner's Usage panel says "Owners are emailed once at 80% and once
+  at 100% of each limited allowance a month.", and `billing-usage.md` (revision 2) says
+  so too.
+
+- [x] T207 Say exactly what `tooling/measure-history-latency.py` measures, in the script and `billing.md`: `visible` ends at the commit timestamp, which PostgreSQL takes before the storing commit's WAL flush, and `queued` ends when the transaction starts (the outbox row's `created_at` is `now()`), not when it writes the outbox row. Drop "rarer" from the slow-tail sentence (the probe reports only the maximum), and either check "no reading was dropped" against what the simulator sent or say what it rests on, per 029 SC-004 as restated, T191 and the plan's documentation rule (contradicts)
+
+  As built (PR 32): the script, `billing.md` and the simulators doc say `visible` ends at
+  the commit timestamp, before the commit's flush, and `queued` at the transaction's
+  start; the tail sentence no longer says "rarer", and "Readings kept" says what the
+  counts show.
+
+- [x] T208 Correct `plan.md` where it still describes behaviour from before Phase 15: the daily job drafts every ended month whose usage is final, not "last month" (Invoices summary, `InvoiceDrafter` bullet); `billing:end-trials` runs hourly at :05 and `billing:device-peaks` at 00:15, not every job daily (Emails table, Scheduler); and Cashier's webhook route is not mounted (HTTP), per the plan's documentation rule and T138, T143, T197 (contradicts)
+
+  As built (PR 32): `plan.md` drafts every ended month, names `StripeWebhookController`
+  instead of a mounted Cashier route, and lists the hourly end-trials run and the
+  device-peaks job.
