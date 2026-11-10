@@ -53,10 +53,10 @@ export function GatewayPage() {
     queryKey: ["connections", org, "all"],
     queryFn: () => everyPage((page) => api.connectionsPage(org, { page, per_page: 100 })),
   })
-  // Devices carry their source's gateway, so the gateway's devices come from the device list.
+  // Devices reach the gateway through their source; the device list filters on it.
   const devices = useQuery({
-    queryKey: ["devices", org, "all"],
-    queryFn: () => everyPage((page) => api.devices(org, { page, per_page: 100 })),
+    queryKey: ["devices", org, "gateway", gatewayUuid],
+    queryFn: () => everyPage((page) => api.devices(org, { gateway_uuid: gatewayUuid, page, per_page: 100 })),
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   })
@@ -69,10 +69,7 @@ export function GatewayPage() {
   const gateway: Gateway | undefined =
     gateways.data?.find((g) => g.uuid === gatewayUuid) ?? sources.data?.data[0]?.gateway
   const connection = connections.data?.find((c) => c.uuid === gateway?.connection_uuid)
-  const gatewayDevices = useMemo(
-    () => devices.data?.filter((d) => d.candidate?.gateway.uuid === gatewayUuid),
-    [devices.data, gatewayUuid],
-  )
+  const gatewayDevices = devices.data
   const back = { to: gatewayPath(org), label: "Gateways" }
 
   const deviceColumns = useMemo<DataColumn<Device>[]>(
