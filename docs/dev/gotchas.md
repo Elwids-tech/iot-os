@@ -65,6 +65,11 @@ Things that have cost time before. Add to this list when something surprises you
   share one database, so a test's report also carries buckets other tests left behind.
   `usage_integration_test.go` keeps only its own organization's buckets when it reads
   the events, and `historyStore`'s cleanup deletes the organization's buckets.
+- **A usage reporter test that steps the clock starts mid-hour.** `ReportUsage`
+  closes an hour one minute after it ends, so a test that calls it at `time.Now()`
+  plus a few minutes passes most of the hour and fails when CI happens to start it
+  just before :57. Start such a test at `time.Now().UTC().Truncate(time.Hour)` plus
+  30 minutes; the reporter's heartbeat compares only the times it was given.
 - **A test that forks must not let the child close the parent's connection.** A
   `pcntl_fork` child inherits the parent's open database sockets; its exit runs PDO's
   destructor, which ends the parent's session mid-test. The `ForksProcesses` test trait
