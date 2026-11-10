@@ -74,8 +74,9 @@ announces `meter-0601` to `meter-1100`.
 rate (50 messages a second). While they run,
 [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) waits,
 then reads each message's commit time from PostgreSQL (`pg_xact_commit_timestamp` of its
-observation rows). It reports the time from receipt to a message being in history, the
-queue before storing starts and the storing transaction itself, with no polling delay.
+observation rows). It reports the time from receipt to that commit timestamp (taken
+before the commit's flush), the queue before the storing transaction starts and the
+transaction itself, with no polling delay.
 It needs `track_commit_timestamp` on, which takes a database restart (`ALTER SYSTEM`,
 then `ALTER SYSTEM RESET` afterwards). Run it once per runtime build under the same load
 and compare (spec 029 SC-004, [billing](../features/billing.md#data-points)).

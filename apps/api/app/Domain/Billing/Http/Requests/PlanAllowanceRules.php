@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Http\Requests;
 
 use App\Domain\Billing\Enums\AllowanceKind;
-use Closure;
+use App\Support\Validation\OnlyKeys;
+use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * The `allowances` map shared by plan requests: each kind is optional, a whole number
@@ -14,21 +15,13 @@ use Closure;
 final class PlanAllowanceRules
 {
     /**
-     * @return array<string, list<string|Closure>>
+     * @return array<string, list<string|OnlyKeys>>
      */
     public static function rules(): array
     {
-        $rules = ['allowances' => [
-            'sometimes',
-            'array',
-            // Only known kinds. Not `array:<kinds>`, which the contract export reads as every
-            // kind required, while a kind left out falls back to the default.
-            static function (string $attribute, mixed $value, Closure $fail): void {
-                if (is_array($value) && array_diff(array_keys($value), AllowanceKind::values()) !== []) {
-                    $fail('The :attribute may only set '.implode(', ', AllowanceKind::values()).'.');
-                }
-            },
-        ]];
+        // Not `array:<kinds>`, which the contract export reads as every kind required, while
+        // a kind left out falls back to the default.
+        $rules = ['allowances' => ['sometimes', 'array', new OnlyKeys(AllowanceKind::values())]];
 
         foreach (AllowanceKind::cases() as $kind) {
             $rules['allowances.'.$kind->value] = [
@@ -41,6 +34,23 @@ final class PlanAllowanceRules
         }
 
         return $rules;
+    }
+
+    /**
+     * `values` with `allowances` kept when it was sent empty: `validated()` rebuilds an
+     * `array` parent from the child keys present, so an empty set, every kind back to
+     * the default, would read as not sent.
+     *
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    public static function keepEmpty(FormRequest $request, array $values): array
+    {
+        if ($request->has('allowances') && ! array_key_exists('allowances', $values)) {
+            $values['allowances'] = [];
+        }
+
+        return $values;
     }
 
     /**

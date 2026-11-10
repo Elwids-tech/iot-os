@@ -32,6 +32,12 @@ final class PlatformBillingAccountController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
         $request->validate([
+            /** Matches the account's name or contact email. */
+            'search' => ['nullable', 'string', 'max:255'],
+            /** A plan's uuid, or `none` for accounts on no plan (spec 028 US2). */
+            'plan' => ['nullable', 'string', 'max:64'],
+            /** Accounts per page, 1 to 100 (default 25). */
+            'per_page' => ['nullable', 'integer'],
             // Accounts that have used at least this percentage of a limited allowance this month.
             'usage_at_least' => ['nullable', 'integer', 'between:1,100'],
             /** Accounts with an invoice unpaid past its due date (spec 029 FR-043). */

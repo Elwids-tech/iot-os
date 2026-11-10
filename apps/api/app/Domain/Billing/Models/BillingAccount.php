@@ -31,6 +31,7 @@ use Laravel\Cashier\Billable;
  * @property string|null $pm_type
  * @property string|null $pm_last_four
  * @property string|null $pm_expires
+ * @property CarbonImmutable|null $pm_saved_at
  * @property CarbonImmutable|null $past_due_since
  */
 #[Fillable(['name', 'contact_email', 'notes'])]
@@ -62,6 +63,7 @@ final class BillingAccount extends Model
     {
         return [
             'past_due_since' => 'immutable_datetime',
+            'pm_saved_at' => 'immutable_datetime',
         ];
     }
 

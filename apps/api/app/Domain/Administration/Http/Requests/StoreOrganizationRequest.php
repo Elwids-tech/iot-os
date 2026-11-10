@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Administration\Http\Requests;
 
+use App\Support\Validation\OnlyKeys;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +32,8 @@ final class StoreOrganizationRequest extends FormRequest
                 Rule::exists('billing_accounts', 'uuid')->whereNull('deleted_at'),
                 'prohibits:new_billing_account',
             ],
-            'new_billing_account' => ['nullable', 'array:name,contact_email'],
+            // Not `array:<keys>`, which the contract export reads as every key required.
+            'new_billing_account' => ['nullable', 'array', new OnlyKeys(['name', 'contact_email'])],
             'new_billing_account.name' => ['required_with:new_billing_account', 'string', 'max:255'],
             'new_billing_account.contact_email' => ['sometimes', 'nullable', 'email', 'max:255'],
             // A plan for the new account (spec 028 FR-010); an existing account keeps its own.
@@ -42,7 +44,7 @@ final class StoreOrganizationRequest extends FormRequest
                 'prohibits:billing_account_uuid',
             ],
             // Or a trial on a plan for the new account (spec 029 US8): an end instant, or null for none.
-            'trial' => ['nullable', 'array:plan_uuid,ends_at', 'prohibits:billing_account_uuid,plan_uuid'],
+            'trial' => ['nullable', 'array', new OnlyKeys(['plan_uuid', 'ends_at']), 'prohibits:billing_account_uuid,plan_uuid'],
             'trial.plan_uuid' => ['required_with:trial', 'uuid', Rule::exists('billing_plans', 'uuid')->whereNull('archived_at')],
             'trial.ends_at' => ['nullable', 'date', 'after:now'],
         ];

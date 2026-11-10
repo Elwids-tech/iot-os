@@ -7,9 +7,13 @@ commit in that transaction and are never updated (`track_commit_timestamp` must 
 the telemetry outbox row is no use, as the relay updates it). It reports messages per
 second and, from the runtime receiving a message (p50/p95/p99/max):
 
-- `visible`: to its storing transaction committing, when the readings are in history;
-- `queued`: to the transaction writing its outbox row, near its start;
-- `storing`: from that outbox row to the commit, the part counting adds an upsert to.
+- `visible`: to its storing transaction's commit timestamp, which PostgreSQL takes as
+  it writes the commit record. Other sessions see the readings once that record is
+  flushed, so each figure leaves out its own flush;
+- `queued`: to the start of its storing transaction (the outbox row's `created_at` is
+  the transaction's `now()`);
+- `storing`: from that start to the commit timestamp, the part counting adds an upsert
+  to.
 
 Nothing polls, so the figures carry no probe delay. Run it once per runtime build under
 the same simulator load and compare.

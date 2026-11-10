@@ -37,6 +37,15 @@ the stored card.
   mismatched session.
 - **Charges are idempotent.** The off-session charge uses the idempotency key
   `invoice:{invoice_uuid}:{attempt}`, so a retried job never charges twice.
+- **The return from Checkout is read from Stripe too.** Checkout's `success_url` carries
+  the session's id, and `POST billing-accounts/{account}/invoices/{invoice}/checkout/returned`
+  retrieves that session and its PaymentIntent and applies it exactly as
+  `payment_intent.succeeded` would, keyed by the PaymentIntent id. The event that follows
+  changes nothing. A session whose `metadata.invoice_uuid` or customer does not match is
+  ignored, and so is an event whose PaymentIntent carries no invoice.
+- **Refusals that charged nothing fail at once.** When Stripe answers the off-session
+  charge with a 4xx other than a card decline, the payment fails with Stripe's message.
+  Only a timeout, a 429 or a 5xx leaves it pending, as the charge may have gone through.
 - **Payments can be switched off.** With no `STRIPE_SECRET`, the route and payment
   endpoints answer 404, and the portal offers no card (FR-045).
 - **Card data never reaches the platform.** Card numbers and security codes are only

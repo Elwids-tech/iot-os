@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Http\Controllers;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
+use App\Domain\Billing\Http\Requests\PlanAllowanceRules;
 use App\Domain\Billing\Http\Requests\SetPlanPricesRequest;
 use App\Domain\Billing\Http\Requests\StorePlanRequest;
 use App\Domain\Billing\Http\Requests\UpdatePlanRequest;
@@ -40,6 +41,14 @@ final class PlatformPlanController
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
+        $request->validate([
+            /** Matches the plan's name. */
+            'search' => ['nullable', 'string', 'max:255'],
+            /** `0` leaves archived plans out, `1` lists only them. */
+            'archived' => ['nullable', 'in:0,1'],
+            /** Plans per page, 1 to 100 (default 25). */
+            'per_page' => ['nullable', 'integer'],
+        ]);
 
         $search = trim((string) $request->query('search', ''));
         $archived = $request->query('archived');
@@ -62,7 +71,7 @@ final class PlatformPlanController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $plan = $this->plans->create($request->validated(), $request->user());
+        $plan = $this->plans->create(PlanAllowanceRules::keepEmpty($request, $request->validated()), $request->user());
 
         return $this->detail($plan)->response()->setStatusCode(201);
     }
@@ -78,7 +87,7 @@ final class PlatformPlanController
     {
         Gate::authorize(PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value);
 
-        $values = $request->safe()->except(['confirm_affected', 'confirm_retention']);
+        $values = PlanAllowanceRules::keepEmpty($request, $request->safe()->except(['confirm_affected', 'confirm_retention']));
         $confirm = $request->validated('confirm_affected');
         $plan = $this->plans->update($billingPlan, $values, $request->user(), $confirm === null ? null : (int) $confirm, $request->boolean('confirm_retention'));
 

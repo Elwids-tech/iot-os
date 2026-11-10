@@ -178,11 +178,25 @@ final class Trials
      */
     private function finish(BillingAccount $account, PlanAssignment $trial, string $reason, ?User $actor, CarbonImmutable $at): PlanAssignment
     {
-        $kind = $account->refresh()->pm_type !== null ? PlanAssignmentKind::Paid : PlanAssignmentKind::TrialUnpaid;
+        $account->refresh();
+        // A card saved after the end, before this ran: the trial ended without one, and the
+        // card is charged from when it was saved, as if saved afterwards (FR-050).
+        $savedAt = $account->pm_type !== null && $account->pm_saved_at?->greaterThan($at) ? $account->pm_saved_at : null;
+        $kind = $account->pm_type !== null && $savedAt === null ? PlanAssignmentKind::Paid : PlanAssignmentKind::TrialUnpaid;
         $next = $this->assignments->replace($trial, $account, $trial->plan, $kind, $actor, $reason, at: $at);
-        $this->ended($account, $trial, $next, $reason, $actor);
+        if ($savedAt === null) {
+            $this->ended($account, $trial, $next, $reason, $actor);
 
-        return $next;
+            return $next;
+        }
+
+        $paid = $this->assignments->replace($next, $account, $trial->plan, PlanAssignmentKind::Paid, null, 'payment_method_added', at: $savedAt);
+        $this->ended($account, $trial, $next, $reason, $actor, email: false);
+        $this->ended($account, $next, $paid, 'payment_method_added', null);
+        // One email, saying where it ends up.
+        $this->notices->send($account, 'trial_ended', 'trial:'.$trial->uuid.':ended', TrialMail::ended($account, $trial, $paid));
+
+        return $paid;
     }
 
     private function openTrial(BillingAccount $account): PlanAssignment

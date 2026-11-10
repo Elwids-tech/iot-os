@@ -48,7 +48,7 @@ under `admin.` and live in `app/Domain/Billing/routes/api.php`.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/admin/billing-plans?search&archived` | List: name, allowances, price for this and next month, number of accounts, archived |
+| `GET /v1/admin/billing-plans?search&archived&per_page` | List: name, allowances, price for this and next month, number of accounts, archived (`archived=0` leaves archived plans out, `1` lists only them) |
 | `POST /v1/admin/billing-plans` | `{name, description?, allowances?: {kind: value\|null}}`. Each kind is optional; a kind left out falls back to the deployment's default, which is how retention is left to the platform. |
 | `GET /v1/admin/billing-plans/{plan}` | Detail with history |
 | `PATCH /v1/admin/billing-plans/{plan}` | `{name?, description?, allowances?, confirm_affected?: int, confirm_retention?: bool}`. `allowances`, when given, is the plan's complete set: a kind left out falls back to the default. Changing allowances on a plan in use needs `confirm_affected` equal to the current number of accounts (else 409 with that number). Once that matches, a shorter `retention_days` needs `confirm_retention: true` (else 409 with the deletion date and affected organizations). |
@@ -62,12 +62,12 @@ under `admin.` and live in `app/Domain/Billing/routes/api.php`.
 | --- | --- |
 | `GET /v1/admin/billing-accounts/{account}` | Existing (spec 023), now with `created_at` (the month pickers start there), `plan_assignment` (the plan, `kind`, `started_at`, `trial_ends_at`), `allowances[]`, `usage[]` (this month), `platform_retention_days` (what a retention left to the platform keeps), `price_overrides[]`, `payment_method`, `past_due_since`, `billing_details` |
 | `PUT /v1/admin/billing-accounts/{account}/plan` | `{plan_uuid}`; `null` removes the plan. A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
-| `PUT /v1/admin/billing-accounts/{account}/allowances/{kind}` | `{value, note, confirm_retention?}` override. A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
+| `PUT /v1/admin/billing-accounts/{account}/allowances/{kind}` | `{value, note, confirm_retention?}` override: a whole number within the kind's bounds, or `null` for unlimited (not for retention). A shorter retention needs `confirm_retention: true` (else 409 with the date and organizations). |
 | `DELETE /v1/admin/billing-accounts/{account}/allowances/{kind}` | Remove an override; `confirm_retention` (body or query) as above when the plan's retention is shorter |
 | `PUT /v1/admin/billing-accounts/{account}/prices/{price}` | `{value\|null, note}`, from next month |
 | `PATCH /v1/admin/billing-accounts/{account}/billing-details` | `{billing_address, tax_number, tax_rate_uuid\|null}` |
 | `GET /v1/admin/billing-accounts/{account}/usage?month=` | Usage for a month, with organizations |
-| `GET /v1/admin/billing-accounts?plan=&usage_at_least=80&trial=active\|ending\|ended_unpaid&past_due=1` | The spec 023 list, with the 028/029 filters added. `usage_at_least` covers this month's alerts, SMS and data points and the current device count. |
+| `GET /v1/admin/billing-accounts?search&plan=&usage_at_least=80&trial=active\|ending\|ended_unpaid&past_due=1&per_page` | The spec 023 list, with the 028/029 filters added. `plan` is a plan's uuid, or `none` for accounts on no plan. `usage_at_least` covers this month's alerts, SMS and data points and the current device count. |
 | `PUT /v1/admin/organizations/{organization}/billing-account` | `{billing_account_uuid, confirm_retention?}` moves an organization (spec 023). When the new account's retention is shorter it needs `confirm_retention: true` (else 409 with the date). |
 
 Creating an organization (`POST /v1/admin/organizations`) accepts, with
@@ -101,7 +101,7 @@ FR-010, 029 FR-046).
 | `POST /v1/admin/billing/invoices/{invoice}/recalculate` | Drafts only |
 | `POST /v1/admin/billing/invoices/{invoice}/adjustments` | `{description, amount, note}`, where a negative amount is a credit; drafts only |
 | `DELETE /v1/admin/billing/invoices/{invoice}/adjustments/{line}` | Drafts only |
-| `POST /v1/admin/billing/invoices/{invoice}/issue` | Assigns the number, fixes the invoice, charges or emails |
+| `POST /v1/admin/billing/invoices/{invoice}/issue` | Assigns the number, fixes the invoice, charges or emails. 409 if already issued, until its month has ended, when its usage became final after it was drafted, or when the month's records (a trial's end, a plan change) changed since it was calculated: recalculate it first |
 | `POST /v1/admin/billing/invoices/{invoice}/credit-notes` | `{amount, reason}` |
 | `POST /v1/admin/billing/invoices/{invoice}/payments` | `{amount, note}`: records a payment made outside the platform |
 | `POST /v1/admin/billing/invoices/{invoice}/reconcile` | Asks Stripe for the status of pending payments |
@@ -118,7 +118,8 @@ Each route resolves the account among the signed-in person's own accounts and an
 | `GET /v1/billing-accounts/{account}/usage?month=` | Usage with organizations |
 | `GET /v1/billing-accounts/{account}/invoices` | Issued invoices and credit notes only |
 | `GET /v1/billing-accounts/{account}/invoices/{invoice}` (+ `.pdf`, `.csv`) | Issued only; a draft answers 404 |
-| `POST /v1/billing-accounts/{account}/invoices/{invoice}/checkout` | `{url}`: a Stripe Checkout session for the amount due; 409 when nothing is owed or a payment is processing, 404 while payments are off |
+| `POST /v1/billing-accounts/{account}/invoices/{invoice}/checkout` | `{url}`: a Stripe Checkout session for the amount due; 409 when nothing is owed, a payment is processing or the amount is below the smallest card payment; 404 while payments are off |
+| `POST /v1/billing-accounts/{account}/invoices/{invoice}/checkout/returned` | `{session}` (the `cs_…` id Stripe returns with): asks Stripe how that session's payment stands and records it, so the invoice reads processing or paid before Stripe's event arrives; 204 |
 | `POST /v1/billing-accounts/{account}/payment-method/checkout` | `{url}`: a Checkout session in setup mode |
 | `DELETE /v1/billing-accounts/{account}/payment-method` | Detaches the card |
 

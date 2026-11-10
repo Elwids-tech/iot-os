@@ -136,6 +136,20 @@ final class PlanAdministrationTest extends TestCase
             ->assertJsonPath('data.name', 'Plan B 2026');
     }
 
+    public function test_clearing_every_allowance_puts_a_plan_in_use_back_on_the_defaults(): void
+    {
+        $plan = BillingPlan::factory()->withAllowances(['alerts' => 3, 'retention_days' => 30])->create(['name' => 'Plan B']);
+        BillingAccount::factory()->count(2)->onPlan($plan)->create();
+        $this->actingAs($this->administrator, 'sanctum');
+
+        $this->patchJson('/api/v1/admin/billing-plans/'.$plan->uuid, ['allowances' => (object) []])
+            ->assertConflict()
+            ->assertJsonPath('affected_accounts', 2);
+        $this->patchJson('/api/v1/admin/billing-plans/'.$plan->uuid, ['allowances' => (object) [], 'confirm_affected' => 2, 'confirm_retention' => true])
+            ->assertOk()
+            ->assertJsonPath('data.allowances', []);
+    }
+
     public function test_an_unused_plan_changes_without_confirmation_and_unchanged_values_record_nothing(): void
     {
         $plan = BillingPlan::factory()->withAllowances(['alerts' => 3, 'sms' => 2])->create();

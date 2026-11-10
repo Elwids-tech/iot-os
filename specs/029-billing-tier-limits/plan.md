@@ -38,9 +38,10 @@ It is built on billing accounts and described in three new ADRs (ADR-035 to ADR-
 - **Invoices (029 US6).**
   - Plans carry prices that change from next month. Administrators set the operator's
     billing details and tax rates.
-  - A daily job drafts last month's invoice per account once data point usage is
-    final. Administrators adjust and issue it, which takes an unbroken number and
-    snapshots it.
+  - A daily job drafts each account's invoice for every ended month once its data
+    point usage is final, so a month it missed is drafted on the next run.
+    Administrators adjust and issue it, which takes an unbroken number and snapshots
+    it.
   - Credit notes correct issued invoices.
   - PDFs come from dompdf.
 - **Payments (029 US7).**
@@ -216,7 +217,8 @@ reference the account, not the organization.
   force for the month.
 - `BillingSettings` and `TaxRates`: CRUD with a revision guard.
 - `InvoiceDrafter`:
-  - `draftDue(now)` drafts every account due for last month whose usage is final;
+  - `draftDue(now)` drafts every account due for each ended month whose usage is
+    final;
   - `draft(account, month, actor?, note?)` and `recalculate(invoice)`.
   - Lines are built from assignment days (prorated per UTC day at 00:00), overage per
     assignment, adjustments and available credit. Usage rows come from the shares.
@@ -313,8 +315,9 @@ off unless both `cashier.secret` and `cashier.webhook.secret` are set.
 
 Routes and bodies are in [contracts/billing-api.md](contracts/billing-api.md). Routes
 live in `app/Domain/Billing/routes/api.php`; the manager route lives in the Devices
-or Billing tenant group with `Device.manage`. Cashier's webhook route is mounted
-under `/api` with its signature middleware.
+or Billing tenant group with `Device.manage`. Cashier's own routes are switched off
+(`Cashier::ignoreRoutes()`); the webhook is the domain's `StripeWebhookController` at
+`POST /api/stripe/webhook`, extending Cashier's with its signature check.
 
 ### Contract and client
 
@@ -403,7 +406,7 @@ It has a story in `apps/storybook` and is the only new kit component.
 | --- | --- | --- |
 | Usage at 80% / used up (alerts, SMS, devices, data points) | owners | first crossing per allowance and month |
 | Retention shortened / deletion in 7 days | owners | at the change / 7 days before the floor ends |
-| Trial ends in 7 days / 1 day; trial ended | owners | daily job; at the end |
+| Trial ends in 7 days / 1 day; trial ended | owners | hourly job; at the end |
 | Invoice issued; credit note issued | billing contact + owners | at issue |
 | Receipt | owners | payment succeeded |
 | Payment failed; payment reminder | owners | failure; due date and 7 days after |
@@ -413,10 +416,11 @@ card data.
 
 ### Scheduler (`routes/console.php`)
 
-`billing:end-trials` 00:05, `billing:draft-invoices` 02:10, `billing:prune` 03:30,
+`billing:end-trials` hourly at :05 (`hourlyAt(5)`), then daily: `billing:device-peaks`
+00:15, `billing:draft-invoices` 02:10, `billing:prune` 03:30,
 `billing:retention-warnings` 08:00 and `billing:payment-reminders` 09:00 (retries,
-reminders, past due). Each runs `dailyAt(...)->withoutOverlapping()` and accepts
-`--now=` for tests and the quickstart.
+reminders, past due). Each runs `->withoutOverlapping()` and accepts `--now=` for
+tests and the quickstart.
 
 ### Documentation
 

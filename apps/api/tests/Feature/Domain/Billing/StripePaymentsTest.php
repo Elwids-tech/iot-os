@@ -198,6 +198,84 @@ final class StripePaymentsTest extends TestCase
         $this->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertConflict();
     }
 
+    public function test_back_from_stripes_page_the_payment_reads_as_stripe_has_it_before_its_event(): void
+    {
+        $this->withCard();
+        $invoice = $this->issued();
+        $this->stripe->on('POST', '/v1/checkout/sessions', ['id' => 'cs_9', 'object' => 'checkout.session', 'url' => 'https://checkout.stripe.test/c/cs_9']);
+        $this->actingAs($this->owner, 'sanctum')->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertOk();
+        $this->assertStringEndsWith('&paid=1&session={CHECKOUT_SESSION_ID}', $this->stripe->sent('POST', '/v1/checkout/sessions')[0]['params']['success_url']);
+
+        $session = fn (string $status, string $invoiceUuid = ''): array => [
+            'id' => 'cs_9', 'object' => 'checkout.session', 'customer' => 'cus_1', 'metadata' => ['invoice_uuid' => $invoiceUuid ?: $invoice->uuid],
+            'payment_intent' => array_replace_recursive($this->intent('pi_9', $status, $invoiceUuid ?: $invoice->uuid, 333), ['metadata' => ['method' => Payment::CHECKOUT]]),
+        ];
+        $returned = fn () => $this->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout/returned'), ['session' => 'cs_9']);
+
+        // A session for another invoice changes nothing.
+        $this->stripe->on('GET', '/v1/checkout/sessions/cs_9', $session('processing', '00000000-0000-4000-8000-000000000000'));
+        $returned()->assertNoContent();
+        $this->assertSame(0, $invoice->payments()->count());
+
+        // Still processing at Stripe: the invoice says so, and is not offered for payment.
+        $this->stripe->on('GET', '/v1/checkout/sessions/cs_9', $session('processing'));
+        $returned()->assertNoContent();
+        $this->getJson($this->owned('/invoices/'.$invoice->uuid))->assertJsonPath('data.payment_processing', true)->assertJsonPath('data.payments.0.method', Payment::CHECKOUT);
+        $this->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertConflict();
+
+        // Paid at Stripe: paid here, and Stripe's event then changes nothing.
+        $this->stripe->on('GET', '/v1/checkout/sessions/cs_9', $session('succeeded'));
+        $returned()->assertNoContent();
+        $this->assertSame(PaymentStatus::Paid, $invoice->fresh()->payment_status);
+        $this->webhook($this->event('evt_pi9', 'payment_intent.succeeded', $session('succeeded')['payment_intent']))->assertOk();
+        $this->assertSame([[Payment::CHECKOUT, Payment::SUCCEEDED, 333]], $invoice->payments()->get()->map(fn (Payment $payment): array => [$payment->method, $payment->status, $payment->amount])->all());
+        $this->assertSame(1, DB::table('billing_notices')->where('kind', 'receipt')->count());
+        $returned()->assertNoContent();
+        $this->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout/returned'), ['session' => 'pi_9'])->assertUnprocessable();
+    }
+
+    public function test_a_refusal_other_than_a_decline_fails_the_charge_with_stripes_reason(): void
+    {
+        $this->withCard();
+        $this->stripe->on('POST', '/v1/payment_intents', ['error' => ['type' => 'invalid_request_error', 'code' => 'resource_missing', 'message' => 'No such PaymentMethod: pm_card']], 400);
+        $invoice = $this->issued();
+
+        (new ChargeInvoice($invoice->id, 1))->handle(app(Payments::class));
+
+        $this->assertSame(PaymentStatus::Failed, $invoice->fresh()->payment_status);
+        $this->assertSame([[Payment::FAILED, 'No such PaymentMethod: pm_card']], $invoice->payments()->get()->map(fn (Payment $payment): array => [$payment->status, $payment->failure_reason])->all());
+        Queue::assertPushed(DeliverBillingEmail::class, fn (DeliverBillingEmail $job): bool => $job->mail instanceof PaymentMail && $job->mail->kind === 'failed');
+        // Nothing is left processing: the owner can pay on Stripe's page.
+        $this->stripe->on('POST', '/v1/checkout/sessions', ['id' => 'cs_3', 'object' => 'checkout.session', 'url' => 'https://checkout.stripe.test/c/cs_3']);
+        $this->actingAs($this->owner, 'sanctum')->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))->assertOk();
+    }
+
+    public function test_an_event_for_a_payment_the_platform_did_not_start_changes_nothing(): void
+    {
+        $intent = ['id' => 'pi_other', 'object' => 'payment_intent', 'status' => 'succeeded', 'amount' => 500, 'amount_received' => 500, 'currency' => 'usd', 'metadata' => []];
+
+        $this->webhook($this->event('evt_other', 'payment_intent.succeeded', $intent))->assertOk();
+
+        $this->assertSame(0, Payment::query()->count());
+    }
+
+    public function test_less_than_the_smallest_card_payment_is_never_sent_to_stripe(): void
+    {
+        config(['billing.card_minimum' => 400]);
+        $this->withCard();
+        $invoice = $this->issued();
+
+        (new ChargeInvoice($invoice->id, 1))->handle(app(Payments::class));
+
+        $this->assertSame([], $this->stripe->sent('POST', '/v1/payment_intents'));
+        $this->assertSame(0, $invoice->payments()->count());
+        $this->actingAs($this->owner, 'sanctum')
+            ->postJson($this->owned('/invoices/'.$invoice->uuid.'/checkout'))
+            ->assertConflict()
+            ->assertJsonPath('message', 'What is owed on invoice INV-0001, 3.33, is less than the smallest card payment. Pay it as agreed with the platform operator.');
+        $this->assertSame([], $this->stripe->sent('POST', '/v1/checkout/sessions'));
+    }
+
     public function test_replayed_duplicated_and_out_of_order_events_change_nothing(): void
     {
         $this->withCard();
