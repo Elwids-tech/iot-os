@@ -244,32 +244,39 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  SC-004 (within 5%) is held at p95 and p99 of the time from the runtime receiving a
-  message to it being visible in history. p50 is recorded too, but the probe's 100 ms
-  polling makes a difference of a few milliseconds there noise. Measured with
-  [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) at
-  the tested rate (500 simulated water meters, each reporting every 10 s, 50 messages
-  a second): 10 minutes with counting, 10 without (a temporary build without the
-  upsert), then 10 with counting again. The probe polls every 100 ms, which adds about
-  50 ms to every figure.
-  - **2026-11-09, after the reporter's asynchronous commit (T174):**
+  **SC-004's "within 5%" is not met**: counting adds about 2 ms at p50 and 7–9 ms at p99
+  to the time from the runtime receiving a message to its readings being in history,
+  which is 30–60% of a path that takes 5–14 ms without it. The owner decides between
+  restating SC-004 as an absolute bound and counting outside the storing transaction,
+  which would change ADR-036 (T191).
+  - **How it is measured.** [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py)
+    reads each message's commit time from PostgreSQL (`pg_xact_commit_timestamp` of its
+    observation rows, with `track_commit_timestamp` on), so nothing polls and the
+    figures carry no probe delay. The tested rate is 500 simulated water meters, each
+    reporting every 10 s (50 messages a second). Each run lasts 10 minutes after a
+    2-minute warm-up: with counting, without it (a temporary build without the upsert),
+    then with counting again.
+  - **2026-11-10 (T191):**
 
-    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 |
-    | --- | --- | --- | --- | --- | --- | --- |
-    | With counting | 29,800 | 59 ms | 105 ms | 113 ms | 153 ms | 5 ms |
-    | Without counting | 29,800 | 57 ms | 105 ms | 112 ms | 141 ms | 3 ms |
-    | With counting again | 29,800 | 62 ms | 108 ms | 115 ms | 131 ms | 5 ms |
+    | Run | Messages | p50 | p95 | p99 | Max | Queue p50 | Storing p50 |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | With counting | 29,850 | 7.0 ms | 14.2 ms | 20.8 ms | 845 ms | 5.8 ms | 1.1 ms |
+    | Without counting | 29,850 | 5.2 ms | 10.7 ms | 14.3 ms | 105 ms | 4.2 ms | 1.0 ms |
+    | With counting again | 29,892 | 7.2 ms | 15.0 ms | 22.9 ms | 550 ms | 6.0 ms | 1.1 ms |
 
-    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%), so SC-004
-    holds. p50 is +3.5% and +8.8%, while the two counting runs differ from each other
-    by 5%: about 2 ms, which is what counting adds before storing starts. No message in any run
-    took more than 153 ms.
-  - **2026-11-08, before it (T141):** p50 62, 61 and 64 ms; p95 108, 106 and 111 ms;
-    p99 126, 113 and 119 ms (counting, without, counting). Each counting run had 6–7
-    messages over 500 ms (at most 1.5 s) near the database's five-minute checkpoints,
-    and the run without had none, most likely because the reporter's row locks on the
-    hour's buckets lasted through a commit waiting on a slow fsync. With the
-    asynchronous commit that tail did not come back.
+    Queue is the time to the transaction writing its outbox row, storing the time from
+    there to the commit. The upsert itself barely shows in storing; most of what
+    counting adds is waiting. The storage consumer takes one message at a time
+    (`MaxAckPending(1)`), so each transaction's extra time, its commit included, delays
+    every message behind it.
+  - **Earlier runs (T141 on 2026-11-08, T174 on 2026-11-09)** polled the outbox every
+    100 ms. That wait made up most of every figure (p50 57–64 ms, p95 105–111 ms), so
+    their conclusion that p95 and p99 were within 5% could not show a difference of a
+    few milliseconds. Before the reporter's asynchronous commit (T174), each counting
+    run had 6–7 messages over 500 ms near the database's five-minute checkpoints. After
+    it, no message in those runs took longer than 153 ms. In T191's counting runs the
+    slowest message took 845 ms and 550 ms, against 105 ms without counting, so the slow
+    tail is rarer, not gone.
   - **Readings kept.** No reading was dropped in any run.
 
 ### SMS allowance
