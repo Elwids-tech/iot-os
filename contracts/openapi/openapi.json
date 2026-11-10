@@ -24762,6 +24762,21 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "gateway",
+                "adapter",
+                null
+              ]
+            }
           }
         ],
         "responses": {
@@ -24783,6 +24798,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -24792,7 +24810,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
-        "description": "The organization's gateways. Each carries `sources_count`, the sources it has reported, and `devices_count`, the organization's devices configured from one of those sources in every lifecycle, archived included; the gateway's own devices list with `GET devices?gateway_uuid=`.",
+        "description": "The organization's gateways, 100 per page at most. Each carries `sources_count`, the sources it has reported, and `devices_count`, the organization's devices configured from one of those sources in every lifecycle, archived included; the gateway's own devices list with `GET devices?gateway_uuid=`. Each also carries `adapter` (`uuid`, `name`) when it is a device adapter's publisher, the broker identity the adapter runtime publishes with, and null otherwise; people see the adapter in its place. `kind=gateway` lists only the gateways people run, `kind=adapter` only the adapters' publishers; both are listed without it.",
         "x-schema-status": "pending"
       },
       "post": {

@@ -37,7 +37,7 @@ final class DeviceDirectory
      */
     public function query(Organization $organization, array $filters): Builder
     {
-        return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'openInstallation.candidate.adapter:id,status', ...DeviceView::CONNECTIVITY])
+        return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.gateway.adapter:id,uuid,name,sparkplug_gateway_id', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'openInstallation.candidate.adapter:id,status', ...DeviceView::CONNECTIVITY])
             ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
             // Devices reach a gateway through the source they were configured from.
             ->when($filters['gateway_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('candidate.gateway', fn ($gateway) => $gateway->where('organization_id', $organization->id)->where('uuid', $uuid)))

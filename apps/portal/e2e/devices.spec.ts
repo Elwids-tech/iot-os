@@ -706,6 +706,53 @@ test("add to dashboard creates a dashboard with the first panel and keeps adding
   expect(state.errors).toEqual([])
 })
 
+test("an adapter-fed device names its adapter, never the adapter's publisher gateway", async ({ page }) => {
+  const adapterId = "abababab-abab-4bab-8bab-abababababab"
+  const publisher = {
+    ...gateway,
+    uuid: "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
+    name: "Manufacturer water meter",
+    edge_node_id: `adapter-${adapterId}`,
+    group_id: `adapters-${org}`,
+    adapter: { uuid: adapterId, name: "Manufacturer water meter" },
+  }
+  const fed = {
+    ...candidate,
+    source_device_id: "src-4f2a9c",
+    gateway: publisher,
+    adapter: { uuid: adapterId, name: "Manufacturer water meter", candidate_uuid: null, serial: "WM-1042" },
+  }
+  const state = await setup(page, {
+    devices: [{ ...meter, candidate: fed }, { ...meter, uuid: "efefefef-efef-4fef-8fef-efefefefefef", code: "line-meter", name: "Line meter" }],
+    details: { [meterId]: { ...detail, candidate: fed } },
+  })
+  await page.goto(`${base}/devices`)
+  const row = page.getByRole("row", { name: /Energy Meter Simulator/ })
+  await expect(row.getByRole("link", { name: "Adapter: Manufacturer water meter" })).toHaveAttribute(
+    "href",
+    `${base}/device-adapters/${adapterId}`,
+  )
+  await expect(page.locator(`a[href$="/gateways/${publisher.uuid}"]`)).toHaveCount(0)
+  // A device behind a gateway people run still links that gateway.
+  await expect(page.getByRole("row", { name: /Line meter/ }).getByRole("link", { name: "Simulator gateway" })).toHaveAttribute(
+    "href",
+    `${base}/gateways/${gatewayId}`,
+  )
+  await axe(page)
+
+  await page.goto(`${base}/devices/${meterId}`)
+  const summary = page.getByRole("complementary", { name: "Device summary" })
+  await expect(summary.getByText("Adapter", { exact: true })).toBeVisible()
+  await expect(summary.getByRole("link", { name: "Manufacturer water meter" })).toHaveAttribute(
+    "href",
+    `${base}/device-adapters/${adapterId}`,
+  )
+  await expect(summary.getByText("WM-1042")).toBeVisible()
+  await expect(page.locator(`a[href$="/gateways/${publisher.uuid}"]`)).toHaveCount(0)
+  await axe(page)
+  expect(state.errors).toEqual([])
+})
+
 test("gateways list their devices and discovery shows a clearable gateway filter", async ({ page }) => {
   const state = await setup(page)
   // Broker connections have their own page under Connect.

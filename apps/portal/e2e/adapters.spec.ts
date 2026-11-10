@@ -640,6 +640,43 @@ test("Discovery shows an adapter's source by serial and activates it in one step
   expect(errors).toEqual([]);
 });
 
+test("an adapter's publisher is left out of Gateways, and its gateway page opens the adapter", async ({ page }) => {
+  const { errors } = await setup(page);
+  const publisher = { uuid: "60000000-0000-4000-8000-000000000001", name: "Manufacturer water meter", edge_node_id: `adapter-${id}`, presence: "online", last_seen_at: null, connection_uuid: "c", group_id: "adapters-acme", sources_count: 1, adapter: { uuid: id, name: "Manufacturer water meter" } };
+  const line = { ...publisher, uuid: "60000000-0000-4000-8000-000000000002", name: "Line 2 gateway", edge_node_id: "line2-edge", connection_uuid: "p", group_id: "plant", sources_count: 0, adapter: null };
+  const kinds: (string | null)[] = [];
+  const page1 = (rows: unknown[]) => ({ contentType: "application/json", body: JSON.stringify({ data: rows, meta: { current_page: 1, last_page: 1, total: rows.length } }) });
+  await page.route((url) => url.pathname.startsWith("/api/") && url.pathname.endsWith("/gateways"), (route) => {
+    const kind = new URL(route.request().url()).searchParams.get("kind");
+    kinds.push(kind);
+    return route.fulfill(page1([publisher, line].filter((g) => !kind || (kind === "adapter") === Boolean(g.adapter))));
+  });
+  await page.route((url) => url.pathname.startsWith("/api/") && url.pathname.endsWith("/sparkplug-connections"), (route) =>
+    route.fulfill(page1([
+      { uuid: "c", name: "Device adapter connections", group_id: "adapters-acme", host_id: "h", status: "ready", diagnostic: null },
+      { uuid: "p", name: "Plant broker", group_id: "plant", host_id: "h2", status: "ready", diagnostic: null },
+    ])),
+  );
+  await page.goto(`/organizations/${org}/gateways`);
+  const table = page.getByRole("table", { name: "Gateways" });
+  await expect(table.getByRole("link", { name: "Line 2 gateway" })).toBeVisible();
+  await expect(table).not.toContainText("Manufacturer water meter");
+  expect(kinds).toEqual(["gateway"]);
+  // Gateways register on the organization's own connections only.
+  await page.getByRole("button", { name: "Register gateway" }).click();
+  const sheet = page.getByRole("dialog", { name: "Register gateway" });
+  await sheet.getByRole("combobox", { name: "Connection" }).click();
+  await expect(page.getByRole("option")).toHaveText(["Select connection", "Plant broker"]);
+  await page.keyboard.press("Escape");
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  // An older link or an alert that points at the publisher's gateway page opens the adapter.
+  await page.goto(`/organizations/${org}/gateways/${publisher.uuid}`);
+  await expect(page).toHaveURL(`${base}/${id}`);
+  await expect(page.getByRole("button", { name: "More adapter actions" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Firmware", exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("retained samples cannot activate physical devices", async ({ page }) => {
   const { requests } = await setup(page, true);
   await page.goto(base + "/" + id);

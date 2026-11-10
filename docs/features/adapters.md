@@ -51,6 +51,16 @@ under **Build → Device adapters** for users with `Device.manage`.
   Because the platform defines these births, a device fed by an adapter activates
   against its source's last stored birth when the source has not announced itself
   since a restart ([devices](devices.md#configuration-and-activation)).
+- That edge node is the adapter's **gateway** record
+  ([`AdapterService::gateway`](../../apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php),
+  linked by `device_adapters.sparkplug_gateway_id`), created at the first deploy with
+  the broker login the publisher uses. The data plane needs it: it identifies the
+  source of every reading and its discovered sources hang off it. People never manage
+  it, so the portal shows the adapter in its place
+  ([a device adapter's gateway](devices.md#a-device-adapters-gateway)): it is left out
+  of **Fleet → Gateways**, its gateway address opens the adapter, adapter-fed devices
+  name **Adapter: *name*** instead of a gateway, and it has no firmware, settings or
+  hand-made setups.
 - **Offline alerts** treat the adapter as platform infrastructure
   ([offline alerts](alerts.md#offline-alerts)):
   - Only a new reading counts as hearing from an adapter's device: a DDATA with at

@@ -445,6 +445,14 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Device adapters
 
+- **Every deployed adapter is also a `SparkplugGateway`.** Its publisher's broker login
+  and edge node live in a gateway record, so anything that lists or acts on gateways
+  meets adapters too: pass `kind=gateway` to `GET gateways` for the gateways people
+  run, and read `gateway.adapter` before offering firmware, settings or a setup through
+  one ([a device adapter's gateway](../features/devices.md#a-device-adapters-gateway)).
+  The pilot's first integrator saw its two adapters listed as gateways beside its one
+  real gateway.
+
 - **Polled readings can be stale before the automation sees them.** A DAG binding's
   `fresh_seconds` counts from the reading's observed time
   ([`evaluator.go`](../../services/runtime/internal/dag/evaluator.go)), and a polling

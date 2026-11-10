@@ -15,6 +15,7 @@ use App\Domain\Firmware\Services\StarterProfiles;
 use App\Domain\Firmware\Services\TargetRegistry;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 /** A credential-free starter for any member who may view the profiles. Not recorded: it holds no secrets (spec 027 R5). */
 final class FirmwareStarterController
@@ -36,6 +37,9 @@ final class FirmwareStarterController
         if (! empty($values['gateway_uuid'])) {
             $gateway = SparkplugGateway::where('uuid', $values['gateway_uuid'])->where('organization_id', $organization->id)->firstOrFail();
             $this->devices->authorize($user, DevicePermission::CONNECTIONS, $organization, $gateway);
+            if ($gateway->adapter) {
+                throw ValidationException::withMessages(['gateway_uuid' => 'This gateway publishes for the device adapter "'.$gateway->adapter->name.'". It has no firmware.']);
+            }
         }
         $this->profiles->authorizeView($organization, $user);
         $node = empty($values['node_artifact_uuid']) ? null : $this->profiles->artifact($values['node_artifact_uuid'], $organization, $user);

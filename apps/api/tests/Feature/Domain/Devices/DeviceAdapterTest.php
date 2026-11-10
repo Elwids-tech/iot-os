@@ -16,6 +16,8 @@ use App\Domain\DeviceAdapters\Services\AdapterService;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Devices\Models\SparkplugConnection;
+use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -216,6 +218,42 @@ final class DeviceAdapterTest extends TestCase
             ->assertUnprocessable()->assertJsonPath('message', 'This source comes through the adapter "Manufacturer water meter". Activate it from the adapter, which sets the device up in one step.');
         $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'WM-1042'])->assertAccepted();
         $this->getJson($this->prefix.'/discovery-candidates/'.$sources[0]['uuid'])->assertOk()->assertJsonPath('data.adapter.serial', 'WM-1042');
+    }
+
+    public function test_an_adapters_gateway_is_shown_as_the_adapter_and_offers_no_firmware_or_setups(): void
+    {
+        [$a, $adapter, $candidate] = $this->liveCandidate();
+        $gateway = $adapter->fresh()->gateway;
+        $plant = SparkplugConnection::create(['organization_id' => $this->organization->id, 'name' => 'Plant', 'group_id' => 'plant-adapters-test', 'host_id' => 'plant-host', 'username' => 'plant', 'password' => 'test-secret', 'status' => 'ready']);
+        $line = SparkplugGateway::create(['organization_id' => $this->organization->id, 'sparkplug_connection_id' => $plant->id, 'name' => 'Line 2 gateway', 'edge_node_id' => 'line2-edge', 'username' => 'edge-line2', 'password' => 'test-secret']);
+        $named = ['uuid' => $a['uuid'], 'name' => 'Manufacturer water meter'];
+
+        // The publisher keeps its gateway record, which names the adapter it publishes for.
+        $listed = fn (string $query = '') => collect($this->getJson($this->prefix.'/gateways?per_page=100'.$query)->assertOk()->json('data'))->keyBy('uuid');
+        $all = $listed();
+        $this->assertSame($named, $all[$gateway->uuid]['adapter']);
+        $this->assertNull($all[$line->uuid]['adapter']);
+        $this->assertSame([$line->uuid], $listed('&kind=gateway')->keys()->all());
+        $this->assertSame([$gateway->uuid], $listed('&kind=adapter')->keys()->all());
+        $this->getJson($this->prefix.'/gateways?kind=publisher')->assertUnprocessable();
+
+        // Devices and their sources name the adapter on the gateway they read through.
+        $device = $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])->assertAccepted()->json('data.device');
+        $this->assertSame($named, collect($this->getJson($this->prefix.'/devices?per_page=100')->assertOk()->json('data'))->firstWhere('uuid', $device['uuid'])['candidate']['gateway']['adapter']);
+        $this->getJson($this->prefix.'/devices/'.$device['uuid'])->assertOk()->assertJsonPath('data.candidate.gateway.adapter', $named);
+        $this->getJson($this->prefix.'/discovery-candidates?gateway_uuid='.$gateway->uuid)->assertOk()->assertJsonPath('data.0.gateway.adapter', $named);
+
+        // It runs no firmware, its broker login stays with the adapter runtime, and devices are not set up through it by hand.
+        $refused = 'This gateway publishes for the device adapter "Manufacturer water meter". It has no firmware, and its credentials stay with the adapter.';
+        $this->postJson($this->prefix.'/gateways/'.$gateway->uuid.'/connection-settings')->assertUnprocessable()->assertJsonPath('message', $refused);
+        $this->postJson($this->prefix.'/gateways/'.$gateway->uuid.'/firmware-kit', ['target' => 'linux'])->assertUnprocessable()->assertJsonPath('message', $refused);
+        $this->postJson($this->prefix.'/firmware/starters', ['target' => 'linux', 'role' => 'gateway', 'device_type_artifact_uuids' => [$this->artifact], 'gateway_uuid' => $gateway->uuid])
+            ->assertJsonValidationErrors(['gateway_uuid' => 'This gateway publishes for the device adapter "Manufacturer water meter". It has no firmware.']);
+        $this->assertNull($gateway->fresh()->firmware_selection);
+        $this->postJson($this->prefix.'/device-onboardings', ['request_uuid' => (string) Str::uuid(), 'name' => 'By hand', 'artifact_uuid' => $this->artifact, 'mode' => 'gateway', 'gateway_uuid' => $gateway->uuid, 'source_device_id' => 'by-hand'])
+            ->assertUnprocessable()->assertJsonPath('message', 'This gateway belongs to a device adapter. Activate its sources from the adapter.');
+        $this->postJson($this->prefix.'/gateways', ['connection_uuid' => $gateway->connection->uuid, 'name' => 'Squatter', 'edge_node_id' => 'squatter'])
+            ->assertUnprocessable()->assertJsonPath('message', 'This connection belongs to the device adapters. Register gateways on a connection of your own.');
     }
 
     public function test_an_unused_adapter_is_deleted_with_its_runtime_and_gateway(): void

@@ -70,6 +70,7 @@ import {
   Section,
   useDeviceOrganization,
   devicePath,
+  via,
 } from "../devices/shared"
 import { matchesSample, sampleStatus, wireHex } from "./model"
 
@@ -300,7 +301,7 @@ function Viewer() {
             value={gateway}
             options={(gateways.data?.data ?? []).map((g) => ({
               value: g.uuid,
-              label: g.name,
+              label: via(org, g).label,
             }))}
             search={gatewaySearch}
             onSearchChange={(s) => {

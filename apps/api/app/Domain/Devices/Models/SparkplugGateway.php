@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Models;
 
 use App\Domain\Automation\Models\Alert;
+use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
@@ -35,6 +36,15 @@ final class SparkplugGateway extends DeviceModel
     public function devices(): HasManyThrough
     {
         return $this->hasManyThrough(Device::class, DiscoveryCandidate::class, 'sparkplug_gateway_id', 'device_discovery_candidate_id');
+    }
+
+    /**
+     * The device adapter this gateway publishes for: its runtime's broker login and edge
+     * node `adapter-<adapter uuid>`. Null for a gateway people run.
+     */
+    public function adapter(): HasOne
+    {
+        return $this->hasOne(DeviceAdapter::class, 'sparkplug_gateway_id');
     }
 
     /** The open Gateway offline alert of this gateway (spec 018), if any. */

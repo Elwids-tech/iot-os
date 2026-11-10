@@ -43,10 +43,10 @@ import {
 import {
   devicePath,
   discoveryPath,
-  gatewayPath,
   HealthStatus,
   profilePath,
   useDeviceOrganization,
+  via,
 } from "./shared"
 import { deviceHealth, listStatuses, RECENT_DATA_MS, shortDeviceCode } from "./model"
 
@@ -224,11 +224,12 @@ export function DeviceDirectory() {
         header: "Gateway",
         mobile: "hidden",
         className: "max-w-56 truncate",
-        value: (device) => device.candidate?.gateway.name,
+        // An adapter-fed device reads through its adapter, never a gateway anyone manages.
+        value: (device) => device.candidate && via(org, device.candidate.gateway).label,
         cell: (device) =>
           device.candidate ? (
-            <RefLink to={gatewayPath(org, device.candidate.gateway.uuid)}>
-              {device.candidate.gateway.name}
+            <RefLink to={via(org, device.candidate.gateway).to}>
+              {via(org, device.candidate.gateway).label}
             </RefLink>
           ) : (
             <span className="text-muted-foreground">None</span>
@@ -241,10 +242,10 @@ export function DeviceDirectory() {
     () => [
       { id: "status", label: "Status", value: (device) => deviceHealth(device, listFreshness).label },
       { id: "profile", label: "Profile", value: (device) => device.profile?.name },
-      { id: "gateway", label: "Gateway", value: (device) => device.candidate?.gateway.name },
+      { id: "gateway", label: "Gateway", value: (device) => device.candidate && via(org, device.candidate.gateway).label },
       ...(hasSites ? [{ id: "site", label: "Site", value: (device: Device) => device.site?.name }] : []),
     ],
-    [hasSites],
+    [org, hasSites],
   )
 
   return (

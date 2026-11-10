@@ -40,6 +40,11 @@ export type Gateway = {
   sources_count: number
   /** Devices configured from one of its sources, in every lifecycle; only in the gateways list. */
   devices_count?: number
+  /**
+   * The device adapter this gateway publishes for, which people see in its place; null for
+   * a gateway people run. It has no firmware, setups or credentials of its own.
+   */
+  adapter: { uuid: string; name: string } | null
   /** The choices saved by the last firmware download for this gateway (spec 027); only in the gateways list. */
   firmware_selection?: import("./firmware").FirmwareSelection | null
   /** The open Gateway offline alert for this gateway (spec 018). */
@@ -389,6 +394,8 @@ export type DeviceDirectoryQuery = {
   status?: DiscoveryCandidate["status"]
   /** Discovery candidates only: sources no device has reserved yet. */
   unassigned?: boolean
+  /** Gateways only: `gateway` leaves out device adapters' publishers, `adapter` lists only them. */
+  kind?: "gateway" | "adapter"
 }
 
 /** The organization's gateway health profile, created and published once (spec 026). */
