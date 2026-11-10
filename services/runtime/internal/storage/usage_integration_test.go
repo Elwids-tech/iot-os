@@ -304,7 +304,8 @@ func TestAQuietReporterStillReportsEveryTwoMinutes(t *testing.T) {
 	store, ctx, organization := historyStore(t)
 	started := time.Now().UTC().Add(-time.Second)
 	cleanUsageEvents(t, store, started)
-	now := time.Now().UTC()
+	// Mid-hour, so the steps below never close an hour and write a real report.
+	now := time.Now().UTC().Truncate(time.Hour).Add(30 * time.Minute)
 	if _, err := store.Pool.Exec(ctx, "INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES ($1,$2,4)", organization, now.Truncate(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
