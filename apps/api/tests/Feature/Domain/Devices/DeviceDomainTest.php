@@ -105,6 +105,20 @@ final class DeviceDomainTest extends TestCase
         return $device->fresh();
     }
 
+    private function gatewayIn(Organization $organization, string $edge): SparkplugGateway
+    {
+        $connection = SparkplugConnection::create(['organization_id' => $organization->id, 'name' => $edge, 'group_id' => $edge, 'host_id' => $edge, 'username' => $edge, 'password' => 'test-secret', 'status' => 'ready']);
+
+        return SparkplugGateway::create(['organization_id' => $organization->id, 'sparkplug_connection_id' => $connection->id, 'name' => $edge, 'edge_node_id' => $edge]);
+    }
+
+    /** Configures the device from a new source behind the gateway. */
+    private function behind(SparkplugGateway $gateway, Device $device, string $source): void
+    {
+        $candidate = DiscoveryCandidate::create(['organization_id' => $gateway->organization_id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => $source, 'metrics' => [], 'birth_revision' => 1]);
+        $device->forceFill(['device_discovery_candidate_id' => $candidate->id])->save();
+    }
+
     public function test_registration_scope_conflicts_and_archive_preserve_records(): void
     {
         $device = $this->registered();
@@ -413,20 +427,11 @@ final class DeviceDomainTest extends TestCase
 
     public function test_devices_can_be_listed_by_the_gateway_of_their_source(): void
     {
-        $gateway = function (Organization $organization, string $edge): SparkplugGateway {
-            $connection = SparkplugConnection::create(['organization_id' => $organization->id, 'name' => $edge, 'group_id' => $edge, 'host_id' => $edge, 'username' => $edge, 'password' => 'test-secret', 'status' => 'ready']);
-
-            return SparkplugGateway::create(['organization_id' => $organization->id, 'sparkplug_connection_id' => $connection->id, 'name' => $edge, 'edge_node_id' => $edge]);
-        };
-        $behind = function (SparkplugGateway $gateway, Device $device, string $source): void {
-            $candidate = DiscoveryCandidate::create(['organization_id' => $gateway->organization_id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => $source, 'metrics' => [], 'birth_revision' => 1]);
-            $device->forceFill(['device_discovery_candidate_id' => $candidate->id])->save();
-        };
-        $north = $gateway($this->organization, 'gateway-north');
-        $south = $gateway($this->organization, 'gateway-south');
-        $behind($north, $this->registered('by-gateway-north-1'), 'north-1');
-        $behind($north, $this->registered('by-gateway-north-2'), 'north-2');
-        $behind($south, $this->registered('by-gateway-south'), 'south');
+        $north = $this->gatewayIn($this->organization, 'gateway-north');
+        $south = $this->gatewayIn($this->organization, 'gateway-south');
+        $this->behind($north, $this->registered('by-gateway-north-1'), 'north-1');
+        $this->behind($north, $this->registered('by-gateway-north-2'), 'north-2');
+        $this->behind($south, $this->registered('by-gateway-south'), 'south');
         $this->registered('by-gateway-none');
 
         $codes = fn (string $query) => collect($this->getJson($this->prefix.'/devices?per_page=100&'.$query)->assertOk()->json('data'))->pluck('code')->sort()->values()->all();
@@ -438,11 +443,36 @@ final class DeviceDomainTest extends TestCase
 
         // Another organization's gateway lists none of this organization's devices, and none of its own here.
         $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
-        $foreign = $gateway($other, 'gateway-foreign');
+        $foreign = $this->gatewayIn($other, 'gateway-foreign');
         $foreignDevice = Device::create(['organization_id' => $other->id, 'name' => 'Foreign meter', 'code' => 'by-gateway-foreign']);
-        $behind($foreign, $foreignDevice, 'foreign');
+        $this->behind($foreign, $foreignDevice, 'foreign');
         $this->assertSame([], $codes('gateway_uuid='.$foreign->uuid));
         $this->getJson('/api/v1/organizations/'.$other->uuid.'/devices?gateway_uuid='.$north->uuid)->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_gateways_count_the_devices_behind_their_sources(): void
+    {
+        $north = $this->gatewayIn($this->organization, 'count-north');
+        $south = $this->gatewayIn($this->organization, 'count-south');
+        $this->behind($north, $this->registered('count-north-1'), 'north-1');
+        $this->behind($north, $this->registered('count-north-2'), 'north-2');
+        // Archived devices still list on the gateway page, so they count too.
+        $archived = $this->registered('count-north-archived');
+        $archived->forceFill(['lifecycle' => 'archived'])->save();
+        $this->behind($north, $archived, 'north-3');
+        $this->registered('count-none');
+        // A source behind this gateway that another organization's device was configured from is not counted.
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->behind($north, Device::create(['organization_id' => $other->id, 'name' => 'Foreign meter', 'code' => 'count-foreign']), 'north-foreign');
+        $foreign = $this->gatewayIn($other, 'count-foreign');
+        $this->behind($foreign, Device::create(['organization_id' => $other->id, 'name' => 'Foreign meter', 'code' => 'count-foreign-2']), 'foreign');
+
+        $counts = fn (string $organization) => collect($this->getJson('/api/v1/organizations/'.$organization.'/gateways?per_page=100')->assertOk()->json('data'))->pluck('devices_count', 'uuid');
+        $listed = $counts($this->organization->uuid);
+        $this->assertSame(3, $listed[$north->uuid]);
+        $this->assertSame(0, $listed[$south->uuid]);
+        $this->assertArrayNotHasKey($foreign->uuid, $listed->all());
+        $this->assertSame(1, $counts($other->uuid)[$foreign->uuid]);
     }
 
     public function test_devices_filter_by_the_list_status_and_leave_out_archived_as_current(): void

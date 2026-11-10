@@ -25,11 +25,11 @@ const gateway = {
   uuid: gatewayId, name: "Line 2 gateway", edge_node_id: "line2-edge", connection_uuid: "88888888-8888-4888-8888-888888888888",
   group_id: "plant", presence: "online", last_seen_at: ago(3), sources_count: 3,
 }
-const device = (n: number, p: { uuid: string; name: string }) => ({
+const device = (n: number, p: { uuid: string; name: string }, behind: { uuid: string } = gateway) => ({
   uuid: `d000000${n}-0000-4000-8000-00000000000${n}`, code: `meter-${n}`, name: `Meter ${n}`, serial_number: null, description: null,
   lifecycle: "active", presence: "online", last_seen_at: ago(5), tags: [], attributes: {}, site: null,
   profile: { uuid: p.uuid, name: p.name, revision: 1 },
-  candidate: { uuid: `c000000${n}-0000-4000-8000-00000000000${n}`, source_device_id: `meter-${n}`, gateway },
+  candidate: { uuid: `c000000${n}-0000-4000-8000-00000000000${n}`, source_device_id: `meter-${n}`, gateway: behind },
 })
 const targets = [
   { id: "linux", name: "Linux or macOS", kind: "built", roles: ["direct", "gateway"], toolchain: "CMake 3.31" },
@@ -50,6 +50,8 @@ async function setup(page: Page, { connections = true, healthProfile = true, sel
     kits: [] as Record<string, unknown>[],
     settings: 0,
     gatewayLoads: 0,
+    /** The gateway_uuid of each device list request; null when it asked for every device. */
+    deviceRequests: [] as (string | null)[],
     selection,
   }
   page.on("pageerror", (error) => state.errors.push(error.message))
@@ -66,7 +68,9 @@ async function setup(page: Page, { connections = true, healthProfile = true, sel
     },
   }
   const profiles = [...(healthProfile ? [health] : []), water, pump, ...extra]
-  const devices = [device(1, water), device(2, water), device(3, pump)]
+  // Another gateway's device, whose profile is never suggested here.
+  const elsewhere = { ...gateway, uuid: "67676767-6767-4767-8767-676767676767", name: "Line 3 gateway" }
+  const devices = [device(1, water), device(2, water), device(3, pump), device(4, extra[0], elsewhere)]
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
       url = new URL(request.url()),
@@ -103,12 +107,13 @@ async function setup(page: Page, { connections = true, healthProfile = true, sel
     }
     if (path.endsWith("/gateways")) {
       state.gatewayLoads++
-      return page1([{ ...gateway, firmware_selection: state.selection }])
+      return page1([{ ...gateway, devices_count: 3, firmware_selection: state.selection }])
     }
     if (path.endsWith("/sparkplug-connections"))
       return page1([{ uuid: gateway.connection_uuid, name: "Plant broker", group_id: "plant", host_id: "h", status: "ready", diagnostic: null }])
     if (path.endsWith("/devices")) {
       const gatewayUuid = url.searchParams.get("gateway_uuid")
+      state.deviceRequests.push(gatewayUuid)
       return page1(devices.filter((d) => !gatewayUuid || d.candidate.gateway.uuid === gatewayUuid))
     }
     if (path.endsWith("/discovery-candidates")) return page1([])
@@ -268,11 +273,15 @@ test("without a gateway health profile the SDK default is used, and a gateway ho
 test("a member downloads only the starter, from the gateway list too, without saving choices", async ({ page }) => {
   const state = await setup(page, { connections: false })
   await page.goto(`${base}/gateways`)
+  // The list counts devices on the server; the dialog loads only this gateway's devices once it opens.
+  await expect(page.getByRole("cell", { name: "3", exact: true }).first()).toBeVisible()
+  expect(state.deviceRequests).toEqual([])
   await page.getByRole("button", { name: "Actions for Line 2 gateway" }).click()
   await expect(page.getByRole("menuitem", { name: "Get credentials" })).toHaveCount(0)
   await page.getByRole("menuitem", { name: "Firmware" }).click()
   const dialog = page.getByRole("dialog", { name: "Gateway firmware" })
   await expect(dialog.getByRole("combobox", { name: "Device type 1" })).toHaveText("Water meter")
+  expect([...new Set(state.deviceRequests)]).toEqual([gatewayId])
   await expect(dialog.getByRole("button", { name: "Download settings" })).toHaveCount(0)
   await expect(dialog.getByRole("button", { name: "Download full kit" })).toHaveCount(0)
   await expect(dialog).toContainText("Connection settings and full kits need connection-management access.")

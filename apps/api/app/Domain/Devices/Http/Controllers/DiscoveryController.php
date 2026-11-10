@@ -62,8 +62,11 @@ final class DiscoveryController
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
         $selection = app(FirmwareSelection::class)->viewer($organization, $request->user());
 
-        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with(['connection', 'offlineAlert'])->withCount('candidates')->orderBy('name'),
-            fn ($g) => [...DeviceView::gateway($g), 'firmware_selection' => $selection($g)], ['name', 'edge_node_id']);
+        // Devices count like the gateway page lists them: every lifecycle, archived included.
+        $devices = fn ($q) => $q->where('devices.organization_id', $organization->id);
+
+        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with(['connection', 'offlineAlert'])->withCount(['candidates', 'devices' => $devices])->orderBy('name'),
+            fn ($g) => [...DeviceView::gateway($g), 'devices_count' => $g->devices_count, 'firmware_selection' => $selection($g)], ['name', 'edge_node_id']);
     }
 
     public function storeGateway(Request $request, Organization $organization)

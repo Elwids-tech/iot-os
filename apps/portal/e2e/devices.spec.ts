@@ -436,7 +436,7 @@ async function setup(page: Page, options: Options = {}) {
     }
     if (path.endsWith("/dashboards")) return json({ data: state.dashboards })
     if (path.endsWith("/gateways"))
-      return json({ data: options.gateways ?? [gateway], meta: { current_page: 1, last_page: 1, total: 1 } })
+      return json({ data: options.gateways ?? [{ ...gateway, devices_count: 1 }], meta: { current_page: 1, last_page: 1, total: 1 } })
     if (path.endsWith("/sparkplug-connections"))
       return json({
         data: [
@@ -745,7 +745,16 @@ test("gateways list their devices and discovery shows a clearable gateway filter
   await expect(firmware).not.toContainText("artisan")
   await page.keyboard.press("Escape")
   await axe(page)
+  // The list takes each gateway's device count from the gateways index, not from every device.
+  const everyDevice: string[] = []
+  page.on("request", (r) => {
+    const url = new URL(r.url())
+    if (url.pathname.endsWith("/devices") && !url.searchParams.has("gateway_uuid")) everyDevice.push(url.search)
+  })
   await page.getByRole("link", { name: "Back to Gateways" }).click()
+  const listed = page.getByRole("table", { name: "Gateways" }).getByRole("row", { name: /Simulator gateway/ })
+  await expect(listed.getByRole("cell", { name: "1", exact: true })).toBeVisible()
+  expect(everyDevice).toEqual([])
   await page.getByRole("link", { name: "1 source" }).click()
   await expect(page).toHaveURL(`${base}/discovery?gateway=${gatewayId}`)
   await expect(page.getByText("Gateway: Simulator gateway")).toBeVisible()

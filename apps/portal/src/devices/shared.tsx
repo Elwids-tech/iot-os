@@ -145,6 +145,23 @@ export const devicePath = (org: string, device = "") =>
   `/organizations/${encodeURIComponent(org)}/devices${device ? "/" + encodeURIComponent(device) : ""}`
 export const profilePath = (org: string, profile: string) =>
   `/organizations/${encodeURIComponent(org)}/device-profiles/${encodeURIComponent(profile)}`
+/** Every page of a paged list, for pages that look one record up by id. */
+export async function everyPage<T>(load: (page: number) => Promise<{ data: T[]; meta: { last_page: number } }>) {
+  const all: T[] = []
+  for (let page = 1, last = 1; page <= last; page++) {
+    const result = await load(page)
+    all.push(...result.data)
+    last = result.meta.last_page
+  }
+  return all
+}
+
+/** A gateway's devices, reached through their source; the gateway page and the list's Firmware dialog share them. */
+export const gatewayDevicesQuery = (org: string, gateway: string) => ({
+  queryKey: ["devices", org, "gateway", gateway],
+  queryFn: () => everyPage((page) => api.devices(org, { gateway_uuid: gateway, page, per_page: 100 })),
+})
+
 export const gatewayPath = (org: string, gateway?: string) =>
   `/organizations/${encodeURIComponent(org)}/gateways${gateway ? "/" + encodeURIComponent(gateway) : ""}`
 export const connectionsPath = (org: string) =>

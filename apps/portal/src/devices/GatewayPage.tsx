@@ -25,18 +25,15 @@ import { Confirm, RequestError } from "../components/forms"
 import { TechnicalDetails } from "./GatewaysPage"
 import { GatewayFirmwareDialog } from "./GatewayFirmwareDialog"
 import { sourceLabel } from "./OnboardSource"
-import { devicePath, discoveryPath, gatewayPath, metricCount, useDeviceOrganization } from "./shared"
-
-/** Every page of a paged list, for pages that look one record up by id. */
-async function everyPage<T>(load: (page: number) => Promise<{ data: T[]; meta: { last_page: number } }>) {
-  const all: T[] = []
-  for (let page = 1, last = 1; page <= last; page++) {
-    const result = await load(page)
-    all.push(...result.data)
-    last = result.meta.last_page
-  }
-  return all
-}
+import {
+  devicePath,
+  discoveryPath,
+  everyPage,
+  gatewayDevicesQuery,
+  gatewayPath,
+  metricCount,
+  useDeviceOrganization,
+} from "./shared"
 
 /** One table per tab; Devices is the default and leaves the address without `?tab`. */
 const tabs = { devices: "Devices", sources: "Sources" } as const
@@ -60,10 +57,8 @@ export function GatewayPage() {
     queryKey: ["connections", org, "all"],
     queryFn: () => everyPage((page) => api.connectionsPage(org, { page, per_page: 100 })),
   })
-  // Devices reach the gateway through their source; the device list filters on it.
   const devices = useQuery({
-    queryKey: ["devices", org, "gateway", gatewayUuid],
-    queryFn: () => everyPage((page) => api.devices(org, { gateway_uuid: gatewayUuid, page, per_page: 100 })),
+    ...gatewayDevicesQuery(org, gatewayUuid),
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   })
