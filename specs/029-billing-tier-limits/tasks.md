@@ -1380,10 +1380,9 @@ section 7.
   `removePaymentMethod`, `invoiceCheckout`, `recordInvoicePayment`, `reconcileInvoice`,
   the `pastDue` filter). The admin's invoice history wording covers the new actions.
 
-- [ ] T108 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
+- [x] T108 Verify: tests, `contract:check`. Rebuild `api` and the API-image services
   with Stripe test keys from `.local/`, then run quickstart section 7 with `stripe
   listen` and the test cards, including keys removed.
-
 
   As built (PR 11): the API suite on SQLite (1253 tests) and the billing, contract and
   audit tests on PostgreSQL pass; `contract:check` and the coverage gate pass. The API
@@ -1395,6 +1394,25 @@ section 7.
   from a signed `checkout.session.completed` with one receipt, and ignored the replay.
   Still to do: quickstart section 7 against Stripe's test mode with `stripe listen` and
   the test cards, which needs test keys in `.local/`.
+
+  Stripe test mode (PR 30, 2026-11-10): test keys in the main checkout's root `.env`,
+  the API family recreated with them (payments on, an unsigned webhook answers 403),
+  and `stripe listen` signed in to the same account. Quickstart 7 through Stripe's
+  pages:
+  - A card saved in setup mode reached the account through the webhook as brand, last
+    four and expiry.
+  - Issuing September charged it once: paid, with the invoice and receipt emails.
+  - With the card that attaches but declines, October's charge failed and the owner
+    got the email with the invoice's link. `billing:payment-reminders --now=` on the
+    due date reminded and charged again (declined), and the next day flagged the
+    account past due.
+  - Paying on Stripe's page settled the invoice and cleared past due.
+    `stripe events resend` of its `payment_intent.succeeded` and
+    `checkout.session.completed` changed nothing: same payments, statuses, recorded
+    events and emails.
+  - With the keys removed, every payment route answers 404 and there is no card form
+    (checked in PR 11 and PR 12). The dev stack keeps the keys.
+
 ---
 
 ## Phase 12: Payments in admin and portal (PR 12) — US7
@@ -1448,9 +1466,8 @@ due and act.
   the card, Check with Stripe, Record payment with a too-large amount first, Settings).
   The existing billing specs' mocks gained `payments`.
 
-- [ ] T113 Verify: both apps' lint and tests. Rebuild `admin` and `portal`, then run
+- [x] T113 Verify: both apps' lint and tests. Rebuild `admin` and `portal`, then run
   quickstart section 7 through Stripe's test pages.
-
 
   As built (PR 12): both apps' lint, the kit's unit tests, admin e2e (63) and portal
   mocked e2e (178, against a build) pass. Admin and portal were rebuilt from this branch
@@ -1461,6 +1478,15 @@ due and act.
   transfer that settled the invoice and cleared past due in both apps. Still to do: the
   same through Stripe's test pages, which needs Stripe test keys in the stack's
   environment.
+
+  Through Stripe's test pages (PR 30, 2026-11-10), headless as the seeded owner and
+  administrator: the portal's Add card, Replace card and Pay open Stripe's pages and
+  come back to Billing accounts; the Card panel shows brand, last four and expiry only;
+  the past due notice and the Pay button show on the failed invoice and go once it is
+  paid. In admin, the account shows the card, the invoice its three payments (charged
+  at issue and failed, attempt 2 failed, paid on Stripe's page) and Settings "Card
+  payments: On". `admin` and `portal` were not rebuilt: their code is main's.
+
 ---
 
 ## Phase 13: Trials (PR 13, after PRs 8 and 11) — US8
@@ -1564,7 +1590,7 @@ account is charged when a card is saved, or flagged otherwise.
   `TrialValues`, `TrialFilter` and the `trial` list filter. A gotcha covers the
   flushSync warning after a searchable select.
 
-- [ ] T121 Verify: tests and lint. Rebuild `api`, `admin` and `portal`, then run
+- [x] T121 Verify: tests and lint. Rebuild `api`, `admin` and `portal`, then run
   quickstart section 8 with `billing:end-trials --now=` and a test card.
 
   As built (PR 13): the API suite passes on SQLite and PostgreSQL (1,310), with
@@ -1578,6 +1604,13 @@ account is charged when a card is saved, or flagged otherwise.
   and showed in the history; the owner saw the ended banner. Still to do: the same with
   a Stripe test card (ending straight to paid, and a card saved afterwards), which
   needs Stripe test keys in the stack's environment.
+
+  With a Stripe test card (PR 30, 2026-11-10): a trial whose owner saved a card on
+  Stripe's page ended straight to paid from its end (`trial_reached_end`, then `paid`).
+  One without a card ended `trial_unpaid` with the portal's "Add a card" banner, and
+  saving a card on Stripe's page then made it paid (`payment_method_added`) through the
+  webhook. The month's draft charges the paid assignment from the next day; trial days
+  at 0 were shown in PR 13.
 
 ---
 
