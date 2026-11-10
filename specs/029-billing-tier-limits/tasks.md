@@ -1615,6 +1615,25 @@ account is charged when a card is saved, or flagged otherwise.
       concurrency test could show.
     - `final` taking the runtime's clock while buckets take the database's.
   - Run it again once those land.
+
+  Fourth run (PR 25): Phase 17 was built in PRs 23 and 24. The same three reviewers
+  covered about 185 requirements and acceptance scenarios, about 50 plan decisions and 9
+  principles, and every finding was checked against the code before it was added.
+  - Every Phase 15, 16 and 17 fix holds, except T153 for trials (T182) and T171's
+    migration when it meets a key already in the new form (T183).
+  - Nothing is critical or high. The public-repo rule holds, and T169's fixtures name
+    no tiers.
+  - It added T182–T189 (Phase 18): one medium (T182) and seven low.
+  - Not added:
+    - Renaming a plan in use asks for no confirmation. 028 FR-003 reads as if it
+      should, while AC3 and `billing-api.md` confirm only allowance changes; a product
+      question.
+    - After a mid-month move, a manager's Settings → Usage shows only the hours counted
+      for the organization's current account; the spec says nothing either way.
+    - The retention operations are still on `contracts/openapi/pending-schemas.json`,
+      so the fields 029 added are typed only in the api-client; the list shrinks when an
+      operation is described.
+  - Run it again once those land.
 - [x] T123 [P] Cross-check docs: `docs/features/billing.md`, `access.md`, `devices.md`,
   `alerts.md`, `docs/reference/events.md` and `docs/ops/billing-payments.md` describe
   what was built; fix any drift from code
@@ -2096,3 +2115,14 @@ account is charged when a card is saved, or flagged otherwise.
 
   As built (PR 24): `billing.md` says the month picker goes back to the account's start,
   and the ops doc names **Check with Stripe**. `billing.md` also covers T170–T172.
+
+## Phase 18: Convergence
+
+- [ ] T182 Run `DeviceLimit::recheck` in `PlanAssignments::replace` after the new assignment is created, not between closing the old one and opening the next, so starting a trial on another plan or moving a trial to another plan (`Trials::start`, `Trials::change`) warns at 80% and 100% of the new plan's device limit. Today the recheck resolves the limit while the account has no open assignment, gets the deployment default (unlimited) and sends nothing, and the next activation is refused before it could warn. Add a test for a trial started or moved onto a plan the account already meets or exceeds, per T153 and 029 FR-007 and FR-025 (partial)
+- [ ] T183 Leave the row itself out when migration `2026_11_18_000000_key_trial_reminders_by_account` checks whether the account's key is taken, so a reminder already keyed by the account (sent by `billing:end-trials` before the migration ran, or met again after a rollback) is kept rather than deleted and sent again. Add a test where only an account-keyed row exists, per T171 and 029 FR-049 and SC-008 (partial)
+- [ ] T184 Charge the overage counted between a limited trial's `trial_ends_at` and the hourly `billing:end-trials` run that ends it: `pricedAt` still finds the trial open and records that overage against it (priced at 0), while the backdated paid assignment is charged that day's base price. Either end a due trial before `Usage::add` records overage, or say in `docs/features/billing.md` that overage counted before the hourly run (up to five minutes into the first paid day) stays free, per 029 FR-050, the edge case "Trial ending mid-month" and T170 (partial)
+- [ ] T185 In `UsagePanel`, keep reloading an earlier month that is not final after a failed request (one failure ends the minute-by-minute reload today), and when the UTC month changes while the page is open, rebuild the month picker's list and move "This month" to the new month instead of labelling the old one, per T148, T176, 029 SC-005 and constitution VI (partial)
+- [ ] T186 Switch off Cashier's `customer.updated` and `payment_method.automatically_updated` handlers in `StripeWebhookController` (or route a card update through `Payments` with its audit entry), as T099's note says the customer handlers are. Today either event, if the endpoint or `stripe listen` forwards it, rewrites or clears the account's card brand and last four without an audit entry, per T099, 029 FR-041 and ADR-037 (contradicts)
+- [ ] T187 Add the price column the plan gives the admin Plans list (this month's base price, and next month's when a change waits), from the `prices` the list already sends, per plan: `PlansPage` and 029 FR-027 (partial)
+- [ ] T188 Say in `contracts/billing-api.md`'s Usage shape that `left` is null for an earlier month and that `allowance` is the allowance now, as the code, the OpenAPI description and `docs/features/billing.md` do, per T135 and the plan's documentation rule (contradicts)
+- [ ] T189 Correct `docs/features/billing.md`: a plan has prices (drop "It stores no price" and point to Prices and invoices), and SC-004 is held at p95 and p99 with p50 inside the probe's noise (+8.8% in one run), or measure p50 again with a finer probe, per 029 FR-027, SC-004, T174 and the plan's documentation rule (contradicts)
