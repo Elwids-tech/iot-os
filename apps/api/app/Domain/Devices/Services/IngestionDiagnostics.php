@@ -123,16 +123,22 @@ final class IngestionDiagnostics
                 ? 'The device receives data through an adapter; see the adapter checks.'
                 : 'No source is assigned to the device.');
         }
-        $gateway = $candidate->gateway;
+        $gateway = $candidate->gateway ? DeviceView::gateway($candidate->gateway) : null;
+        // An adapter-fed source is known by its manufacturer serial and comes through the adapter, never a gateway of its own.
+        $adapter = $gateway ? DeviceView::adapterSource($candidate) : null;
         $status = match ($candidate->presence) {
             'online' => 'ok',
             'offline' => 'problem',
             default => 'unknown',
         };
+        $through = match (true) {
+            $adapter !== null => '; adapter "'.$adapter['name'].'" is '.$gateway['presence'].'.',
+            $gateway !== null => '; gateway "'.$gateway['name'].'" is '.$gateway['presence'].'.',
+            default => '.',
+        };
 
-        return $this->check('source', $status, "Source \"{$candidate->source_device_id}\" is {$candidate->presence}"
-            .($candidate->last_seen_at ? ", last seen {$candidate->last_seen_at->toIso8601String()}" : ', never seen')
-            .($gateway ? '; gateway "'.$gateway->name.'" is '.DeviceView::gateway($gateway)['presence'].'.' : '.'));
+        return $this->check('source', $status, 'Source "'.($adapter['serial'] ?? $candidate->source_device_id)."\" is {$candidate->presence}"
+            .($candidate->last_seen_at ? ", last seen {$candidate->last_seen_at->toIso8601String()}" : ', never seen').$through);
     }
 
     private function lastReading(Device $device): array
