@@ -127,6 +127,14 @@ plane, which keeps the totals; telemetry itself never passes through the control
   rates and give each billing account one rate, or none. The platform applies it; it
   does not work out tax by jurisdiction.
 
+### Session 2026-11-10
+
+- Q: SC-004 asked for readings to reach history as fast with counting as without it
+  (within 5%). Measured from commit times, counting adds about 2 ms at p50 and 6.5–8.6
+  ms at p99 to a path of 5–14 ms, and 5% of 5 ms is less than one database round trip.
+  Keep the 5%, or bound the cost? → A: Bound it: counting adds at most 10 ms at p99 at
+  the tested load. Counting stays in the storing transaction (ADR-036).
+
 ## Decisions
 
 These are drafting defaults. `/speckit-clarify` may revisit them.
@@ -837,8 +845,8 @@ method", and once an owner adds a card it is charged from the next day.
 - **SC-003**: Under concurrent activations and bulk onboarding, the number of active
   devices never exceeds the device limit.
 - **SC-004**: No reading is dropped, delayed or slowed by the data point allowance or
-  by an unpaid invoice; at the platform's tested load, readings reach history as fast
-  with counting as without it (within 5%).
+  by an unpaid invoice; at the platform's tested load, counting adds at most 10 ms at
+  p99 to the time a reading takes to reach history.
 - **SC-005**: Usage shown to administrators, owners and managers is never more than
   five minutes behind what was stored, or says how old it is.
 - **SC-006**: After rollout, with no limits or prices set, every existing device,

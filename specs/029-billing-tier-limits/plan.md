@@ -96,8 +96,9 @@ TypeScript, React 19 (`apps/admin`, `apps/portal`, `packages/*`)
 
 **Performance Goals**:
 
-- The storage transaction gains one upsert per message, under 5% of ingestion
-  throughput at the tested load (029 SC-004).
+- The storage transaction gains one upsert per message. At the tested load it adds at
+  most 10 ms at p99 to the time a reading takes to reach history, and throughput is
+  unchanged (029 SC-004).
 - Usage within about a minute (reporter every 60 s; 029 SC-005 allows five minutes,
   028 SC-004 one).
 - The admin billing account list in one paginated query with usage joined.
