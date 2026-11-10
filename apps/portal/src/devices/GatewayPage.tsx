@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import type { Device, DiscoveryCandidate, Gateway } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
@@ -26,6 +26,7 @@ import { TechnicalDetails } from "./GatewaysPage"
 import { GatewayFirmwareDialog } from "./GatewayFirmwareDialog"
 import { sourceLabel } from "./OnboardSource"
 import {
+  adapterPath,
   devicePath,
   discoveryPath,
   everyPage,
@@ -134,6 +135,9 @@ export function GatewayPage() {
         )}
       </EntityPage>
     )
+
+  // A device adapter's publisher keeps its gateway record for the data plane; people manage the adapter.
+  if (gateway.adapter) return <Navigate to={adapterPath(org, gateway.adapter.uuid)} replace />
 
   return (
     <Tabs value={tab} onValueChange={(value) => show(value as GatewayTab)} className="gap-0">

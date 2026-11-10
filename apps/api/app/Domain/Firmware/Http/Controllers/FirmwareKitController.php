@@ -56,6 +56,7 @@ final class FirmwareKitController
     {
         $user = $request->user();
         $this->authorization->authorize($user, DevicePermission::CONNECTIONS, $organization, $gateway);
+        abort_if($gateway->adapter !== null, 422, 'This gateway publishes for the device adapter "'.$gateway->adapter?->name.'". It has no firmware, and its credentials stay with the adapter.');
         $values = $request->validate([
             'target' => ['sometimes', 'string', Rule::in($this->targets())],
             'node_artifact_uuid' => ['sometimes', 'nullable', 'uuid'],

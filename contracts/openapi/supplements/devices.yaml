@@ -76,7 +76,10 @@ operations:
       '422':
         $ref: '#/components/responses/ValidationFailed'
   GET /v1/organizations/{organization}/gateways:
-    description: The organization's gateways. Each carries `sources_count`, the sources it has reported, and `devices_count`, the organization's devices configured from one of those sources in every lifecycle, archived included; the gateway's own devices list with `GET devices?gateway_uuid=`.
+    description: The organization's gateways, 100 per page at most. Each carries `sources_count`, the sources it has reported, and `devices_count`, the organization's devices configured from one of those sources in every lifecycle, archived included; the gateway's own devices list with `GET devices?gateway_uuid=`. Each also carries `adapter` (`uuid`, `name`) when it is a device adapter's publisher, the broker identity the adapter runtime publishes with, and null otherwise; people see the adapter in its place. `kind=gateway` lists only the gateways people run, `kind=adapter` only the adapters' publishers; both are listed without it.
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   POST /v1/organizations/{organization}/gateways/{gateway}/bulk-onboardings:
     description: Queues a bulk onboarding run over selected discovered sources of the gateway with one published profile revision (spec 026). Each source becomes a device with a generated name and code, the profile's suggested mappings and an activation request. Repeating the request with the same `operation_uuid` returns the same run.
     responses:

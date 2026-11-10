@@ -51,10 +51,10 @@ import {
   DevicePages,
   discoveryPath,
   formatTime,
-  gatewayPath,
   metricCount,
   profilePath,
   Section,
+  via,
 } from "./shared"
 import {
   IncomingConversionFields,
@@ -721,7 +721,7 @@ export function ConfigurationSection({
                   candidate
                     ? sourceName(candidate) +
                       " · " +
-                      candidate.gateway.name
+                      via(org, candidate.gateway).label
                     : undefined
                 }
                 page={sourcePage}
@@ -753,7 +753,7 @@ export function ConfigurationSection({
                     )
                     .map((c) => ({
                       value: c.uuid,
-                      label: `${sourceName(c)} · ${c.gateway.name}`,
+                      label: `${sourceName(c)} · ${via(org, c.gateway).label}`,
                     })),
                 ]}
               />
@@ -1014,7 +1014,7 @@ export function ConfigurationSection({
                 {candidate ? (
                   <>
                     <span className="font-mono">{sourceName(candidate)}</span>
-                    <span className="text-muted-foreground"> · {candidate.gateway.name}</span>
+                    <span className="text-muted-foreground"> · {via(org, candidate.gateway).label}</span>
                   </>
                 ) : (
                   "Not connected"
@@ -1256,13 +1256,13 @@ export function ConfigurationSection({
         {candidate && (
           <Section title="Source">
             <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Gateway</dt>
+              <dt className="text-muted-foreground">{via(org, candidate.gateway).kind}</dt>
               <dd className="min-w-0 break-words">
                 <Link
                   className="text-primary underline-offset-4 hover:underline"
-                  to={gatewayPath(org, candidate.gateway.uuid)}
+                  to={via(org, candidate.gateway).to}
                 >
-                  {candidate.gateway.name}
+                  {via(org, candidate.gateway).name}
                 </Link>
               </dd>
               <dt className="text-muted-foreground">Source</dt>

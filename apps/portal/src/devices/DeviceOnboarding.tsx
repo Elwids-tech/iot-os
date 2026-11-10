@@ -75,6 +75,7 @@ import {
   useDeviceOrganization,
   devicePath,
   profilePath,
+  via,
 } from "./shared";
 import { ConnectionKit } from "./ConnectionKit";
 import { OnboardSource, sourceLabel } from "./OnboardSource";
@@ -215,10 +216,12 @@ function DeviceOnboardingForm() {
   const gateways = useQuery({
     queryKey: ["onboarding-gateways", org, gatewaySearch, gatewayPage],
     queryFn: () =>
+      // A device adapter's publisher is not a gateway devices are set up through.
       api.gatewaysPage(org, {
         search: gatewaySearch,
         page: gatewayPage,
         per_page: 25,
+        kind: "gateway",
       }),
     enabled: !deviceUuid && mode === "gateway",
   });
@@ -1321,7 +1324,7 @@ function WaitingSources({
                 <TableCell className={c.source_device_id ? "font-mono" : undefined}>
                   {sourceLabel(c)}
                 </TableCell>
-                <TableCell>{c.gateway.name}</TableCell>
+                <TableCell>{via(org, c.gateway).label}</TableCell>
                 <TableCell className="tabular-nums">
                   {metricCount(c.metrics.length)}
                 </TableCell>

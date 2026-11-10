@@ -61,11 +61,16 @@ final class DiscoveryController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
         $selection = app(FirmwareSelection::class)->viewer($organization, $request->user());
+        // `gateway`: the gateways people run; `adapter`: the device adapters' publishers. Both when absent.
+        $kind = $request->validate(['kind' => ['nullable', Rule::in(['gateway', 'adapter'])]])['kind'] ?? null;
+        $query = SparkplugGateway::where('organization_id', $organization->id)
+            ->when($kind === 'gateway', fn ($q) => $q->whereDoesntHave('adapter'))
+            ->when($kind === 'adapter', fn ($q) => $q->whereHas('adapter'));
 
         // Devices count like the gateway page lists them: every lifecycle, archived included.
         $devices = fn ($q) => $q->where('devices.organization_id', $organization->id);
 
-        return $this->directory($request, SparkplugGateway::where('organization_id', $organization->id)->with(['connection', 'offlineAlert'])->withCount(['candidates', 'devices' => $devices])->orderBy('name'),
+        return $this->directory($request, $query->with(['connection', 'offlineAlert', 'adapter:id,uuid,name,sparkplug_gateway_id'])->withCount(['candidates', 'devices' => $devices])->orderBy('name'),
             fn ($g) => [...DeviceView::gateway($g), 'devices_count' => $g->devices_count, 'firmware_selection' => $selection($g)], ['name', 'edge_node_id']);
     }
 
@@ -75,6 +80,7 @@ final class DiscoveryController
         $values = $request->validate(['connection_uuid' => ['required', 'uuid'], 'name' => ['required', 'string', 'max:255'], 'edge_node_id' => ['required', 'string', 'max:128', 'regex:/^[a-zA-Z0-9_.:-]+$/']]);
         $connection = SparkplugConnection::where('organization_id', $organization->id)->where('uuid', $values['connection_uuid'])->firstOrFail();
         abort_unless($connection->status === 'ready', 422, 'Provision the connection first.');
+        abort_if(str_starts_with($connection->group_id, 'adapters-'), 422, 'This connection belongs to the device adapters. Register gateways on a connection of your own.');
         abort_if($connection->gateways()->where('edge_node_id', $values['edge_node_id'])->exists(), 422, 'This Edge Node is already registered.');
         $uuid = (string) Str::uuid();
         $gateway = $connection->gateways()->create(['uuid' => $uuid, 'organization_id' => $organization->id, 'name' => $values['name'], 'edge_node_id' => $values['edge_node_id'], 'username' => 'edge-'.$uuid, 'password' => Str::random(48)]);
@@ -92,7 +98,7 @@ final class DiscoveryController
         $query = DiscoveryCandidate::where('organization_id', $organization->id)
             ->where(fn ($q) => $q->where('source_device_id', '!=', '')->orWhereDoesntHave('gateway.connection', fn ($c) => $c->where('group_id', 'like', 'adapters-%')));
 
-        return $this->directory($request, $query->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'gateway.offlineAlert', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
+        return $this->directory($request, $query->with(['gateway' => fn ($q) => $q->withCount('candidates'), 'gateway.connection', 'gateway.offlineAlert', 'gateway.adapter:id,uuid,name,sparkplug_gateway_id', 'assignedDevice'])->orderBy('id'), fn ($c) => DeviceView::candidate($c), ['source_device_id'], true);
     }
 
     public function provisionGateway(Request $request, Organization $organization, SparkplugGateway $gateway): array

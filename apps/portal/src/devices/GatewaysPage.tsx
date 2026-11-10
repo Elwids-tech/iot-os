@@ -51,9 +51,10 @@ export function GatewaysPage() {
   const [page, setPage] = useState(1),
     [connectionPage, setConnectionPage] = useState(1),
     [search, setSearch] = useState("")
+  // A device adapter's publisher is listed with its adapter, not here: nobody runs or flashes it.
   const gateways = useQuery({
-    queryKey: ["gateways", org, page, search],
-    queryFn: () => api.gatewaysPage(org, { page, search, per_page: 25 }),
+    queryKey: ["gateways", org, "gateway", page, search],
+    queryFn: () => api.gatewaysPage(org, { page, search, per_page: 25, kind: "gateway" }),
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
@@ -77,7 +78,9 @@ export function GatewaysPage() {
     ...gatewayDevicesQuery(org, firmware?.uuid ?? ""),
     enabled: Boolean(firmware),
   })
-  const ready = connections.data?.data.some((c) => c.status === "ready")
+  // Gateways register on the organization's own connections; the device adapters' one is the platform's.
+  const registrable = (connections.data?.data ?? []).filter((c) => c.status === "ready" && !c.group_id.startsWith("adapters-"))
+  const ready = registrable.length > 0
   // Links from before the gateway page used ?gateway=; send them to the page.
   if (legacy) return <Navigate to={gatewayPath(org, legacy)} replace />
   const gatewayColumns: DataColumn<Gateway>[] = [
@@ -197,9 +200,7 @@ export function GatewaysPage() {
         <GatewayEditor
           kind={editor}
           org={org}
-          connections={(connections.data?.data ?? [])
-            .filter((c) => c.status === "ready")
-            .map((c) => ({ value: c.uuid, label: c.name }))}
+          connections={registrable.map((c) => ({ value: c.uuid, label: c.name }))}
           onClose={() => setEditor(null)}
           onSaved={async () => {
             await Promise.all([gateways.refetch(), connections.refetch()])

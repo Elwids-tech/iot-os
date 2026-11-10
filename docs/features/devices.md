@@ -72,6 +72,31 @@ php artisan devices:export-gateway <gateway-uuid> --output=/tmp/gateway.json \
 
 The export refuses to overwrite an existing file.
 
+### A device adapter's gateway
+
+Each [device adapter](adapters.md) has a gateway record of its own, its *publisher*:
+the broker login its runtime publishes with, edge node `adapter-<adapter uuid>` in the
+organization's `adapters-<organization uuid>` connection. The data plane needs it, since
+its edge node identifies the source of every reading the adapter delivers and its
+discovered sources hang off it, but nobody runs, flashes or registers it. So people see
+the adapter in its place:
+
+- **Fleet → Gateways** lists only the gateways people run (`GET gateways?kind=gateway`),
+  and **Register gateway** offers only the organization's own connections; registering
+  one on the adapters connection is refused.
+- `/gateways/<publisher uuid>`, from an older link or an alert, opens the adapter's page.
+- The device list's **Gateway** column, discovery and the telemetry viewer show
+  **Adapter: *name***; the device page and its configuration's source show an
+  **Adapter** field instead of **Gateway**. Each links to the adapter.
+- It has no **Firmware** dialog: connection settings, full kits and starters for it are
+  refused, its credentials stay with the adapter runtime, and devices are never set up
+  or bulk onboarded through it by hand (they are activated from the adapter).
+
+In the API every gateway carries `adapter` (`uuid`, `name`) for a publisher and null
+otherwise, wherever it appears: the gateways list, a discovered source's `gateway` and a
+device's `candidate.gateway`. `GET gateways?kind=adapter` lists only the publishers;
+without `kind`, both are listed.
+
 ## Onboarding a Sparkplug device
 
 **Devices → Add device** (or **Connect a device** from a published profile) is the
@@ -460,7 +485,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `devices/{d}/activate`, `deactivate`, `lifecycle`, `operations/{op}` | Acknowledged configuration and lifecycle operations |
 | `devices/{d}/measurements/latest`, `history`, `records`, `state-history`, `increase` | Latest values, aggregated and raw history, state timelines, counter consumption |
 | `devices/{d}/commands`, `commands/send`, `commands/{c}/confirm`, `cancel` | Command log and sending |
-| `sparkplug-connections`, `gateways`, `discovery-candidates` | Sources and discovery review |
+| `sparkplug-connections`, `gateways` (`kind=gateway\|adapter`), `discovery-candidates` | Sources and discovery review |
 | `gateways/{g}/bulk-onboardings`, `bulk-onboardings/{run}`, `.../retry` | Bulk onboarding runs |
 | `sites`, `settings/timezone` | Sites and organization time zone |
 | `telemetry-captures` | Telemetry viewer |

@@ -58,10 +58,10 @@ import {
   devicePath,
   formatReading,
   formatValue,
-  gatewayPath,
   parameterPrecisions,
   profilePath,
   Section,
+  via,
 } from "./shared"
 
 const ranges = {
@@ -501,13 +501,14 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
             <span className="text-muted-foreground">None</span>
           )}
         </Detail>
-        <Detail label="Gateway">
+        {/* An adapter-fed device reads through its adapter, never a gateway anyone manages. */}
+        <Detail label={device.candidate ? via(org, device.candidate.gateway).kind : "Gateway"}>
           {device.candidate ? (
             <Link
               className="text-primary underline-offset-4 hover:underline"
-              to={gatewayPath(org, device.candidate.gateway.uuid)}
+              to={via(org, device.candidate.gateway).to}
             >
-              {device.candidate.gateway.name}
+              {via(org, device.candidate.gateway).name}
             </Link>
           ) : (
             <span className="text-muted-foreground">None</span>

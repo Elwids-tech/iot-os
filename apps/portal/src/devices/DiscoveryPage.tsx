@@ -13,7 +13,7 @@ import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { InboxIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError, Confirm, errorMessage } from "../components/forms"
-import { devicePath, gatewayPath, useDeviceOrganization } from "./shared"
+import { devicePath, gatewayPath, useDeviceOrganization, via } from "./shared"
 import { OnboardSource, sourceLabel } from "./OnboardSource"
 import { BULK_LIMIT, BulkOnboardingDialog } from "./BulkOnboardingDialog"
 import { BulkOnboardingRun } from "./BulkOnboardingRun"
@@ -35,8 +35,6 @@ export function DiscoveryPage() {
     gateway = url.get("gateway"),
     run = url.get("run"),
     page = Number(url.get("page") || 1)
-  // Bulk onboarding works on one gateway's sources, for people who may add and activate devices.
-  const bulk = Boolean(gateway) && capabilities.manage && capabilities.activate
   const [selection, setSelection] = useState<string[]>([]),
     [allSelected, setAllSelected] = useState(false),
     [selectingAll, setSelectingAll] = useState(false),
@@ -94,10 +92,14 @@ export function DiscoveryPage() {
     queryKey: ["gateways", org, "filter-options"],
     queryFn: () => api.gatewaysPage(org, { per_page: 100 }),
   })
-  const gatewayOptions = (gateways.data?.data ?? []).map((g) => ({ value: g.uuid, label: g.name }))
+  const gatewayOptions = (gateways.data?.data ?? []).map((g) => ({ value: g.uuid, label: via(org, g).label }))
   // A gateway linked from elsewhere may not be on the first page of options; name it from the rows.
+  const chosen = gateways.data?.data.find((g) => g.uuid === gateway) ?? query.data?.data[0]?.gateway
   if (gateway && !gatewayOptions.some((o) => o.value === gateway))
-    gatewayOptions.push({ value: gateway, label: query.data?.data[0]?.gateway.name ?? "Selected gateway" })
+    gatewayOptions.push({ value: gateway, label: chosen ? via(org, chosen).label : "Selected gateway" })
+  // Bulk onboarding works on one gateway's sources, for people who may add and activate devices.
+  // An adapter's sources are activated through the adapter instead.
+  const bulk = Boolean(gateway) && !chosen?.adapter && capabilities.manage && capabilities.activate
   const columns: DataColumn<DiscoveryCandidate>[] = [
     {
       id: "source",
@@ -109,8 +111,8 @@ export function DiscoveryPage() {
     {
       id: "gateway",
       header: "Gateway",
-      value: (c) => c.gateway.name,
-      cell: (c) => <RefLink to={gatewayPath(org, c.gateway.uuid)}>{c.gateway.name}</RefLink>,
+      value: (c) => via(org, c.gateway).label,
+      cell: (c) => <RefLink to={via(org, c.gateway).to}>{via(org, c.gateway).label}</RefLink>,
     },
     { id: "state", header: "State", mobile: "badge", value: (c) => c.status, cell: (c) => <Status value={c.status} /> },
     { id: "metrics", header: "Metrics", align: "end", value: (c) => c.metrics.length, cell: (c) => <span className="tabular-nums">{c.metrics.length}</span> },
@@ -188,7 +190,7 @@ export function DiscoveryPage() {
           filtered={Boolean(search || gateway)}
           onReset={() => url.clear(["search", "gateway"])}
           groups={[
-            { id: "gateway", label: "Gateway", value: (c) => c.gateway.name },
+            { id: "gateway", label: "Gateway", value: (c) => via(org, c.gateway).label },
             { id: "state", label: "State", value: (c) => c.status },
           ]}
           pagination={{

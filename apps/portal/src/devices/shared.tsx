@@ -6,6 +6,7 @@ import type {
   DeviceCapabilities,
   DeviceDetail,
   DeviceDirectoryMeta,
+  Gateway,
 } from "@iot-os/api-client"
 import { configurationProfile } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
@@ -164,6 +165,17 @@ export const gatewayDevicesQuery = (org: string, gateway: string) => ({
 
 export const gatewayPath = (org: string, gateway?: string) =>
   `/organizations/${encodeURIComponent(org)}/gateways${gateway ? "/" + encodeURIComponent(gateway) : ""}`
+export const adapterPath = (org: string, adapter: string) =>
+  `/organizations/${encodeURIComponent(org)}/device-adapters/${encodeURIComponent(adapter)}`
+/**
+ * What a source reads through, as people know it. A device adapter's publisher keeps a
+ * gateway record for the data plane, but people see and open the adapter instead.
+ */
+export function via(org: string, gateway: Gateway) {
+  return gateway.adapter
+    ? { kind: "Adapter", name: gateway.adapter.name, label: `Adapter: ${gateway.adapter.name}`, to: adapterPath(org, gateway.adapter.uuid) }
+    : { kind: "Gateway", name: gateway.name, label: gateway.name, to: gatewayPath(org, gateway.uuid) }
+}
 export const connectionsPath = (org: string) =>
   `/organizations/${encodeURIComponent(org)}/connections`
 export const discoveryPath = (org: string, gateway?: string) =>

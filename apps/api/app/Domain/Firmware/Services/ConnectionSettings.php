@@ -44,6 +44,8 @@ final class ConnectionSettings
     public function gateway(SparkplugGateway $gateway): array
     {
         abort_unless($gateway->username && $gateway->password, 422, 'This gateway has no platform-issued credentials.');
+        // An adapter's publisher is the adapter runtime's own login, never handed to people.
+        abort_if($gateway->adapter !== null, 422, 'This gateway publishes for the device adapter "'.$gateway->adapter?->name.'". It has no firmware, and its credentials stay with the adapter.');
         abort_unless($gateway->connection?->status === 'ready', 422, 'Provision this gateway\'s connection first.');
         $endpoint = $this->kit->endpoint();
         // The same idempotent broker access as POST gateways/{gateway}/provision, so the settings work.

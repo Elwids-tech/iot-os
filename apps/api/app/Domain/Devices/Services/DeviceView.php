@@ -159,8 +159,19 @@ final class DeviceView
         return [...$gateway->only(['uuid', 'name', 'edge_node_id', 'presence', 'last_seen_at']),
             'presence' => $gateway->presence === 'online' && (! $gateway->runtime_seen_at || $gateway->runtime_seen_at->lt(now()->subSeconds(20))) ? 'unknown' : $gateway->presence,
             'connection_uuid' => $gateway->connection->uuid, 'group_id' => $gateway->connection->group_id,
+            'adapter' => self::publisher($gateway)?->only(['uuid', 'name']),
             'sources_count' => $gateway->candidates_count ?? $gateway->candidates()->count(),
             'offline_alert' => $gateway->offlineAlert ? self::alert($gateway->offlineAlert->setRelation('subjectGateway', $gateway)) : null];
+    }
+
+    /**
+     * The device adapter a gateway publishes for, which people see in its place; null for
+     * every other gateway. Adapter gateways share their organization's adapters connection,
+     * already loaded with the gateway, so other gateways cost no query.
+     */
+    private static function publisher(SparkplugGateway $gateway): ?DeviceAdapter
+    {
+        return str_starts_with($gateway->connection->group_id, 'adapters-') ? $gateway->adapter : null;
     }
 
     public static function candidate(DiscoveryCandidate $candidate): array
@@ -180,12 +191,7 @@ final class DeviceView
      */
     public static function adapterSource(DiscoveryCandidate $candidate): ?array
     {
-        // Adapter gateways share their organization's adapters connection, already loaded with
-        // the gateway, so other sources cost no query.
-        if (! str_starts_with($candidate->gateway->connection->group_id, 'adapters-')) {
-            return null;
-        }
-        $adapter = DeviceAdapter::where('sparkplug_gateway_id', $candidate->sparkplug_gateway_id)->first(['id', 'uuid', 'name']);
+        $adapter = self::publisher($candidate->gateway);
         if (! $adapter) {
             return null;
         }
