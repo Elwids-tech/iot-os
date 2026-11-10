@@ -244,11 +244,12 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  **SC-004's "within 5%" is not met**: counting adds about 2 ms at p50 and 7–9 ms at p99
-  to the time from the runtime receiving a message to its readings being in history,
-  which is 30–60% of a path that takes 5–14 ms without it. The owner decides between
-  restating SC-004 as an absolute bound and counting outside the storing transaction,
-  which would change ADR-036 (T191).
+  SC-004 allows it at most 10 ms at p99 at the tested load, and it adds 6.5 and 8.6 ms
+  (about 2 ms at p50) to the time from the runtime receiving a message to its readings
+  being in history. Until 2026-11-10 SC-004 asked for "within 5%". That is less than one
+  database round trip on a path of about 5 ms, so no count kept in the storing
+  transaction could meet it. The owner restated it as a bound rather than move counting
+  out of the transaction (T191).
   - **How it is measured.** [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py)
     reads each message's commit time from PostgreSQL (`pg_xact_commit_timestamp` of its
     observation rows, with `track_commit_timestamp` on), so nothing polls and the

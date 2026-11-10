@@ -2216,6 +2216,11 @@ account is charged when a card is saved, or flagged otherwise.
   and the choice between restating SC-004 and counting outside the storing transaction
   (a new ADR on ADR-036) is the owner's.
 
+  Resolved (PR 29): on 2026-11-10 the owner restated SC-004 as "counting adds at most
+  10 ms at p99 to the time a reading takes to reach history" at the tested load, and
+  counting stays in the storing transaction. It adds 6.5 and 8.6 ms, so SC-004 is met.
+  The spec's clarifications, `plan.md`, ADR-036's consequences and `billing.md` say so.
+
 - [x] T192 Neutralise spreadsheet formulas in the invoice and credit note CSVs (`InvoicePdf::csv`, `InvoicePdf::creditNoteCsv`): prefix a text cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return with `'`, leaving amounts and counts numeric. Organization names (which owners and organization administrators set), line descriptions, credit reasons and the tax rate's name reach the file as typed, so an owner or administrator opening it in a spreadsheet would run a formula someone else wrote. Add a test with an organization named like a formula, per 029 FR-036 (partial)
 
   As built (PR 28): `InvoicePdf` writes typed text (line descriptions and notes, the tax

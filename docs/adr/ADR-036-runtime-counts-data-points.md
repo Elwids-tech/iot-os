@@ -50,8 +50,10 @@ month's end.
 
 - Usage is exact without exactly-once delivery. A control plane outage only delays
   counts; ingestion and storage do not wait for Laravel.
-- The storage transaction gains one upsert per message. Spec 029 SC-004 measures the
-  effect (within 5%).
+- The storage transaction gains one upsert per message. Spec 029 SC-004 bounds the
+  effect: at most 10 ms at p99 at the tested load (measured 6.5–8.6 ms on 2026-11-10).
+  The bound was "within 5%" until then, which a count in the storing transaction cannot
+  meet on a path of about 5 ms.
 - Usage is about a minute behind storage. Pages show the last report time and
   "Provisional" until the month is final.
 - A move between billing accounts in the middle of an hour attributes that hour to
