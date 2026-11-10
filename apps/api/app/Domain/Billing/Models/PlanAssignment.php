@@ -72,6 +72,12 @@ final class PlanAssignment extends Model
         return $this->kind !== PlanAssignmentKind::Paid;
     }
 
+    /** A limited trial still open at or after its end, which the hourly run has not ended yet. */
+    public function isDueToEnd(CarbonImmutable $at): bool
+    {
+        return $this->kind === PlanAssignmentKind::Trial && $this->ended_at === null && $this->trial_ends_at !== null && $this->trial_ends_at->lessThanOrEqualTo($at);
+    }
+
     /**
      * @param  Builder<self>  $query
      */

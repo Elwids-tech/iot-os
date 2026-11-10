@@ -213,6 +213,10 @@ final class StripePaymentsTest extends TestCase
         $this->webhook($this->event('evt_late', 'payment_intent.payment_failed', $this->intent('pi_1', 'requires_payment_method', $invoice->uuid, 333, 1, 'Too late')))->assertOk();
         $this->webhook($this->event('evt_other', 'payment_intent.succeeded', $this->intent('pi_unknown', 'succeeded', 'f0000000-0000-4000-8000-000000000000', 100)))->assertOk();
         $this->webhook($this->event('evt_ignored', 'customer.subscription.created', ['id' => 'sub_1', 'customer' => 'cus_1']))->assertOk();
+        // Cashier's card handlers are off: the card on file changes only through `Payments`.
+        $this->webhook($this->event('evt_customer', 'customer.updated', ['id' => 'cus_1', 'object' => 'customer', 'invoice_settings' => ['default_payment_method' => null]]))->assertOk();
+        $this->webhook($this->event('evt_card', 'payment_method.automatically_updated', ['id' => 'pm_1', 'object' => 'payment_method', 'customer' => 'cus_1', 'type' => 'card', 'card' => ['brand' => 'mastercard', 'last4' => '4444']]))->assertOk();
+        $this->assertSame(['visa', '4242'], [$this->account->fresh()->pm_type, $this->account->fresh()->pm_last_four]);
 
         $payment = $invoice->payments()->sole();
         $this->assertSame([Payment::SUCCEEDED, null], [$payment->status, $payment->failure_reason]);

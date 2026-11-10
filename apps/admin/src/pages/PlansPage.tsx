@@ -15,6 +15,8 @@ import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/d
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
+import { formatDay } from "@iot-os/ui/lib/invoices"
+import { formatMoney } from "@iot-os/ui/lib/money"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { LayersIcon, PlusIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
@@ -120,6 +122,25 @@ export function PlansPage() {
         header: "Allowances",
         value: (plan) => allowanceSummary(plan.allowances),
         cell: (plan) => <span className="text-muted-foreground">{allowanceSummary(plan.allowances)}</span>,
+      },
+      {
+        id: "price",
+        header: "Base price",
+        align: "end",
+        value: (plan) => plan.prices.current.base_price,
+        cell: (plan) => {
+          const { current, next, currency } = plan.prices
+          return (
+            <span className="tabular-nums">
+              {formatMoney(current.base_price, currency)}
+              {next && next.base_price !== current.base_price ? (
+                <span className="block text-meta text-muted-foreground">
+                  {formatMoney(next.base_price, currency)} from {formatDay(next.effective_from)}
+                </span>
+              ) : null}
+            </span>
+          )
+        },
       },
       {
         id: "accounts",

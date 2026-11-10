@@ -23,8 +23,8 @@ usage: [`Usage`](../../apps/api/app/Domain/Billing/Services/Usage.php), warnings
 
 ## Plans and allowances
 
-A **plan** is a named set of allowances, one per pricing tier. It stores no price.
-Each allowance has a kind:
+A **plan** is a named set of allowances, one per pricing tier, with its prices from
+each month on ([Prices and invoices](#prices-and-invoices)). Each allowance has a kind:
 
 | Kind | What it limits | Deployment default |
 | --- | --- | --- |
@@ -77,7 +77,8 @@ entries nor the routes: a platform administrator who may only manage retention o
 **Settings → Retention** (spec 028 US1/AC6, [access](access.md)).
 
 - **Plans** (after Billing accounts in the sidebar) lists current plans with their
-  allowances and how many accounts are on each; the Status filter shows archived or
+  allowances, this month's base price (and next month's when a change waits) and how
+  many accounts are on each; the Status filter shows archived or
   all plans. **New plan** and **Edit** open one dialog: a field per allowance, empty
   for the deployment default, with an **Unlimited** switch (retention has none; empty
   means the platform setting). Editing a plan that accounts are on asks to confirm
@@ -188,8 +189,9 @@ accepted until its deactivation is accepted or it is archived
   device and the reason, and its item fails, so **Retry failed** activates the same
   devices once the limit is raised ([devices](devices.md#bulk-onboarding)).
 - **Moves and limit changes.** `DeviceLimit::recheck` runs after an organization moves
-  (for both accounts), and after a devices override, a plan change or a plan's device
-  allowance changes. It raises the month's peak and checks the 80% and 100% warnings,
+  (for both accounts), and after a devices override, a plan change, a trial started on
+  or moved to another plan, or a plan's device allowance changes, each once the new
+  plan is in force. It raises the month's peak and checks the 80% and 100% warnings,
   which otherwise only an activation would.
 - **Peak.** `billing_device_peaks` keeps each month's highest count. Claims raise it
   with the count after, releases with the count before, and `billing:device-peaks`
@@ -241,8 +243,9 @@ organization and UTC hour (`usage.data_points.v1`,
 - **Pruning.** `billing:prune` removes buckets older than 13 months; the monthly totals
   stay in `billing_usage`.
 - **Cost to ingestion** (SC-004). Counting adds one upsert to each storing transaction.
-  SC-004 is held at p50, p95 and p99 of the time from the runtime receiving a message
-  to it being visible in history, measured with
+  SC-004 (within 5%) is held at p95 and p99 of the time from the runtime receiving a
+  message to it being visible in history. p50 is recorded too, but the probe's 100 ms
+  polling makes a difference of a few milliseconds there noise. Measured with
   [`tooling/measure-history-latency.py`](../../tooling/measure-history-latency.py) at
   the tested rate (500 simulated water meters, each reporting every 10 s, 50 messages
   a second): 10 minutes with counting, 10 without (a temporary build without the
@@ -256,9 +259,9 @@ organization and UTC hour (`usage.data_points.v1`,
     | Without counting | 29,800 | 57 ms | 105 ms | 112 ms | 141 ms | 3 ms |
     | With counting again | 29,800 | 62 ms | 108 ms | 115 ms | 131 ms | 5 ms |
 
-    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%). p50 is
-    +3.5% and +8.8%, while the two counting runs differ from each other by 5%: about
-    2 ms, which is what counting adds before storing starts. No message in any run
+    p95 and p99 are within 5% in both counting runs (p99 +0.9% and +2.7%), so SC-004
+    holds. p50 is +3.5% and +8.8%, while the two counting runs differ from each other
+    by 5%: about 2 ms, which is what counting adds before storing starts. No message in any run
     took more than 153 ms.
   - **2026-11-08, before it (T141):** p50 62, 61 and 64 ms; p95 108, 106 and 111 ms;
     p99 126, 113 and 119 ms (counting, without, counting). Each counting run had 6–7
@@ -340,7 +343,10 @@ In the apps (spec 029 US5):
   account page and the portal's Billing accounts page both use it. On the admin page,
   which loads the account once, the panel reloads this month itself every minute
   (`refreshEvery`), leaving open dialogs alone; on both apps an earlier month whose
-  data points are not final yet reloads every minute until they are.
+  data points are not final yet reloads every minute until they are, trying again a
+  minute after a failed reload. A panel left open past the end of a UTC month moves to
+  the new month (the picker's "This month" and its list turn over) and loads it until
+  the page's own figures catch up.
 - **Owners** see the chosen account on **Billing accounts** (`/billing?account=`) with
   a **Plan** panel (the plan and since when, each allowance, retention included), the
   **Usage** panel and its **Organizations**. Retention the plan leaves to the platform
@@ -509,7 +515,9 @@ Setting up Stripe is in [card payments](../ops/billing-payments.md).
   page expires after 30 minutes (Stripe's minimum), and the invoice's open pages are
   expired once a card charge starts or the invoice is settled.
 - **Stripe's events.** `POST /api/stripe/webhook` is verified against the signing
-  secret (403 otherwise). Each event id goes into `billing_provider_events` first and is
+  secret (403 otherwise). Cashier's own subscription, customer and card handlers
+  (`customer.updated`, `payment_method.automatically_updated` among them) are switched
+  off, so the card on file changes only through `Payments`, which audits it. Each event id goes into `billing_provider_events` first and is
   acted on only once; `billing:prune` forgets ids after 30 days, longer than Stripe
   retries an event. A payment moves only forward: `pending` to `failed` or
   `succeeded`, `failed` to `succeeded`. A succeeded amount that differs from the charge
@@ -577,6 +585,9 @@ overage at 0.
   00:00 UTC, so a trial that ends during a day is charged from the next. Overage follows
   the same rule (`PlanAssignments::pricedAt`): what is counted on a day that began on a
   trial is not charged, even after a card is saved or the trial converted that day.
+  Overage counted after a limited trial's end but before the hourly run has ended it
+  ends the trial first (`Trials::endIfDue`, as the run would), so it is priced on what
+  follows from the trial's end.
 - **`billing:end-trials`** (hourly at :05, `--now=`) ends trials whose end has
   passed, at their end even when the job runs late (so a trial that ended while the
   control plane was down ends within the hour after it is back), then sends `trial_reminder` emails

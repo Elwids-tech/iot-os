@@ -101,6 +101,13 @@ const freePrices = {
   next: null,
 }
 
+/** Plan A's made-up base price, with a change waiting for next month. */
+const planAPrices = {
+  ...freePrices,
+  current: { ...freePrices.current, base_price: 1234 },
+  next: { ...freePrices.current, effective_from: "2026-12-01", base_price: 1500 },
+}
+
 /** The mocked API, plus the request bodies the tests assert on. */
 async function mockApi(page: Page) {
   const { plans, accounts } = fixtures()
@@ -116,7 +123,7 @@ async function mockApi(page: Page) {
     accounts_count: on(plan).length,
     ever_assigned: plan.ever_assigned,
     created_at: "2026-11-01T08:00:00Z",
-    prices: freePrices,
+    prices: plan.uuid === planA ? planAPrices : freePrices,
   })
   const planDetail = (plan: Plan) => ({
     ...planSummary(plan),
@@ -262,7 +269,10 @@ test("creates a plan, then edits one that billing accounts are on after confirmi
   await page.getByRole("link", { name: "Plans" }).click()
 
   await expect(page.getByRole("heading", { name: "Plans" })).toBeVisible()
-  await expect(page.getByRole("row", { name: /Plan A Alerts 100 · Devices 10 2 Active/ })).toBeVisible()
+  const planARow = page.getByRole("row", { name: /Plan A Alerts 100 · Devices 10 .* 2 Active/ })
+  await expect(planARow).toBeVisible()
+  // This month's base price, and next month's waiting change.
+  await expect(planARow.getByRole("cell").nth(2)).toHaveText(/^\$12\.34\$15\.00 from (1 Dec|Dec 1,) 2026$/)
 
   await page.getByRole("button", { name: "New plan" }).click()
   const dialog = page.getByRole("dialog", { name: "New plan" })

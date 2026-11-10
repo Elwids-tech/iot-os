@@ -22,8 +22,8 @@ All routes are under `/api`. Responses use the existing `{ "data": … }` envelo
   "kind": "data_points",
   "month": "2026-11-01",
   "count": 812345,
-  "allowance": 1000000,             // null = unlimited
-  "left": 187655,                   // null when unlimited; 0 when over
+  "allowance": 1000000,             // null = unlimited; the allowance now, even for an earlier month
+  "left": 187655,                   // null when unlimited or for an earlier month; 0 when over
   "overage": 0,
   "final": false,                   // data points only; alerts, SMS, devices are always current
   "reported_at": "2026-11-07T20:41:00Z", // data points only

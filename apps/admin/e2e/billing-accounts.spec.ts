@@ -497,6 +497,53 @@ test("shows usage by month with each organization's share", async ({ page }) => 
   expect(usageMonths[0]).not.toBe(thisMonth)
 })
 
+test("usage left open retries a provisional month after a failure and moves on when the month ends", async ({ page, consoleMessages }) => {
+  await page.clock.install({ time: new Date("2026-11-30T23:55:00Z") })
+  await mockApi(page)
+  // Each month's alerts count, as the API answers now; data points stay provisional.
+  const alerts: Record<string, number> = { "2026-10": 101, "2026-12": 777 }
+  let failNext = false
+  await page.route(/\/api\/v1\/admin\/billing-accounts\/[^/]+\/usage\?/, async (route) => {
+    const month = new URL(route.request().url()).searchParams.get("month") ?? ""
+    if (failNext) {
+      failNext = false
+      return route.fulfill({ status: 500, json: { message: "Server Error" } })
+    }
+    const data = usageOf(month, []).map((figure) =>
+      figure.kind === "alerts" ? { ...figure, count: alerts[month] ?? 820 } : figure.kind === "data_points" ? { ...figure, final: false } : figure,
+    )
+    return route.fulfill({ json: { data } })
+  })
+  await page.goto(`/billing-accounts/${integrations}`)
+
+  const usage = page.getByRole("region", { name: "Usage" })
+  const month = usage.getByRole("combobox", { name: "Month" })
+  const alertsMeter = usage.locator('[data-slot="allowance-meter"]').filter({ hasText: "Alerts" })
+  await expect(month).toHaveText("This month (November 2026)")
+  await choose(page, "Month", /^October 2026$/)
+  await expect(alertsMeter).toContainText("101")
+
+  // The minute's reload fails: the figures stay, and the next minute's succeeds.
+  failNext = true
+  await page.clock.fastForward("01:00")
+  await expect(alertsMeter).toContainText("101")
+  alerts["2026-10"] = 157
+  await page.clock.fastForward("01:00")
+  await expect(alertsMeter).toContainText("157")
+
+  // Back on this month, the page stays open past the end of November.
+  await choose(page, "Month", /^This month/)
+  await page.clock.fastForward("03:30")
+  await expect(month).toHaveText("This month (December 2026)")
+  await expect(alertsMeter).toContainText("777")
+  await month.click()
+  await expect(page.getByRole("option", { name: "November 2026", exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  expect(consoleMessages.every((message) => message.includes("500"))).toBe(true)
+  consoleMessages.length = 0
+})
+
 test("filters billing accounts that have used 80% or more of an allowance", async ({ page }) => {
   const { listQueries } = await mockApi(page)
   await page.goto("/billing-accounts")

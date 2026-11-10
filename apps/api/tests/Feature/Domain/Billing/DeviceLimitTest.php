@@ -6,6 +6,7 @@ namespace Tests\Feature\Domain\Billing;
 
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Billing\Services\Usage;
@@ -222,6 +223,27 @@ final class DeviceLimitTest extends TestCase
 
         // Lowering the limit to 8 reaches it.
         $this->limit(8);
+        $this->assertSame(["devices:{$month}:100", "devices:{$month}:80"], $keys());
+    }
+
+    public function test_starting_or_moving_a_trial_onto_a_plan_the_account_already_fills_warns(): void
+    {
+        $this->account->owners()->attach(User::factory()->create()->id, ['created_at' => now()]);
+        foreach (range(1, 4) as $i) {
+            $this->active($this->configured($this->acme, 'meter-'.$i));
+        }
+        $five = BillingPlan::factory()->withAllowances(['devices' => 5])->create(['name' => 'Plan A']);
+        $four = BillingPlan::factory()->withAllowances(['devices' => 4])->create(['name' => 'Plan B']);
+        $month = now()->utc()->format('Y-m');
+        $keys = fn (): array => DB::table('billing_notices')->where('billing_account_id', $this->account->id)->where('key', 'like', 'devices:%')->orderBy('key')->pluck('key')->all();
+        $this->assertSame([], $keys());
+
+        // A trial of a plan for 5 puts the account at 4 of 5.
+        $this->postJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/trial', ['plan_uuid' => $five->uuid, 'ends_at' => null])->assertOk();
+        $this->assertSame(["devices:{$month}:80"], $keys());
+
+        // Moving the trial to a plan for 4 reaches it.
+        $this->patchJson('/api/v1/admin/billing-accounts/'.$this->account->uuid.'/trial', ['plan_uuid' => $four->uuid, 'ends_at' => null])->assertOk();
         $this->assertSame(["devices:{$month}:100", "devices:{$month}:80"], $keys());
     }
 

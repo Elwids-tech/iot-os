@@ -60,7 +60,14 @@ final class Usage implements SmsAllowance
             $this->write($account, $organization, $kind, $month, $count, $overage, $quantity);
 
             if ($delta > 0) {
-                $this->recordOverage($account, $kind, $month, $this->assignments->pricedAt($account, $at)?->getKey(), $delta);
+                $priced = $this->assignments->pricedAt($account, $at);
+                // Past a limited trial's end before the hourly run ended it: end it now, so the
+                // overage goes to what follows (spec 029 FR-050). Nothing locks the account
+                // first and then usage, so taking the account's lock here cannot deadlock.
+                if ($priced?->isDueToEnd($at) && app(Trials::class)->endIfDue($account, CarbonImmutable::now())) {
+                    $priced = $this->assignments->pricedAt($account, $at);
+                }
+                $this->recordOverage($account, $kind, $month, $priced?->getKey(), $delta);
             }
 
             return [$count, $overage, $allowance];
