@@ -494,7 +494,7 @@ function MovedNotice({
   const [confirming, setConfirming] = useState(false)
   const away = link.direction === "moved_to"
   const other = link.organization_name ?? "another organization"
-  const history = link.history
+  const history = link.history ?? { included: false, stopped_at: null, stopped_reason: null }
   const shared = history.included && !history.stopped_at
   const stopped = history.included && history.stopped_at
   return (
