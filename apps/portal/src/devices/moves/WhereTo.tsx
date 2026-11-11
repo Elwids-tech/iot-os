@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { InfoIcon } from "lucide-react"
+import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
-import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { api } from "../../lib/api"
 import { RequestError } from "../../components/forms"
 
@@ -75,9 +76,12 @@ export function WhereTo({
         createLabel={(name) => `New organization “${name.trim()}”`}
       />
       {none && (
-        <StatusMark tone="muted">
-          You can move devices only to another organization of this billing account where you can move devices too.
-        </StatusMark>
+        <Alert role="note" className="border-info/40 bg-info/5">
+          <InfoIcon className="text-info" />
+          <AlertDescription className="text-foreground">
+            You can move devices only to another organization of this billing account where you can move devices too.
+          </AlertDescription>
+        </Alert>
       )}
       <RequestError error={targets.error ?? error} />
     </FieldGroup>

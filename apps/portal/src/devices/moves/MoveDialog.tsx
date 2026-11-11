@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { TriangleAlertIcon } from "lucide-react"
 import {
   ApiError,
   type Device,
@@ -9,6 +10,7 @@ import {
   type DeviceMoveReview,
   type DeviceMoveStale,
 } from "@iot-os/api-client"
+import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Dialog,
@@ -18,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
-import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { Stepper } from "@iot-os/ui/components/stepper"
 import { api } from "../../lib/api"
 import { RequestError } from "../../components/forms"
@@ -168,9 +169,12 @@ export function MoveDialog({
         {step === 2 && target && (
           <>
             {changed && (
-              <StatusMark tone="warning">
-                Something changed since you reviewed this move. Check it again before you confirm.
-              </StatusMark>
+              <Alert className="border-warning/40 bg-warning/5">
+                <TriangleAlertIcon className="text-warning" />
+                <AlertDescription className="text-foreground">
+                  Something changed since you reviewed this move. Check it again before you confirm.
+                </AlertDescription>
+              </Alert>
             )}
             <WhatComesAlong
               source={organizationName}

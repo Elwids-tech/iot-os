@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
+import { InfoIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 import type { DeviceMove } from "@iot-os/api-client"
+import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
-import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { api } from "../../lib/api"
 import { LoadError } from "../../components/forms"
@@ -149,7 +151,10 @@ export function Done({ org, move }: { org: string; move: DeviceMove }) {
         </Panel>
       )}
       {current.status === "failed" && (
-        <StatusMark tone="info">Nothing moved. Devices the move stopped are being resumed here.</StatusMark>
+        <Alert role="note" className="border-info/40 bg-info/5">
+          <InfoIcon className="text-info" />
+          <AlertDescription className="text-foreground">Nothing moved. Devices the move stopped are being resumed here.</AlertDescription>
+        </Alert>
       )}
       <LoadError error={query.error} />
     </div>

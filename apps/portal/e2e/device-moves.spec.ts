@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, type Locator, type Page } from "@playwright/test"
 import AxeBuilder from "@axe-core/playwright"
 
 // Moving devices to another organization of the billing account (spec 031 US1 and US2), against a mocked API.
@@ -209,6 +209,11 @@ async function axe(page: Page) {
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
 }
 
+/** Every step fits the dialog's width: long notes wrap instead of scrolling sideways. */
+async function fits(dialog: Locator) {
+  expect(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0)
+}
+
 test("a mover selects two devices, picks the target, accepts what comes along and the move completes", async ({ page }) => {
   const state = await setup(page)
   await page.goto(`${base}/devices`)
@@ -228,9 +233,11 @@ test("a mover selects two devices, picks the target, accepts what comes along an
   await expect(dialog.getByText("Fleet export keeps reading the archived device")).toBeVisible()
   await expect(dialog.getByText("GPS tracker · version 4 as")).toBeVisible()
   await axe(page)
+  await fits(dialog)
   await dialog.getByRole("button", { name: "Next" }).click()
 
   await expect(dialog.getByText("2 devices move to Harbour Shop.")).toBeVisible()
+  await fits(dialog)
   await dialog.getByRole("button", { name: "Move 2 devices" }).click()
   await expect.poll(() => state.confirmed).not.toBeNull()
   expect(state.confirmed!.preview_hash).toBe("a".repeat(64))
@@ -267,6 +274,7 @@ test("dashboards and automations come along with their preselected choices, and 
   await expect(row("Automation Fleet low flow").getByRole("button", { name: "Add 1 device to this move" })).toBeVisible()
   await expect(row("Automation Shop low flow")).toContainText("keeps running there once its devices are active")
   await axe(page)
+  await fits(dialog)
 
   // Archiving Fleet low flow instead re-reviews, and Confirm asks for that archive on its own.
   await row("Automation Fleet low flow").getByRole("combobox", { name: "What happens to Fleet low flow" }).click()
@@ -279,6 +287,7 @@ test("dashboards and automations come along with their preselected choices, and 
   await expect(move).toBeDisabled()
   await dialog.getByRole("checkbox", { name: "Archive automation Fleet low flow" }).check()
   await axe(page)
+  await fits(dialog)
   await move.click()
   await expect.poll(() => state.confirmed).not.toBeNull()
   expect(state.confirmed!.items).toEqual([{ kind: "automation", uuid: fleetFlow, action: "archive" }])
