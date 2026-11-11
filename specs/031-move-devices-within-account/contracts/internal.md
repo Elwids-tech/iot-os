@@ -1,0 +1,75 @@
+# Contract: Internal Messages
+
+Changes to the Laravel–runtime contracts in `contracts/internal/`. Both are additive,
+optional fields. Each changes its schema, fixture and cases together with the Go and
+PHP tests that read them, in the same pull request (constitution IV, ADR-015). The
+activation, configuration and adapter deploy payloads don't change: a successor is an
+ordinary device whose definition names its own organization.
+
+## `internal.control-state.v1`: a gateway's own organization (PR 031-7)
+
+Each item in `connections[]` gains an optional `gateways` list. It names only the
+gateways whose organization differs from the connection's, which today means direct
+devices that moved:
+
+```json
+{
+  "uuid": "…",
+  "organization_uuid": "<source organization>",
+  "group_id": "onboarding-<source organization uuid>",
+  "host_id": "…",
+  "username": "…",
+  "password": "…",
+  "broker_url": "…",
+  "gateways": [
+    { "edge_node_id": "device-…", "organization_uuid": "<target organization>" }
+  ]
+}
+```
+
+- The runtime keeps `edgeOrganization(connection, edge)`. It is the override when one
+  exists, else the connection's organization.
+- It uses that organization for capture checks and recording
+  (`internal/app/telemetry.go`, `internal/app/application.go`) and for gateway episodes
+  (below).
+- An absent or empty `gateways` behaves as today.
+- Cases: the field absent; an empty list; an override; an edge listed twice (refused).
+
+## `device.connectivity.v1`: hosted gateway episodes (PR 031-5)
+
+A gateway episode is attributed to the gateway's organization from
+`edgeOrganization`, no longer to its first member's (`internal/app/connectivity.go`).
+When an offline gateway also carries devices of other organizations, the runtime keeps
+one more episode per such organization:
+
+- it is keyed `gateway:<connection>/<edge>@<organization uuid>`;
+- it holds only that organization's devices;
+- its event carries that organization and a new optional subject field.
+
+```json
+{
+  "organization_uuid": "<hosted device's organization>",
+  "subject": {
+    "kind": "gateway",
+    "device_uuid": null,
+    "connection_uuid": "…",
+    "edge_node_id": "gw-7",
+    "adapter_uuid": null,
+    "pipe_organization_uuid": "<gateway's organization>"
+  }
+}
+```
+
+The rest of the payload is unchanged: `episode`, `transition`, `affected_device_uuids`
+and so on.
+
+- `pipe_organization_uuid` is null or absent on every other episode.
+- The projector (`ConnectivityProjector`) takes the subject from the event's
+  organization as today. When `pipe_organization_uuid` is set, it resolves the gateway
+  there instead. It accepts the subject only when both organizations share a billing
+  account and every affected device is a hosted device of that gateway. It stores the
+  alert in the hosted organization, showing the pipe's name only.
+- Existing episode keys `gateway:<connection>/<edge>` keep meaning the gateway owner's
+  episode, so stored rows (`device_runtime.connectivity`) need no migration.
+- Cases: a hosted subject with and without the field; the field on a device subject
+  (refused).
