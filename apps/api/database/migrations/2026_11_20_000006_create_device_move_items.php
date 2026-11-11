@@ -37,10 +37,13 @@ return new class extends Migration
                 $table->foreignId('archived_by_move_id')->nullable()->constrained('device_moves')->nullOnDelete();
             });
         }
+        // A successor's runtime answers look up its move, to start the automations that came along.
+        Schema::table('device_move_devices', fn (Blueprint $table) => $table->index('successor_device_id'));
     }
 
     public function down(): void
     {
+        Schema::table('device_move_devices', fn (Blueprint $table) => $table->dropIndex(['successor_device_id']));
         foreach (['dashboards', 'automation_workflows'] as $name) {
             Schema::table($name, fn (Blueprint $table) => $table->dropConstrainedForeignId('archived_by_move_id'));
         }
