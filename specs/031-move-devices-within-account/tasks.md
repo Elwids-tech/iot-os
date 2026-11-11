@@ -294,7 +294,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - `docs/features/access.md`: `Device.move` and the billing account note;
   - `docs/features/billing.md`: moves are neutral;
   - `docs/features/activity-log.md`.
-- [ ] T046 Rebuild the portal; run quickstart sections 2 and 3 in the portal, timing a 20-device move under three minutes (SC-001); `pnpm --filter @iot-os/portal lint`; record in the PR; leak scan; open PR 031-2 against `main`
+- [x] T046 Rebuild the portal; run quickstart sections 2 and 3 in the portal, timing a 20-device move under three minutes (SC-001); `pnpm --filter @iot-os/portal lint`; record in the PR; leak scan; open PR 031-2 against `main`
 
 **Checkpoint**: PR 031-2 merged: US1 is usable for adapter-fed devices. ADR-039 can move to Accepted (T104).
 
