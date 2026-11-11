@@ -57,6 +57,7 @@ import type {
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
+export * from "./deviceMoves"
 export * from "./firmware"
 export * from "./telemetry"
 export * from "./alerts"
@@ -2014,6 +2015,21 @@ export class ApiClient {
       this.devicePath(org, id) + "/lifecycle",
       { method: "POST", body: JSON.stringify(input) },
     )
+  }
+  /** Organizations of the billing account the person may move this organization's devices into (spec 031). */
+  deviceMoveTargets(org: string) {
+    return this.request<import("./deviceMoves").DeviceMoveTargets>(`/api/v1/organizations/${encodeURIComponent(org)}/device-move-targets`)
+  }
+  /** What moving devices would do; it changes nothing. */
+  previewDeviceMove(org: string, values: import("./deviceMoves").DeviceMoveInput) {
+    return this.request<import("./deviceMoves").DeviceMoveReview>(`/api/v1/organizations/${encodeURIComponent(org)}/device-moves/preview`, { method: "POST", body: JSON.stringify(values) })
+  }
+  /** Confirms a reviewed move. A stale review fails with 409 and the fresh review in its body. */
+  createDeviceMove(org: string, values: import("./deviceMoves").DeviceMoveConfirmation) {
+    return this.data<import("./deviceMoves").DeviceMove>(`/api/v1/organizations/${encodeURIComponent(org)}/device-moves`, "POST", values)
+  }
+  deviceMove(org: string, move: string, signal?: AbortSignal) {
+    return this.data<import("./deviceMoves").DeviceMove>(`/api/v1/organizations/${encodeURIComponent(org)}/device-moves/${encodeURIComponent(move)}`, "GET", undefined, signal)
   }
   deviceOperation(org: string, id: string, operation: string) {
     return this.request<import("./devices").DeviceOperationResponse>(

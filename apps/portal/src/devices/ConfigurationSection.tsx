@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useSearchParams } from "react-router-dom"
 import {
   configurationProfile,
+  type DeviceCandidate,
   type DeviceDetail,
   type DeviceMapping,
   type DeviceDraft,
@@ -295,7 +296,7 @@ export function ConfigurationSection({
       api.deviceMappingSuggestions(org, device.uuid, artifact!.uuid),
     enabled: Boolean(artifact && editable),
   })
-  const sources = [...(candidates.data?.data ?? [])]
+  const sources: DeviceCandidate[] = [...(candidates.data?.data ?? [])]
   if (
     selectedSource.data &&
     !sources.some((c) => c.uuid === selectedSource.data!.uuid)
@@ -761,12 +762,14 @@ export function ConfigurationSection({
                 <p className="text-sm text-muted-foreground">
                   {announced} {candidate.birth_revision} ·{" "}
                   {metricCount(candidate.metrics.length)} ·{" "}
-                  <Link
-                    className="text-primary underline underline-offset-4"
-                    to={discoveryPath(org, candidate.gateway.uuid)}
-                  >
-                    View in discovery
-                  </Link>
+                  {candidate.gateway && (
+                    <Link
+                      className="text-primary underline underline-offset-4"
+                      to={discoveryPath(org, candidate.gateway.uuid)}
+                    >
+                      View in discovery
+                    </Link>
+                  )}
                 </p>
               )}
             </div>
@@ -1258,12 +1261,16 @@ export function ConfigurationSection({
             <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
               <dt className="text-muted-foreground">{via(org, candidate.gateway).kind}</dt>
               <dd className="min-w-0 break-words">
-                <Link
-                  className="text-primary underline-offset-4 hover:underline"
-                  to={via(org, candidate.gateway).to}
-                >
-                  {via(org, candidate.gateway).name}
-                </Link>
+                {candidate.gateway ? (
+                  <Link
+                    className="text-primary underline-offset-4 hover:underline"
+                    to={via(org, candidate.gateway).to}
+                  >
+                    {via(org, candidate.gateway).name}
+                  </Link>
+                ) : (
+                  via(org, null).name
+                )}
               </dd>
               <dt className="text-muted-foreground">Source</dt>
               <dd className="min-w-0 font-mono break-words">

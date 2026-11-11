@@ -8,6 +8,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\Pipes;
 use App\Domain\Devices\Services\RetentionGuard;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -129,6 +130,8 @@ final class BillingAccounts
             if ($locked->billing_account_id === $target->getKey()) {
                 return $locked;
             }
+            // Hosted devices and moves exist only inside one account (spec 031, FR-061).
+            app(Pipes::class)->ensureCanLeave($locked);
 
             $from = BillingAccount::withTrashed()->findOrFail($locked->billing_account_id);
             // One timestamp for both rows: two now() calls differ by microseconds and

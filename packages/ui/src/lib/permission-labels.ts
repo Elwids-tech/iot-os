@@ -44,6 +44,7 @@ const permissionLabels: Record<string, string> = {
   "Device.manage-connections": "Manage gateways and connections",
   "Device.activate": "Activate and deactivate devices",
   "Device.command": "Send device commands",
+  "Device.move": "Move devices to another organization",
   "Workflow.view": "View automations",
   "Workflow.manage": "Edit automations",
   "Workflow.activate": "Activate automations",

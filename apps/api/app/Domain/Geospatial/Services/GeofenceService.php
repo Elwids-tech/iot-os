@@ -119,6 +119,34 @@ final class GeofenceService
         return ['data' => $this->view($fence->fresh()), 'activation' => $this->batch($batch->fresh())];
     }
 
+    /**
+     * Removes a device's geofence assignments when it moves to another organization (spec
+     * 031, research R7): each assignment's workflow is turned off and the assignment goes
+     * once the runtime confirms, as when a geofence drops a device. Runs inside the
+     * caller's transaction; the requests go out after it commits.
+     */
+    public function removeDevice(Organization $organization, Device $device, ?int $actor): void
+    {
+        $binding = LocationBinding::where('organization_id', $organization->id)->where('device_id', $device->id)->first();
+        if (! $binding) {
+            return;
+        }
+        $assignments = GeofenceAssignment::where('device_location_binding_id', $binding->id)->where('status', '!=', 'removing')->get();
+        foreach ($assignments->groupBy('geofence_id') as $fenceId => $removed) {
+            $fence = Geofence::whereKey($fenceId)->lockForUpdate()->firstOrFail();
+            $batch = GeofenceActivationBatch::create(['uuid' => (string) Str::uuid(), 'organization_id' => $organization->id,
+                'geofence_id' => $fence->id, 'geofence_revision' => $fence->revision, 'status' => 'pending',
+                'request_hash' => hash('sha256', 'device-moved:'.$device->uuid.':'.$fence->uuid), 'created_by' => $actor]);
+            foreach ($removed as $assignment) {
+                $assignment->update(['status' => 'removing']);
+                DB::table('geofence_activation_items')->insert(['geofence_activation_batch_id' => $batch->id,
+                    'geofence_assignment_id' => $assignment->id, 'assignment_uuid' => $assignment->uuid, 'device_uuid' => $device->uuid,
+                    'operation_uuid' => (string) Str::uuid(), 'target' => 'inactive', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+            }
+            DB::afterCommit(fn () => $this->dispatch($batch));
+        }
+    }
+
     public function dispatch(GeofenceActivationBatch $batch, ?int $onlyItem = null): void
     {
         $items = DB::table('geofence_activation_items')->where('geofence_activation_batch_id', $batch->id)

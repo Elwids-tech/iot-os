@@ -91,6 +91,12 @@ Notes:
   behind a gateway can't be moved yet" and "Directly connected devices can't be moved
   yet".
 - `can_confirm` is false while any device has a blocker or a code clashes.
+- A successor's code defaults to the device's, or to `<code>-2`, `-3`… when the target
+  already has a device with it, archived ones included (a device moved back meets its
+  archived predecessor's code). A code the person sets that the target uses is the
+  blocker "Code already used in *target*".
+- `items` and `archives` are refused when not empty, and `include_history` when true,
+  until the pull requests that bring them.
 - `items` is empty before PR 031-4. Until then every dashboard and automation stays,
   and `summary` says so.
 - `history.offered` is false before PR 031-9.
@@ -118,7 +124,10 @@ Responses:
 - `409` in these cases:
   - `operation_uuid` reused with another body;
   - `preview_hash` stale (the body carries a fresh review);
-  - a device already in a move.
+  - a device already in a move (its review is stale, so the body carries a fresh
+    review with the blocker).
+- While a device is in a stopping move, other changes to it (configuration, lifecycle,
+  archive) are refused with 409.
 - `422` for blockers, code clashes, a target site outside the target, or unconfirmed
   archives.
 - `404` when the target is outside the account or the person isn't a member of it.
@@ -142,7 +151,8 @@ Responses:
     "successor_uuid": null,
     "name": "Shop tracker",
     "state": "stopping",
-    "successor_state": null
+    "successor_state": null,
+    "successor_reason": null
   }],
   "items": [{
     "kind": "dashboard", "name": "Fleet", "action": "copy",
@@ -159,10 +169,14 @@ Responses:
 What each side sees:
 
 - A member of only one side sees the other organization's name and nothing else of
-  it. Successor uuids are shown only to members of the target, and predecessor uuids
-  only to members of the source.
-- `successor_state` is `pending`, `active`, `inactive` or `failed`, with the runtime's
-  reason for a failure.
+  it: `source.uuid` or `target.uuid` is null for the side they don't belong to.
+  Successor uuids, states and reasons are shown only to members of the target, and
+  predecessor uuids only to members of the source.
+- `successor_state` is `pending`, `active`, `inactive` or `failed`, and
+  `successor_reason` holds the runtime's reason, or the activation's refusal, for a
+  failure. `needs_attention` lists, for members of the target, successors of active
+  devices that arrived inactive or failed.
+- `items` is empty until PR 031-4.
 
 ## Device reads (PR 031-1)
 
@@ -189,14 +203,27 @@ What each side sees:
 - For a hosted device, `candidate.gateway` and the adapter reference are null. The
   candidate keeps its `metrics` and `birth_revision`. List rows carry `pipe` in place
   of the gateway column's adapter or gateway link.
+- A hosted device's configuration snapshots keep `source.candidate_uuid` and
+  `source.device_id` and its own installation, without the pipe owner's connection,
+  edge node or adapter uuids; its installations' `adapter_revision_uuid` is null.
 - `link.history` appears from PR 031-9.
 
 ## Pipe owner's views (PR 031-1; counts in 031-6)
 
 - `GET discovery-candidates`, a candidate inside `GET devices/{device}`, and
-  `GET device-adapters/{adapter}` sources gain `in_use_in: {"organization_name": "…"}`
-  when the source's device is in another organization. `assigned_device_uuid` and the
-  embedded device are null then.
+  `GET device-adapters/{adapter}/candidates` (the Sources tab) gain
+  `in_use_in: {"organization_name": "…"}` when the source's device is in another
+  organization. `assigned_device_uuid`, the embedded device and `installation_uuid` are
+  null then.
+- Activating such a source through its adapter answers 409 "This source is in use in
+  *organization*."
+
+## Leaving the account (PR 031-1)
+
+`PUT /v1/admin/organizations/{organization}/billing-account` answers 409 with
+`hosted_devices: {organizations: [{name, devices: [names]}]}` while the organization has
+hosted devices, its pipes serve another organization's devices, or a move involving it
+is stopping. Organization deletion lists the same as the `hosted_devices` blocker.
 - Adapter and gateway reads gain `hosted_devices: [{"organization_name": "…",
   "count": 2}]` (PR 031-6).
 

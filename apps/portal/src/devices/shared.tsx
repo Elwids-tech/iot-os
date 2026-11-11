@@ -37,6 +37,7 @@ const denied: DeviceCapabilities = {
   connections: false,
   activate: false,
   command: false,
+  move: false,
 }
 
 /**
@@ -171,7 +172,15 @@ export const adapterPath = (org: string, adapter: string) =>
  * What a source reads through, as people know it. A device adapter's publisher keeps a
  * gateway record for the data plane, but people see and open the adapter instead.
  */
-export function via(org: string, gateway: Gateway) {
+/**
+ * What a source reports through, with a link. A hosted device's source has no gateway
+ * here: its pipe belongs to another organization and is never linked (spec 031).
+ */
+type Via = { kind: string; name: string; label: string; to?: string }
+export function via(org: string, gateway: Gateway): Via & { to: string }
+export function via(org: string, gateway: Gateway | null): Via
+export function via(org: string, gateway: Gateway | null): Via {
+  if (!gateway) return { kind: "Reports through", name: "Another organization", label: "Another organization" }
   return gateway.adapter
     ? { kind: "Adapter", name: gateway.adapter.name, label: `Adapter: ${gateway.adapter.name}`, to: adapterPath(org, gateway.adapter.uuid) }
     : { kind: "Gateway", name: gateway.name, label: gateway.name, to: gatewayPath(org, gateway.uuid) }

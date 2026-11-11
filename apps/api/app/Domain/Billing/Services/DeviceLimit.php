@@ -92,6 +92,18 @@ final class DeviceLimit
     }
 
     /**
+     * Hands a moved device's place to its successor inside the caller's cutover
+     * transaction (spec 031, research R4): both are in one billing account, so the count
+     * stays the same, and nothing is claimed, checked or written to the month's peak. A
+     * move at the limit is therefore never refused.
+     */
+    public function transfer(Device $from, Device $to): void
+    {
+        $to->forceFill(['limit_place_at' => $from->limit_place_at])->save();
+        $from->forceFill(['limit_place_at' => null])->save();
+    }
+
+    /**
      * The account's devices that hold a place now, in total and per organization by name.
      *
      * @return array{total: int, organizations: list<array{organization_uuid: string, name: string, count: int}>}

@@ -43,7 +43,7 @@ class OrganizationAuthorizationSeederTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertDatabaseCount('permissions', 86);
+        $this->assertDatabaseCount('permissions', 88);
         $this->assertDatabaseHas('permissions', [
             'name' => 'Organization.delete',
             'guard_name' => 'web',
@@ -78,6 +78,6 @@ class OrganizationAuthorizationSeederTest extends TestCase
         $this->assertDatabaseCount('users', 7);
         $this->assertDatabaseCount('organization_user', 6);
         $this->assertDatabaseCount('roles', 6);
-        $this->assertSame(86, Permission::query()->count());
+        $this->assertSame(88, Permission::query()->count());
     }
 }

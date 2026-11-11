@@ -147,6 +147,12 @@ operations:
         $ref: '#/components/responses/Conflict'
       '503':
         $ref: '#/components/responses/ServiceUnavailable'
+  GET /v1/organizations/{organization}/device-adapters/{adapter}/candidates:
+    description: The adapter's discovered sources, newest first, at most 100. A source whose device is in this organization embeds it in `device`; one in use in another organization of the billing account (a hosted device, spec 031) has `in_use_in` with that organization's name instead, and `device` and `installation_uuid` are null.
+  POST /v1/organizations/{organization}/device-adapters/{adapter}/candidates/{candidate}/activate:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/device-adapters/{adapter}/proposals/{proposal}/decision:
     responses:
       '409':

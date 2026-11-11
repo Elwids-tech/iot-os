@@ -1025,3 +1025,27 @@ Things that have cost time before. Add to this list when something surprises you
 - **pymodbus data blocks are 1-based.** `ModbusSequentialDataBlock.getValues` receives
   the register number plus one, so a block that starts at 0 answers every read one
   register late. `tooling/hardware/modbus_simulator.py` starts its block at 1.
+- **Adapter installations end.** Since spec 031, archiving a device ends its open
+  `device_installations` row (`ended_reason = archived`) and a move ends it as `moved`;
+  only one installation per adapter source may be open (a partial unique index), and
+  `AdapterCandidate::installation()` returns the open one. Code that counts every
+  installation (`AdapterService::inUse`) still sees ended ones, so an adapter that ever
+  fed a device can't be deleted. Deploy bindings send open installations only, so a
+  source stops reaching an archived device at the adapter's next deploy.
+- **Profile parameter UUIDs are global.** `profile_parameters.uuid` is unique across
+  every profile, so a profile version can't be shared with another organization by
+  reference. `ProfileCopier` rebuilds it there and keeps a `parameter_map` from the
+  source's UUIDs to the copy's; anything that names parameters (mappings, dashboard
+  panels, automation bindings) must be rewritten through that map. Copies of one
+  source profile reuse one target profile and its parameter rows by key, so a later
+  version keeps the same UUIDs.
+- **A hosted device's records name another organization's pipe.** A configuration
+  snapshot of a device on another organization's adapter carries that adapter's
+  connection, edge node and adapter UUIDs, which the runtime needs. `DeviceView` strips
+  them from the snapshot for hosted devices; a new view of configurations or
+  installations must do the same (spec 031, ADR-039).
+- **`vendor_water_meter.py` exits when its broker session drops.** Every adapter
+  deploy, including the one an activation or a device move requests, restarts the
+  tenant's hardware-facing session, and the simulator raises "The client is not
+  currently connected" instead of reconnecting. For anything longer than one deploy, run
+  it in a restart loop (`while true; do …; sleep 1; done`).
