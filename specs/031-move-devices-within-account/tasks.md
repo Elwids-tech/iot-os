@@ -427,7 +427,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - archiving and moving release the setup, so the source is onboarded again.
 
   Extend `DeviceMoveIsolationTest` with gateway, connection and gateway-firmware routes as B-only (404)
-- [ ] T071 Docs: `docs/features/alerts.md` (hosted gateway alerts, `device_moved`) and `docs/features/devices.md` (gateway pipes). Rebuild api, workers and runtime; run quickstart 1 (`./taskw runtime:test` too), 5.1 and 5.2; record; leak scan; open PR 031-5
+- [x] T071 Docs: `docs/features/alerts.md` (hosted gateway alerts, `device_moved`), `docs/features/devices.md` (gateway pipes) and `docs/reference/events.md` (`pipe_organization_uuid`). Rebuild api, workers, runtime and portal; run quickstart 1 (`./taskw runtime:test` too), 5.1 and 5.2; record; leak scan; open PR 031-5
 
 ---
 
