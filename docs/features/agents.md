@@ -129,7 +129,7 @@ catalogue; CI runs `agents:tools --check` and refuses destructive tools.
 | --- | --- | --- |
 | `get_overview` | `Device.view` | Device counts by state, active alerts, automation states, sources waiting to be onboarded, commands with an uncertain outcome |
 | `find_devices` | `Device.view` | Devices by name or code, site, tag, profile, lifecycle or presence, a page at a time |
-| `get_device_health` | `Device.view` | Lifecycle, presence, configuration state, source and gateway, and every parameter's latest value with quality and age. When the runtime is down, `readings` is null with a reason |
+| `get_device_health` | `Device.view` | Lifecycle, presence, configuration state, the source and the gateway it comes through, and every parameter's latest value with quality and age. An adapter-fed device's source is `kind: adapter` and names the adapter and the manufacturer serial; its gateway is the adapter's publisher and is left out. When the runtime is down, `readings` is null with a reason |
 | `get_measurements` | `Device.view` | One parameter's history (bucketed, 10–500 points), counter increase per calendar bucket, or state durations, over a window |
 | `get_ingestion_diagnostics` | `Device.view` | Checks (`ok`, `problem`, `unknown`) on lifecycle, configuration, source, last reading, review required, unmapped metrics, reading quality, and adapter status, connectivity and decoder tests |
 | `list_alerts` | `Device.view` | Active or cleared alert episodes, by device, site or workflow |

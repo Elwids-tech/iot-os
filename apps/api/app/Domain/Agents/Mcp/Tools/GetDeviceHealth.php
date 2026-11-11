@@ -21,7 +21,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsOpenWorld;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
-#[Description('One device\'s state: lifecycle, presence, last reading, configuration state, its source or gateway, its offline-alert state (any open offline alert with its cause, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.')]
+#[Description('One device\'s state: lifecycle, presence, last reading, configuration state, its source and the gateway or device adapter it comes through (source.kind sparkplug or adapter), its offline-alert state (any open offline alert with its cause, the gateway or adapter it names, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.')]
 #[IsReadOnly]
 #[IsIdempotent]
 #[IsOpenWorld(false)]
@@ -56,20 +56,40 @@ final class GetDeviceHealth extends AgentTool
                     'tags' => $view['tags'], 'reporting_timezone' => $view['reporting_timezone'],
                     'applied_configuration_uuid' => $view['applied_configuration_uuid'], 'draft_revision' => $view['draft_revision'],
                 ],
-                'source' => $candidate === null ? null : [
-                    'kind' => 'sparkplug',
-                    'source_device_id' => $candidate['source_device_id'],
-                    'presence' => $candidate['presence'],
-                    'last_seen_at' => $candidate['last_seen_at'] ?? null,
-                    'birth_revision' => $candidate['birth_revision'],
-                    'gateway' => $candidate['gateway'] ? ['name' => $candidate['gateway']['name'], 'presence' => $candidate['gateway']['presence'], 'last_seen_at' => $candidate['gateway']['last_seen_at'] ?? null] : null,
-                ],
+                'source' => $candidate === null ? null : $this->source($context, $candidate),
                 'connectivity' => $this->connectivity($context, $device),
                 'readings' => $readings,
                 'readings_unavailable' => $unavailable,
                 'portal_url' => app(PortalUrls::class)->organization($context->organization, 'devices/'.$device->uuid),
             ],
             'targets' => [$device->uuid],
+        ];
+    }
+
+    /**
+     * The device's source and what it reads through: its gateway, or for an adapter-fed
+     * device the adapter, whose publisher gateway people never see.
+     *
+     * @param  array<string, mixed>  $candidate  DeviceView::candidate()
+     * @return array<string, mixed>
+     */
+    private function source(AgentContext $context, array $candidate): array
+    {
+        $gateway = $candidate['gateway'];
+        $adapter = $candidate['adapter'];
+
+        return [
+            'kind' => $adapter ? 'adapter' : 'sparkplug',
+            'source_device_id' => $candidate['source_device_id'],
+            'presence' => $candidate['presence'],
+            'last_seen_at' => $candidate['last_seen_at'] ?? null,
+            'birth_revision' => $candidate['birth_revision'],
+            'gateway' => $gateway && ! $adapter ? ['name' => $gateway['name'], 'presence' => $gateway['presence'], 'last_seen_at' => $gateway['last_seen_at'] ?? null] : null,
+            'adapter' => $adapter ? [
+                'uuid' => $adapter['uuid'], 'name' => $adapter['name'], 'serial' => $adapter['serial'],
+                'presence' => $gateway['presence'], 'last_seen_at' => $gateway['last_seen_at'] ?? null,
+                'portal_url' => app(PortalUrls::class)->organization($context->organization, 'device-adapters/'.$adapter['uuid']),
+            ] : null,
         ];
     }
 
@@ -96,6 +116,7 @@ final class GetDeviceHealth extends AgentTool
                 'offline_since' => $alert->offline_since?->toIso8601String(), 'last_seen_at' => $alert->last_seen_at?->toIso8601String(),
                 'threshold' => ['offline_after_seconds' => $alert->threshold_seconds, 'automatic' => $alert->threshold_automatic],
                 'gateway' => $alert->subjectGateway?->name,
+                'adapter' => $alert->subjectAdapter?->name,
                 'portal_url' => app(PortalUrls::class)->organization($context->organization, 'alerts/'.$alert->uuid),
             ],
         ];

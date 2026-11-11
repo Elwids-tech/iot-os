@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices;
 
+use App\Domain\Automation\Models\Alert;
 use App\Domain\DeviceAdapters\Jobs\DeployAdapter;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterOperation;
@@ -18,9 +19,11 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Artisan;
@@ -28,11 +31,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Tests\Support\Agents\AgentFixtures;
 use Tests\TestCase;
 
 final class DeviceAdapterTest extends TestCase
 {
-    use RefreshDatabase;
+    use AgentFixtures, RefreshDatabase;
 
     private Organization $organization;
 
@@ -254,6 +258,38 @@ final class DeviceAdapterTest extends TestCase
             ->assertUnprocessable()->assertJsonPath('message', 'This gateway belongs to a device adapter. Activate its sources from the adapter.');
         $this->postJson($this->prefix.'/gateways', ['connection_uuid' => $gateway->connection->uuid, 'name' => 'Squatter', 'edge_node_id' => 'squatter'])
             ->assertUnprocessable()->assertJsonPath('message', 'This connection belongs to the device adapters. Register gateways on a connection of your own.');
+    }
+
+    public function test_the_assistant_names_the_adapter_an_adapter_fed_device_reads_through(): void
+    {
+        [$a, $adapter, $candidate] = $this->liveCandidate();
+        $gateway = $adapter->fresh()->gateway;
+        $device = $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])->assertAccepted()->json('data.device');
+        $model = Device::where('uuid', $device['uuid'])->firstOrFail();
+        $model->candidate->update(['presence' => 'online', 'last_seen_at' => now()]);
+        $alert = Alert::create(['organization_id' => $this->organization->id, 'kind' => Alert::CONNECTION_LOST, 'episode' => 1, 'episode_key' => 'source:'.$a['uuid'].'#1', 'subject_adapter_id' => $adapter->id,
+            'cause' => 'death_certificate', 'offline_since' => now()->subMinutes(5), 'activated_at' => now()->subMinutes(4), 'threshold_seconds' => 300, 'threshold_automatic' => true]);
+        $alert->devices()->attach($model->id);
+
+        config(['agents.enabled' => true, 'app.frontend_url' => 'https://app.example.test']);
+        $this->usePassportTestKeys();
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        $this->organization->forceFill(['agent_access_enabled' => true])->save();
+        $this->signOutEverywhere();
+        $token = $this->connectAgent(User::where('email', 'shared.operator@example.test')->firstOrFail(), $this->organization)['access_token'];
+
+        // The source comes through the adapter: its serial, never the publisher gateway or its Sparkplug id.
+        $health = $this->callTool($token, 'get_device_health', ['device_uuid' => $device['uuid']])['body']['data'];
+        $this->assertSame('adapter', $health['source']['kind']);
+        $this->assertNull($health['source']['gateway']);
+        $this->assertSame([$a['uuid'], 'Manufacturer water meter', 'WM-1042', 'https://app.example.test/organizations/'.$this->organization->uuid.'/device-adapters/'.$a['uuid']],
+            [$health['source']['adapter']['uuid'], $health['source']['adapter']['name'], $health['source']['adapter']['serial'], $health['source']['adapter']['portal_url']]);
+        $this->assertSame([null, 'Manufacturer water meter'], [$health['connectivity']['open_alert']['gateway'], $health['connectivity']['open_alert']['adapter']]);
+
+        $source = collect($this->callTool($token, 'get_ingestion_diagnostics', ['device_uuid' => $device['uuid']])['body']['data']['checks'])->firstWhere('check', 'source');
+        $this->assertStringStartsWith('Source "WM-1042" is online', $source['detail']);
+        $this->assertStringEndsWith('; adapter "Manufacturer water meter" is '.DeviceView::gateway($gateway->fresh())['presence'].'.', $source['detail']);
+        $this->assertStringNotContainsString('gateway', $source['detail']);
     }
 
     public function test_an_unused_adapter_is_deleted_with_its_runtime_and_gateway(): void

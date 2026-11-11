@@ -69,7 +69,7 @@
         {
             "name": "get_device_health",
             "title": "Get Device Health",
-            "description": "One device's state: lifecycle, presence, last reading, configuration state, its source or gateway, its offline-alert state (any open offline alert with its cause, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.",
+            "description": "One device's state: lifecycle, presence, last reading, configuration state, its source and the gateway or device adapter it comes through (source.kind sparkplug or adapter), its offline-alert state (any open offline alert with its cause, the gateway or adapter it names, and the Offline after threshold in effect), and the latest value of every parameter with its quality (good, stale, invalid, inactive), age and diagnostic. Unknown values are null with a reason.",
             "inputSchema": {
                 "properties": {
                     "device_uuid": {
