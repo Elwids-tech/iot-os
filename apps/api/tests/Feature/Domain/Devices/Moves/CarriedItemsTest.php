@@ -55,7 +55,7 @@ final class CarriedItemsTest extends MoveTestCase
         // D1 moved to B, onto B's X and the copied profile's parameter, and saves there.
         $shop = Dashboard::where('uuid', $d1['uuid'])->firstOrFail();
         $this->assertSame($this->b->id, $shop->organization_id);
-        $this->assertSame([$inB->uuid, $this->parameter($inB)['uuid']], [$shop->widgets[0]['config']['sources'][0]['device_uuid'], $shop->widgets[0]['config']['sources'][0]['parameter_uuid']]);
+        $this->assertSame([$inB->uuid, $this->flowParameter($inB)['uuid']], [$shop->widgets[0]['config']['sources'][0]['device_uuid'], $shop->widgets[0]['config']['sources'][0]['parameter_uuid']]);
         $this->getJson($this->in($this->a).'/dashboards/'.$d1['uuid'])->assertNotFound();
         $saved = $this->getJson($this->in($this->b).'/dashboards/'.$d1['uuid'])->assertOk()->json('data');
         $this->putJson($this->in($this->b).'/dashboards/'.$d1['uuid'], ['name' => 'Shop', 'widgets' => $saved['widgets'], 'layouts' => $saved['layouts'], 'defaults' => $saved['defaults'], 'revision' => $saved['revision']])->assertOk();

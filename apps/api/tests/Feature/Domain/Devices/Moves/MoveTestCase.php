@@ -257,7 +257,7 @@ abstract class MoveTestCase extends TestCase
     protected function dashboard(Organization $organization, string $name, array $devices): array
     {
         $panels = array_map(function (Device $device): array {
-            $parameter = $this->parameter($device);
+            $parameter = $this->flowParameter($device);
 
             return ['id' => (string) Str::uuid(), 'schema_version' => 2, 'type' => 'status', 'title' => $device->name.' flow', 'description' => '',
                 'config' => ['sources' => [['device_uuid' => $device->uuid, 'parameter_uuid' => $parameter['uuid'], 'label' => 'Flow', 'unit' => $parameter['unit'], 'data_type' => $parameter['data_type'],
@@ -280,7 +280,7 @@ abstract class MoveTestCase extends TestCase
         $this->automationsOn($organization);
         $bindings = array_map(function (Device $device, int $i): array {
             $device->refresh();
-            $parameter = $this->parameter($device);
+            $parameter = $this->flowParameter($device);
 
             return ['role' => 'flow_'.$i, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->applied_generation,
                 'parameter_uuid' => $parameter['uuid'], 'data_type' => 'number', 'unit' => (string) $parameter['unit'], 'fresh_seconds' => 120];
@@ -320,7 +320,7 @@ abstract class MoveTestCase extends TestCase
     }
 
     /** @return array<string, mixed> the device's flow parameter, from its applied profile version */
-    protected function parameter(Device $device): array
+    protected function flowParameter(Device $device): array
     {
         return collect($device->fresh()->lastAppliedConfiguration->artifact->definition['parameters'])->firstWhere('reports_state', true);
     }
