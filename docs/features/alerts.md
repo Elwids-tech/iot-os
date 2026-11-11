@@ -185,6 +185,27 @@ each device that has still not reported is judged by its own *Offline after*, co
 from the gateway's return. An edge with one monitored definition (a direct device) is
 a device alert. Adapter edges are never gateways.
 
+**Hosted devices.** A gateway on one organization's connection can also serve devices
+of other organizations of its billing account, which moved there
+([moving devices](devices.md#moving-devices), [spec 031](../../specs/031-move-devices-within-account/spec.md)).
+Each organization gets its own episode and alert, listing only its own devices:
+
+- The gateway's own organization, the pipe owner, gets the **Gateway offline** alert
+  for its devices behind the gateway, as above (key
+  `gateway:<connection>/<edge>#<episode>`). It gets none when every device behind the
+  gateway is hosted elsewhere.
+- Each hosted organization gets a **Gateway offline** alert for its devices (key
+  `gateway:<connection>/<edge>@<its organization uuid>#<episode>`). It names the gateway
+  only: `subject` is `{type: "gateway", uuid: null, name}`, with no link, and the gateway
+  never appears in that organization's gateway lists. Its devices show "offline because
+  gateway *name* is offline".
+
+The runtime marks a hosted episode with `subject.pipe_organization_uuid`
+([events](../reference/events.md#offline-episodes)). The control plane resolves the
+gateway in that organization and records the alert only when both organizations share a
+billing account and every device the episode lists is a hosted device on that gateway;
+otherwise the event changes nothing.
+
 ### Rollout, stopping and history
 
 - **Monitoring starts with the next packet.** A device that has sent nothing since
@@ -196,6 +217,12 @@ a device alert. Adapter edges are never gateways.
   episode with a stop reason (`device_deactivated`, `definition_removed`, and
   `monitoring_disabled` once offline alerts can be turned off) instead of clearing it.
   The alert is no longer active and shows the reason.
+- **Device moved.** When a device moves to another organization, the platform ends its
+  open alerts in the source as `device_moved` (**Device moved**) at the cutover, and
+  relabels those its stop ended as `device_deactivated` during the move. The runtime's
+  later transitions for such an episode change nothing. A gateway alert ends this way
+  only when every device it lists moved; while it lists a device that stays behind the
+  gateway, it stays open for that device.
 - **Transitions.** The runtime writes each opened, cleared or stopped transition with
   its outbox event in one transaction (`device.connectivity.v1`,
   [events](../reference/events.md#runtime-events-go--laravel)). The control plane
@@ -325,7 +352,7 @@ Under `/api/v1/organizations/{organization}`:
 | Method and path | Purpose | Permission |
 | --- | --- | --- |
 | `GET alerts` | List; `condition=active\|cleared`, `acknowledged=0\|1`, `device`, `workflow`, `assignee`, repeatable `kind[]` (`workflow`, `device_offline`, `gateway_offline`, `connection_lost`), `muted=0\|1` (default 0 hides muted alerts; nothing is muted yet), `per_page` 1–100 | `Device.view` |
-| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
+| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter; `uuid` is null for another organization's gateway that serves hosted devices), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |

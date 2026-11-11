@@ -102,7 +102,9 @@ final class MovePreviewTest extends MoveTestCase
         $review = $this->review($this->a, $this->b, [$archived, $pending, $operation, $moving, $behind, $direct])->assertOk()->json();
 
         $this->assertFalse($review['can_confirm']);
-        $this->assertSame([[MovePreview::ARCHIVED], [MovePreview::WAITING], [MovePreview::WAITING], [MovePreview::MOVING], [MovePreview::GATEWAY], [MovePreview::DIRECT]], array_column($review['devices'], 'blockers'));
+        // A device behind a gateway moves like an adapter-fed one (PR 031-5); its gateway stays.
+        $this->assertSame([[MovePreview::ARCHIVED], [MovePreview::WAITING], [MovePreview::WAITING], [MovePreview::MOVING], [], [MovePreview::DIRECT]], array_column($review['devices'], 'blockers'));
+        $this->assertSame(['kind' => 'gateway', 'name' => 'Line gateway', 'owner_organization_name' => 'Integrator', 'outcome' => 'stays'], $review['devices'][4]['reports_through']);
         $this->assertSame(['kind' => 'direct', 'name' => 'Direct meter', 'owner_organization_name' => 'Integrator', 'outcome' => 'moves'], $review['devices'][5]['reports_through']);
         $this->postJson($this->in($this->a).'/device-moves', ['target_organization_uuid' => $this->b->uuid, 'device_uuids' => array_column($review['devices'], 'uuid'),
             'operation_uuid' => (string) Str::uuid(), 'preview_hash' => $review['preview_hash']])->assertUnprocessable()->assertJsonValidationErrors(['devices.0', 'devices.5']);

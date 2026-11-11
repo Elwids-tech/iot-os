@@ -146,7 +146,9 @@ choosing an existing gateway and **The gateway itself** instead of a device ID.
 `POST device-onboardings` then carries `"source": "node"` in place of
 `source_device_id` (exactly one of the two in gateway mode) and stores the setup with
 `source_device_id = ''`. The usual rule applies: one setup per gateway and source, so
-a gateway's own metrics are onboarded once. Step 2 lists the gateway's identifiers and
+a gateway's own metrics are onboarded once. Archiving or moving a device releases its
+setup (`released_at`), after which the source can be onboarded again once no device
+holds it. Step 2 lists the gateway's identifiers and
 the metrics its node birth must carry instead of a connection kit.
 
 The wizard suggests the organization's **gateway health profile** (code
@@ -317,21 +319,30 @@ you can activate devices in the target; otherwise it arrives inactive, ready for
 member who can. The device limit's count and the month's peak don't change.
 
 **What stays.** Adapters and gateways stay with the organization that owns them and
-keep feeding the moved device, which is then a *hosted device*. The target sees the
+keep feeding the moved device, which is then a *hosted device*. A device behind a
+gateway on one of the owner's connections, including the gateway's own metrics device,
+keeps its source and activates in the target against the gateway's live birth; the
+gateway stays the owner's even when every device behind it moves. The target sees the
 pipe's kind, name, owner and whether it is online (**Reports through**), never its
-settings, credentials, Discovery or the gateway behind an adapter. The owner sees the
-source **In use in *target*** and nothing of the device. Dashboards and automations
+settings, credentials, connection, Discovery or the gateway behind an adapter, and it
+commands its hosted device as its own. The owner sees the source **In use in
+*target*** and nothing of the device. Dashboards and automations
 stay in the source with the archived device and its history up to the move; integration
 applications keep reading the archived device and never see the new one.
 
-**What ends.** Open alerts on the device end as **Device moved**, geofence assignments
-are removed, unsent commands are cancelled and possibly sent ones become uncertain.
+**What ends.** Open alerts on the device end as **Device moved** (a gateway's offline
+alert stays open while it lists a device that stays behind the gateway), geofence
+assignments are removed, unsent commands are cancelled and possibly sent ones become
+uncertain. The device's setup on a gateway source is released, so the owner can onboard
+the source again once no device holds it. Afterwards a gateway's offline episodes follow
+ownership: its owner's alert lists its own devices, and each organization it hosts
+devices for gets an alert of its own that names the gateway only
+([hosted gateway alerts](alerts.md#gateways)).
 Readings that arrive between the stop and the start are stored for neither
 organization; the gap is usually seconds.
 
-Not yet: devices behind a gateway and directly connected devices can't be moved, and
-dashboards, automations and history can't come along (later pull requests of spec
-031). An organization with hosted devices, or one in a move, can't leave its billing
+Not yet: directly connected devices can't be moved, and dashboards, automations and
+history can't come along (later pull requests of spec 031). An organization with hosted devices, or one in a move, can't leave its billing
 account or be deleted.
 
 ## Offline detection

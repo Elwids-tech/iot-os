@@ -252,6 +252,9 @@ func (d *deviceTrack) grace() time.Duration {
 type gatewayTrack struct {
 	episodeTrack
 	connection, edge string
+	// pipe is set on a hosted episode: the gateway's own organization, whose pipe
+	// serves this episode's devices of another organization (spec 031, R14).
+	pipe string
 	// grace and the threshold fields the last evaluation used, for its events.
 	grace            time.Duration
 	threshold        *deviceTrack
@@ -268,6 +271,11 @@ type edgeTrack struct {
 	nodeDeadAt              time.Time // a death certificate from the edge node, until it is heard again
 	adapterDown             bool
 	adapterDownSince        time.Time
+
+	// owner is the gateway's organization as the last evaluation saw it, and gateways
+	// the subject keys of its episodes: the owner's and one per hosted organization.
+	owner    string
+	gateways []string
 }
 
 func (e *edgeTrack) silenceStart() time.Time { return latest(e.lastHeard, e.anchor) }
@@ -286,6 +294,9 @@ type connectivitySubject struct {
 	ConnectionUUID *string `json:"connection_uuid"`
 	EdgeNodeID     *string `json:"edge_node_id"`
 	AdapterUUID    *string `json:"adapter_uuid"`
+	// PipeOrganizationUUID names the gateway's organization on a hosted gateway
+	// episode; absent on every other episode (spec 031).
+	PipeOrganizationUUID *string `json:"pipe_organization_uuid,omitempty"`
 }
 
 // connectivityEvent is the device.connectivity.v1 payload.
@@ -339,13 +350,16 @@ type connectivityTracker struct {
 	settings   map[string]devices.ConnectivitySettings
 	loaded     map[string]storage.ConnectivityRow // stored rows not yet claimed by a subject
 	seedDone   bool
+
+	// organizations are the connections' organizations, which own their gateways.
+	organizations map[string]string
 }
 
 func newConnectivityTracker(started time.Time, nodeOnline func(connection, edge string) bool) *connectivityTracker {
 	if nodeOnline == nil {
 		nodeOnline = func(string, string) bool { return false }
 	}
-	return &connectivityTracker{started: started, nodeOnline: nodeOnline, devices: map[string]*deviceTrack{}, gateways: map[string]*gatewayTrack{}, edges: map[string]*edgeTrack{}, sources: map[string][]string{}, members: map[string][]string{}, connected: map[string]bool{}, settings: map[string]devices.ConnectivitySettings{}, loaded: map[string]storage.ConnectivityRow{}}
+	return &connectivityTracker{started: started, nodeOnline: nodeOnline, devices: map[string]*deviceTrack{}, gateways: map[string]*gatewayTrack{}, edges: map[string]*edgeTrack{}, sources: map[string][]string{}, members: map[string][]string{}, connected: map[string]bool{}, organizations: map[string]string{}, settings: map[string]devices.ConnectivitySettings{}, loaded: map[string]storage.ConnectivityRow{}}
 }
 
 // load resumes from the stored rows. Call before define.
@@ -358,6 +372,17 @@ func (t *connectivityTracker) load(rows []storage.ConnectivityRow) {
 	for _, row := range rows {
 		t.loaded[row.SubjectKey] = row
 	}
+}
+
+// organize records a connection's organization, which owns the gateways on it. Call
+// before the connection's gateways are evaluated.
+func (t *connectivityTracker) organize(connection, organization string) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.organizations[connection] = organization
 }
 
 func (t *connectivityTracker) edge(connection, group, edge string) *edgeTrack {
@@ -480,7 +505,7 @@ func (t *connectivityTracker) connect(connection string, at time.Time) {
 			d.anchor, d.deadAt = latest(d.anchor, at), time.Time{}
 			d.freeze()
 		}
-		if g := t.gateways["gateway:"+e.connection+"/"+e.edge]; g != nil {
+		for _, g := range t.episodes(e) {
 			g.freeze()
 		}
 	}
@@ -525,7 +550,7 @@ func (t *connectivityTracker) hearEdge(connection, group, edge string, at time.T
 	if !e.nodeDeadAt.IsZero() && at.After(e.nodeDeadAt) {
 		e.nodeDeadAt = time.Time{}
 	}
-	if g := t.gateways["gateway:"+connection+"/"+edge]; g != nil {
+	for _, g := range t.episodes(e) {
 		if !g.heard && !at.Before(g.monitoringSince) {
 			g.heard = true
 		}
@@ -558,7 +583,7 @@ func (t *connectivityTracker) died(connection, group, edge, device string, at ti
 	}
 	if device == "" {
 		e.nodeDeadAt = at
-		if g := t.gateways["gateway:"+connection+"/"+edge]; g != nil {
+		for _, g := range t.episodes(e) {
 			g.backSince = time.Time{}
 		}
 		for _, uuid := range t.members[connection+"/"+edge] {
@@ -703,6 +728,9 @@ func (t *connectivityTracker) evaluate(now time.Time) []connectivityChange {
 	defer t.mu.Unlock()
 	changes := []connectivityChange{}
 	gateways := map[string]bool{}
+	for _, e := range t.edges {
+		e.gateways = nil
+	}
 	for edgeKey, uuids := range t.members {
 		e := t.edges[edgeKey]
 		if e == nil || e.adapter {
@@ -722,27 +750,44 @@ func (t *connectivityTracker) evaluate(now time.Time) []connectivityChange {
 		if staying < 2 {
 			continue
 		}
-		key := "gateway:" + edgeKey
-		gateways[key] = true
-		g := t.gateways[key]
-		if g == nil {
-			g = &gatewayTrack{episodeTrack: episodeTrack{key: key, organization: members[0].organization, kind: connectivityKindGate, monitoringSince: now}, connection: e.connection, edge: e.edge}
-			if row, ok := t.loaded[key]; ok {
-				g.restore(row)
-				delete(t.loaded, key)
-			} else {
-				// A gateway is monitored as long as its devices are.
-				for _, d := range members {
-					g.heard = g.heard || d.heard
-					if d.monitoringSince.Before(g.monitoringSince) {
-						g.monitoringSince = d.monitoringSince
+		// The gateway belongs to its connection's organization, whatever its devices' are
+		// (spec 031, R14); until the connection is known, to its first device's, as before.
+		e.owner = t.organizations[e.connection]
+		if e.owner == "" {
+			e.owner = members[0].organization
+		}
+		for _, episode := range gatewayEpisodes(members, e.owner) {
+			key := gatewayKey(edgeKey, e.owner, episode.organization)
+			gateways[key] = true
+			e.gateways = append(e.gateways, key)
+			pipe := ""
+			if episode.organization != e.owner {
+				pipe = e.owner
+			}
+			g := t.gateways[key]
+			if g == nil {
+				g = &gatewayTrack{episodeTrack: episodeTrack{key: key, organization: episode.organization, kind: connectivityKindGate, monitoringSince: now}, connection: e.connection, edge: e.edge, pipe: pipe}
+				if row, ok := t.loaded[key]; ok {
+					g.restore(row)
+					delete(t.loaded, key)
+				} else {
+					// A gateway is monitored as long as its devices are.
+					for _, d := range episode.members {
+						g.heard = g.heard || d.heard
+						if d.monitoringSince.Before(g.monitoringSince) {
+							g.monitoringSince = d.monitoringSince
+						}
 					}
 				}
+				t.gateways[key] = g
 			}
-			t.gateways[key] = g
+			// An open episode ends with the organizations it opened with.
+			if !g.open {
+				g.organization, g.pipe = episode.organization, pipe
+			}
+			g.removed = ""
+			changes = append(changes, t.evaluateGateway(g, e, episode.members, now)...)
 		}
-		g.removed = ""
-		changes = append(changes, t.evaluateGateway(g, e, members, now)...)
 	}
 	for key, g := range t.gateways {
 		if gateways[key] {
@@ -772,9 +817,70 @@ func (t *connectivityTracker) evaluate(now time.Time) []connectivityChange {
 		orphan := &episodeTrack{}
 		orphan.restore(row)
 		orphan.key, orphan.organization, orphan.kind = key, row.OrganizationUUID, row.Kind
-		changes = append(changes, t.stop(orphan, orphanEvent(row, now), now))
+		changes = append(changes, t.stop(orphan, t.orphanEvent(row, now), now))
 	}
 	return changes
+}
+
+// gatewayEpisode is one organization's devices behind a gateway.
+type gatewayEpisode struct {
+	organization string
+	members      []*deviceTrack
+}
+
+// gatewayEpisodes groups a gateway's devices by organization: the owner's first, then
+// each hosted organization's in UUID order. Each group is an episode of its own, so an
+// organization's alert lists only its own devices (spec 031, R14).
+func gatewayEpisodes(members []*deviceTrack, owner string) []gatewayEpisode {
+	byOrganization := map[string][]*deviceTrack{}
+	for _, d := range members {
+		byOrganization[d.organization] = append(byOrganization[d.organization], d)
+	}
+	organizations := make([]string, 0, len(byOrganization))
+	for organization := range byOrganization {
+		if organization != owner {
+			organizations = append(organizations, organization)
+		}
+	}
+	slices.Sort(organizations)
+	if _, ok := byOrganization[owner]; ok {
+		organizations = append([]string{owner}, organizations...)
+	}
+	episodes := make([]gatewayEpisode, 0, len(organizations))
+	for _, organization := range organizations {
+		episodes = append(episodes, gatewayEpisode{organization: organization, members: byOrganization[organization]})
+	}
+	return episodes
+}
+
+// gatewayKey is the subject key of the gateway episode holding an organization's
+// devices: gateway:<connection>/<edge> for the gateway's owner, as it always was, and
+// gateway:<connection>/<edge>@<organization uuid> for a hosted organization.
+func gatewayKey(edgeKey, owner, organization string) string {
+	if organization == owner {
+		return "gateway:" + edgeKey
+	}
+	return "gateway:" + edgeKey + "@" + organization
+}
+
+// episodes are the edge's gateway episodes as the last evaluation found them.
+func (t *connectivityTracker) episodes(e *edgeTrack) []*gatewayTrack {
+	result := make([]*gatewayTrack, 0, len(e.gateways))
+	for _, key := range e.gateways {
+		if g := t.gateways[key]; g != nil {
+			result = append(result, g)
+		}
+	}
+	return result
+}
+
+// gatewayOf is the gateway episode a device's organization has behind its edge, or nil.
+func (t *connectivityTracker) gatewayOf(d *deviceTrack) *gatewayTrack {
+	e := t.edges[d.edgeKey()]
+	if e == nil || e.owner == "" {
+		return nil
+	}
+	return t.gateways[gatewayKey(d.edgeKey(), e.owner, d.organization)]
 }
 
 func (t *connectivityTracker) stop(s *episodeTrack, ev connectivityEvent, now time.Time) connectivityChange {
@@ -783,13 +889,22 @@ func (t *connectivityTracker) stop(s *episodeTrack, ev connectivityEvent, now ti
 	return connectivityChange{row: row, transition: "stopped", event: &ev}
 }
 
-func orphanEvent(row storage.ConnectivityRow, now time.Time) connectivityEvent {
+func (t *connectivityTracker) orphanEvent(row storage.ConnectivityRow, now time.Time) connectivityEvent {
 	ev := connectivityEvent{OrganizationUUID: row.OrganizationUUID, Episode: row.Episode, Transition: "stopped", At: now, GraceSeconds: 0, SettingsGeneration: row.SettingsGeneration, AffectedDeviceUUIDs: row.AffectedDeviceUUIDs}
 	ev.Subject = subjectOf(row.SubjectKey)
+	if hostedKey(row.SubjectKey) {
+		ev.Subject.PipeOrganizationUUID = text(t.organizations[*ev.Subject.ConnectionUUID])
+	}
 	ev.Cause = text(row.Cause)
 	ev.OfflineSince = row.OfflineSince
 	ev.StopReason = text(stopRemoved)
 	return ev
+}
+
+// hostedKey reports whether a subject key is a hosted organization's gateway episode,
+// gateway:<connection>/<edge>@<organization uuid>. Edge node IDs never hold "@".
+func hostedKey(key string) bool {
+	return strings.HasPrefix(key, "gateway:") && strings.Contains(key, "@")
 }
 
 // subjectOf is the event subject of a subject key.
@@ -798,6 +913,7 @@ func subjectOf(key string) connectivitySubject {
 	switch kind {
 	case "gateway":
 		connection, edge, _ := strings.Cut(rest, "/")
+		edge, _, _ = strings.Cut(edge, "@")
 		return connectivitySubject{Kind: kind, ConnectionUUID: &connection, EdgeNodeID: &edge}
 	case "source":
 		return connectivitySubject{Kind: kind, AdapterUUID: &rest}
@@ -835,7 +951,7 @@ func (t *connectivityTracker) evaluateDevice(d *deviceTrack, now time.Time) (con
 		return t.save(&d.episodeTrack)
 	}
 	e := t.edges[d.edgeKey()]
-	g := t.gateways["gateway:"+d.edgeKey()]
+	g := t.gatewayOf(d)
 	gateway := g != nil && g.removed == ""
 	cause, since := t.deviceCondition(d, e, gateway, now)
 	// While its gateway is offline, or going offline, a device opens nothing of its own (D4).
@@ -971,7 +1087,7 @@ func (g *gatewayTrack) event(transition string, at time.Time, stop string) conne
 	if transition == "opened" || len(affected) == 0 {
 		affected = g.affectedNow
 	}
-	ev := connectivityEvent{OrganizationUUID: g.organization, Subject: connectivitySubject{Kind: connectivityKindGate, ConnectionUUID: &connection, EdgeNodeID: &edge}, Episode: g.episode, Transition: transition, Cause: text(g.cause), At: at.UTC(),
+	ev := connectivityEvent{OrganizationUUID: g.organization, Subject: connectivitySubject{Kind: connectivityKindGate, ConnectionUUID: &connection, EdgeNodeID: &edge, PipeOrganizationUUID: text(g.pipe)}, Episode: g.episode, Transition: transition, Cause: text(g.cause), At: at.UTC(),
 		LastHeardAt: timePointer(g.lastHeard), GraceSeconds: int(g.grace / time.Second), AffectedDeviceUUIDs: affected, StopReason: text(stop)}
 	if g.open {
 		ev.OfflineSince = timePointer(g.offlineSince)
@@ -1003,18 +1119,18 @@ func (t *connectivityTracker) commit(change connectivityChange) {
 		}
 	} else if g := t.gateways[key]; g != nil {
 		s = &g.episodeTrack
-		if change.transition == "cleared" {
-			for _, uuid := range t.members[g.connection+"/"+g.edge] {
-				d := t.devices[uuid]
+		// Each episode concerns its own organization's devices behind the gateway.
+		for _, uuid := range t.members[g.connection+"/"+g.edge] {
+			d := t.devices[uuid]
+			if d.organization != g.organization {
+				continue
+			}
+			if change.transition == "cleared" {
 				d.anchor = latest(d.anchor, g.backSince)
 				d.freeze()
 			}
-		}
-		if change.transition == "opened" {
-			for _, uuid := range t.members[g.connection+"/"+g.edge] {
-				if d := t.devices[uuid]; !d.open {
-					d.freeze()
-				}
+			if change.transition == "opened" && !d.open {
+				d.freeze()
 			}
 		}
 	}
@@ -1090,7 +1206,7 @@ func (t *connectivityTracker) state(organization string, uuids []string, now tim
 		if known {
 			state.OfflineAfterSeconds = seconds(threshold)
 		}
-		if g := t.gateways["gateway:"+d.edgeKey()]; g != nil && g.removed == "" && (g.open || !g.pendingSince.IsZero()) {
+		if g := t.gatewayOf(d); g != nil && g.removed == "" && (g.open || !g.pendingSince.IsZero()) {
 			state.SuppressedByGateway = true
 		}
 		interruption := t.interruption(d)

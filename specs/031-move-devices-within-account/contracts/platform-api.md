@@ -218,6 +218,18 @@ What each side sees:
 - Activating such a source through its adapter answers 409 "This source is in use in
   *organization*."
 
+## Hosted gateway alerts (PR 031-5)
+
+- A hosted organization's **Gateway offline** alert, and the `offline_alert` of its
+  devices behind that gateway, carry `subject: {"type": "gateway", "uuid": null,
+  "name": "…"}`: the pipe's gateway by name only. `OfflineAlertSubject.uuid` is
+  nullable in OpenAPI and `AlertSubject.uuid` in `packages/api-client`; the portal shows
+  the name without a link.
+- A gateway's `offline_alert` in the owner's gateway reads is only its own
+  organization's alert.
+- The review's `ends.alerts` counts a gateway alert only when every device it lists is
+  in the move; one that still lists a device staying behind the gateway stays open.
+
 ## Leaving the account (PR 031-1)
 
 `PUT /v1/admin/organizations/{organization}/billing-account` answers 409 with

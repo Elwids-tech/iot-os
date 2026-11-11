@@ -135,6 +135,12 @@ runtime's connectivity tracker reporting an episode transition
   `connection_uuid` and `edge_node_id`) or `source` (with `adapter_uuid`, for vendor
   connections; not produced yet). Its key is `device:<device uuid>`,
   `gateway:<connection uuid>/<edge node id>` or `source:<adapter uuid>`.
+- **Gateway ownership.** A gateway episode belongs to the organization of the gateway's
+  connection and lists only its devices. Devices of other organizations behind the same
+  gateway ([hosted devices](../features/alerts.md#gateways), spec 031) get an episode per
+  organization, keyed `gateway:<connection uuid>/<edge node id>@<organization uuid>`,
+  whose event is that organization's and carries `subject.pipe_organization_uuid`, the
+  gateway's organization. The field is null or absent on every other episode.
 - **Episodes.** `episode` counts from 1 per subject. `transition` is `opened` (with a
   `cause`: `death_certificate`, `missed_check_in`, `gateway_offline` or
   `source_disconnected`), `cleared` or `stopped` (with a `stop_reason`:

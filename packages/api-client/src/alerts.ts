@@ -2,8 +2,11 @@
 export type AlertKind = "workflow" | "device_offline" | "gateway_offline" | "connection_lost";
 export type AlertSeverity = "critical" | "warning" | "info";
 export type AlertDevice = { uuid: string; name: string };
-/** What a device connectivity alert is about. */
-export type AlertSubject = { type: "device" | "gateway" | "adapter"; uuid: string; name: string };
+/**
+ * What a device connectivity alert is about. `uuid` is null for another organization's
+ * gateway that serves the alert's hosted devices (spec 031): it is named only.
+ */
+export type AlertSubject = { type: "device" | "gateway" | "adapter"; uuid: string | null; name: string };
 
 /** Why a device connectivity alert opened (spec 018). */
 export type ConnectivityCause = "death_certificate" | "missed_check_in" | "gateway_offline" | "source_disconnected";

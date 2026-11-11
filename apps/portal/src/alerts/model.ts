@@ -7,7 +7,7 @@ import type {
 } from "@iot-os/api-client";
 import { formatAge } from "@iot-os/ui/lib/format";
 import { statusOf } from "@iot-os/ui/lib/status";
-import { formatDuration } from "../devices/model";
+import { formatDuration, subjectId } from "../devices/model";
 
 type Titled =
   | Pick<WorkflowAlert, "kind" | "workflow_name" | "device_name">
@@ -105,7 +105,7 @@ export function sourceKey(item: Alert | AlertSource): string {
   const alert = "latest" in item ? item.latest : item;
   return alert.kind === "workflow"
     ? `${alert.workflow_uuid}|${alert.device_uuid}`
-    : `${alert.kind}|${alert.subject.type}:${alert.subject.uuid}`;
+    : `${alert.kind}|${alert.subject.type}:${subjectId(alert.subject)}`;
 }
 
 /**
@@ -124,7 +124,7 @@ export const sameSubject = (alert: Alert, other: Alert) =>
   alert.kind === other.kind &&
   (alert.kind === "workflow" || other.kind === "workflow"
     ? alert.workflow_uuid === other.workflow_uuid && alert.device_uuid === other.device_uuid
-    : alert.subject.uuid === other.subject.uuid && alert.subject.type === other.subject.type);
+    : subjectId(alert.subject) === subjectId(other.subject) && alert.subject.type === other.subject.type);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Alert ids are UUIDs; any other path segment cannot name an alert, so there is nothing to ask the API. */

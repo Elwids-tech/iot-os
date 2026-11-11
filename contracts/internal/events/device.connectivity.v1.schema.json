@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/internal/events/device.connectivity.v1.schema.json",
   "title": "device.connectivity.v1",
-  "description": "An offline episode of a device, gateway or adapter source opened, cleared or stopped (spec 018). Producer: runtime connectivity tracker (Store.TransitionConnectivity), written to device_runtime.outbox in the transaction that changes device_runtime.connectivity, relayed on iot.runtime.device.connectivity.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which projects it into automation_alerts (ConnectivityProjector) by episode_key <subject_key>#<episode>. At least once; deduplicate by uuid, a UUID v5 of <subject_key>#<episode>#<transition>, in device_inbox. Times are receipt times in RFC 3339 UTC, except last_observed_at.",
+  "description": "An offline episode of a device, gateway or adapter source opened, cleared or stopped (spec 018). Producer: runtime connectivity tracker (Store.TransitionConnectivity), written to device_runtime.outbox in the transaction that changes device_runtime.connectivity, relayed on iot.runtime.device.connectivity.v1 and posted to /api/internal/devices/events. Consumer: control plane RuntimeController, which projects it into automation_alerts (ConnectivityProjector) by episode_key <subject_key>#<episode>. A gateway's devices of another organization of its billing account (spec 031 hosted devices) have an episode of their own, subject key gateway:<connection>/<edge>@<their organization uuid>, carried in their organization with subject.pipe_organization_uuid naming the gateway's. At least once; deduplicate by uuid, a UUID v5 of <subject_key>#<episode>#<transition>, in device_inbox. Times are receipt times in RFC 3339 UTC, except last_observed_at.",
   "type": "object",
   "properties": {
     "uuid": {
@@ -20,7 +20,7 @@
           "format": "uuid"
         },
         "subject": {
-          "description": "What went offline. device needs device_uuid, gateway needs connection_uuid and edge_node_id, source needs adapter_uuid; the other identities are null.",
+          "description": "What went offline. device needs device_uuid, gateway needs connection_uuid and edge_node_id, source needs adapter_uuid; the other identities are null. pipe_organization_uuid is set only on a hosted organization's gateway episode.",
           "type": "object",
           "properties": {
             "kind": {
@@ -53,6 +53,14 @@
               "maxLength": 255
             },
             "adapter_uuid": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "pipe_organization_uuid": {
+              "description": "On a hosted organization's gateway episode (spec 031): the gateway's own organization, whose pipe serves the episode's devices. The consumer resolves the gateway there, and only within the event organization's billing account. Null or absent on every other episode.",
               "type": [
                 "string",
                 "null"
@@ -92,6 +100,9 @@
                     "type": "null"
                   },
                   "adapter_uuid": {
+                    "type": "null"
+                  },
+                  "pipe_organization_uuid": {
                     "type": "null"
                   }
                 }
@@ -149,6 +160,9 @@
                   },
                   "adapter_uuid": {
                     "type": "string"
+                  },
+                  "pipe_organization_uuid": {
+                    "type": "null"
                   }
                 }
               }

@@ -899,13 +899,30 @@ function SourceOccurrences({
   );
 }
 
-/** Where a connectivity alert's subject lives in the portal. */
+/**
+ * Where a connectivity alert's subject lives in the portal; null for another organization's
+ * gateway that serves the alert's devices, which is named only (spec 031).
+ */
 const subjectPath = (org: string, subject: ConnectivityAlert["subject"]) =>
-  subject.type === "device"
-    ? devicePath(org, subject.uuid)
-    : subject.type === "gateway"
-      ? gatewayPath(org, subject.uuid)
-      : `/organizations/${encodeURIComponent(org)}/adapters/${encodeURIComponent(subject.uuid)}`;
+  subject.uuid === null
+    ? null
+    : subject.type === "device"
+      ? devicePath(org, subject.uuid)
+      : subject.type === "gateway"
+        ? gatewayPath(org, subject.uuid)
+        : `/organizations/${encodeURIComponent(org)}/adapters/${encodeURIComponent(subject.uuid)}`;
+
+/** A connectivity alert's subject, linked where it lives in the portal. */
+function SubjectName({ org, subject }: { org: string; subject: ConnectivityAlert["subject"] }) {
+  const path = subjectPath(org, subject);
+  return path ? (
+    <Link className="underline underline-offset-4" to={path}>
+      {subject.name}
+    </Link>
+  ) : (
+    <>{subject.name}</>
+  );
+}
 
 /**
  * What a connectivity alert knows about going offline (spec 018): cause, last heard and observed,
@@ -1366,9 +1383,7 @@ function AlertDetail({
               <>
                 <Fact label="Kind">{kindLabel(alert.kind)}</Fact>
                 <Fact label={alert.subject.type === "adapter" ? "Connection" : alert.subject.type === "gateway" ? "Gateway" : "Device"}>
-                  <Link className="underline underline-offset-4" to={subjectPath(org, alert.subject)}>
-                    {alert.subject.name}
-                  </Link>
+                  <SubjectName org={org} subject={alert.subject} />
                 </Fact>
               </>
             )}
