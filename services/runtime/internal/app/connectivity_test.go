@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,7 +55,13 @@ func settingsWith(style string, offlineAfter int) devices.ConnectivitySettings {
 // device monitors a definition for the source group/edge/source with settings.
 func (f *trackerFixture) device(group, edge, source string, settings devices.ConnectivitySettings) string {
 	f.t.Helper()
-	d := devices.Definition{DeviceUUID: storage.UUID(), OrganizationUUID: f.org, ConfigurationUUID: storage.UUID(), Source: devices.Source{ConnectionUUID: f.conn, GroupID: group, EdgeNodeID: edge, DeviceID: source}}
+	return f.deviceOf(f.org, group, edge, source, settings)
+}
+
+// deviceOf monitors a definition of organization, which may host it on the fixture's connection.
+func (f *trackerFixture) deviceOf(organization, group, edge, source string, settings devices.ConnectivitySettings) string {
+	f.t.Helper()
+	d := devices.Definition{DeviceUUID: storage.UUID(), OrganizationUUID: organization, ConfigurationUUID: storage.UUID(), Source: devices.Source{ConnectionUUID: f.conn, GroupID: group, EdgeNodeID: edge, DeviceID: source}}
 	f.tr.define(d, f.now)
 	f.tr.configure(d.DeviceUUID, settings, f.now)
 	return d.DeviceUUID
@@ -769,5 +776,172 @@ func TestEventIdentitiesDeriveFromSubjectEpisodeAndTransition(t *testing.T) {
 	// RFC 9562 test vector: the DNS namespace and "www.example.com".
 	if got := storage.UUIDv5("6ba7b810-9dad-11d1-80b4-00c04fd430c8", "www.example.com"); got != "2ed6657d-e927-568b-95e1-2665a8aea6a2" {
 		t.Fatalf("UUIDv5 = %s", got)
+	}
+}
+
+// --- Gateways serving other organizations' devices (spec 031, R14) ---
+
+// hostedFixture is a gateway on the fixture's connection, which belongs to its
+// organization, with devices of that organization and of hosted ones.
+type hostedFixture struct {
+	*trackerFixture
+	hosted string // another organization of the billing account
+}
+
+func newHostedFixture(t *testing.T) hostedFixture {
+	f := newTrackerFixture(t)
+	f.tr.organize(f.conn, f.org)
+	return hostedFixture{trackerFixture: f, hosted: storage.UUID()}
+}
+
+// behind monitors a device of organization behind edge "gw" that stays connected and reports now.
+func (h hostedFixture) behind(organization, source string) string {
+	h.t.Helper()
+	device := h.deviceOf(organization, h.direct, "gw", source, settingsWith(styleStaysConnected, 900))
+	h.tr.heard(h.conn, h.direct, "gw", "", h.now)
+	h.report("gw", source, device)
+	return device
+}
+
+// byOrganization is the events in order, as "<organization>:<transition>:<pipe>:<affected>".
+func (h hostedFixture) byOrganization() []string {
+	names := map[string]string{h.org: "owner", h.hosted: "hosted"}
+	lines := []string{}
+	for _, ev := range h.events {
+		pipe := "-"
+		if ev.Subject.PipeOrganizationUUID != nil {
+			pipe = names[*ev.Subject.PipeOrganizationUUID]
+		}
+		lines = append(lines, names[ev.OrganizationUUID]+":"+ev.Transition+":"+pipe+":"+strings.Join(ev.AffectedDeviceUUIDs, ","))
+	}
+	return lines
+}
+
+func (h hostedFixture) expectByOrganization(want ...string) {
+	h.t.Helper()
+	if got := h.byOrganization(); !slices.Equal(got, want) {
+		h.t.Fatalf("events %q, want %q", got, want)
+	}
+}
+
+func TestMixedOrganizationsBehindAGatewayEachGetTheirOwnEpisode(t *testing.T) {
+	h := newHostedFixture(t)
+	meter := h.behind(h.org, "meter")
+	light := h.behind(h.hosted, "light")
+	h.run(time.Minute, tick)
+	died := h.now
+	h.tr.died(h.conn, h.direct, "gw", "", died)
+	h.run(3*time.Minute, tick)
+	h.expect("gateway opened death_certificate", "gateway opened death_certificate")
+	h.expectByOrganization("owner:opened:-:"+meter, "hosted:opened:owner:"+light)
+	for _, ev := range h.events {
+		if *ev.Subject.ConnectionUUID != h.conn || *ev.Subject.EdgeNodeID != "gw" {
+			t.Fatalf("subject %+v", ev.Subject)
+		}
+		at(t, ev.OfflineSince, died, "offline_since")
+	}
+	// The owner's episode keeps its key; the hosted one is keyed by its organization.
+	keys := []string{}
+	for key := range h.tr.gateways {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	if want := []string{"gateway:" + h.conn + "/gw", "gateway:" + h.conn + "/gw@" + h.hosted}; !slices.Equal(keys, want) {
+		t.Fatalf("keys %q, want %q", keys, want)
+	}
+	// Each organization's device is suppressed by its own episode and opens nothing of its own.
+	if !h.state(meter).SuppressedByGateway || !h.tr.state(h.hosted, []string{light}, h.now)[0].SuppressedByGateway {
+		t.Fatal("a device behind the offline gateway is not suppressed")
+	}
+	h.run(2*time.Hour, time.Minute)
+	h.expect("gateway opened death_certificate", "gateway opened death_certificate")
+
+	h.tr.heard(h.conn, h.direct, "gw", "", h.now)
+	h.report("gw", "meter", meter)
+	h.report("gw", "light", light)
+	h.run(3*time.Minute, tick)
+	h.expectByOrganization("owner:opened:-:"+meter, "hosted:opened:owner:"+light, "owner:cleared:-:"+meter, "hosted:cleared:owner:"+light)
+	// Two episodes of one gateway never share an event identity.
+	first := storage.ConnectivityEventUUID("gateway:"+h.conn+"/gw", 1, "opened")
+	if hosted := storage.ConnectivityEventUUID("gateway:"+h.conn+"/gw@"+h.hosted, 1, "opened"); hosted == first {
+		t.Fatal("the hosted episode reuses the owner's event identity")
+	}
+}
+
+func TestTheOwnersEpisodeBelongsToTheGatewaysOrganizationWhenItsFirstDeviceIsHosted(t *testing.T) {
+	h := newHostedFixture(t)
+	light := h.behind(h.hosted, "light")
+	meter := h.behind(h.org, "meter")
+	h.tr.died(h.conn, h.direct, "gw", "", h.now)
+	h.run(3*time.Minute, tick)
+	h.expectByOrganization("owner:opened:-:"+meter, "hosted:opened:owner:"+light)
+}
+
+func TestAGatewayServingOnlyHostedDevicesStaysItsOwners(t *testing.T) {
+	h := newHostedFixture(t)
+	one := h.behind(h.hosted, "one")
+	two := h.behind(h.hosted, "two")
+	h.tr.died(h.conn, h.direct, "gw", "", h.now)
+	h.run(3*time.Minute, tick)
+	affected := []string{one, two}
+	slices.Sort(affected)
+	h.expectByOrganization("hosted:opened:owner:" + strings.Join(affected, ","))
+}
+
+func TestOneOrganizationBehindAGatewayKeepsOneEpisodeWithoutAPipe(t *testing.T) {
+	h := newHostedFixture(t)
+	meter := h.behind(h.org, "meter")
+	light := h.behind(h.org, "light")
+	h.tr.died(h.conn, h.direct, "gw", "", h.now)
+	h.run(3*time.Minute, tick)
+	affected := []string{meter, light}
+	slices.Sort(affected)
+	h.expectByOrganization("owner:opened:-:" + strings.Join(affected, ","))
+	if raw := string(mustJSON(t, h.last())); strings.Contains(raw, "pipe_organization_uuid") {
+		t.Fatalf("an owner's event names a pipe: %s", raw)
+	}
+	if _, ok := h.tr.gateways["gateway:"+h.conn+"/gw"]; !ok || len(h.tr.gateways) != 1 {
+		t.Fatalf("gateways %v", h.tr.gateways)
+	}
+}
+
+func TestStoredGatewayEpisodesRestoreUnderTheirKeys(t *testing.T) {
+	offline := trackerStart.Add(-time.Hour)
+	opened := offline.Add(2 * time.Minute)
+	f := newTrackerFixture(t)
+	h := hostedFixture{trackerFixture: f, hosted: storage.UUID()}
+	meter, light := storage.UUID(), storage.UUID()
+	f.tr.load([]storage.ConnectivityRow{
+		{SubjectKey: "gateway:" + f.conn + "/gw", OrganizationUUID: f.org, Kind: "gateway", MonitoringSince: offline.Add(-time.Hour), HeardSinceMonitoring: true, Episode: 3, Open: true, Cause: causeDeath, OfflineSince: &offline, OpenedAt: &opened, AffectedDeviceUUIDs: []string{meter}},
+		{SubjectKey: "gateway:" + f.conn + "/gw@" + h.hosted, OrganizationUUID: h.hosted, Kind: "gateway", MonitoringSince: offline.Add(-time.Hour), HeardSinceMonitoring: true, Episode: 1, Open: true, Cause: causeDeath, OfflineSince: &offline, OpenedAt: &opened, AffectedDeviceUUIDs: []string{light}},
+	})
+	f.tr.organize(f.conn, f.org)
+	for device, organization := range map[string]string{meter: f.org, light: h.hosted} {
+		f.tr.define(devices.Definition{DeviceUUID: device, OrganizationUUID: organization, ConfigurationUUID: storage.UUID(), Source: devices.Source{ConnectionUUID: f.conn, GroupID: f.direct, EdgeNodeID: "gw", DeviceID: map[string]string{meter: "meter", light: "light"}[device]}}, f.now)
+		f.tr.configure(device, settingsWith(styleStaysConnected, 900), f.now)
+	}
+	f.run(time.Minute, tick)
+	f.expect()
+	f.tr.heard(f.conn, f.direct, "gw", "", f.now)
+	f.report("gw", "meter", meter)
+	f.report("gw", "light", light)
+	f.run(3*time.Minute, tick)
+	h.expectByOrganization("owner:cleared:-:"+meter, "hosted:cleared:owner:"+light)
+	if f.events[0].Episode != 3 || f.events[1].Episode != 1 {
+		t.Fatalf("episodes %d and %d", f.events[0].Episode, f.events[1].Episode)
+	}
+}
+
+func TestAnOrphanedHostedEpisodeStopsInItsOrganizationNamingThePipe(t *testing.T) {
+	offline := trackerStart.Add(-time.Hour)
+	f := newTrackerFixture(t)
+	hosted, light := storage.UUID(), storage.UUID()
+	f.tr.load([]storage.ConnectivityRow{{SubjectKey: "gateway:" + f.conn + "/gw@" + hosted, OrganizationUUID: hosted, Kind: "gateway", MonitoringSince: offline, HeardSinceMonitoring: true, Episode: 2, Open: true, Cause: causeSilence, OfflineSince: &offline, OpenedAt: &offline, AffectedDeviceUUIDs: []string{light}}})
+	f.tr.organize(f.conn, f.org)
+	f.run(tick, tick)
+	f.expect("gateway stopped definition_removed")
+	ev := f.last()
+	if ev.OrganizationUUID != hosted || *ev.Subject.EdgeNodeID != "gw" || ev.Subject.PipeOrganizationUUID == nil || *ev.Subject.PipeOrganizationUUID != f.org || ev.Episode != 2 {
+		t.Fatalf("orphaned hosted episode %+v %+v", ev, ev.Subject)
 	}
 }

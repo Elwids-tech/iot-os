@@ -11,6 +11,7 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\Pipes;
 use App\Domain\Notifications\Services\EventRecorder;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
@@ -22,6 +23,11 @@ use ValueError;
  * episode of a device, gateway or adapter source, keyed by `<subject_key>#<episode>`.
  * Pull request 2 records alerts, the event log and the audit trail and notifies
  * nobody: no deliveries, no bell notifications, no integration events.
+ *
+ * A hosted organization's gateway episode (spec 031, research R14) names the gateway's
+ * own organization in `subject.pipe_organization_uuid`. Its alert is the hosted
+ * organization's, keyed `gateway:<connection>/<edge>@<organization uuid>#<episode>`, with
+ * the pipe's gateway as its subject, which that organization sees by name only.
  */
 final class ConnectivityProjector
 {
@@ -29,7 +35,7 @@ final class ConnectivityProjector
 
     private const TRANSITIONS = ['opened', 'cleared', 'stopped'];
 
-    public function __construct(private readonly ConnectivitySettings $settings) {}
+    public function __construct(private readonly ConnectivitySettings $settings, private readonly Pipes $pipes) {}
 
     /**
      * Runs inside the runtime inbox transaction. Returns false when the organization has
@@ -47,8 +53,9 @@ final class ConnectivityProjector
         if (! $organization) {
             return false;
         }
-        // Every identity is resolved inside the event's organization (constitution III).
-        [$subject, $key] = $this->subject($organization, $payload['subject']);
+        // Every identity is resolved inside the event's organization (constitution III), or
+        // for a hosted gateway episode through Pipes, inside its billing account (ADR-039).
+        [$subject, $key] = $this->subject($organization, $payload['subject'], $payload['affected_device_uuids'] ?? []);
         if (! $subject) {
             return false;
         }
@@ -106,10 +113,17 @@ final class ConnectivityProjector
     /**
      * The subject record and its runtime key, or null when the organization has none.
      *
+     * @param  list<string>  $affected
      * @return array{0: ?Model, 1: string}
      */
-    private function subject(Organization $organization, array $subject): array
+    private function subject(Organization $organization, array $subject, array $affected): array
     {
+        $pipe = $subject['pipe_organization_uuid'] ?? null;
+        if ($pipe !== null) {
+            return [$subject['kind'] === 'gateway' ? $this->pipes->hostedGateway($organization, $pipe, $subject['connection_uuid'], $subject['edge_node_id'], $affected) : null,
+                'gateway:'.$subject['connection_uuid'].'/'.$subject['edge_node_id'].'@'.$organization->uuid];
+        }
+
         return match ($subject['kind']) {
             'device' => [Device::where('organization_id', $organization->id)->where('uuid', $subject['device_uuid'])->first(['id', 'uuid', 'name', 'organization_id']), 'device:'.$subject['device_uuid']],
             'gateway' => [SparkplugGateway::where('organization_id', $organization->id)->where('edge_node_id', $subject['edge_node_id'])

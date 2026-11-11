@@ -9,6 +9,7 @@ use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceOnboarding;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -156,8 +157,10 @@ final class DeviceController
         $updated = $this->configuration->locked($device, $revision, function ($locked) use ($request) {
             abort_if($locked->applied_configuration_uuid || $locked->desired_configuration_uuid || $locked->deployment_status === 'pending', 422, 'Deactivate the device and wait for runtime acknowledgement before archiving.');
             $locked->forceFill(['lifecycle' => 'archived', 'reserved_source_uuid' => null, 'draft_revision' => $locked->draft_revision + 1])->save();
-            // The adapter source is free for another device; the next deploy stops sending it (spec 031, R3).
+            // The source is free for another device: the next adapter deploy stops sending it,
+            // and a gateway source can be onboarded again (spec 031, R3 and R7).
             DeviceInstallation::end($locked, 'archived');
+            DeviceOnboarding::release($locked);
             app(DeviceLimit::class)->release($locked);
             DeviceAudit::record('device.archived', $locked->organization_id, $request->user()->id, $locked->uuid);
 

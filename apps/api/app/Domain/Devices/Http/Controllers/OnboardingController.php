@@ -71,7 +71,7 @@ final class OnboardingController
                 abort_unless($gateway->connection->status === 'ready', 422, 'The selected gateway connection must be provisioned first.');
                 abort_if($gateway->adapter !== null, 422, 'This gateway belongs to a device adapter. Activate its sources from the adapter.');
                 $source = $node ? '' : $v['source_device_id'];
-                abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->exists(), 409, $node
+                abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->whereNull('released_at')->exists(), 409, $node
                     ? 'This gateway\'s own metrics already have a setup. Resume its existing device.'
                     : 'This gateway device already has a setup. Resume its existing device.');
                 $candidate = DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $source)->first();

@@ -31,7 +31,7 @@ final class DeviceView
     public const ADAPTER_PAUSED = 'Adapter paused; offline alerts resume when it is resumed.';
 
     /** Relations DeviceView::device reads, for lists to eager-load. */
-    public const CONNECTIVITY = ['openConnectivityAlerts.subjectDevice:id,uuid,name', 'openConnectivityAlerts.subjectGateway:id,uuid,name', 'openConnectivityAlerts.subjectAdapter:id,uuid,name'];
+    public const CONNECTIVITY = ['openConnectivityAlerts.subjectDevice:id,uuid,name', 'openConnectivityAlerts.subjectGateway:id,uuid,name,organization_id', 'openConnectivityAlerts.subjectAdapter:id,uuid,name'];
 
     public static function presence(Device $device): string
     {
@@ -42,7 +42,7 @@ final class DeviceView
      * The open offline alert concerning a device (spec 018, D14): its own, or its
      * gateway's, newest first. Null when none is open.
      *
-     * @return ?array{uuid: string, kind: string, cause: ?string, since: ?string, subject: ?array{type: string, uuid: string, name: string}}
+     * @return ?array{uuid: string, kind: string, cause: ?string, since: ?string, subject: ?array{type: string, uuid: ?string, name: string}}
      */
     public static function offlineAlert(Device $device): ?array
     {
@@ -53,14 +53,7 @@ final class DeviceView
 
     private static function alert(Alert $alert): array
     {
-        $subject = match (true) {
-            $alert->subjectDevice !== null => ['type' => 'device', 'uuid' => $alert->subjectDevice->uuid, 'name' => $alert->subjectDevice->name],
-            $alert->subjectGateway !== null => ['type' => 'gateway', 'uuid' => $alert->subjectGateway->uuid, 'name' => $alert->subjectGateway->name],
-            $alert->subjectAdapter !== null => ['type' => 'adapter', 'uuid' => $alert->subjectAdapter->uuid, 'name' => $alert->subjectAdapter->name],
-            default => null,
-        };
-
-        return ['uuid' => $alert->uuid, 'kind' => $alert->kind, 'cause' => $alert->cause, 'since' => ($alert->offline_since ?? $alert->activated_at)?->toJSON(), 'subject' => $subject];
+        return ['uuid' => $alert->uuid, 'kind' => $alert->kind, 'cause' => $alert->cause, 'since' => ($alert->offline_since ?? $alert->activated_at)?->toJSON(), 'subject' => $alert->subjectSummary()];
     }
 
     /**

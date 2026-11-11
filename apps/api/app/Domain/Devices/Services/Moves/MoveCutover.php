@@ -17,6 +17,7 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Models\DeviceMove;
 use App\Domain\Devices\Models\DeviceMoveDevice;
+use App\Domain\Devices\Models\DeviceOnboarding;
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceConfigurationService;
@@ -38,7 +39,8 @@ use Throwable;
  * in the target from the predecessor's last applied configuration rewritten onto a copy
  * of its profile version, hands over the device-limit place, links the two, and ends
  * what does not move. Pipes stay: an adapter-fed successor gets a new installation on
- * the same adapter source, and each adapter is redeployed once after commit.
+ * the same adapter source, and each adapter is redeployed once after commit; a successor
+ * behind a gateway takes the same gateway source and activates against its live birth.
  */
 final class MoveCutover
 {
@@ -177,6 +179,8 @@ final class MoveCutover
         ] : null;
         $source = ['candidate' => $predecessor->device_discovery_candidate_id, 'reserved' => $predecessor->reserved_source_uuid];
         $installation = DeviceInstallation::end($predecessor, 'moved');
+        // A gateway source stays with its owner, who can onboard it again once no device holds it.
+        DeviceOnboarding::release($predecessor);
         $predecessor->forceFill(['lifecycle' => 'archived', 'reserved_source_uuid' => null, 'draft_revision' => $predecessor->draft_revision + 1, 'updated_by' => $mover->id])->save();
 
         $successor = Device::create([
@@ -213,16 +217,16 @@ final class MoveCutover
 
     /**
      * Ends the predecessors' open alerts as `device_moved`, and relabels the connectivity
-     * alerts their stop ended as `device_deactivated` during the move (research R7).
+     * alerts their stop ended as `device_deactivated` during the move (research R7). A
+     * gateway alert that still lists a device staying behind the gateway stays open.
      *
      * @param  Collection<int, int>  $ids
      */
     private function endAlerts(DeviceMove $move, Organization $source, Collection $ids): void
     {
-        $theirs = fn ($query) => $query->whereIn('subject_device_id', $ids)->orWhereHas('devices', fn ($q) => $q->whereIn('devices.id', $ids));
-        Alert::where('organization_id', $source->id)->whereNull('cleared_at')->where($theirs)
+        Alert::where('organization_id', $source->id)->whereNull('cleared_at')->endingWithMoved($ids)
             ->update(['cleared_at' => now(), 'stopped_reason' => Alert::STOPPED_DEVICE_MOVED]);
-        Alert::where('organization_id', $source->id)->where('stopped_reason', 'device_deactivated')->where('cleared_at', '>=', $move->confirmed_at)->where($theirs)
+        Alert::where('organization_id', $source->id)->where('stopped_reason', 'device_deactivated')->where('cleared_at', '>=', $move->confirmed_at)->endingWithMoved($ids)
             ->update(['stopped_reason' => Alert::STOPPED_DEVICE_MOVED]);
     }
 
