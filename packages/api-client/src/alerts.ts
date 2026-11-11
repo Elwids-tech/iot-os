@@ -8,7 +8,8 @@ export type AlertSubject = { type: "device" | "gateway" | "adapter"; uuid: strin
 /** Why a device connectivity alert opened (spec 018). */
 export type ConnectivityCause = "death_certificate" | "missed_check_in" | "gateway_offline" | "source_disconnected";
 /** Why monitoring ended an open connectivity alert; such an alert reads as cleared. */
-export type ConnectivityStopReason = "device_deactivated" | "monitoring_disabled" | "definition_removed";
+/** `device_moved`: the platform ended it when its device moved to another organization (spec 031). */
+export type ConnectivityStopReason = "device_deactivated" | "monitoring_disabled" | "definition_removed" | "device_moved";
 export type ConnectivityKind = Exclude<AlertKind, "workflow">;
 
 /** Fields every alert has. The connectivity fields are null (false, 0) on automation alerts. */

@@ -7,6 +7,7 @@ namespace App\Domain\Devices\Http\Controllers;
 use App\Domain\Audit\Services\ActivityChanges;
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Services\DeviceLimit;
+use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\Site;
@@ -157,6 +158,8 @@ final class DeviceController
         $updated = $this->configuration->locked($device, $revision, function ($locked) use ($request) {
             abort_if($locked->applied_configuration_uuid || $locked->desired_configuration_uuid || $locked->deployment_status === 'pending', 422, 'Deactivate the device and wait for runtime acknowledgement before archiving.');
             $locked->forceFill(['lifecycle' => 'archived', 'reserved_source_uuid' => null, 'draft_revision' => $locked->draft_revision + 1])->save();
+            // The adapter source is free for another device; the next deploy stops sending it (spec 031, R3).
+            DeviceInstallation::end($locked, 'archived');
             app(DeviceLimit::class)->release($locked);
             DeviceAudit::record('device.archived', $locked->organization_id, $request->user()->id, $locked->uuid);
 
@@ -253,7 +256,7 @@ final class DeviceController
         $values['limit'] ??= 500;
         $values['page_size'] ??= 50;
 
-        return app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]);
+        return DeviceReadings::forOwner($device, app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]));
     }
 
     public function stateHistory(Request $request, Organization $organization, Device $device)

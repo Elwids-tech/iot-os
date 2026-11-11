@@ -11,7 +11,7 @@ piece (plan § Delivery).
 | `id`, `uuid` | bigint, uuid unique | |
 | `operation_uuid` | uuid unique | Client idempotency key (R10) |
 | `request_hash` | char(64) | Same `operation_uuid` with another hash → 409 |
-| `source_organization_id`, `target_organization_id` | FK organizations, restrict | Differ; same billing account at confirmation and at cutover |
+| `source_organization_id`, `target_organization_id` | FK organizations, cascade | Differ; same billing account at confirmation and at cutover. Cascade satisfies the deletion inventory for a table without `organization_id`; an organization that took part in a move keeps a device, which blocks its deletion |
 | `billing_account_id` | FK billing_accounts | The account both belonged to at confirmation |
 | `mover_id` | FK users | Who confirmed |
 | `origin` | enum `devices`, `device`, `assistant` | Started from the device list, a device page, or an assistant card |
@@ -34,7 +34,7 @@ request.
 | `device_move_id` | FK cascade | |
 | `predecessor_device_id` | FK devices | Source device |
 | `successor_device_id` | FK devices nullable | Set at cutover |
-| `name`, `code` | string | Successor's; `code` unique in the target among non-archived devices at confirmation and cutover |
+| `name`, `code` | string | Successor's; `code` unique in the target at confirmation and cutover, archived devices included (the `devices` unique index), so a prefilled code the target uses becomes `<code>-2`, `-3`… |
 | `target_site_id` | FK sites nullable | Must be a target site |
 | `was_active` | bool | Predecessor lifecycle `active` at confirmation |
 | `arrives_active` | bool | `was_active` and mover holds `Device.activate` in the target (FR-008) |
@@ -74,7 +74,7 @@ An action needing a permission the mover lacks is not offered; the item falls ba
 | `id`, `uuid` | | |
 | `predecessor_device_id` | FK devices unique | |
 | `successor_device_id` | FK devices unique | |
-| `source_organization_id`, `target_organization_id` | FK organizations | |
+| `source_organization_id`, `target_organization_id` | FK organizations, cascade | As for moves |
 | `device_move_id` | FK nullable | Null leaves room for spec 016's transfers |
 | `cutover_at` | timestamptz | |
 | `history_included` | bool | From the move (PR 031-9) |
@@ -90,7 +90,7 @@ but history is read one link at a time (R18).
 | Column | Type | Notes |
 | --- | --- | --- |
 | `source_profile_id`, `source_artifact_id` | FK | The version a successor used |
-| `target_organization_id` | FK organizations | |
+| `target_organization_id` | FK organizations, cascade | |
 | `target_profile_id`, `target_artifact_id` | FK | The copy |
 | `parameter_map` | jsonb | `{source parameter uuid: target parameter uuid}` |
 | | unique `(source_artifact_id, target_organization_id)` | One copy per version and target (FR-011) |
@@ -140,7 +140,7 @@ pipe owner's views show `in_use_in` for a source whose device is hosted elsewher
   for a target outside it (FR-002).
 - 1–100 devices, all in the source and not archived. None has a pending deployment, a
   pending operation or an outstanding move (FR-004).
-- Successor codes unique in the target and among the move's devices. Names required.
+- Successor codes unique in the target, archived devices included, and among the move's devices. Names required.
   Target site in the target.
 - Before PR 031-5, every device reports through an adapter or has no source (R22).
   Before 031-7, no direct devices.

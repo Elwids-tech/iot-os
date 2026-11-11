@@ -15,6 +15,7 @@ use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 
 final class DeviceView
@@ -102,20 +103,27 @@ final class DeviceView
         $data['last_applied_configuration_uuid'] = $device->last_applied_configuration_uuid;
         $data['operation'] = $device->latestOperation ? self::operation($device->latestOperation) : null;
 
-        $data['candidate'] = $device->candidate ? self::candidate($device->candidate) : null;
+        $pipe = app(Pipes::class)->for($device);
+        $hosted = $pipe?->hosted ?? false;
+        $data['candidate'] = $device->candidate ? self::candidate($device->candidate, $hosted) : null;
+        // What it reports through, and where it moved (spec 031): a hosted device sees its pipe's summary only.
+        $data['pipe'] = $pipe?->toArray();
+        $data['link'] = self::link($device);
         $data['profile'] = self::profile($device);
         $data['site'] = self::site($device);
         $data['tags'] = $device->tags ?? [];
         $data['attributes'] = (object) ($device->custom_attributes ?? []);
         if ($detail) {
-            $data['installations'] = DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()->map(fn ($installation) => $installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']));
+            // A hosted device's installations are on another organization's adapter, whose revisions stay there.
+            $data['installations'] = DeviceInstallation::where('device_id', $device->id)->latest('started_at')->limit(20)->get()
+                ->map(fn ($installation) => [...$installation->only(['uuid', 'manufacturer_serial', 'adapter_revision_uuid', 'started_at', 'ended_at']), ...($installation->organization_id === $device->organization_id ? [] : ['adapter_revision_uuid' => null])]);
             $data['retention'] = app(RetentionService::class)->effective($device->organization);
             // Calendar totals such as "today" are cut in this zone for every viewer.
             $data['reporting_timezone'] = $device->reportingTimezone();
             $data['draft'] = $device->draft;
             $artifact = isset($device->draft['artifact_uuid']) ? DeviceProfileArtifact::where('uuid', $device->draft['artifact_uuid'])->first() : null;
             $data['draft_artifact'] = $artifact ? [...$artifact->only(['uuid', 'revision', 'definition_hash', 'definition', 'status', 'compiled_at']), 'profile_uuid' => $artifact->profile->uuid] : null;
-            $data['configurations'] = $device->configurations()->with('artifact.profile')->orderByDesc('revision')->get()->map(fn ($c) => self::configuration($c));
+            $data['configurations'] = $device->configurations()->with('artifact.profile')->orderByDesc('revision')->get()->map(fn ($c) => self::configuration($c, $hosted));
         }
 
         return $data;
@@ -141,12 +149,24 @@ final class DeviceView
         return $device->site ? $device->site->only(['uuid', 'name', 'timezone']) : null;
     }
 
-    public static function configuration(DeviceConfiguration $configuration): array
+    /**
+     * A configuration snapshot. A hosted device's snapshot names its source and its own
+     * installation, but not the pipe owner's connection, gateway or adapter (spec 031).
+     */
+    public static function configuration(DeviceConfiguration $configuration, bool $hosted = false): array
     {
         $artifact = $configuration->artifact;
+        $definition = $configuration->definition;
+        if ($hosted) {
+            $definition['source'] = array_intersect_key($definition['source'] ?? [], array_flip(['candidate_uuid', 'device_id']));
+            if (isset($definition['adapter'])) {
+                $definition['adapter'] = array_intersect_key($definition['adapter'], array_flip(['installation_uuid', 'manufacturer_serial']));
+            }
+        }
 
         return [
-            ...$configuration->only(['uuid', 'revision', 'definition_hash', 'definition', 'created_at']),
+            ...$configuration->only(['uuid', 'revision', 'definition_hash', 'created_at']),
+            'definition' => $definition,
             'profile_artifact_uuid' => $artifact?->uuid ?? ($configuration->definition['profile_artifact_uuid'] ?? null),
             'profile_uuid' => $artifact?->profile?->uuid,
             'profile_name' => $artifact?->profile?->name,
@@ -174,14 +194,55 @@ final class DeviceView
         return str_starts_with($gateway->connection->group_id, 'adapters-') ? $gateway->adapter : null;
     }
 
-    public static function candidate(DiscoveryCandidate $candidate): array
+    /**
+     * A discovered source. Its pipe owner sees, for a source in use in another
+     * organization, that organization's name only (`in_use_in`). A hosted device sees its
+     * source's metrics and birth revision, never the gateway or adapter behind it
+     * (spec 031, ADR-039).
+     */
+    public static function candidate(DiscoveryCandidate $candidate, bool $hosted = false): array
     {
-        $assigned = $candidate->assignedDevice?->uuid;
+        $fields = $candidate->only(['uuid', 'source_device_id', 'status', 'presence', 'session_id', 'birth_revision', 'metrics', 'last_seen_at']);
+        $assigned = $candidate->assignedDevice;
+        if ($hosted) {
+            return [...$fields, 'session_id' => null, 'assigned_device_uuid' => $assigned?->uuid, 'setup_device_uuid' => null, 'in_use_in' => null, 'gateway' => null, 'adapter' => null];
+        }
+        $elsewhere = $assigned !== null && $assigned->organization_id !== $candidate->organization_id;
 
-        return [...$candidate->only(['uuid', 'source_device_id', 'status', 'presence', 'session_id', 'birth_revision', 'metrics', 'last_seen_at']),
-            'assigned_device_uuid' => $assigned,
+        return [...$fields,
+            'assigned_device_uuid' => $elsewhere ? null : $assigned?->uuid,
             'setup_device_uuid' => $assigned ? null : $candidate->setupDevice()?->uuid,
+            'in_use_in' => $elsewhere ? self::inUseIn($assigned) : null,
             'gateway' => self::gateway($candidate->gateway), 'adapter' => self::adapterSource($candidate)];
+    }
+
+    /**
+     * Where a pipe owner's source is in use when its device is in another organization:
+     * that organization's name and nothing else of it.
+     *
+     * @return array{organization_name: string}
+     */
+    public static function inUseIn(Device $device): array
+    {
+        return ['organization_name' => (string) Organization::withTrashed()->whereKey($device->organization_id)->value('name')];
+    }
+
+    /**
+     * Where the device moved to, or moved from, with the other organization's name and the
+     * cutover time; null without a move. A device that moved on is shown as moved to.
+     *
+     * @return ?array{direction: string, organization_name: ?string, cutover_at: string}
+     */
+    public static function link(Device $device): ?array
+    {
+        $to = $device->movedTo;
+        $link = $to ?? $device->movedFrom;
+        if (! $link) {
+            return null;
+        }
+        $other = Organization::withTrashed()->whereKey($to ? $link->target_organization_id : $link->source_organization_id)->value('name');
+
+        return ['direction' => $to ? 'moved_to' : 'moved_from', 'organization_name' => $other, 'cutover_at' => $link->cutover_at->toJSON()];
     }
 
     /**

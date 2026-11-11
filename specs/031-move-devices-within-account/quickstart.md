@@ -56,7 +56,8 @@ tests that ran. For PRs that change the runtime or contracts, also run
      cutover.
    - Y and Z keep reporting.
    - The adapter restarted once.
-3. As `b-only`, every one of these is 404:
+3. As `b-only`, every one of these is 404 through B's routes (A's own routes answer
+   403, as they do for any non-member):
    - A's adapter, its credentials, deliveries and Discovery;
    - A's gateway list, and the adapter's gateway route.
    B's X shows **Moved from A**, the cutover time, and **Adapter: *name* (A)** with
@@ -67,7 +68,8 @@ tests that ran. For PRs that change the runtime or contracts, also run
    device-moves/preview` naming A or B as the target gets 404.
 6. The account's device count and this month's peak are the same before and after the
    move (SC-006). Read them on the admin app's billing account page.
-7. Move B's X back to A. It is an ordinary device in A again (no `pipe.hosted`).
+7. Move B's X back to A. It is an ordinary device in A again (no `pipe.hosted`). Its
+   code is prefilled as `<code>-2`, because A's archived X keeps its code.
 
 ## 3. Refusals and races (US1)
 

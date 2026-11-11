@@ -57,6 +57,7 @@ describe("status vocabulary", () => {
     expect(statusOf("missed_check_in", "offline_cause")).toEqual({ tone: "critical", label: "Missed check-in" })
     expect(statusOf("source_disconnected", "offline_cause").label).toBe("Connection lost")
     expect(statusOf("device_deactivated", "offline_stop").label).toBe("Device deactivated")
+    expect(statusOf("device_moved", "offline_stop").label).toBe("Device moved")
     expect(statusOf("stopped", "alert")).toEqual({ tone: "muted", label: "Stopped" })
     expect(statusOf("learning", "connectivity")).toEqual({ tone: "info", label: "Learning how often it reports" })
     expect(statusOf("waiting", "connectivity").label).toBe("Waiting for first report")

@@ -52,14 +52,14 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 ### Phase 2: Foundation (blocks every story)
 
-- [ ] T004 `Devices/Permissions/DevicePermission.php`: case `Move = 'Device.move'`. Migration `migrations/2026_11_XX_000001_add_device_move_permission.php`:
+- [x] T004 `Devices/Permissions/DevicePermission.php`: case `MOVE = 'Device.move'` (upper case, as the enum's other cases). Migration `migrations/2026_11_XX_000001_add_device_move_permission.php`:
   - create the permission for every guard but `mcp`, as `PermissionSeeder` does;
   - reconcile every organization's Admin role through `OrganizationPermissionCeiling::reconcile()`, following `Dashboards/Services/DashboardPermissionBackfill.php`;
   - leave restricted ceilings without it (research R9);
   - give no other role the permission.
 
-  Label **Move devices to another organization** in `packages/ui/src/lib/permission-labels.ts`; `move` in `DeviceCapabilities` in `packages/api-client/src/devices.ts`; `Shared/Http/Resources/OrganizationResource.php` exposes it. `tests/Devices/DeviceMovePermissionTest.php` (FR-062): after the backfill, Organization Admin of an unrestricted organization holds it; Moderator and Member don't; a restricted ceiling and its Admin are unchanged; no other permission of any role changes
-- [ ] T005 Migration `migrations/2026_11_XX_000002_create_device_moves.php` with `device_moves`, `device_move_devices` and `device_links`, exactly as in data-model.md:
+  The backfill lives in `Devices/Services/DeviceMovePermissionBackfill.php`, so the test can run it. Label **Move devices to another organization** in `packages/ui/src/lib/permission-labels.ts`; `move` in `DeviceCapabilities` in `packages/api-client/src/devices.ts`; `Shared/Http/Resources/OrganizationResource.php` exposes it with no change, because `DeviceAuthorization::capabilities` lists every case. `tests/Devices/DeviceMovePermissionTest.php` (FR-062): after the backfill, Organization Admin of an unrestricted organization holds it; Moderator and Member don't; a restricted ceiling and its Admin are unchanged; no other permission of any role changes
+- [x] T005 Migration `migrations/2026_11_XX_000002_create_device_moves.php` with `device_moves`, `device_move_devices` and `device_links`, exactly as in data-model.md:
   - `operation_uuid` "uuid unique";
   - `status` enum "`stopping`, `completed`, `failed`";
   - `origin` enum "`devices`, `device`, `assistant`";
@@ -69,46 +69,48 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - `device_links.predecessor_device_id` and `successor_device_id` each unique;
   - `history_stopped_reason` enum "`stopped`, `left_account` nullable".
 
-  Models `Devices/Models/{DeviceMove,DeviceMoveDevice,DeviceLink}.php` with casts and relations
-- [ ] T006 Migration `migrations/2026_11_XX_000003_end_device_installations.php`:
+  Models `Devices/Models/{DeviceMove,DeviceMoveDevice,DeviceLink}.php` with casts and relations. Organization keys cascade, as `OrganizationDeletionInventoryTest` requires of tables without `organization_id`; deletion is blocked anyway while either side holds a device. `device_move_proposal_id` waits for PR 031-10
+- [x] T006 Migration `migrations/2026_11_XX_000003_end_device_installations.php`:
   - `device_installations.ended_reason` enum "`archived`, `moved` nullable";
   - drop the unique index on `device_adapter_candidate_id` and create a partial unique index "`WHERE ended_at IS NULL`";
   - backfill `ended_at = now()`, `ended_reason = 'archived'` for installations whose device is archived.
-- [ ] T007 Migration `migrations/2026_11_XX_000004_create_device_profile_copies.php`:
+- [x] T007 Migration `migrations/2026_11_XX_000004_create_device_profile_copies.php`:
   - unique "`(source_artifact_id, target_organization_id)`";
   - index "`(source_profile_id, target_organization_id)`";
   - `parameter_map` jsonb.
 
   Model `DeviceProfiles/Models/DeviceProfileCopy.php`
-- [ ] T008 `Devices/Services/Pipes.php` (research R2):
+- [x] T008 `Devices/Services/Pipes.php` (research R2):
   - `for(Device): ?Pipe`: kind `adapter|gateway`, name, owner organization, online, hosted. The adapter comes from the device's open installation; the gateway from the candidate's gateway when it isn't the device's own (direct) gateway.
   - `allowsSource(Device, string $candidateUuid): DiscoveryCandidate`. It accepts the device's organization, or the device's current `device_discovery_candidate_id` when the candidate's organization is in the device's billing account. Otherwise 404.
-  - `hostedIn(Organization)` (non-archived devices hosted on another organization's pipe) and `servedBy(Organization)` (non-archived devices of other organizations on this organization's pipes, grouped by organization).
-- [ ] T009 `Devices/Services/DeviceConfigurationService.php`: line 49's organization-scoped candidate lookup becomes `Pipes::allowsSource`, still `lockForUpdate`. `deactivate()` gains `bool $keepPlace = false`, which skips `DeviceLimit::release`
-- [ ] T010 [P] `tests/Devices/PipesTest.php`. Accepted: own source; the held foreign source in the same account. Refused (404): a foreign source not held; a held source after its organization moves to another account. `for()` covers adapter-fed, gateway and direct devices
-- [ ] T011 Installations end (research R3):
+  - `hostedIn(Organization)` (non-archived devices hosted on another organization's pipe) and `servedBy(Organization)` (non-archived devices of other organizations on this organization's pipes, grouped by organization). A source's organization is the pipe owner, so both compare the device's organization with its source's.
+  - `crossings(Organization)` and `ensureCanLeave(Organization)` combine them with stopping moves for T026.
+  - A direct device is one whose source's gateway is on an `onboarding-` connection.
+- [x] T009 `Devices/Services/DeviceConfigurationService.php`: line 49's organization-scoped candidate lookup becomes `Pipes::allowsSource`, still `lockForUpdate`. `deactivate()` gains `bool $keepPlace = false`, which skips `DeviceLimit::release`
+- [x] T010 [P] `tests/Devices/PipesTest.php`. Accepted: own source; the held foreign source in the same account. Refused (404): a foreign source not held; a held source after its organization moves to another account. `for()` covers adapter-fed, gateway and direct devices
+- [x] T011 Installations end (research R3):
   - `Devices/Http/Controllers/DeviceController.php` `archive` ends the device's open installation with `archived` in the same transaction.
-  - `DeviceAdapters/Services/AdapterService.php`: `bindings` sends only installations with `ended_at IS NULL`; `activate()` takes a target device instead of always creating it in `$adapter->organization_id`; the installation keeps `organization_id` = the adapter's organization.
+  - `DeviceAdapters/Services/AdapterService.php`: deploy bindings already sent only installations with `ended_at IS NULL`. Creating an installation moves into `install(candidate, adapter, device, actor)`, which the cutover calls for the successor; the installation keeps `organization_id` = the adapter's organization. `activate()` choosing another organization waits for PR 031-8, which also copies the profile. `AdapterCandidate::installation()` is the open installation, and activating a source in use in another organization is refused naming it.
   - Add `AdapterService::redeployOnce(array $adapterIds)` for moves.
-- [ ] T012 [P] `tests/DeviceAdapters/InstallationLifecycleTest.php`:
+- [x] T012 [P] `tests/DeviceAdapters/InstallationLifecycleTest.php`:
   - archiving ends the installation and frees the source;
   - a new device can be activated on it, with the old installation kept;
   - deploy bindings exclude ended installations;
   - the backfill ends installations of archived devices only.
-- [ ] T013 `DeviceProfiles/Services/ProfileCopier.php` (research R5): `copy(DeviceProfileArtifact $source, Organization $target): DeviceProfileCopy`.
+- [x] T013 `DeviceProfiles/Services/ProfileCopier.php` (research R5): `copy(DeviceProfileArtifact $source, Organization $target): DeviceProfileCopy`.
   - Reuse the existing row for "`(source_artifact_id, target_organization_id)`".
   - Find or create the target profile through other rows with the same `source_profile_id`; its code is the source code, or `<code>-2`, `-3`… when the code is taken.
-  - Rebuild parameters (reusing the target row per `key`), groups, calculations and alarm templates from the artifact's canonical definition, then publish through `DeviceProfiles/Actions/PublishDeviceProfile.php`.
+  - Rebuild parameters (reusing the target row per `key`), calculations and alarm templates (by `code`) from the artifact's canonical definition, then publish through `DeviceProfiles/Actions/PublishDeviceProfile.php`. Groups and parameter descriptions are not in the canonical definition, so they come from the source profile as it is now.
   - Store `parameter_map`.
   - `codeFor(source, target)` previews the code without writing.
-- [ ] T014 [P] `tests/DeviceProfiles/ProfileCopierTest.php`:
+- [x] T014 [P] `tests/DeviceProfiles/ProfileCopierTest.php`:
   - for every profile fixture, the copied artifact's canonical definition equals the source's with the parameter map applied;
   - a second copy of the same version reuses the row;
   - a later version reuses the target profile and its parameter UUIDs per key;
   - a code clash gets `-2`;
   - a profile of organization C is never visible to A or B.
-- [ ] T015 `Billing/Services/DeviceLimit.php` `transfer(Device $from, Device $to)`: inside the caller's transaction, set `$to->limit_place_at = $from->limit_place_at` and clear `$from`'s, with no claim, no peak write and no limit check. `tests/Billing/DeviceLimitTransferTest.php`: at the limit a transfer succeeds, and the count and `billing_device_peaks` are unchanged
-- [ ] T016 `Audit/Services/ActivityCatalogue.php`: `device_move.started`, `device_move.completed`, `device_move.failed`, `device.moved_out`, `device.moved_in`, with labels and the `device_move` kind prefix
+- [x] T015 `Billing/Services/DeviceLimit.php` `transfer(Device $from, Device $to)`: inside the caller's transaction, set `$to->limit_place_at = $from->limit_place_at` and clear `$from`'s, with no claim, no peak write and no limit check. `tests/Billing/DeviceLimitTransferTest.php`: at the limit a transfer succeeds, and the count and `billing_device_peaks` are unchanged
+- [x] T016 `Audit/Services/ActivityCatalogue.php`: `device_move.started`, `device_move.completed`, `device_move.failed`, `device.moved_out`, `device.moved_in`, with labels and the `device_move` kind prefix
 
 **Checkpoint**: hosted sources, ending installations, profile copies and place transfers exist; nothing calls them yet; the existing suite passes unchanged (SC-007).
 
@@ -118,36 +120,36 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart sections 2 (through the API) and 3.
 
-- [ ] T017 [US1] `Devices/Services/Moves/MoveTargets.php` and `GET device-move-targets` (contract § Targets):
+- [x] T017 [US1] `Devices/Services/Moves/MoveTargets.php` and `GET device-move-targets` (contract § Targets):
   - lists other organizations of the source's billing account where the person is a member with `Device.move`, checked with `DeviceAuthorization::capabilities`;
   - adds `new_organization.billing_account_uuid` only for an owner with room under the `Organizations` allowance (`OwnerOrganizations` rules).
-- [ ] T018 [US1] `Devices/Services/Moves/MovePreview.php` (contract § Review): for 1–100 devices of the source, build the review:
+- [x] T018 [US1] `Devices/Services/Moves/MovePreview.php` (contract § Review): for 1–100 devices of the source, build the review:
   - Blockers:
     - archived;
     - `deployment_status = pending` or a pending `device_operations` row: "Waiting for the runtime";
     - an `outstanding_key`: "Already being moved";
     - before PR 031-5, a source on a non-adapter gateway: "Devices behind a gateway can't be moved yet";
     - before 031-7, a direct device: "Directly connected devices can't be moved yet".
-  - Successor names and codes: prefilled; codes unique in the target and in the move; the site must be the target's.
+  - Successor names and codes: prefilled; codes unique in the target and in the move; the site must be the target's. Codes are unique per organization among all devices, archived ones included, so a prefilled code the target already uses becomes `<code>-2`, `-3`… (a device moved back meets its archived predecessor's code); a code the person chose that the target uses is a blocker.
   - `reports_through` from `Pipes::for`.
   - `arrives_active` (FR-008).
   - Endings: open alerts, geofence assignments, application grants.
   - `profile_copies` with `ProfileCopier::codeFor`.
   - `pipe_owner_sees_raw_messages`.
-  - Dashboards and automations using the devices, listed with action `keep` only (research R22).
+  - Dashboards and automations using the devices stay: `items` is empty until PR 031-4, as the contract says, and a `summary` sentence counts those that stay (research R22).
   - `summary` sentences.
   - `preview_hash` (sha256 of the canonical review).
 
   It changes nothing.
-- [ ] T019 [US1] `Devices/Services/Moves/MoveRequests.php` `confirm` (research R1, R10):
+- [x] T019 [US1] `Devices/Services/Moves/MoveRequests.php` `confirm` (research R1, R10). The fresh review is checked before the blockers, so the second of two racing movers always gets 409. A device in a stopping move takes no other change (409 from `DeviceConfigurationService::locked` and `DeviceLifecycleService::request`):
   - `operation_uuid` plus a request hash: the same request returns the same move, a different body gets 409.
   - Lock both organizations and re-check: same billing account (else 404), `Device.move` in both, `preview_hash` (409 with a fresh review when stale), blockers (422).
   - Create the move, its devices and `outstanding_key`s.
   - For each active device call `DeviceConfigurationService::deactivate(keepPlace: true)` and store `stop_operation_uuid`.
   - Record `device_move.started` in both organizations.
   - With no active device, call `MoveCutover` in the same request.
-- [ ] T020 [US1] `Devices/Http/Controllers/RuntimeController.php` `apply`: when an acknowledged or failed operation is a move's `stop_operation_uuid`, update the move device's `state` and dispatch `Devices/Jobs/ContinueDeviceMove.php` after commit. The job locks the move and returns unless it is `stopping` with every device stopped; it then calls `MoveCutover`, and on any refused stop it calls `MoveFailure`
-- [ ] T021 [US1] `Devices/Services/Moves/MoveCutover.php`, one transaction (FR-007, research R1, R4, R6, R7):
+- [x] T020 [US1] `Devices/Http/Controllers/RuntimeController.php` `apply`: when an acknowledged or failed operation is a move's `stop_operation_uuid`, update the move device's `state` and dispatch `Devices/Jobs/ContinueDeviceMove.php` after commit. The job locks the move and returns unless it is `stopping` with every device stopped; it then calls `MoveCutover`, and on any refused stop it calls `MoveFailure`
+- [x] T021 [US1] `Devices/Services/Moves/MoveCutover.php`, one transaction (FR-007, research R1, R4, R6, R7):
   1. Lock both organizations; re-check the account and permissions (on failure call `MoveFailure`).
   2. `ProfileCopier::copy` per distinct artifact.
   3. Per device:
@@ -165,23 +167,23 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   After commit:
   - `AdapterService::redeployOnce` for the adapters involved;
   - stop the source organization's running captures on the moved sources through `RuntimeClient`, best effort.
-- [ ] T022 [US1] `Devices/Services/Moves/MoveFailure.php`:
-  - resume each device the move stopped, through `DeviceLifecycleService::request(active)` as the system, with `DeviceLimit::retake`;
+- [x] T022 [US1] `Devices/Services/Moves/MoveFailure.php`:
+  - resume each device the move stopped, through `DeviceLifecycleService::request(active)` as the system (`actor_id` null), with `DeviceLimit::retake`; a device whose stop the runtime has not answered stays in the move and is resumed when its acknowledgement arrives (`ContinueDeviceMove` on a failed move);
   - set `failed` with a plain `failure_reason` and clear the `outstanding_key`s;
   - record `device_move.failed` in both organizations.
-- [ ] T023 [US1] `Automation/Services/AlertQuery.php` and `Automation/Services/ConnectivityProjector.php`: `device_moved` is a stop reason with label **Device moved** (add a migration if `automation_alerts.stopped_reason` is constrained to a list); a later runtime transition for an alert already stopped is ignored
-- [ ] T024 [US1] `Devices/Http/Controllers/DeviceMoveController.php` (`targets`, `preview`, `store`, `show`) and routes in `Devices/routes/api.php` with `whereUuid` constraints. `Devices/Services/Moves/MoveView.php` shows each side only its own uuids and the other organization's name (contract § Move)
-- [ ] T025 [US1] `Devices/Services/DeviceView.php` and `Devices/Services/DeviceDirectory.php` (research R8):
+- [x] T023 [US1] `Automation/Services/AlertQuery.php` and `Automation/Services/ConnectivityProjector.php`: `device_moved` is a stop reason with label **Device moved** (add a migration if `automation_alerts.stopped_reason` is constrained to a list); a later runtime transition for an alert already stopped is ignored. `stopped_reason` is a free string, so no migration; the label is in the kit's `offline_stop` map (`packages/ui/src/lib/status.ts`), and `AlertProjector` ignores late workflow transitions the same way
+- [x] T024 [US1] `Devices/Http/Controllers/DeviceMoveController.php` (`targets`, `preview`, `store`, `show`) and routes in `Devices/routes/api.php` with `whereUuid` constraints. `Devices/Services/Moves/MoveView.php` shows each side only its own uuids and the other organization's name (contract § Move)
+- [x] T025 [US1] `Devices/Services/DeviceView.php` and `Devices/Services/DeviceDirectory.php` (research R8). A hosted device's configuration snapshots also drop the pipe's connection, edge node and adapter UUIDs, and its installations' `adapter_revision_uuid` is null. `packages/api-client` types the device's candidate as `DeviceCandidate` (nullable `gateway`), and the portal's device views tolerate it without new UI:
   - `link` (direction, other organization's name, `cutover_at`);
   - `pipe` (kind, name, owner name, online, hosted);
   - for hosted devices, `candidate.gateway` and the adapter reference are null, while metrics and `birth_revision` stay;
   - `candidate.in_use_in` replaces `assigned_device_uuid` when the device is in another organization.
 
   `DeviceAdapters/Http/AdapterController.php` (Sources, `:150-155`) embeds `in_use_in` instead of the full device for hosted devices
-- [ ] T026 [US1] Leaving and deletion guards (FR-061, research R17):
+- [x] T026 [US1] Leaving and deletion guards (FR-061, research R17):
   - `Billing/Services/BillingAccounts.php` `move` refuses 409 while `Pipes::hostedIn` or `Pipes::servedBy` is non-empty, or a move involving the organization is `stopping`, listing devices per organization.
   - `Administration/Services/OrganizationDeletion.php` gains a `hosted_devices` blocker.
-- [ ] T027 [P] [US1] `tests/Devices/Moves/MovePreviewTest.php`:
+- [x] T027 [P] [US1] `tests/Devices/Moves/MovePreviewTest.php`:
   - every blocker;
   - code clash in the target and inside the move;
   - foreign site;
@@ -190,7 +192,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - an owner with room gets `new_organization`, a non-owner doesn't;
   - C as target is 404;
   - the review changes nothing.
-- [ ] T028 [P] [US1] `tests/Devices/Moves/MoveCutoverTest.php` with a faked runtime (`Http::fake`) and a simulated adapter:
+- [x] T028 [P] [US1] `tests/Devices/Moves/MoveCutoverTest.php` with a faked runtime (`Http::fake`) and a simulated adapter:
   - an active adapter-fed device: stop, acknowledge, cutover;
   - predecessor archived with its link and its readings untouched; successor with copied profile, rewritten mappings, new installation and activation queued;
   - one redeploy per adapter;
@@ -201,41 +203,41 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - moving it onward from B to a third organization D of the account keeps it on A's adapter, hosted in D;
   - a B member saves and activates a new configuration of the hosted device on its held source (US1 AS9);
   - a hosted device archived in B frees the source in A's Discovery.
-- [ ] T029 [P] [US1] `tests/Devices/Moves/MoveFailureTest.php`:
+- [x] T029 [P] [US1] `tests/Devices/Moves/MoveFailureTest.php`:
   - a refused stop fails the move and resumes the others;
   - the mover losing `Device.move` before cutover fails it;
   - the organization moving to another account before cutover fails it;
   - nothing in the target remains;
   - the device limit and peak are unchanged.
-- [ ] T030 [P] [US1] `tests/Devices/Moves/MoveConcurrencyTest.php` (with `ForksProcesses`):
+- [x] T030 [P] [US1] `tests/Devices/Moves/MoveConcurrencyTest.php` (with `ForksProcesses`):
   - two movers confirm the same device: one move, the other 409 with no change;
   - a repeated `operation_uuid` returns the same move, and a changed body gets 409;
   - a stale `preview_hash` gets 409.
-- [ ] T031 [P] [US1] `tests/Devices/Moves/MoveBillingTest.php`:
+- [x] T031 [P] [US1] `tests/Devices/Moves/MoveBillingTest.php`:
   - at the account's device limit an active device moves and arrives active;
   - the count and `billing_device_peaks` are unchanged (SC-006);
   - an organization with hosted devices can't leave the account or be deleted, and the refusal lists them.
-- [ ] T032 [P] [US1] `tests/Devices/Moves/MoveEndingsTest.php`:
+- [x] T032 [P] [US1] `tests/Devices/Moves/MoveEndingsTest.php`:
   - open alerts on the predecessor end as `device_moved`;
   - unsent commands cancelled and possibly sent ones uncertain;
   - geofence assignments removed;
   - application grants stay on the predecessor and still read its history;
   - a source dashboard using the predecessor still saves unchanged and reads its history up to cutover (SC-003);
   - offline alerts of a hosted adapter-fed device are stored in B (FR-026).
-- [ ] T033 [US1] `tests/Devices/Moves/DeviceMoveIsolationTest.php` (FR-060, SC-005). As a B-only member, every one of these is 404:
+- [x] T033 [US1] `tests/Devices/Moves/DeviceMoveIsolationTest.php` (FR-060, SC-005). As a B-only member, every one of these is 404:
   - A's adapter, credentials, decoder (revisions), deliveries, poll runs, sources, Discovery, gateways, captures and the adapter's gateway route.
 
   As an A-only member:
   - the successor and its readings are 404;
   - A's adapter Sources and Discovery show `in_use_in` only.
 
-  As C, every move route and review naming A or B is 404. After cutover no reading for the device is stored for A (faked runtime ledger assertion). A held foreign source can't be swapped for another of A's sources through the draft (404)
-- [ ] T034 [US1] `packages/api-client/src/deviceMoves.ts` (`deviceMoveTargets`, `previewDeviceMove`, `createDeviceMove`, `deviceMove`) and the `link`, `pipe` and `in_use_in` types in `packages/api-client/src/devices.ts`. Run `php artisan contract:export` with examples for the four operations and the device additions; `contract:export --check` passes
+  As C, every move route and review naming A or B is 404 through C's own routes; A's and B's own routes answer 403 to non-members, as every organization route does (`ResolveOrganizationContext`). The same holds for the B-only and A-only cases above: through one's own organization the other's records are 404. After cutover no reading for the device is stored for A (faked runtime ledger assertion). A held foreign source can't be swapped for another of A's sources through the draft (404)
+- [x] T034 [US1] `packages/api-client/src/deviceMoves.ts` (`deviceMoveTargets`, `previewDeviceMove`, `createDeviceMove`, `deviceMove`) and the `link`, `pipe` and `in_use_in` types in `packages/api-client/src/devices.ts`. Run `php artisan contract:export` with examples for the four operations and the device additions; `contract:export --check` passes
 
 ### Phase 4: PR 031-1 documentation and verification
 
-- [ ] T035 `docs/dev/gotchas.md`: archiving ends adapter installations; parameter UUIDs are global, so copies need a map. `docs/reference/api.md` route table
-- [ ] T036 Rebuild api and workers; run quickstart sections 1, 2 (steps through the API) and 3, including the successor's readings arriving within one minute (SC-002) and a timed 100-device review under 2 s (plan, Performance Goals); record the results in the PR; leak scan; open PR 031-1 against `main`
+- [x] T035 `docs/dev/gotchas.md`: archiving ends adapter installations; parameter UUIDs are global, so copies need a map. `docs/reference/api.md` route table
+- [x] T036 Rebuild api and workers; run quickstart sections 1, 2 (steps through the API) and 3, including the successor's readings arriving within one minute (SC-002) and a timed 100-device review under 2 s (plan, Performance Goals); record the results in the PR; leak scan; open PR 031-1 against `main`
 
 **Checkpoint**: PR 031-1 merged. PR 031-2 can start.
 

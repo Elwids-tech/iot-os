@@ -28,6 +28,9 @@ final class DeviceDirectory
      */
     public const STATUSES = ['online', 'offline', 'unseen', 'unknown', 'unconfigured', 'updating', 'failed', 'deactivated', 'archived', 'offline_alert'];
 
+    /** The adapter columns a row's pipe needs (spec 031). */
+    private const ADAPTER = 'id,uuid,name,status,organization_id,sparkplug_gateway_id';
+
     /** Alert kinds that show a device offline; a lost vendor connection shows it unknown. */
     private const OFFLINE_KINDS = [Alert::DEVICE_OFFLINE, Alert::GATEWAY_OFFLINE];
 
@@ -37,7 +40,7 @@ final class DeviceDirectory
      */
     public function query(Organization $organization, array $filters): Builder
     {
-        return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.gateway.adapter:id,uuid,name,sparkplug_gateway_id', 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'openInstallation.candidate.adapter:id,status', ...DeviceView::CONNECTIVITY])
+        return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.gateway.adapter:'.self::ADAPTER, 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'organization', 'openInstallation.candidate.adapter:'.self::ADAPTER, 'openInstallation.candidate.adapter.gateway', 'movedTo', 'movedFrom', ...DeviceView::CONNECTIVITY])
             ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
             // Devices reach a gateway through the source they were configured from.
             ->when($filters['gateway_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('candidate.gateway', fn ($gateway) => $gateway->where('organization_id', $organization->id)->where('uuid', $uuid)))

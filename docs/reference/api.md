@@ -72,6 +72,7 @@ pull requests.
 | Path segment | Domain | Feature |
 | --- | --- | --- |
 | `devices`, `device-onboardings`, `sites`, `settings/timezone`, `sparkplug-connections`, `gateways`, `discovery-candidates`, `telemetry-captures`, `runtime-status` | `Devices` | [devices](../features/devices.md#api) |
+| `device-move-targets`, `device-moves` | `Devices` | [spec 031 contract](../../specs/031-move-devices-within-account/contracts/platform-api.md) |
 | `device-profiles` | `DeviceProfiles` | [device profiles](../features/device-profiles.md#api) |
 | `device-adapters`, `device-adapter-profiles` | `DeviceAdapters` | [adapters](../features/adapters.md#api-and-permissions) |
 | `workflows`, `workflows/dag/…` | `Automation` | [automation](../features/automation.md#api) |

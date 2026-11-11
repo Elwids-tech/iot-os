@@ -33,7 +33,8 @@ final class AlertProjector
         $alert = Alert::whereKey($alert->id)->lockForUpdate()->firstOrFail();
         $active = $transition['type'] === 'activated';
         $column = $active ? 'activation_transition_id' : 'clear_transition_id';
-        if ($alert->$column !== null) {
+        // Laravel ended it when its device moved (spec 031); the runtime's late transitions change nothing.
+        if ($alert->$column !== null || $alert->stopped_reason === Alert::STOPPED_DEVICE_MOVED) {
             return;
         }
         $alert->update([$column => $transition['id'], $active ? 'activated_at' : 'cleared_at' => $transition['occurred_at']]);

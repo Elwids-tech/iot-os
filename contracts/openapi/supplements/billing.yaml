@@ -15,6 +15,29 @@ components:
         affected_accounts:
           type: integer
           description: The billing accounts on the plan now. Send it back as `confirm_affected` to apply the change to all of them.
+    HostedDevicesAcrossOrganizations:
+      type: object
+      description: The organization can't leave its billing account (spec 031, FR-061) while devices report through another organization's pipe, other organizations' devices report through its pipes, or a move is stopping. Each entry names the other organization and the devices.
+      required: [message, hosted_devices]
+      properties:
+        message:
+          type: string
+        hosted_devices:
+          type: object
+          required: [organizations]
+          properties:
+            organizations:
+              type: array
+              items:
+                type: object
+                required: [name, devices]
+                properties:
+                  name:
+                    type: string
+                  devices:
+                    type: array
+                    items:
+                      type: string
     RetentionNeedsConfirmation:
       type: object
       required: [message, retention]
@@ -172,11 +195,13 @@ operations:
   PUT /v1/admin/organizations/{organization}/billing-account:
     responses:
       '409':
-        description: The change shortens organizations' telemetry retention (spec 029 US4). Send `confirm_retention` true to apply it; history older than the new period is deleted only after the grace period. Nothing was changed.
+        description: Nothing was changed. Either the change shortens organizations' telemetry retention (spec 029 US4), so send `confirm_retention` true to apply it (history older than the new period is deleted only after the grace period), or the organization has devices hosted across organizations of its billing account or a device move in progress (spec 031), listed per other organization in `hosted_devices`, which must be moved or archived first.
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RetentionNeedsConfirmation'
+              anyOf:
+                - $ref: '#/components/schemas/RetentionNeedsConfirmation'
+                - $ref: '#/components/schemas/HostedDevicesAcrossOrganizations'
   PUT /v1/admin/billing/settings:
     responses:
       '409':

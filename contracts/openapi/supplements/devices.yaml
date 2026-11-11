@@ -4,6 +4,235 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    DeviceMoveTargets:
+      type: object
+      description: Where the person may move the organization's devices (spec 031). `data` lists the other organizations of its billing account where they hold `Device.move`, and nothing else of the account. `new_organization` is present only for an owner of the account with room under its organization limit; the organization is then created with `POST /v1/billing-accounts/{account}/organizations`.
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [uuid, name]
+            properties:
+              uuid:
+                type: string
+                format: uuid
+              name:
+                type: string
+        new_organization:
+          type: object
+          required: [billing_account_uuid]
+          properties:
+            billing_account_uuid:
+              type: string
+              format: uuid
+    DeviceMoveReview:
+      type: object
+      description: What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay; until readings can be shared `history.offered` is false.
+      required: [preview_hash, can_confirm, devices, items, ends, profile_copies, pipe_owner_sees_raw_messages, history, summary, archives]
+      properties:
+        preview_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        can_confirm:
+          type: boolean
+          description: False while any device has a blocker.
+        devices:
+          type: array
+          items:
+            type: object
+            required: [uuid, name, code, successor, reports_through, arrives_active, blockers]
+            properties:
+              uuid:
+                type: string
+                format: uuid
+              name:
+                type: string
+              code:
+                type: string
+              successor:
+                type: object
+                description: The device in the target. The code defaults to the device's, or `<code>-2`, `-3`… when the target already uses it.
+                required: [name, code, site_uuid]
+                properties:
+                  name:
+                    type: string
+                  code:
+                    type: string
+                  site_uuid:
+                    type: [string, 'null']
+                    format: uuid
+              reports_through:
+                description: Its pipe. `stays` with its owner for an adapter or gateway; a directly connected device's own gateway `moves`. Null without a source.
+                oneOf:
+                  - type: 'null'
+                  - type: object
+                    required: [kind, name, outcome]
+                    properties:
+                      kind:
+                        type: string
+                        enum: [adapter, gateway, direct]
+                      name:
+                        type: string
+                      outcome:
+                        type: string
+                        enum: [stays, moves]
+              arrives_active:
+                type: boolean
+                description: Active now, and the person may activate devices in the target.
+              blockers:
+                type: array
+                description: Plain sentences; any blocker stops the confirmation.
+                items:
+                  type: string
+        items:
+          type: array
+          maxItems: 0
+          items: false
+        ends:
+          type: object
+          required: [alerts, geofence_assignments, application_grants]
+          properties:
+            alerts:
+              type: integer
+            geofence_assignments:
+              type: integer
+            application_grants:
+              type: array
+              description: Applications that keep reading the archived devices' history and never see the new ones.
+              items:
+                type: object
+                required: [name, devices]
+                properties:
+                  name:
+                    type: string
+                  devices:
+                    type: integer
+        profile_copies:
+          type: array
+          items:
+            type: object
+            required: [profile, revision, code, reused]
+            properties:
+              profile:
+                type: string
+              revision:
+                type: integer
+              code:
+                type: string
+              reused:
+                type: boolean
+        pipe_owner_sees_raw_messages:
+          type: boolean
+        history:
+          type: object
+          required: [offered, include]
+          properties:
+            offered:
+              type: boolean
+            include:
+              type: boolean
+        summary:
+          type: array
+          items:
+            type: string
+        archives:
+          type: array
+          maxItems: 0
+          items: false
+    DeviceMoveStale:
+      type: object
+      description: The situation changed since the review the person confirmed (409); `review` is the fresh one.
+      required: [message, review]
+      properties:
+        message:
+          type: string
+        review:
+          $ref: '#/components/schemas/DeviceMoveReview'
+    DeviceMove:
+      type: object
+      description: A move as one person sees it (spec 031). Each side is named; uuids of an organization show only to its members, so predecessor uuids to members of the source and successors, their states and reasons to members of the target.
+      required: [uuid, status, source, target, confirmed_at, cutover_at, waiting_for, devices, items, needs_attention, failure_reason]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [stopping, completed, failed]
+        source:
+          $ref: '#/components/schemas/DeviceMoveSide'
+        target:
+          $ref: '#/components/schemas/DeviceMoveSide'
+        confirmed_at:
+          type: string
+          format: date-time
+        cutover_at:
+          type: [string, 'null']
+          format: date-time
+        waiting_for:
+          type: object
+          required: [devices_stopping]
+          properties:
+            devices_stopping:
+              type: integer
+              description: Devices the runtime has not stopped yet; the move waits for it with no timeout.
+        devices:
+          type: array
+          items:
+            type: object
+            required: [predecessor_uuid, successor_uuid, name, state, successor_state, successor_reason]
+            properties:
+              predecessor_uuid:
+                type: [string, 'null']
+                format: uuid
+              successor_uuid:
+                type: [string, 'null']
+                format: uuid
+              name:
+                type: string
+              state:
+                type: string
+                enum: [waiting, stopping, stopped, moved, failed]
+              successor_state:
+                type: [string, 'null']
+                enum: [pending, active, inactive, failed, null]
+              successor_reason:
+                type: [string, 'null']
+        items:
+          type: array
+          maxItems: 0
+          items: false
+        needs_attention:
+          type: array
+          items:
+            type: object
+            required: [kind, uuid, name, reason]
+            properties:
+              kind:
+                type: string
+                enum: [device]
+              uuid:
+                type: string
+                format: uuid
+              name:
+                type: string
+              reason:
+                type: string
+        failure_reason:
+          type: [string, 'null']
+    DeviceMoveSide:
+      type: object
+      required: [uuid, name]
+      properties:
+        uuid:
+          type: [string, 'null']
+          format: uuid
+        name:
+          type: [string, 'null']
 operations:
   GET /v1/organizations/{organization}/bulk-onboardings/{run}:
     description: A bulk onboarding run (spec 026) with its counts and 100 items per page; pass `data.next_cursor` as `cursor` for the next page. An item reads `active` only once the runtime has acknowledged its device.
@@ -12,6 +241,76 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/device-move-targets:
+    description: Organizations of the same billing account the person may move this organization's devices into (spec 031). Needs `Device.move` here.
+    responses:
+      '200':
+        description: The targets, and `new_organization` for an owner of the account with room for another organization.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceMoveTargets'
+            example: {"data": [{"uuid": "66666666-7777-4888-9999-000000000000", "name": "Harbour Shop"}], "new_organization": {"billing_account_uuid": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}}
+  POST /v1/organizations/{organization}/device-moves:
+    description: Confirms a move of 1–100 devices to another organization of the same billing account (spec 031). Needs `Device.move` here and in the target. The body is the review's plus `operation_uuid` and the review's `preview_hash`. Each active device is stopped with an ordinary deactivation that keeps its device-limit place; the cutover runs once the runtime has stopped them all, at once when none was active. The cutover archives each device here as **Moved to** the target and creates a linked device there with a copy of its configuration and profile version. Pipes stay with their owner and keep feeding the new device. Repeating the request with the same `operation_uuid` returns the same move with 200.
+    responses:
+      '200':
+        description: The same move, for a repeated identical request.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/DeviceMove'
+      '202':
+        description: The move. It is already `completed` when no device was active.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/DeviceMove'
+            example: {"data": {"uuid": "0f3e2d1c-4b5a-4c6d-8e7f-90a1b2c3d4e5", "status": "stopping", "source": {"uuid": "11111111-2222-4333-8444-555555555555", "name": "Integrator"}, "target": {"uuid": "66666666-7777-4888-9999-000000000000", "name": "Harbour Shop"}, "confirmed_at": "2026-11-20T09:30:00.000000Z", "cutover_at": null, "waiting_for": {"devices_stopping": 1}, "devices": [{"predecessor_uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "successor_uuid": null, "name": "Shop tracker", "state": "stopping", "successor_state": null, "successor_reason": null}], "items": [], "needs_attention": [], "failure_reason": null}}
+      '409':
+        description: '`operation_uuid` was used for a different request, or the situation changed since the review: the body then carries the fresh review.'
+        content:
+          application/json:
+            schema:
+              anyOf:
+                - $ref: '#/components/schemas/DeviceMoveStale'
+                - $ref: '#/components/schemas/ErrorMessage'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/device-moves/preview:
+    description: Reviews a move of 1–100 devices to another organization of the same billing account (spec 031) and changes nothing. Needs `Device.move` here and in the target; a target outside the account or where the person is not a member is 404. `devices` overrides each successor's name, code and site (a site of the target).
+    responses:
+      '200':
+        description: The review.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceMoveReview'
+            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": false, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends.", "1 dashboard using this device stays in Integrator."], "archives": []}
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  GET /v1/organizations/{organization}/device-moves/{move}:
+    description: A move whose source or target is this organization, for its mover or a member holding `Device.move` here (spec 031). Poll it while `status` is `stopping`.
+    responses:
+      '200':
+        description: The move.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/DeviceMove'
+            example: {"data": {"uuid": "0f3e2d1c-4b5a-4c6d-8e7f-90a1b2c3d4e5", "status": "stopping", "source": {"uuid": "11111111-2222-4333-8444-555555555555", "name": "Integrator"}, "target": {"uuid": "66666666-7777-4888-9999-000000000000", "name": "Harbour Shop"}, "confirmed_at": "2026-11-20T09:30:00.000000Z", "cutover_at": null, "waiting_for": {"devices_stopping": 1}, "devices": [{"predecessor_uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "successor_uuid": null, "name": "Shop tracker", "state": "stopping", "successor_state": null, "successor_reason": null}], "items": [], "needs_attention": [], "failure_reason": null}}
   POST /v1/organizations/{organization}/device-onboardings:
     responses:
       '409':
@@ -20,8 +319,14 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/devices/{device}/activate:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/devices/{device}/archive:
     responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
       '422':
         $ref: '#/components/responses/Unprocessable'
   POST /v1/organizations/{organization}/devices/{device}/commands:
@@ -48,6 +353,10 @@ operations:
         $ref: '#/components/responses/Unprocessable'
       '503':
         $ref: '#/components/responses/ServiceUnavailable'
+  POST /v1/organizations/{organization}/devices/{device}/deactivate:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/devices/{device}/lifecycle:
     responses:
       '409':
@@ -71,7 +380,13 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/devices:
+    description: The organization's devices, 25 per page by default. Each row carries `pipe` and `link` as `GET devices/{device}` does (spec 031).
+  GET /v1/organizations/{organization}/devices/{device}:
+    description: >-
+      A device. `pipe` is what brings its messages in, null without a source or for a directly connected device: `kind` (`adapter` or `gateway`), `name`, `owner_organization_name`, `online` and `hosted`, true when another organization of the billing account owns the pipe (spec 031). For a hosted device `candidate.gateway` and `candidate.adapter` are null; the candidate keeps its `metrics` and `birth_revision`, and its installations' `adapter_revision_uuid` is null. `link` is null unless the device moved: `direction` (`moved_to` on the archived device, `moved_from` on the new one), the other organization's `organization_name` and `cutover_at`.
   GET /v1/organizations/{organization}/discovery-candidates:
+    description: The organization's discovered sources. A source whose device is in another organization of the billing account (a hosted device, spec 031) carries `in_use_in` with that organization's name, and its `assigned_device_uuid` is null.
     responses:
       '422':
         $ref: '#/components/responses/ValidationFailed'

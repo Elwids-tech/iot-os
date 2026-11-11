@@ -227,10 +227,12 @@ export function DeviceDirectory() {
         // An adapter-fed device reads through its adapter, never a gateway anyone manages.
         value: (device) => device.candidate && via(org, device.candidate.gateway).label,
         cell: (device) =>
-          device.candidate ? (
+          device.candidate?.gateway ? (
             <RefLink to={via(org, device.candidate.gateway).to}>
               {via(org, device.candidate.gateway).label}
             </RefLink>
+          ) : device.candidate ? (
+            <span className="text-muted-foreground">{via(org, null).label}</span>
           ) : (
             <span className="text-muted-foreground">None</span>
           ),

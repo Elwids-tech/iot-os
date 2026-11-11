@@ -10,8 +10,10 @@ use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Billing\Services\DataPointReports;
 use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Connectivity\Services\ConnectivitySettings;
+use App\Domain\Devices\Jobs\ContinueDeviceMove;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Models\DeviceMoveDevice;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\DeviceOutbox;
 use App\Domain\Devices\Models\DiscoveryCandidate;
@@ -373,6 +375,12 @@ final class RuntimeController
                     }
                 }
                 $operation->update(['status' => $event['type'] === 'device.failed.v1' ? 'failed' : 'succeeded', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => $p['diagnostic'] ?? null]);
+                // A stop a device move asked for: the move goes on once every device has stopped (spec 031).
+                $moving = $operation->target_state === 'inactive' ? DeviceMoveDevice::where('stop_operation_uuid', $operation->uuid)->where('state', 'stopping')->first() : null;
+                if ($moving) {
+                    $moving->update(['state' => $event['type'] === 'device.deactivated.v1' ? 'stopped' : 'failed']);
+                    ContinueDeviceMove::dispatch($moving->device_move_id)->afterCommit();
+                }
                 $device->increment('state_revision');
                 DeviceAudit::record($event['type'], $device->organization_id, null, $device->uuid, ['generation' => $device->deployment_generation, 'operation_uuid' => $operation->uuid, 'configuration_uuid' => $operation->configuration_uuid]);
             }

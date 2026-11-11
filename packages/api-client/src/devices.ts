@@ -9,6 +9,8 @@ export type DeviceCapabilities = {
   connections: boolean
   activate: boolean
   command: boolean
+  /** Move devices to another organization of the billing account (spec 031); needed in both. */
+  move: boolean
 }
 export type DevicePresence = "unseen" | "online" | "offline" | "unknown"
 export type SparkplugMetric = {
@@ -63,9 +65,19 @@ export type DiscoveryCandidate = {
   metrics: SparkplugMetric[]
   last_seen_at: string | null
   gateway: Gateway
+  /**
+   * For the pipe owner: the organization of the billing account where the source's device is,
+   * when it is not this one. Nothing else of that device is shown (spec 031).
+   */
+  in_use_in?: { organization_name: string } | null
   /** Set when a device adapter's gateway reported the source: activate it there by its serial. */
   adapter?: { uuid: string; name: string; candidate_uuid: string | null; serial: string | null } | null
 }
+/**
+ * A device's own source. On a hosted device, whose pipe belongs to another organization of
+ * the billing account, `gateway` and `adapter` are null: the device's `pipe` names it (spec 031).
+ */
+export type DeviceCandidate = Omit<DiscoveryCandidate, "gateway"> & { gateway: Gateway | null }
 export type DeviceMapping = {
   conversion_mode?: "profile" | "custom" | "none"
   ingress_conversion?: import("./index").IngressConversion | null
@@ -148,7 +160,7 @@ export type Device = {
   applied_configuration_uuid: string | null
   diagnostic: string | null
   last_seen_at: string | null
-  candidate: DiscoveryCandidate | null
+  candidate: DeviceCandidate | null
   /** Profile of the applied configuration, else of the last one the runtime confirmed. */
   profile: { uuid: string; name: string; revision: number } | null
   /** Calendar periods use the site's time zone, else the organization's. */
@@ -157,6 +169,10 @@ export type Device = {
   attributes?: Record<string, DeviceAttributeValue>
   /** The open connectivity alert listing this device: its own, or its gateway's (spec 018). Presence reads offline while it is open. */
   offline_alert?: import("./connectivity").OfflineAlert | null
+  /** What brings its messages in; null without a source or for a directly connected device (spec 031). */
+  pipe?: import("./deviceMoves").DevicePipe | null
+  /** Where it moved to or from; null unless it moved (spec 031). */
+  link?: import("./deviceMoves").DeviceLink | null
 }
 export type DeviceAttributeValue = string | number | boolean | null
 /** A physical location whose IANA time zone cuts days, months and shifts. */
@@ -179,7 +195,8 @@ export type SiteInput = {
 export type DeviceDetail = Device & {
   /** IANA zone that cuts days and months: the site's, else the organization's, else UTC. */
   reporting_timezone?: string
-  installations?: {uuid: string; manufacturer_serial: string; adapter_revision_uuid: string; started_at: string; ended_at: string | null}[]
+  /** A hosted device's installations are on another organization's adapter, so their revision is null (spec 031). */
+  installations?: {uuid: string; manufacturer_serial: string; adapter_revision_uuid: string | null; started_at: string; ended_at: string | null}[]
   retention: RetentionSetting
   draft: DeviceDraft | null
   draft_artifact: DeviceProfileArtifact | null

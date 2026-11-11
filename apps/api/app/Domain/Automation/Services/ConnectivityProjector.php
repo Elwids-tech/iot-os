@@ -59,6 +59,10 @@ final class ConnectivityProjector
         if ($alert && ($closing ? $alert->clear_transition_id !== null : $alert->activation_transition_id !== null)) {
             return true;
         }
+        // Laravel ended it when its device moved; the runtime's late transitions change nothing.
+        if ($alert?->stopped_reason === Alert::STOPPED_DEVICE_MOVED) {
+            return true;
+        }
         $values = [
             'cause' => $payload['cause'] ?? null,
             'offline_since' => $payload['offline_since'] ?? null,
