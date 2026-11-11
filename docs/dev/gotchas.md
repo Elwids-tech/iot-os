@@ -763,10 +763,12 @@ Things that have cost time before. Add to this list when something surprises you
   cancelled it. The step now downloads under `timeout` and retries, then installs
   from the downloaded files, so a kill never interrupts dpkg. From 2026-11-11
   14:40 UTC every run's `apt-get update` outlasted its 60 s limit three times in a
-  row, on main too. The step now allows 180 s, gives apt a 30 s limit per
-  connection (a stalled source then fails instead of hanging), prints the update's
-  sources, and makes its last try against `archive.ubuntu.com` instead of the
-  runner's mirror.
+  row, on main too: `ubuntu-latest` is Ubuntu 26.04, whose sources read the mirror
+  list `/etc/apt/apt-mirrors.txt`, and its `azure.archive.ubuntu.com` entry timed out
+  on every `InRelease`. Editing `ubuntu.sources` changes nothing there. The step now
+  writes `archive.ubuntu.com` into the mirror list, gives apt a 30 s limit per
+  connection (a stalled source then fails instead of hanging), allows 180 s per try
+  and prints the update's sources.
 - **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
   mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
   object, so the whole page falls to its error screen. The adapters spec mocks it

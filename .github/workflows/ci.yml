@@ -319,16 +319,17 @@ jobs:
       - name: Cross-compile for the Cortex-M7 and check its size
         if: matrix.compiler == 'gcc'
         run: |
-          # The runner's Ubuntu mirror sometimes stalls without failing (docs/dev/gotchas.md), so
-          # each connection gets a time limit (a stalled source then fails instead of hanging apt),
-          # the download gets another try, and the last try uses Ubuntu's own archive instead of
-          # the runner's mirror. The update prints its sources so a stall shows where it is. The
-          # install then reads the downloaded files.
+          # The runner's Ubuntu mirror stalls without failing (docs/dev/gotchas.md). Its sources read
+          # a mirror list whose Azure mirror stopped answering, so the list now names Ubuntu's own
+          # archive (packages are signed either way). Each connection gets a time limit, so a stalled
+          # source fails instead of hanging apt, and the download gets another try. The update
+          # prints its sources so a stall shows where it is. The install then reads the downloaded
+          # files.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
           limits=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=2)
           for attempt in 1 2 3; do
-            if [ "$attempt" = 3 ]; then
-              sudo sed -i -E 's#https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list.d/ubuntu.sources || true
-            fi
             timeout 180 sudo apt-get "${limits[@]}" update -q && timeout 180 sudo apt-get "${limits[@]}" install -y -qq --download-only gcc-arm-none-eabi libnewlib-arm-none-eabi && break
             if [ "$attempt" = 3 ]; then exit 1; fi
             echo "::warning::The package download stalled or failed (attempt $attempt); trying again."
