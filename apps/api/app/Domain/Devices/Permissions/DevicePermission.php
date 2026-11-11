@@ -15,4 +15,6 @@ enum DevicePermission: string
     case CONNECTIONS = 'Device.manage-connections';
     case ACTIVATE = 'Device.activate';
     case COMMAND = 'Device.command';
+    /** Moving devices to another organization of the billing account (spec 031); needed in both. */
+    case MOVE = 'Device.move';
 }

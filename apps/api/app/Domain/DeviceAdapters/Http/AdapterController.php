@@ -151,7 +151,14 @@ final class AdapterController
     {
         $this->authorize($r, $organization, $adapter, DevicePermission::VIEW);
 
-        return ['data' => $adapter->candidates()->with(['installation.device', ...array_map(fn (string $relation) => 'installation.device.'.$relation, DeviceView::CONNECTIVITY)])->latest('last_seen_at')->limit(100)->get()->map(fn ($c) => [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'installation_uuid' => $c->installation?->uuid, 'device' => $c->installation?->device ? DeviceView::device($c->installation->device) : null])];
+        // A source in use in another organization names that organization and nothing of its device (spec 031).
+        return ['data' => $adapter->candidates()->with(['installation.device', ...array_map(fn (string $relation) => 'installation.device.'.$relation, DeviceView::CONNECTIVITY)])->latest('last_seen_at')->limit(100)->get()->map(function ($c) use ($adapter) {
+            $device = $c->installation?->device;
+            $elsewhere = $device !== null && $device->organization_id !== $adapter->organization_id;
+
+            return [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'installation_uuid' => $elsewhere ? null : $c->installation?->uuid,
+                'device' => $device && ! $elsewhere ? DeviceView::device($device) : null, 'in_use_in' => $elsewhere ? DeviceView::inUseIn($device) : null];
+        })];
     }
 
     public function activate(Request $r, Organization $organization, DeviceAdapter $adapter, AdapterCandidate $candidate)

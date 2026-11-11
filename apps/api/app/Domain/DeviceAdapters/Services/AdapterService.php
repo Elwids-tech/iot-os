@@ -25,8 +25,10 @@ use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 final class AdapterService
 {
@@ -238,6 +240,7 @@ final class AdapterService
     public function activate(AdapterCandidate $candidate, ?string $deviceUuid, string $name, int $actor): DeviceInstallation
     {
         if ($candidate->installation) {
+            $this->ensureHere($candidate);
             abort_unless(! $deviceUuid || $candidate->installation->device->uuid === $deviceUuid, 409, 'This physical source already has an installation.');
 
             return $candidate->installation;
@@ -251,6 +254,7 @@ final class AdapterService
             $adapter = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
             $candidate = AdapterCandidate::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($candidate->installation) {
+                $this->ensureHere($candidate);
                 abort_unless(! $deviceUuid || $candidate->installation->device->uuid === $deviceUuid, 409, 'This physical source already has an installation.');
 
                 return $candidate->installation;
@@ -259,8 +263,7 @@ final class AdapterService
             $device = $deviceUuid ? Device::where('organization_id', $adapter->organization_id)->where('uuid', $deviceUuid)->lockForUpdate()->firstOrFail() : Device::create(['organization_id' => $adapter->organization_id, 'name' => $name, 'code' => 'device-'.Str::uuid(), 'created_by' => $actor, 'updated_by' => $actor]);
             $device = $device->fresh();
             abort_if($device->lifecycle === 'archived' || $device->applied_configuration_uuid || $device->desired_configuration_uuid || $device->last_applied_configuration_uuid, 422, 'Select an inactive virtual device. Replacement with counter adjustments is a separate workflow.');
-            abort_if(DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->exists(), 409, 'The virtual device already has an active physical installation.');
-            $installation = DeviceInstallation::create(['organization_id' => $adapter->organization_id, 'device_id' => $device->id, 'device_adapter_candidate_id' => $candidate->id, 'adapter_revision_uuid' => $adapter->applied_revision_uuid, 'manufacturer_serial' => $candidate->source_device_id, 'started_at' => now(), 'created_by' => $actor]);
+            $installation = $this->install($candidate, $adapter, $device, $actor);
             $mappings = collect($adapter->artifact->definition['parameters'])->filter(fn ($p) => ($p['reports_state'] ?? false) && $p['kind'] !== 'derived')->map(fn ($p) => ['parameter_uuid' => $p['uuid'], 'metric' => $p['key'], 'conversion_mode' => 'none'])->values()->all();
             $service = app(DeviceConfigurationService::class);
             $device = $service->saveDraft($device, ['artifact_uuid' => $adapter->artifact->uuid, 'candidate_uuid' => $birth->uuid, 'birth_revision' => $birth->birth_revision, 'mappings' => $mappings], $device->draft_revision, $actor);
@@ -271,6 +274,49 @@ final class AdapterService
 
             return $installation;
         });
+    }
+
+    /** A source in use in another organization names it and shows nothing of its device (spec 031). */
+    private function ensureHere(AdapterCandidate $candidate): void
+    {
+        $device = $candidate->installation->device;
+        abort_if($device->organization_id !== $candidate->adapter->organization_id, 409, 'This source is in use in '.Organization::withTrashed()->whereKey($device->organization_id)->value('name').'.');
+    }
+
+    /**
+     * Installs a device on an adapter source: the adapter's publisher stamps its readings
+     * with this installation once the adapter is next deployed. The installation belongs
+     * to the adapter's organization, wherever the device is (spec 031, research R3).
+     */
+    public function install(AdapterCandidate $candidate, DeviceAdapter $adapter, Device $device, int $actor): DeviceInstallation
+    {
+        abort_if(DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->exists(), 409, 'The virtual device already has an active physical installation.');
+
+        return DeviceInstallation::create(['organization_id' => $adapter->organization_id, 'device_id' => $device->id, 'device_adapter_candidate_id' => $candidate->id, 'adapter_revision_uuid' => $adapter->applied_revision_uuid, 'manufacturer_serial' => $candidate->source_device_id, 'started_at' => now(), 'created_by' => $actor]);
+    }
+
+    /**
+     * Redeploys each adapter once with its running revision, so its publisher stamps the
+     * installations a move ended and started (spec 031, research R3). A paused adapter
+     * stays paused. Called after commit; an adapter that is mid-deployment or not running
+     * takes the new installations with its next deployment.
+     *
+     * @param  list<int>  $adapterIds
+     */
+    public function redeployOnce(array $adapterIds, int $actor): void
+    {
+        foreach (DeviceAdapter::whereIn('id', array_values(array_unique($adapterIds)))->get() as $adapter) {
+            // A failed or never deployed adapter sends nothing; a pending one is refused below and logged.
+            if ($adapter->status === 'failed' || ! $adapter->applied_revision_uuid) {
+                continue;
+            }
+            try {
+                $operation = $this->operation($adapter, $adapter->status === 'paused' ? 'pause' : 'deploy', $actor, $adapter->applied_revision_uuid);
+                DeployAdapter::dispatch($operation->id)->afterCommit();
+            } catch (HttpExceptionInterface $exception) {
+                Log::warning('An adapter was not redeployed after a device move.', ['adapter_uuid' => $adapter->uuid, 'reason' => $exception->getMessage()]);
+            }
+        }
     }
 
     /**

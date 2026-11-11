@@ -6,16 +6,19 @@ namespace App\Domain\Devices\Services;
 
 use App\Domain\Billing\Services\DeviceLimit;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceMoveDevice;
 use App\Domain\Devices\Models\DeviceOperation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class DeviceLifecycleService
 {
-    public function request(Device $device, array $input, int $actor): Device
+    /** `$actor` is null when the system resumes a device a failed move stopped (spec 031). */
+    public function request(Device $device, array $input, ?int $actor): Device
     {
         return DB::transaction(function () use ($device, $input, $actor) {
             $locked = Device::whereKey($device->id)->lockForUpdate()->firstOrFail();
+            abort_if(DeviceMoveDevice::where('outstanding_key', $locked->id)->exists(), 409, DeviceConfigurationService::MOVING);
             $existing = DeviceOperation::where('uuid', $input['operation_uuid'])->first();
             if ($existing) {
                 abort_unless($existing->device_id === $locked->id && $existing->actor_id === $actor &&
@@ -58,7 +61,7 @@ final class DeviceLifecycleService
         });
     }
 
-    public static function record(Device $device, string $kind, int $actor, ?string $uuid = null): DeviceOperation
+    public static function record(Device $device, string $kind, ?int $actor, ?string $uuid = null): DeviceOperation
     {
         return DeviceOperation::create([
             'uuid' => $uuid ?? (string) Str::uuid(), 'device_id' => $device->id, 'actor_id' => $actor,

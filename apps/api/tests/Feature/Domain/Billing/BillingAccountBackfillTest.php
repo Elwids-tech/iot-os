@@ -17,14 +17,17 @@ final class BillingAccountBackfillTest extends TestCase
 
     public function test_the_rollout_gives_every_organization_its_own_account_from_its_creation(): void
     {
-        // The invoice, data point, usage and plans migrations reference billing accounts, so
-        // they go first and come back last; PostgreSQL refuses to drop a table others point at.
+        // The device move, invoice, data point, usage and plans migrations reference billing
+        // accounts, so they go first and come back last; PostgreSQL refuses to drop a table
+        // others point at.
+        $moves = require database_path('migrations/2026_11_20_000002_create_device_moves.php');
         $payments = require database_path('migrations/2026_11_16_000000_add_billing_payments.php');
         $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
         $dataPoints = require database_path('migrations/2026_11_08_100000_create_data_point_buckets.php');
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $moves->down();
         $payments->down();
         $invoices->down();
         $dataPoints->down();
@@ -64,6 +67,7 @@ final class BillingAccountBackfillTest extends TestCase
         $dataPoints->up();
         $invoices->up();
         $payments->up();
+        $moves->up();
         $this->assertSame(0, DB::table('billing_allowance_overrides')->count());
     }
 

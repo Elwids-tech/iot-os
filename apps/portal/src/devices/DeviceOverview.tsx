@@ -503,7 +503,7 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
         </Detail>
         {/* An adapter-fed device reads through its adapter, never a gateway anyone manages. */}
         <Detail label={device.candidate ? via(org, device.candidate.gateway).kind : "Gateway"}>
-          {device.candidate ? (
+          {device.candidate?.gateway ? (
             <Link
               className="text-primary underline-offset-4 hover:underline"
               to={via(org, device.candidate.gateway).to}
@@ -511,7 +511,7 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
               {via(org, device.candidate.gateway).name}
             </Link>
           ) : (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">{device.candidate ? via(org, null).name : "None"}</span>
           )}
         </Detail>
         <Detail label="Source">

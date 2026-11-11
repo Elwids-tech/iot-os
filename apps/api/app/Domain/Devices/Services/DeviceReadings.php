@@ -20,7 +20,31 @@ final class DeviceReadings
     /** The latest reading of every parameter, with its quality. */
     public function latest(Organization $organization, Device $device): array
     {
-        return $this->runtime->request('GET', '/internal/measurements/latest', ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid ?? $device->last_applied_configuration_uuid]);
+        return self::forOwner($device, $this->runtime->request('GET', '/internal/measurements/latest', ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid ?? $device->last_applied_configuration_uuid]));
+    }
+
+    /**
+     * A runtime answer as the device's organization may see it: a hosted device's readings
+     * keep their installation and serial but not the pipe owner's adapter revision (spec
+     * 031, ADR-039).
+     */
+    public static function forOwner(Device $device, array $response): array
+    {
+        if (! (app(Pipes::class)->for($device)?->hosted ?? false)) {
+            return $response;
+        }
+        $strip = function (mixed $value) use (&$strip): mixed {
+            if (! is_array($value)) {
+                return $value;
+            }
+            if (array_key_exists('adapter_revision_uuid', $value)) {
+                $value['adapter_revision_uuid'] = null;
+            }
+
+            return array_map($strip, $value);
+        };
+
+        return $strip($response);
     }
 
     /**

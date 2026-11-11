@@ -28,6 +28,12 @@ final class Alert extends DeviceModel
 
     public const KINDS = [self::WORKFLOW, self::DEVICE_OFFLINE, self::GATEWAY_OFFLINE, self::CONNECTION_LOST];
 
+    /**
+     * The stop reason Laravel sets on a moved device's open alerts at cutover (spec 031,
+     * research R7). Later runtime transitions for such an alert are ignored.
+     */
+    public const STOPPED_DEVICE_MOVED = 'device_moved';
+
     protected $table = 'automation_alerts';
 
     protected function casts(): array

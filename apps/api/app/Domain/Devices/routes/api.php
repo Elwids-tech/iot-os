@@ -7,6 +7,7 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Devices\Http\Controllers\BulkOnboardingController;
 use App\Domain\Devices\Http\Controllers\CommandController;
 use App\Domain\Devices\Http\Controllers\DeviceController;
+use App\Domain\Devices\Http\Controllers\DeviceMoveController;
 use App\Domain\Devices\Http\Controllers\DiscoveryController;
 use App\Domain\Devices\Http\Controllers\OnboardingController;
 use App\Domain\Devices\Http\Controllers\RetentionController;
@@ -17,7 +18,7 @@ use App\Domain\Devices\Http\Controllers\TelemetryCaptureController;
 use App\Domain\Devices\Http\Middleware\AuthenticateDeviceRuntime;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'capture', 'device', 'operation', 'site', 'command', 'connection', 'gateway', 'candidate', 'run'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'capture', 'device', 'operation', 'site', 'command', 'connection', 'gateway', 'candidate', 'run', 'move'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('telemetry-captures', [TelemetryCaptureController::class, 'index']);
     Route::post('telemetry-captures', [TelemetryCaptureController::class, 'store'])->middleware('throttle:20,1');
     Route::get('telemetry-captures/{capture}', [TelemetryCaptureController::class, 'show']);
@@ -41,6 +42,10 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ca
     Route::get('devices/{device}/operations/{operation}', [DeviceController::class, 'operation']);
     Route::post('devices/{device}/activate', [DeviceController::class, 'activate']);
     Route::post('devices/{device}/deactivate', [DeviceController::class, 'deactivate']);
+    Route::get('device-move-targets', [DeviceMoveController::class, 'targets']);
+    Route::post('device-moves/preview', [DeviceMoveController::class, 'preview'])->middleware('throttle:60,1');
+    Route::post('device-moves', [DeviceMoveController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('device-moves/{move}', [DeviceMoveController::class, 'show']);
     Route::get('sites', [SiteController::class, 'index']);
     Route::post('sites', [SiteController::class, 'store']);
     Route::patch('sites/{site}', [SiteController::class, 'update']);

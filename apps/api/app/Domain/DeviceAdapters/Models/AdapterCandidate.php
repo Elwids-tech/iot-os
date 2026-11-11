@@ -15,9 +15,10 @@ final class AdapterCandidate extends DeviceModel
         return ['preview' => 'array', 'last_seen_at' => 'immutable_datetime'];
     }
 
+    /** The open installation: an archived or moved device's installation has ended and frees the source. */
     public function installation()
     {
-        return $this->hasOne(DeviceInstallation::class, 'device_adapter_candidate_id');
+        return $this->hasOne(DeviceInstallation::class, 'device_adapter_candidate_id')->whereNull('ended_at');
     }
 
     public function adapter()

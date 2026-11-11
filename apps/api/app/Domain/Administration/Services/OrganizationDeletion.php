@@ -10,6 +10,7 @@ use App\Domain\Agents\Models\AgentConnection;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Services\AssistantRecovery;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Devices\Services\Pipes;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -80,6 +81,8 @@ final class OrganizationDeletion
         }
 
         $counts[] = ['key' => 'assistant_runs', 'label' => 'Assistant replies in progress', 'count' => $this->reservedAssistantRuns($organization)];
+        // Devices hosted across organizations of its billing account, or in a move (spec 031, FR-061).
+        $counts[] = ['key' => 'hosted_devices', 'label' => 'Devices hosted across organizations', 'count' => array_sum(array_map(fn (array $crossing): int => count($crossing['devices']), app(Pipes::class)->crossings($organization)))];
 
         return $this->nonZero($counts);
     }

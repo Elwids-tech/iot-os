@@ -12,6 +12,7 @@ use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Services\IngressConversion;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceMoveDevice;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,6 +20,9 @@ use Illuminate\Validation\ValidationException;
 
 final class DeviceConfigurationService
 {
+    /** Why a device in a move takes no other change until the move ends (spec 031). */
+    public const MOVING = 'This device is being moved to another organization. Wait for the move to finish.';
+
     public function __construct(private readonly RuntimeClient $runtime, private readonly CanonicalJson $canonical, private readonly DeviceLimit $limit) {}
 
     public function locked(Device $device, int $revision, callable $action): mixed
@@ -27,6 +31,7 @@ final class DeviceConfigurationService
             $locked = Device::query()->lockForUpdate()->findOrFail($device->id);
             abort_unless($locked->draft_revision === $revision, 409, 'The device changed. Refresh and review the latest revision.');
             abort_if($locked->lifecycle === 'archived', 422, 'Archived devices are read-only.');
+            abort_if(DeviceMoveDevice::where('outstanding_key', $locked->id)->exists(), 409, self::MOVING);
 
             return $action($locked);
         });
@@ -46,7 +51,8 @@ final class DeviceConfigurationService
                 abort_unless($previous->artifact->device_profile_id === $artifact->device_profile_id, 422, 'Choose a revision of the device’s existing profile.');
             }
             if ($draft['candidate_uuid'] ?? null) {
-                $candidate = DiscoveryCandidate::query()->where('organization_id', $locked->organization_id)->where('uuid', $draft['candidate_uuid'])->lockForUpdate()->firstOrFail();
+                // Its own organization's source, or the hosted source it already holds (spec 031).
+                $candidate = app(Pipes::class)->allowsSource($locked, $draft['candidate_uuid']);
                 abort_if($candidate->status === 'rejected', 422, 'Restore this discovery candidate before using it.');
                 $this->ensureNotAdapterSource($locked, $candidate);
                 abort_if(Device::query()->where('reserved_source_uuid', $candidate->uuid)->whereKeyNot($locked->id)->exists(), 409, 'This source is already assigned to another device.');
@@ -228,14 +234,20 @@ final class DeviceConfigurationService
         });
     }
 
-    public function deactivate(Device $device, int $revision, int $actor): Device
+    /**
+     * Requests the device's deactivation. A move keeps its device-limit place, which the
+     * cutover hands to the successor (spec 031, research R4).
+     */
+    public function deactivate(Device $device, int $revision, int $actor, bool $keepPlace = false): Device
     {
-        return $this->locked($device, $revision, function (Device $locked) use ($actor) {
+        return $this->locked($device, $revision, function (Device $locked) use ($actor, $keepPlace) {
             abort_if($locked->deployment_status === 'pending', 409, 'Wait for the pending deployment to finish.');
             $locked->forceFill(['desired_configuration_uuid' => null, 'deployment_status' => 'pending',
                 'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1])->save();
             $operation = DeviceLifecycleService::record($locked, 'deactivate', $actor);
-            $this->limit->release($locked);
+            if (! $keepPlace) {
+                $this->limit->release($locked);
+            }
             DeviceAudit::enqueue('device.deactivate.v1', ['organization_uuid' => $locked->organization->uuid,
                 'device_uuid' => $locked->uuid, 'generation' => $locked->deployment_generation, 'operation_uuid' => $operation->uuid]);
             DeviceAudit::record('device.deactivation.requested', $locked->organization_id, $actor, $locked->uuid);

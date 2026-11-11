@@ -79,4 +79,16 @@ final class Device extends DeviceModel
     {
         return $this->hasOne(DeviceInstallation::class)->whereNull('ended_at');
     }
+
+    /** The link to the device this one became in another organization (spec 031). */
+    public function movedTo(): HasOne
+    {
+        return $this->hasOne(DeviceLink::class, 'predecessor_device_id');
+    }
+
+    /** The link from the device this one was in another organization (spec 031). */
+    public function movedFrom(): HasOne
+    {
+        return $this->hasOne(DeviceLink::class, 'successor_device_id');
+    }
 }

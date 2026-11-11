@@ -168,6 +168,7 @@ const domains = {
     device_deactivated: { tone: "muted", label: "Device deactivated" },
     monitoring_disabled: { tone: "muted", label: "Offline alerts turned off" },
     definition_removed: { tone: "muted", label: "Monitoring ended" },
+    device_moved: { tone: "muted", label: "Device moved" },
   },
   /**
    * Where offline detection has a device (spec 018). Unknown and interrupted are never
