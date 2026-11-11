@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Domain\Automation\Models;
 
 use App\Domain\Devices\Models\DeviceModel;
+use App\Domain\Shared\Models\Concerns\Archivable;
 
 final class Workflow extends DeviceModel
 {
+    use Archivable;
+
     protected $table = 'automation_workflows';
 
     protected function casts(): array

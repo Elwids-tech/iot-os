@@ -15625,6 +15625,7 @@
     "/v1/organizations/{organization}/dashboards": {
       "get": {
         "operationId": "dashboard.index",
+        "description": "Archived dashboards are left out unless `archived` is `only` or `include`;\n`archived_count` counts the archived ones this person can open.",
         "summary": "Only the dashboards this person can open, each with what they may do to it",
         "tags": [
           "Dashboard"
@@ -15638,6 +15639,21 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "only",
+                "include",
+                null
+              ]
             }
           }
         ],
@@ -15660,6 +15676,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
           }
         },
         "security": [
@@ -15989,6 +16008,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
@@ -16004,6 +16026,87 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/dashboards/{dashboard}/archive": {
+      "post": {
+        "operationId": "dashboard.archive",
+        "summary": "Hides the dashboard from lists and makes it read-only; the owner or Dashboard.manage, as for deleting",
+        "tags": [
+          "Dashboard"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dashboard",
+            "in": "path",
+            "required": true,
+            "description": "The dashboard UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dashboard is archived.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ArchiveState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50",
+                    "archived_at": "2026-11-11T09:30:00+00:00",
+                    "archived_by": {
+                      "user_id": 42,
+                      "name": "Ana Silva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Hides the dashboard from lists and makes it read-only: saves, restoring a version and access changes then get 409. Needs the owner or `Dashboard.manage`. Archiving an archived dashboard changes nothing."
       }
     },
     "/v1/organizations/{organization}/dashboards/{dashboard}/duplicate": {
@@ -16088,6 +16191,84 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/dashboards/{dashboard}/restore": {
+      "post": {
+        "operationId": "dashboard.unarchive",
+        "summary": "Brings an archived dashboard back to the library, as it was; the same people who archive it",
+        "tags": [
+          "Dashboard"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "dashboard",
+            "in": "path",
+            "required": true,
+            "description": "The dashboard UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dashboard is current again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ArchiveState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50",
+                    "archived_at": null,
+                    "archived_by": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Brings an archived dashboard back to the library as it was. Needs the owner or `Dashboard.manage`. Restoring a current dashboard changes nothing."
       }
     },
     "/v1/organizations/{organization}/dashboards/{dashboard}/revisions": {
@@ -29867,6 +30048,21 @@
                 "all"
               ]
             }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "only",
+                "include",
+                null
+              ]
+            }
           }
         ],
         "responses": {
@@ -29969,6 +30165,7 @@
     "/v1/organizations/{organization}/workflows/dag": {
       "get": {
         "operationId": "dag.index",
+        "summary": "Archived automations are left out unless `archived` is `only` or `include`; `archived_count` counts those matching the search",
         "tags": [
           "Dag"
         ],
@@ -30000,6 +30197,21 @@
                 "null"
               ],
               "maxLength": 255
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "only",
+                "include",
+                null
+              ]
             }
           }
         ],
@@ -30322,7 +30534,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_172",
+        "operationId": "domain.automation.dag.settings_174",
         "tags": [
           "Dag"
         ],
@@ -30397,7 +30609,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_173",
+        "operationId": "domain.automation.dag.settings_175",
         "tags": [
           "Dag"
         ],
@@ -30882,6 +31094,93 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/workflows/{workflow}/archive": {
+      "post": {
+        "operationId": "dag.archive",
+        "description": "Turns the automation off, by requesting a disable deployment when it runs, and hides it from lists. Its draft, layout and activation then get 409 until it is restored. Needs `Workflow.manage` and `Workflow.activate`; 409 while an activation is pending, 422 for a geofence workflow. Archiving an archived automation changes nothing.",
+        "summary": "Turns the automation off, then hides it from lists",
+        "tags": [
+          "Dag"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "description": "The workflow UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The automation is archived; a disable deployment may still be pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ArchiveState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50",
+                    "archived_at": "2026-11-11T09:30:00+00:00",
+                    "archived_by": {
+                      "user_id": 42,
+                      "name": "Ana Silva"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
       }
     },
     "/v1/organizations/{organization}/workflows/{workflow}/deployments": {
@@ -31580,6 +31879,84 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/workflows/{workflow}/restore": {
+      "post": {
+        "operationId": "dag.unarchive",
+        "summary": "Brings an archived automation back to the list. It stays off until someone activates it",
+        "tags": [
+          "Dag"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "description": "The workflow UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The automation is current again, and off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ArchiveState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "uuid": "9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50",
+                    "archived_at": null,
+                    "archived_by": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Brings an archived automation back to lists. It stays off until someone activates it. Needs `Workflow.manage`. Restoring a current automation changes nothing."
+      }
+    },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios": {
       "get": {
         "operationId": "scenario.index",
@@ -31639,7 +32016,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_184",
+        "operationId": "domain.automation.scenario.save_188",
         "tags": [
           "Scenario"
         ],
@@ -31755,7 +32132,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_185",
+        "operationId": "domain.automation.scenario.save_189",
         "tags": [
           "Scenario"
         ],
@@ -32300,7 +32677,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_176",
+        "operationId": "domain.automation.dag.timeline_180",
         "tags": [
           "Dag"
         ],
@@ -32371,7 +32748,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_177",
+        "operationId": "domain.automation.dag.timeline_181",
         "tags": [
           "Dag"
         ],
@@ -33967,6 +34344,54 @@
           "note"
         ],
         "title": "AllowanceResource"
+      },
+      "ArchiveState": {
+        "type": "object",
+        "description": "Whether a dashboard or automation is archived (spec 031 FR-037), returned by its archive and restore operations. Lists hide archived items unless `archived` is `only` or `include`.",
+        "required": [
+          "uuid",
+          "archived_at",
+          "archived_by"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "archived_by": {
+            "description": "Who archived it; null when it is not archived or that person was deleted.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "user_id",
+                  "name"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
       },
       "AssistantModelResource": {
         "type": "object",

@@ -55,6 +55,7 @@ import type {
   WaitingInvoice,
 } from "./billing"
 export * from "./dashboards"
+export * from "./archive"
 export * from "./devices"
 export * from "./deviceMoves"
 export * from "./firmware"
@@ -87,6 +88,8 @@ export type Organization = {
     devices?: DeviceCapabilities
     /** Dashboard permissions of their own. Older payloads omit it. */
     dashboards?: import("./dashboards").DashboardCapabilities
+    /** Automation permissions (Workflow.*). Older payloads omit it. */
+    automation?: import("./alerts").AutomationCapabilities
     /** Optional platform features enabled for this organization. */
     features?: { device_adapters: boolean; agent_access?: boolean }
     /** AI agent access. Older payloads omit it. */
@@ -2054,8 +2057,19 @@ export class ApiClient {
     }>(this.devicePath(org, id) + "/measurements/latest", { signal })
   }
 
-  dashboards(org: string) {
-    return this.data<Dashboard[]>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards`)
+  /** Current dashboards; `archived` lists archived ones alone or with the others. */
+  dashboards(org: string, archived?: import("./archive").ArchiveFilter) {
+    return this.data<Dashboard[]>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards${archived ? `?archived=${archived}` : ""}`)
+  }
+
+  /** Hides the dashboard from lists and makes it read-only; its owner or Dashboard.manage. */
+  archiveDashboard(org: string, dashboard: string) {
+    return this.data<import("./archive").ArchiveState>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/archive`, "POST")
+  }
+
+  /** Brings an archived dashboard back as it was; the same people who archive it. */
+  restoreDashboard(org: string, dashboard: string) {
+    return this.data<import("./archive").ArchiveState>(`/api/v1/organizations/${encodeURIComponent(org)}/dashboards/${encodeURIComponent(dashboard)}/restore`, "POST")
   }
 
   dashboard(org: string, dashboard: string) {
@@ -2707,6 +2721,14 @@ export class ApiClient {
   }
   workflow(org: string, id: string) {
     return this.data<import("./alerts").AutomationWorkflow>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}`)
+  }
+  /** Turns the automation off (a disable deployment when it runs) and hides it; Workflow.manage and Workflow.activate. */
+  archiveWorkflow(org: string, id: string) {
+    return this.data<import("./archive").ArchiveState>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/archive`, "POST")
+  }
+  /** Brings an archived automation back; it stays off until activated. Workflow.manage. */
+  restoreWorkflow(org: string, id: string) {
+    return this.data<import("./archive").ArchiveState>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/restore`, "POST")
   }
   /** Activate or disable; 202 is a request, poll workflowDeployment until the operation settles. */
   deployWorkflow(org: string, id: string, input: import("./alerts").WorkflowDeploymentInput) {

@@ -14,9 +14,12 @@ import {
 } from "@iot-os/ui/components/dropdown-menu"
 import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   CpuIcon,
   EllipsisIcon,
   FileUpIcon,
@@ -31,6 +34,7 @@ import { api } from "../lib/api"
 import { Confirm, errorMessage, RequestError } from "../components/forms"
 import { dashboardPath } from "./model"
 import { dashboardAbilities } from "./access"
+import { forgetDashboardPlace } from "./lastPlace"
 import { ShareDialog } from "./ShareDialog"
 import { definition, downloadJson } from "./importExport"
 import type { DashboardTemplate } from "./templates"
@@ -54,6 +58,9 @@ const SORTS = { viewed: "Last viewed", name: "Name", updated: "Updated" }
 type Sort = keyof typeof SORTS
 /** Folder filter value for dashboards without a folder; `?folder=` (empty) means the same. */
 const UNFILED = "__unfiled__"
+/** Choices after the default, "Not archived"; "All" includes archived dashboards. */
+const ARCHIVED = { only: "Archived", include: "All" } as const
+type Archived = keyof typeof ARCHIVED
 
 type Open =
   | { kind: "blank" | "import" | "profile" | "templates" }
@@ -97,9 +104,10 @@ export function DashboardLibrary({
   capabilities: DashboardCapabilities
 }) {
   const canCreate = capabilities.create
+  // The library filters archived dashboards itself, so it reads them with the others.
   const query = useQuery({
-    queryKey: ["dashboards", org],
-    queryFn: () => api.dashboards(org),
+    queryKey: ["dashboards", org, "library"],
+    queryFn: () => api.dashboards(org, "include"),
   })
   const session = useQuery({
     queryKey: ["session"],
@@ -121,7 +129,10 @@ export function DashboardLibrary({
   const devices = params.getAll("device")
   const rawSort = params.get("sort")
   const sort: Sort = rawSort && rawSort in SORTS ? (rawSort as Sort) : "viewed"
-  const filtered = Boolean(search || tags.length || devices.length || folder !== null)
+  const rawArchived = params.get("archived")
+  const archived: Archived | null = rawArchived && rawArchived in ARCHIVED ? (rawArchived as Archived) : null
+  // "All" widens the default view, so its count reads as a total, not a match.
+  const filtered = Boolean(search || tags.length || devices.length || folder !== null || archived === "only")
 
   // Templates used to be a view; old links open the template picker instead.
   useEffect(() => {
@@ -130,15 +141,18 @@ export function DashboardLibrary({
     setParams(patch(params, { view: null }), { replace: true })
   }, [rawView, canCreate])
 
-  const all = query.data ?? []
-  const byView: Record<View, Dashboard[]> = {
-    all,
-    starred: all.filter((d) => d.starred),
-    recent: all.filter((d) => d.last_viewed_at),
-    mine: all.filter(
-      (d) => session.data && d.created_by === session.data.id,
-    ),
+  const everything = query.data ?? []
+  const archivedTotal = everything.filter((d) => d.archived_at).length
+  const all = everything.filter((d) => archived === "include" || (archived === "only") === Boolean(d.archived_at))
+  const inView: Record<View, (d: Dashboard) => boolean> = {
+    all: () => true,
+    starred: (d) => d.starred,
+    recent: (d) => Boolean(d.last_viewed_at),
+    mine: (d) => Boolean(session.data && d.created_by === session.data.id),
   }
+  const byView = Object.fromEntries(
+    (Object.keys(VIEWS) as View[]).map((v) => [v, all.filter(inView[v])]),
+  ) as Record<View, Dashboard[]>
   const folders = [
     ...new Set(all.flatMap((d) => (d.folder ? [d.folder] : []))),
   ].sort((a, b) => a.localeCompare(b))
@@ -148,22 +162,21 @@ export function DashboardLibrary({
   for (const d of all) for (const [id, name] of devicesOf(d)) allDevices.set(id, name)
 
   const needle = search.trim().toLowerCase()
+  const matches = (d: Dashboard) =>
+    (folder === null || (d.folder ?? "") === folder) &&
+    (!needle ||
+      d.name.toLowerCase().includes(needle) ||
+      d.tags.some((t) => t.toLowerCase().includes(needle)) ||
+      [...devicesOf(d).values()].some((n) => n.toLowerCase().includes(needle))) &&
+    (!tags.length || d.tags.some((t) => tags.includes(t))) &&
+    (!devices.length || [...devicesOf(d).keys()].some((id) => devices.includes(id)))
+  // The default view says how many archived dashboards it leaves out of what would match.
+  const hiddenArchived = archived
+    ? 0
+    : everything.filter((d) => d.archived_at && inView[view](d) && matches(d)).length
+  const showArchived = () => setParams(patch(params, { archived: "include" }), { replace: true })
   const rows = byView[view]
-    .filter((d) => folder === null || (d.folder ?? "") === folder)
-    .filter(
-      (d) =>
-        !needle ||
-        d.name.toLowerCase().includes(needle) ||
-        d.tags.some((t) => t.toLowerCase().includes(needle)) ||
-        [...devicesOf(d).values()].some((n) =>
-          n.toLowerCase().includes(needle),
-        ),
-    )
-    .filter((d) => !tags.length || d.tags.some((t) => tags.includes(t)))
-    .filter(
-      (d) =>
-        !devices.length || [...devicesOf(d).keys()].some((id) => devices.includes(id)),
-    )
+    .filter(matches)
     .sort((a, b) =>
       sort === "name"
         ? a.name.localeCompare(b.name)
@@ -172,7 +185,7 @@ export function DashboardLibrary({
           : (b.last_viewed_at ?? "").localeCompare(a.last_viewed_at ?? "") ||
             a.name.localeCompare(b.name),
     )
-  const find = (uuid: string) => all.find((d) => d.uuid === uuid)
+  const find = (uuid: string) => everything.find((d) => d.uuid === uuid)
 
   async function created(dashboard: Dashboard, edit = false) {
     cache.setQueryData(["dashboard", org, dashboard.uuid], dashboard)
@@ -183,12 +196,28 @@ export function DashboardLibrary({
   async function star(dashboard: Dashboard) {
     try {
       const next = await api.starDashboard(org, dashboard.uuid, !dashboard.starred)
-      cache.setQueryData<Dashboard[]>(["dashboards", org], (list) =>
+      cache.setQueriesData<Dashboard[]>({ queryKey: ["dashboards", org] }, (list) =>
         list?.map((d) => (d.uuid === next.uuid ? next : d)),
       )
     } catch (error) {
       toast.error(errorMessage(error))
     }
+  }
+  /** Archives (or restores) each dashboard; archiving offers Undo, since nothing is lost. */
+  async function setArchived(list: Dashboard[], archive: boolean, undo = false) {
+    const results = await Promise.allSettled(
+      list.map((d) => (archive ? api.archiveDashboard(org, d.uuid) : api.restoreDashboard(org, d.uuid))),
+    )
+    if (archive && session.data) for (const d of list) forgetDashboardPlace(session.data.id, org, d.uuid)
+    for (const d of list) void cache.invalidateQueries({ queryKey: ["dashboard", org, d.uuid] })
+    await cache.invalidateQueries({ queryKey: ["dashboards", org] })
+    const failed = results.find((r) => r.status === "rejected")
+    if (failed) return void toast.error(errorMessage(failed.reason))
+    const what = list.length === 1 ? list[0].name : `${list.length} dashboards`
+    if (!archive) return void toast.success(undo ? `${what} is back` : `Restored ${what}`)
+    toast.success(`Archived ${what}`, {
+      action: { label: "Undo", onClick: () => void setArchived(list, false, true) },
+    })
   }
   function exportRows(list: Dashboard[]) {
     if (list.length === 1) downloadJson(list[0].name, definition(list[0]))
@@ -225,7 +254,17 @@ export function DashboardLibrary({
       sortable: true,
       className: "max-w-64 truncate",
       value: (d) => d.name,
-      cell: (d) => <RowLink to={dashboardPath(org, d.uuid)}>{d.name}</RowLink>,
+      cell: (d) =>
+        d.archived_at ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <RowLink to={dashboardPath(org, d.uuid)} className="truncate">
+              {d.name}
+            </RowLink>
+            <Status value="archived" className="shrink-0 text-meta" />
+          </span>
+        ) : (
+          <RowLink to={dashboardPath(org, d.uuid)}>{d.name}</RowLink>
+        ),
     },
     {
       id: "access",
@@ -257,8 +296,12 @@ export function DashboardLibrary({
     { id: "updated", header: "Updated", sortable: true, mobile: "hidden", value: (d) => d.updated_at, cell: (d) => <RelativeTime at={d.updated_at} className="text-muted-foreground" /> },
     { id: "viewed", header: "Last viewed", sortable: true, value: (d) => d.last_viewed_at, cell: (d) => <RelativeTime at={d.last_viewed_at} className="text-muted-foreground" /> },
   ]
-  const emptyTitle = !all.length
+  const emptyTitle = !everything.length
     ? "No dashboards yet"
+    : archived === "only"
+      ? "No archived dashboards"
+      : hiddenArchived && view === "all"
+        ? "No current dashboards"
     : view === "starred"
       ? "No starred dashboards"
       : view === "recent"
@@ -366,9 +409,38 @@ export function DashboardLibrary({
               value: devices,
               onChange: (next) => setParams(patch(params, { device: next }), { replace: true }),
             },
+            // Libraries that never archive keep their filters as they were.
+            ...(archivedTotal || archived
+              ? [
+                  {
+                    id: "archived",
+                    label: "Archived",
+                    anyLabel: "Not archived",
+                    options: (Object.keys(ARCHIVED) as Archived[]).map((value) => ({ value, label: ARCHIVED[value] })),
+                    value: archived ? [archived] : [],
+                    onChange: (next: string[]) => setParams(patch(params, { archived: next[0] ?? null }), { replace: true }),
+                  },
+                ]
+              : []),
           ]}
           filtered={filtered}
-          onReset={() => setParams(patch(params, { q: null, tag: null, device: null, folder: null }))}
+          onReset={() => setParams(patch(params, { q: null, tag: null, device: null, folder: null, archived: null }))}
+          note={
+            hiddenArchived > 0 && (
+              <>
+                {hiddenArchived.toLocaleString()} archived {hiddenArchived === 1 ? "dashboard" : "dashboards"} hidden{" "}
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-meta"
+                  aria-label="Show archived dashboards"
+                  onClick={showArchived}
+                >
+                  Show
+                </Button>
+              </>
+            )
+          }
           sort={{
             value: sortState,
             onChange: (next) => {
@@ -387,14 +459,28 @@ export function DashboardLibrary({
                 Export JSON
               </Button>
               {chosen.every((d) => dashboardAbilities(d, capabilities).delete) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setOpen({ kind: "delete", uuids: chosen.map((d) => d.uuid) })}
-                >
-                  <Trash2Icon data-icon="inline-start" />
-                  Delete
-                </Button>
+                <>
+                  {chosen.every((d) => !d.archived_at) && (
+                    <Button size="sm" variant="outline" onClick={() => void setArchived(chosen, true)}>
+                      <ArchiveIcon data-icon="inline-start" />
+                      Archive
+                    </Button>
+                  )}
+                  {chosen.every((d) => d.archived_at) && (
+                    <Button size="sm" variant="outline" onClick={() => void setArchived(chosen, false)}>
+                      <ArchiveRestoreIcon data-icon="inline-start" />
+                      Restore
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setOpen({ kind: "delete", uuids: chosen.map((d) => d.uuid) })}
+                  >
+                    <Trash2Icon data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </>
               )}
             </>
           )}
@@ -417,6 +503,10 @@ export function DashboardLibrary({
               {dashboardAbilities(d, capabilities).delete && (
                 <>
                   <DropdownMenuSeparator />
+                  {/* Archiving needs what deleting does: the owner or Dashboard.manage. */}
+                  <DropdownMenuItem onSelect={() => void setArchived([d], !d.archived_at)}>
+                    {d.archived_at ? "Restore" : "Archive"}
+                  </DropdownMenuItem>
                   <DropdownMenuItem variant="destructive" onSelect={() => setOpen({ kind: "delete", uuids: [d.uuid] })}>
                     Delete
                   </DropdownMenuItem>
@@ -427,27 +517,35 @@ export function DashboardLibrary({
           empty={
             <EmptyState
               inset
-              icon={<LayoutDashboardIcon />}
+              icon={hiddenArchived ? <ArchiveIcon /> : <LayoutDashboardIcon />}
               title={emptyTitle}
               description={
-                !all.length
-                  ? canCreate
-                    ? "Start blank, from a template or from a device profile."
-                    : "People who can create dashboards add them here."
-                  : undefined
+                hiddenArchived
+                  ? `${hiddenArchived.toLocaleString()} archived ${hiddenArchived === 1 ? "dashboard is" : "dashboards are"} hidden from this list.`
+                  : !everything.length
+                    ? canCreate
+                      ? "Start blank, from a template or from a device profile."
+                      : "People who can create dashboards add them here."
+                    : undefined
               }
               action={
-                !all.length &&
-                canCreate && (
-                  <>
-                    <Button size="sm" onClick={() => setOpen({ kind: "blank" })}>
-                      <PlusIcon data-icon="inline-start" />
-                      New dashboard
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setOpen({ kind: "templates" })}>
-                      Browse templates
-                    </Button>
-                  </>
+                hiddenArchived ? (
+                  <Button variant="outline" size="sm" onClick={showArchived}>
+                    Show archived dashboards
+                  </Button>
+                ) : (
+                  !everything.length &&
+                  canCreate && (
+                    <>
+                      <Button size="sm" onClick={() => setOpen({ kind: "blank" })}>
+                        <PlusIcon data-icon="inline-start" />
+                        New dashboard
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setOpen({ kind: "templates" })}>
+                        Browse templates
+                      </Button>
+                    </>
+                  )
                 )
               }
             />

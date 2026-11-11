@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { queryOptions, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiError } from "@iot-os/api-client";
+import { ApiError, type ArchivedBy } from "@iot-os/api-client";
 import {
   WorkflowEditor,
   nodeLabel,
@@ -16,7 +16,7 @@ import {
   type Resource,
   type WorkflowNode,
 } from "@iot-os/workflow-editor";
-import { MailIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, MailIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import {
   Card,
@@ -53,6 +53,7 @@ import {
   TabsContent,
 } from "@iot-os/ui/components/tabs";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
+import { RelativeTime } from "@iot-os/ui/components/freshness";
 import {
   Tooltip,
   TooltipContent,
@@ -118,6 +119,9 @@ type Saved = {
   pending_operation_uuid?: string;
   /** The draft revision that runs or is being applied; null while inactive. */
   active_revision?: number | null;
+  /** Set while archived: off and read-only until restored. */
+  archived_at?: string | null;
+  archived_by?: ArchivedBy | null;
 };
 type Page<T> = {
   data: T[];
@@ -246,6 +250,8 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0 });
   // A running automation applies saves straight away; Save draft keeps them for later.
   const running = isRunning(live);
+  // Archived automations are off and read-only until restored.
+  const archived = Boolean(live?.archived_at);
   const toApply = unappliedChanges({ dirty: dirty || orphaned, saved, live });
   const commandNodes = graph.nodes.filter((n) => n.type === "action.command.v1");
   const reactivating = live?.deployment_status === "inactive" && live.deployment_generation > 0;
@@ -297,6 +303,16 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     setSimulation(undefined);
     setDiagnostics([]);
   };
+  const session = useQuery({ queryKey: ["session"], queryFn: () => api.me(), staleTime: 60000 });
+  // Older APIs send no automation capabilities; the API's refusal then shows as an error.
+  const canManage = session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.automation?.manage ?? true;
+  async function restore() {
+    if (!saved) return;
+    await api.restoreWorkflow(org, saved.uuid);
+    await detail.refetch();
+    void queryClient.invalidateQueries({ queryKey: ["automation-directory", org] });
+    toast.success(`Restored ${saved.name}. It stays off until you activate it.`);
+  }
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setError(undefined);
@@ -502,7 +518,13 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
               </>
             ) : (
               <>
-                <Button size="sm" variant={needsSave ? "default" : "outline"} disabled={busy} onClick={() => void run(async () => void (await save()))}>
+                <Button
+                  size="sm"
+                  variant={needsSave ? "default" : "outline"}
+                  disabled={busy || archived}
+                  title={archived ? "Restore this automation before changing it." : undefined}
+                  onClick={() => void run(async () => void (await save()))}
+                >
                   Save
                 </Button>
                 <Button
@@ -548,6 +570,27 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
       >
         {activationReason && !busy && <p className="text-sm text-muted-foreground" role="status">{activationReason}</p>}
         <RequestError error={error ?? detail.error} />
+        {live?.archived_at && (
+          <Alert>
+            <ArchiveIcon />
+            <AlertTitle>This automation is archived</AlertTitle>
+            <AlertDescription>
+              <p>
+                It is off and hidden from the automation list
+                {live.archived_by?.name ? `. ${live.archived_by.name} archived it ` : ". Archived "}
+                <RelativeTime at={live.archived_at} />. Restore it to change or activate it again.
+              </p>
+            </AlertDescription>
+            {canManage && (
+              <AlertAction>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(restore)}>
+                  <ArchiveRestoreIcon data-icon="inline-start" />
+                  Restore
+                </Button>
+              </AlertAction>
+            )}
+          </Alert>
+        )}
         {saved &&
           live &&
           (live.draft_revision !== saved.draft_revision ||

@@ -306,30 +306,30 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart section 4.3.
 
-- [ ] T047 [US2] Migration `migrations/2026_11_XX_000005_archive_dashboards_and_workflows.php`: on `dashboards` and `automation_workflows`, `archived_at` timestamptz nullable and `archived_by` FK users nullable. `archived_by_move_id` waits for PR 031-4 (T053), because this PR can merge before `device_moves` exists
-- [ ] T048 [US2] `Dashboards/Http/Controllers/DashboardController.php`:
+- [x] T047 [US2] Migration `migrations/2026_11_20_000005_archive_dashboards_and_workflows.php`: on `dashboards` and `automation_workflows`, `archived_at` timestamptz nullable and `archived_by` FK users nullable. `archived_by_move_id` waits for PR 031-4 (T053), because this PR can merge before `device_moves` exists
+- [x] T048 [US2] `Dashboards/Http/Controllers/DashboardController.php`:
   - `archive` and `restore`, allowed for the owner or `Dashboard.manage` (`Dashboards/Services/DashboardAccess.php`);
   - `index` hides archived dashboards unless `archived=only|include`, and returns `archived_count`;
   - an archived dashboard is read-only (409 on save);
-  - records `dashboard.archived` and `dashboard.restored`.
-- [ ] T049 [US2] `Automation/Http/Controllers/DagController.php` `archive`:
+  - records `dashboard.archived` and `dashboard.unarchived` (`dashboard.restored` is restoring a version).
+- [x] T049 [US2] `Automation/Http/Controllers/DagController.php` `archive`:
   - needs `Workflow.manage` and `Workflow.activate`;
   - requests an inactive deployment first, then sets `archived_at`.
 
-  `restore` needs `Workflow.manage` and comes back off. Lists filter as dashboards do. Record `workflow.archived` and `workflow.restored`; add all four to `ActivityCatalogue`
-- [ ] T050 [P] [US2] `tests/Dashboards/DashboardArchiveTest.php` and `tests/Automation/WorkflowArchiveTest.php`:
+  `restore` needs `Workflow.manage` and comes back off. Lists filter as dashboards do. Record `workflow.archived` and `workflow.unarchived`; add all four to `ActivityCatalogue`
+- [x] T050 [P] [US2] `tests/Dashboards/DashboardArchiveTest.php` and `tests/Automation/WorkflowArchiveTest.php`:
   - permissions;
   - default lists hide archived items;
   - restore;
   - an archived automation is off and a restored one stays off;
   - organization C can't archive A's items;
   - organizations that never archive see unchanged lists (FR-062).
-- [ ] T051 [US2] `packages/api-client` archive and restore methods and `archived_at`. `portal/dashboards/LibraryPage.tsx` and `portal/automation/AutomationDirectory.tsx`:
+- [x] T051 [US2] `packages/api-client` archive and restore methods and `archived_at`. `portal/dashboards/LibraryPage.tsx` and `portal/automation/AutomationDirectory.tsx`:
   - **Archive** and **Restore** actions;
   - "*n* archived hidden · Show", following `DeviceDirectory.tsx:337-352`.
 
   `portal/dashboards/lastPlace.ts` falls back from an archived dashboard. OpenAPI export
-- [ ] T052 `docs/features/dashboards.md` and `docs/features/automation.md`: archiving. Rebuild api and portal; run quickstart 4.3; leak scan; open PR 031-3
+- [x] T052 `docs/features/dashboards.md` and `docs/features/automation.md`: archiving. Rebuild api and portal; run quickstart 4.3; leak scan; open PR 031-3
 
 ---
 

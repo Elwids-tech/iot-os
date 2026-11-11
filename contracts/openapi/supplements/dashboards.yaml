@@ -55,3 +55,50 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/dashboards/{dashboard}/archive:
+    description: >-
+      Hides the dashboard from lists and makes it read-only: saves, restoring a version
+      and access changes then get 409. Needs the owner or `Dashboard.manage`. Archiving
+      an archived dashboard changes nothing.
+    responses:
+      '200':
+        description: The dashboard is archived.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/ArchiveState'
+            example:
+              data:
+                uuid: 9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50
+                archived_at: '2026-11-11T09:30:00+00:00'
+                archived_by:
+                  user_id: 42
+                  name: Ana Silva
+  POST /v1/organizations/{organization}/dashboards/{dashboard}/restore:
+    description: >-
+      Brings an archived dashboard back to the library as it was. Needs the owner or
+      `Dashboard.manage`. Restoring a current dashboard changes nothing.
+    responses:
+      '200':
+        description: The dashboard is current again.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/ArchiveState'
+            example:
+              data:
+                uuid: 9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50
+                archived_at: null
+                archived_by: null
+  PUT /v1/organizations/{organization}/dashboards/{dashboard}/access:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'

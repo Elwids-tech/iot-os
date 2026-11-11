@@ -34,7 +34,7 @@ final class OverviewQuery
             ->selectRaw("count(*) FILTER (WHERE lifecycle = 'active' AND (last_seen_at IS NULL OR last_seen_at < ?)) AS silent", [now()->subDay()])
             ->first();
         $alerts = Alert::where('organization_id', $organization->id);
-        $workflows = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2');
+        $workflows = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2')->whereNull('archived_at');
         $activeAlerts = (clone $alerts)->whereNull('cleared_at')->with(['workflow:id,name', 'deployment', 'subjectDevice:id,name'])->latest('activated_at')->limit(5)->get();
         $alertDevices = Device::where('organization_id', $organization->id)->whereIn('uuid', $activeAlerts->map(fn (Alert $alert) => AlertQuery::boundDevice($alert))->filter())->pluck('name', 'uuid');
         $commands = DeviceCommand::whereIn('device_id', Device::where('organization_id', $organization->id)->select('id'))->latest('id')->limit(5)->get();

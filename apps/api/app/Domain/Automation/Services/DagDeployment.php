@@ -32,6 +32,7 @@ final class DagDeployment
             $definition = null;
             $hash = null;
             if ($input['target_state'] === 'active') {
+                abort_if($w->isArchived(), 409, 'This automation is archived. Restore it before turning it on.');
                 app(DagAuthorization::class)->enabled($org);
                 $settings = DB::table('automation_settings')->where('organization_id', $org->id)->lockForUpdate()->first();
                 abort_if($settings->stopped, 409, 'Organization automation is stopped.');
