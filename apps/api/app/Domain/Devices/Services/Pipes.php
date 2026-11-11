@@ -63,6 +63,30 @@ final class Pipes
     }
 
     /**
+     * The gateway of another organization of the billing account that an offline episode
+     * of the organization's hosted devices names (spec 031, research R14), or null. The
+     * gateway is resolved in its own organization, and only when every affected device is
+     * the organization's and reports through it, so an event can't reach a gateway that
+     * serves none of them.
+     *
+     * @param  list<string>  $deviceUuids
+     */
+    public function hostedGateway(Organization $organization, string $pipeOrganizationUuid, string $connectionUuid, string $edgeNodeId, array $deviceUuids): ?SparkplugGateway
+    {
+        $owner = Organization::where('uuid', $pipeOrganizationUuid)->first(['id']);
+        if (! $owner || $owner->id === $organization->id || ! self::sameAccount($owner->id, $organization->id)) {
+            return null;
+        }
+        $gateway = SparkplugGateway::where('organization_id', $owner->id)->where('edge_node_id', $edgeNodeId)
+            ->whereHas('connection', fn ($query) => $query->where('organization_id', $owner->id)->where('uuid', $connectionUuid))->first(['id', 'uuid', 'name', 'organization_id']);
+        $devices = array_values(array_unique($deviceUuids));
+        $hosted = $gateway ? Device::where('organization_id', $organization->id)->whereIn('uuid', $devices)
+            ->whereIn('device_discovery_candidate_id', DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->select('id'))->count() : 0;
+
+        return $devices !== [] && $hosted === count($devices) ? $gateway : null;
+    }
+
+    /**
      * The organization's devices, archived ones aside, that report through another
      * organization's pipe.
      *

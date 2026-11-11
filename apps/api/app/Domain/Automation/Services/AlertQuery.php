@@ -77,7 +77,7 @@ final class AlertQuery
 
     public function views(Organization $organization, Collection $alerts): array
     {
-        $alerts->loadMissing(['workflow', 'deployment', 'acknowledger:id,name', 'assignee:id,name', 'subjectDevice:id,uuid,name,site_id', 'subjectDevice.site:id,uuid,name,timezone', 'subjectGateway:id,uuid,name', 'subjectAdapter:id,uuid,name']);
+        $alerts->loadMissing(['workflow', 'deployment', 'acknowledger:id,name', 'assignee:id,name', 'subjectDevice:id,uuid,name,site_id', 'subjectDevice.site:id,uuid,name,timezone', 'subjectGateway:id,uuid,name,organization_id', 'subjectAdapter:id,uuid,name']);
         $deviceNames = Device::where('organization_id', $organization->id)->whereIn('uuid', $alerts->map(fn ($a) => self::boundDevice($a))->filter()->values())->pluck('name', 'uuid')->all();
         $listed = $this->listedDevices($organization, $alerts);
         $gatewaySites = $this->gatewaySites($organization, $alerts);
@@ -141,13 +141,7 @@ final class AlertQuery
     {
         $workflow = $alert->isWorkflow();
         $device = $workflow ? self::boundDevice($alert) : $alert->subjectDevice?->uuid;
-        $subject = match (true) {
-            $workflow => null,
-            $alert->subjectDevice !== null => ['type' => 'device', 'uuid' => $alert->subjectDevice->uuid, 'name' => $alert->subjectDevice->name],
-            $alert->subjectGateway !== null => ['type' => 'gateway', 'uuid' => $alert->subjectGateway->uuid, 'name' => $alert->subjectGateway->name],
-            $alert->subjectAdapter !== null => ['type' => 'adapter', 'uuid' => $alert->subjectAdapter->uuid, 'name' => $alert->subjectAdapter->name],
-            default => null,
-        };
+        $subject = $workflow ? null : $alert->subjectSummary();
         $site = $alert->subjectDevice?->site?->only(['uuid', 'name', 'timezone']) ?? $gatewaySite;
 
         return [

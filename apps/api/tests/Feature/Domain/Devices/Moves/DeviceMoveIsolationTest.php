@@ -7,8 +7,12 @@ namespace Tests\Feature\Domain\Devices\Moves;
 use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
+use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Devices\Models\SparkplugConnection;
+use App\Domain\Devices\Models\SparkplugGateway;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 
 /**
@@ -80,6 +84,54 @@ final class DeviceMoveIsolationTest extends MoveTestCase
         $this->assertSame(['uuid' => null, 'name' => 'Integrator'], $move['source']);
         $this->assertNull($move['devices'][0]['predecessor_uuid']);
         $this->assertSame($this->inB->uuid, $move['devices'][0]['successor_uuid']);
+    }
+
+    public function test_a_member_of_b_only_reaches_nothing_of_a_gateway_pipe(): void
+    {
+        $connection = SparkplugConnection::create(['organization_id' => $this->a->id, 'name' => 'Plant broker', 'group_id' => 'plant', 'host_id' => 'plant-host', 'username' => 'plant-'.Str::random(6), 'password' => 'test-secret', 'status' => 'ready']);
+        $gateway = SparkplugGateway::create(['organization_id' => $this->a->id, 'sparkplug_connection_id' => $connection->id, 'name' => 'Line gateway', 'edge_node_id' => 'line-1',
+            'username' => 'edge-'.Str::uuid(), 'password' => Str::random(48), 'presence' => 'online', 'runtime_seen_at' => now()]);
+        $candidate = DiscoveryCandidate::create(['organization_id' => $this->a->id, 'sparkplug_gateway_id' => $gateway->id, 'source_device_id' => 'meter-1', 'birth_revision' => 1, 'metrics' => []]);
+        $behind = $this->unsourced('Line meter');
+        $behind->forceFill(['device_discovery_candidate_id' => $candidate->id, 'reserved_source_uuid' => $candidate->uuid])->save();
+        $this->moved($this->a, $this->b, [$behind]);
+        $hosted = $this->successor($behind);
+        // B's own profile, so onboarding onto A's gateway fails on the gateway alone.
+        Artisan::call('devices:prepare-water-meter-profile', ['--organization' => $this->b->slug]);
+        $artifact = DeviceProfile::where('organization_id', $this->b->id)->firstOrFail()->artifacts()->firstOrFail()->uuid;
+
+        $this->actingAs($this->bOnly, 'sanctum');
+        $b = $this->in($this->b);
+        foreach ([
+            ['POST', $b.'/gateways/'.$gateway->uuid.'/provision'], ['POST', $b.'/gateways/'.$gateway->uuid.'/connection-settings'], ['POST', $b.'/gateways/'.$gateway->uuid.'/firmware-kit'],
+            ['POST', $b.'/gateways/'.$gateway->uuid.'/bulk-onboardings'], ['POST', $b.'/sparkplug-connections/'.$connection->uuid.'/provision'],
+            ['GET', $b.'/discovery-candidates/'.$candidate->uuid], ['PATCH', $b.'/discovery-candidates/'.$candidate->uuid],
+            ['POST', $b.'/device-onboardings'], ['POST', $b.'/telemetry-captures'],
+        ] as [$method, $uri]) {
+            $this->json($method, $uri, ['request_uuid' => (string) Str::uuid(), 'name' => 'Probe', 'artifact_uuid' => $artifact, 'mode' => 'gateway', 'gateway_uuid' => $gateway->uuid,
+                'source_device_id' => 'meter-9', 'device_uuid' => $hosted->uuid, 'duration_seconds' => 60, 'target' => 'linux', 'status' => 'rejected', 'birth_revision' => 1,
+                'source_device_ids' => ['meter-9'], 'name_pattern' => '{device}'])->assertNotFound();
+        }
+        $this->assertSame([], $this->getJson($b.'/gateways')->assertOk()->json('data'));
+        $this->assertSame([], $this->getJson($b.'/sparkplug-connections')->assertOk()->json('data'));
+        $this->assertSame([], $this->getJson($b.'/discovery-candidates')->assertOk()->json('data'));
+        // The hosted device has no connection settings or kit of its own: they are the gateway's.
+        foreach (['/connection-settings', '/firmware-kit', '/connection-kit'] as $route) {
+            $response = $this->postJson($b.'/devices/'.$hosted->uuid.$route, ['target' => 'linux']);
+            $this->assertContains($response->status(), [404, 422], $route);
+            $this->assertStringNotContainsString($gateway->password, $response->getContent());
+            $this->assertStringNotContainsString($gateway->username, $response->getContent());
+        }
+        // A's own routes answer as they do for any non-member.
+        $this->getJson($this->in($this->a).'/gateways')->assertForbidden();
+        $this->getJson($this->in($this->a).'/sparkplug-connections')->assertForbidden();
+        $this->postJson($this->in($this->a).'/gateways/'.$gateway->uuid.'/firmware-kit', ['target' => 'linux'])->assertForbidden();
+
+        $device = $this->getJson($b.'/devices/'.$hosted->uuid)->assertOk()->json('data');
+        $this->assertSame(['kind' => 'gateway', 'name' => 'Line gateway', 'owner_organization_name' => 'Integrator', 'online' => true, 'hosted' => true], $device['pipe']);
+        foreach ([$gateway->uuid, $connection->uuid, 'plant-host', $this->a->uuid] as $secret) {
+            $this->assertStringNotContainsString($secret, json_encode($device));
+        }
     }
 
     public function test_a_hosted_devices_readings_keep_their_serial_but_not_the_pipe_owners_adapter_revision(): void

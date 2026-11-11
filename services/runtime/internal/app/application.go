@@ -216,6 +216,8 @@ func (a *Application) syncState() error {
 		return e
 	}
 	for _, connection := range state.Connections {
+		// Its gateways' offline episodes belong to its organization (spec 031).
+		a.connectivity.organize(connection.UUID, connection.OrganizationUUID)
 		a.mu.Lock()
 		existing := a.brokers[connection.UUID]
 		a.mu.Unlock()

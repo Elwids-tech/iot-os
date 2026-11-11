@@ -12,8 +12,9 @@ components:
           type: string
           enum: [device, gateway, adapter]
         uuid:
-          type: string
+          type: [string, 'null']
           format: uuid
+          description: Null for a gateway of another organization of the billing account whose pipe serves the alert's hosted devices (spec 031), which is named only.
         name:
           type: string
     OfflineAlertSummary:

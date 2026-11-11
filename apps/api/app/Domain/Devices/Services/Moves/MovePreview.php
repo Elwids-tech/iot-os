@@ -30,8 +30,8 @@ use Illuminate\Validation\ValidationException;
  * is reviewed again (research R10).
  *
  * The dashboards and automations that use the devices are listed with a choice each
- * (CarriedItems); until PRs 031-5 and 031-7 devices behind a gateway and direct devices
- * are blocked (research R22).
+ * (CarriedItems); until PR 031-7 direct devices are blocked (research R22). Devices
+ * behind a gateway move like adapter-fed ones: the gateway stays with its owner (R14).
  */
 final class MovePreview
 {
@@ -42,8 +42,6 @@ final class MovePreview
     public const WAITING = 'Waiting for the runtime';
 
     public const MOVING = 'Already being moved';
-
-    public const GATEWAY = 'Devices behind a gateway can’t be moved yet';
 
     public const DIRECT = 'Directly connected devices can’t be moved yet';
 
@@ -145,9 +143,6 @@ final class MovePreview
             }
             if ($moving->has($device->id)) {
                 $blockers[] = self::MOVING;
-            }
-            if ($pipe?->kind === 'gateway') {
-                $blockers[] = self::GATEWAY;
             }
             if ($direct) {
                 $blockers[] = self::DIRECT;
@@ -303,8 +298,7 @@ final class MovePreview
     private function ends(Organization $source, Collection $devices): array
     {
         $ids = $devices->pluck('id');
-        $alerts = Alert::where('organization_id', $source->id)->whereNull('cleared_at')
-            ->where(fn ($query) => $query->whereIn('subject_device_id', $ids)->orWhereHas('devices', fn ($q) => $q->whereIn('devices.id', $ids)))->count();
+        $alerts = Alert::where('organization_id', $source->id)->whereNull('cleared_at')->endingWithMoved($ids)->count();
         $geofences = GeofenceAssignment::whereIn('device_location_binding_id', LocationBinding::where('organization_id', $source->id)->whereIn('device_id', $ids)->select('id'))->count();
         $uuids = $devices->keys()->all();
         $sites = $devices->pluck('site_id')->filter()->unique();

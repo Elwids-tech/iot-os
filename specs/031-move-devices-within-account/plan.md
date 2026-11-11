@@ -223,7 +223,9 @@ Each is argued in [research.md](research.md).
   - `Services/WorkflowRewrite`;
   - suspension with `device_moved` in `WorkflowDeploymentService`;
   - `AlertQuery` and `ConnectivityProjector` honour the Laravel-set `device_moved` stop
-    and, from PR 031-5, `pipe_organization_uuid`.
+    and, from PR 031-5, `pipe_organization_uuid`: `Pipes::hostedGateway` resolves the
+    gateway, `Alert::subjectSummary` names another organization's gateway only, and
+    `SparkplugGateway::offlineAlert` takes only the gateway organization's alert.
 - **`Geospatial`**: `GeofenceService` removes a moved predecessor's assignments.
 - **`Billing`**: `BillingAccounts::move` refuses while hosted devices or moves exist
   (R17). `DeviceLimit` gets `transfer(Device $from, Device $to)` (R4).
@@ -239,8 +241,9 @@ Each is argued in [research.md](research.md).
   `internal/app/application.go`: `edgeOrganization(connection, edge)`, used by capture
   watching and recording.
 - `internal/app/telemetry.go`: the capture start check uses the edge organization.
-- `internal/app/connectivity.go`: the gateway episode organization comes from
-  `edgeOrganization`, plus hosted episodes per member organization keyed
+- `internal/app/connectivity.go`: the gateway episode organization comes from the
+  connection's organization (PR 031-5, `organize` from the control state), then from
+  `edgeOrganization` (PR 031-7), plus hosted episodes per member organization keyed
   `gateway:<connection>/<edge>@<organization>` with `pipe_organization_uuid` on the
   event.
 - Tests: `connectivity_test.go` cases for mixed-organization members and existing keys;

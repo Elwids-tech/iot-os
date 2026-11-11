@@ -1,5 +1,6 @@
 import type {
   Alert,
+  AlertSubject,
   ConnectivityRuntimeState,
   Device,
   DeviceDetail,
@@ -414,12 +415,15 @@ export type AlertGroup = {
   /** Newest episode: alerts arrive newest first. */
   latest: Alert
 }
+/** An alert subject's identity: its UUID, or the name of another organization's gateway, which is named only (spec 031). */
+export const subjectId = (subject: AlertSubject) => subject.uuid ?? `named:${subject.name}`
+
 /** Episodes grouped by workflow or connectivity kind; groups with an active episode first, then newest. */
 export function groupAlerts(alerts: Alert[]): AlertGroup[] {
   const groups = new Map<string, AlertGroup>()
   for (const alert of alerts) {
     const key =
-      alert.workflow_uuid !== null ? alert.workflow_uuid : `${alert.kind}:${alert.subject.uuid}`
+      alert.workflow_uuid !== null ? alert.workflow_uuid : `${alert.kind}:${subjectId(alert.subject)}`
     const group = groups.get(key)
     const active = alert.condition === "active" ? 1 : 0
     if (group) {
