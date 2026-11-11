@@ -1,6 +1,6 @@
 # ADR-026: Organizations Belong to Billing Accounts
 
-**Status:** Accepted; amended by [ADR-035](ADR-035-plans-and-allowances.md)
+**Status:** Accepted; amended by [ADR-035](ADR-035-plans-and-allowances.md) (and [ADR-039](ADR-039-hosted-devices-and-moves.md), proposed)
 **Date:** 2026-10-29
 **Relates to:** [ADR-010](ADR-010-per-tenant-adapter-runtimes.md), [ADR-013](ADR-013-integer-user-ids.md),
 [spec 023](../../specs/023-billing-accounts/spec.md)

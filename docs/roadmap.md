@@ -106,6 +106,11 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Devices and adapters
 
+- **Move devices within a billing account** ([spec 031](../specs/031-move-devices-within-account/spec.md),
+  [ADR-039](adr/ADR-039-hosted-devices-and-moves.md)): move devices to another
+  organization of the same account as an archived predecessor and a linked successor,
+  with their dashboards and automations, while adapters and gateways stay with the
+  organization that set them up and serve the moved devices as hosted devices.
 - **Firmware starter kits** ([spec 027](../specs/027-firmware-starter-kits/spec.md),
   [ADR-030](adr/ADR-030-firmware-starters.md)): a credential-free SDK project per profile
   and microcontroller (ESP32, NXP i.MX RT, Linux, and other families with AI-assisted

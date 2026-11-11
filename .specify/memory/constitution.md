@@ -36,8 +36,17 @@ never from a payload. Untrusted tenant code (adapter decoders) runs only in a
 per-tenant sandbox. A change that touches tenant data MUST include a test proving
 another organization cannot read or change it.
 
-*Rationale:* one organization must never see or affect another.
-*Source:* ResolveOrganizationContext, broker ACLs, ADR-010.
+Two crossings are allowed, only between organizations of one billing account and
+only as ADR-039 defines them: a *hosted device* reports through a pipe (an adapter or
+gateway) that another organization owns, and a moved device may read its
+predecessor's readings when the person who moved it chose so. Each side sees only
+what ADR-039 lists, Laravel decides every crossing, and each crossing MUST have tests
+proving that organizations outside the account, and members of only one side, see
+nothing more. A billing account by itself still grants no access.
+
+*Rationale:* one organization must never see or affect another, except where the same
+payer deliberately connects two of its organizations, and then only as far as named.
+*Source:* ResolveOrganizationContext, broker ACLs, ADR-010, ADR-026, ADR-039.
 
 ### IV. Contracts first
 
@@ -149,4 +158,4 @@ expanding one, PATCH for wording. Reviewers and `/speckit-plan` check new work
 against these principles; violations are either fixed or justified in the plan's
 Complexity Tracking table.
 
-**Version**: 1.0.4 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-18
+**Version**: 1.1.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-11-11
