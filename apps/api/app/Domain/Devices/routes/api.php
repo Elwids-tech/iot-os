@@ -7,6 +7,7 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Devices\Http\Controllers\BulkOnboardingController;
 use App\Domain\Devices\Http\Controllers\CommandController;
 use App\Domain\Devices\Http\Controllers\DeviceController;
+use App\Domain\Devices\Http\Controllers\DeviceLinkController;
 use App\Domain\Devices\Http\Controllers\DeviceMoveController;
 use App\Domain\Devices\Http\Controllers\DiscoveryController;
 use App\Domain\Devices\Http\Controllers\OnboardingController;
@@ -46,6 +47,7 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ca
     Route::post('device-moves/preview', [DeviceMoveController::class, 'preview'])->middleware('throttle:60,1');
     Route::post('device-moves', [DeviceMoveController::class, 'store'])->middleware('throttle:20,1');
     Route::get('device-moves/{move}', [DeviceMoveController::class, 'show']);
+    Route::post('devices/{device}/link/history', [DeviceLinkController::class, 'history']);
     Route::get('sites', [SiteController::class, 'index']);
     Route::post('sites', [SiteController::class, 'store']);
     Route::patch('sites/{site}', [SiteController::class, 'update']);

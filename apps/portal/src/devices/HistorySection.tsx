@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { configurationProfile, type DeviceDetail } from "@iot-os/api-client"
+import {
+  configurationProfile,
+  type DeviceDetail,
+  type HistorySeries,
+} from "@iot-os/api-client"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import {
   Alert,
@@ -24,6 +28,8 @@ import {
 } from "../history/model"
 import { DeviceEmpty, formatTime, Section } from "./shared"
 
+type HistoryPoint = HistorySeries["points"][number]
+
 function range(hours: number) {
   const to = new Date()
   return {
@@ -39,24 +45,56 @@ function localInput(iso: string) {
     .slice(0, 16)
 }
 
+/**
+ * A moved device's readings from before the move, shared by the organization it moved
+ * from (spec 031): where they start and end, and who recorded them.
+ */
+type Earlier = { from: number; to: number; organization: string }
+
+/** The span of a series recorded before the move, or null. */
+function earlierSpan(
+  points: HistoryPoint[],
+  link: DeviceDetail["link"],
+): Earlier | null {
+  const times = points
+    .filter((point) => point.recorded_in === "source" && point.count > 0)
+    .map((point) => Date.parse(point.at))
+  if (!times.length) return null
+  const movedFrom = link?.direction === "moved_from" ? link : null
+  return {
+    from: Math.min(...times),
+    to: movedFrom ? Date.parse(movedFrom.cutover_at) : Math.max(...times),
+    organization: movedFrom?.organization_name ?? "the organization it moved from",
+  }
+}
+
 /** One stored series of a numeric parameter; dragging across it selects a custom range. */
 function HistoryChart({
   points,
   name,
   unit,
   span,
+  earlier,
   onSelect,
 }: {
   points: { at: string; value: unknown }[]
   name: string
   unit: string | null
   span: number
+  /** Shaded, with the move marked, and named in the tooltip. */
+  earlier: Earlier | null
   onSelect: (from: number, to: number) => void
 }) {
   const theme = useChartTheme()
   const option = useMemo(
     () =>
       timeSeriesOption(theme, {
+        areas: earlier
+          ? [{ from: earlier.from, to: earlier.to, color: "var(--muted-foreground)" }]
+          : undefined,
+        markers: earlier
+          ? [{ at: earlier.to, color: "var(--muted-foreground)" }]
+          : undefined,
         lines: [
           {
             key: "value",
@@ -75,11 +113,13 @@ function HistoryChart({
               ? { month: "short", day: "numeric" }
               : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
           ),
-        formatTime: (time) => formatTime(new Date(time).toISOString()),
+        formatTime: (time) =>
+          formatTime(new Date(time).toISOString()) +
+          (earlier && time < earlier.to ? ` · recorded in ${earlier.organization}` : ""),
         formatValue: (value) => `${formatNumber(value)}${unit ? ` ${unit}` : ""}`,
         selectable: true,
       }),
-    [theme, points, name, unit, span],
+    [theme, points, name, unit, span, earlier],
   )
   return (
     <EChart
@@ -290,6 +330,10 @@ export default function HistorySection({
               device.configurations,
               series.configuration_uuid,
             )
+            const earlier = earlierSpan(series.points, device.link)
+            const own = (series.configurations ?? []).filter(
+              (span) => span.recorded_in !== "source",
+            ).length
             return (
               <div
                 key={series.configuration_uuid + index}
@@ -298,14 +342,16 @@ export default function HistorySection({
                 <p className="text-sm text-muted-foreground">
                   {selected?.label} · {series.unit ?? "No unit"} ·{" "}
                   {meta.configurationLabel} · {meta.profileLabel}
-                  {(series.configurations?.length ?? 0) > 1 &&
-                    ` · joins ${series.configurations!.length} configurations`}
+                  {own > 1 && ` · joins ${own} configurations`}
+                  {earlier &&
+                    ` · shaded: recorded in ${earlier.organization} before the move`}
                 </p>
                 <HistoryChart
                   points={series.points}
                   name={selected?.label ?? "Value"}
                   unit={series.unit}
                   span={Date.parse(window.to) - Date.parse(window.from)}
+                  earlier={earlier}
                   onSelect={selectRange}
                 />
               </div>
@@ -318,6 +364,11 @@ export default function HistorySection({
               configurations={device.configurations}
               colour={colour}
               states={displayStates(selected)}
+              recordedIn={
+                device.link?.direction === "moved_from"
+                  ? device.link.organization_name ?? undefined
+                  : undefined
+              }
             />
           )}
 

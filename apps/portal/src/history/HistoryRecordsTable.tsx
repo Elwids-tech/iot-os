@@ -76,6 +76,9 @@ export function HistoryRecordsTable({
     [query.data],
   )
   const limitReached = query.data?.pages.at(-1)?.meta.limit_reached ?? false
+  const earlierOrganization =
+    (device.link?.direction === "moved_from" && device.link.organization_name) ||
+    "the organization it moved from"
 
   const columns = useMemo<DataColumn<HistoryRecord>[]>(
     () => [
@@ -195,6 +198,11 @@ export function HistoryRecordsTable({
       columns={columns}
       bounded
       separator={(record, previous) => {
+        // A moved device's records from before the move (spec 031) carry the source's configurations.
+        if (record.recorded_in === "source")
+          return previous?.recorded_in === "source"
+            ? null
+            : `Recorded in ${earlierOrganization} before the move`
         if (previous?.configuration_uuid === record.configuration_uuid)
           return null
         const meta = configurationMeta(

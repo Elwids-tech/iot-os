@@ -1,6 +1,8 @@
 package app
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -70,5 +72,25 @@ func TestHistoryWindowClipsRetentionAndFutureRanges(t *testing.T) {
 	}
 	if to.After(time.Now().UTC()) {
 		t.Fatalf("future range was not clipped: %s", to)
+	}
+}
+
+func TestHistoryRefusesABucketWidthItCannotServe(t *testing.T) {
+	a := &Application{Control: &ControlClient{Token: "history-test-token"}}
+	now := time.Now().UTC()
+	for _, width := range []string{"0", "-60", "ten", "31622401", "60"} {
+		query := url.Values{
+			"organization_uuid": {"organization"}, "device_uuid": {"device"}, "parameter_uuid": {"parameter"},
+			// A day at one-minute buckets is 1440 buckets, more than max_points.
+			"from": {now.Add(-24 * time.Hour).Format(time.RFC3339)}, "to": {now.Format(time.RFC3339)},
+			"retention_days": {"30"}, "max_points": {"500"}, "bucket_seconds": {width},
+		}
+		req := httptest.NewRequest(http.MethodGet, "/internal/measurements/history?"+query.Encode(), nil)
+		req.Header.Set("Authorization", "Bearer history-test-token")
+		response := httptest.NewRecorder()
+		a.Handler().ServeHTTP(response, req)
+		if response.Code != 422 {
+			t.Fatalf("bucket_seconds=%s answered %d: %s", width, response.Code, response.Body.String())
+		}
 	}
 }

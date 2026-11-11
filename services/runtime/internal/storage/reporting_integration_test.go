@@ -176,6 +176,48 @@ func TestHistoryMergesConfigurationRevisionsOnlyWhenAsked(t *testing.T) {
 	}
 }
 
+func TestHistoryBucketWidthSharesEdgesAcrossRanges(t *testing.T) {
+	store, ctx, organization := historyStore(t)
+	definition := devices.Definition{DeviceUUID: UUID(), OrganizationUUID: organization, ConfigurationUUID: UUID()}
+	if err := store.Apply(ctx, definition, 1, "device.applied.v1"); err != nil {
+		t.Fatal(err)
+	}
+	parameter := UUID()
+	now := time.Now().UTC().Truncate(time.Second)
+	for minutes := 5; minutes <= 175; minutes += 10 {
+		at := now.Add(-time.Duration(minutes) * time.Minute)
+		persistReading(t, store, definition, devices.Reading{ParameterUUID: parameter, DataType: "number", Value: float64(minutes), Quality: "good", ObservedAt: at, ReceivedAt: at})
+	}
+	options := HistoryOptions{ObservedTime: true, MergeConfigurations: true, BucketSeconds: 1800}
+	// Two ranges whose own widths would differ: three hours, and its first hour.
+	whole, err := store.History(ctx, organization, definition.DeviceUUID, parameter, now.Add(-3*time.Hour), now, 100, options)
+	if err != nil || len(whole) != 1 {
+		t.Fatalf("whole = %+v %v", whole, err)
+	}
+	part, err := store.History(ctx, organization, definition.DeviceUUID, parameter, now.Add(-3*time.Hour), now.Add(-2*time.Hour), 100, options)
+	if err != nil || len(part) != 1 {
+		t.Fatalf("part = %+v %v", part, err)
+	}
+	buckets := map[time.Time]int64{}
+	for _, point := range whole[0].Points {
+		if point.At.Unix()%1800 != 0 {
+			t.Fatalf("bucket %s is not on a 30-minute edge", point.At)
+		}
+		buckets[point.At] = point.Count
+	}
+	for _, point := range part[0].Points {
+		if point.At.Unix()%1800 != 0 {
+			t.Fatalf("bucket %s is not on a 30-minute edge", point.At)
+		}
+		if count, ok := buckets[point.At]; !ok || point.Count > count {
+			t.Fatalf("bucket %s of the first hour (%d readings) is not a bucket of the whole range (%d)", point.At, point.Count, count)
+		}
+	}
+	if len(whole[0].Points) > 7 {
+		t.Fatalf("three hours at 30 minutes gave %d buckets", len(whole[0].Points))
+	}
+}
+
 func TestLatestAcrossFallsBackToEarlierConfigurations(t *testing.T) {
 	store, ctx, organization := historyStore(t)
 	device, power, flag := UUID(), UUID(), UUID()

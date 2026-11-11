@@ -54,6 +54,12 @@ Things that have cost time before. Add to this list when something surprises you
   point at its tables, then reapply them. SQLite drops the table anyway, so only the
   PostgreSQL job fails. The billing usage migration points at billing accounts and
   plan assignments, so tests rerunning those roll it back first.
+- **Two history reads of different ranges don't share bucket edges.** The runtime's
+  aggregate history picks its bucket width from the range and `max_points`, after
+  clipping to the retention it is given, so a moved device's read and its
+  predecessor's (spec 031) would bucket differently. Pass one `bucket_seconds` to both
+  (`EarlierReadings::bucketSeconds`). Validated query parameters are strings: cast
+  `limit`, `page_size` and `max_points` before arithmetic or typed calls.
 - **A device holds its place in the device limit from acceptance, not from runtime
   confirmation.** `lifecycle` turns `active` only on `device.applied.v1`, but
   `limit_place_at` is set when the activation is accepted and cleared when a

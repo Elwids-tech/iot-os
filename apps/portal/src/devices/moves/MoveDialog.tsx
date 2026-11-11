@@ -83,6 +83,7 @@ export function MoveDialog({
   const [step, setStep] = useState(1)
   const [target, setTarget] = useState<MoveTarget | null>(null)
   const [overrides, setOverrides] = useState<Record<string, DeviceMoveDeviceInput>>({})
+  const [includeHistory, setIncludeHistory] = useState(false)
   const [settled, setSettled] = useState(overrides)
   const [choices, setChoices] = useState<Record<string, DeviceMoveItemInput>>({})
   const [added, setAdded] = useState<string[]>([])
@@ -103,8 +104,9 @@ export function MoveDialog({
       device_uuids: uuids,
       devices: Object.values(settled),
       items: Object.values(choices),
+      include_history: includeHistory,
     }),
-    [target, uuids, settled, choices],
+    [target, uuids, settled, choices, includeHistory],
   )
   const reviewKey = ["device-move-review", org, input]
   const review = useQuery({
@@ -185,6 +187,8 @@ export function MoveDialog({
                 setChoices((current) => ({ ...current, [itemKey(item)]: { kind: item.kind, uuid: item.uuid, action } }))
               }
               onAdd={(more) => setAdded((current) => [...new Set([...current, ...more])].filter((uuid) => !devices.some((device) => device.uuid === uuid)))}
+              includeHistory={includeHistory}
+              onIncludeHistory={setIncludeHistory}
             />
           </>
         )}

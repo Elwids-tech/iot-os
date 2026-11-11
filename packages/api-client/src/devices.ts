@@ -234,7 +234,7 @@ export type HistorySeries = {
   unit: string | null
   data_type: string
   /** Configuration revisions joined into this series, oldest first, with where each starts. */
-  configurations?: Array<{ configuration_uuid: string; from: string }>
+  configurations?: Array<{ configuration_uuid: string; from: string; recorded_in?: import("./deviceMoves").RecordedIn }>
   points: Array<{
     at: string
     value: unknown
@@ -242,6 +242,7 @@ export type HistorySeries = {
     max?: number
     /** Readings in the bucket. 0 marks where the series stopped reporting, to break the line. */
     count: number
+    recorded_in?: import("./deviceMoves").RecordedIn
   }>
 }
 export type HistoryRecord = {
@@ -258,6 +259,8 @@ export type HistoryRecord = {
   value: unknown
   quality: "good" | "stale" | "invalid" | "inactive" | string
   diagnostic?: string
+  /** `source` for a moved device's predecessor's records, which keep its `configuration_uuid`. */
+  recorded_in?: import("./deviceMoves").RecordedIn
 }
 export type HistoryRecordsMeta = {
   from: string
@@ -281,6 +284,7 @@ export type StateHistorySegment = {
   known: boolean
   data_type?: string
   configuration_uuid?: string
+  recorded_in?: import("./deviceMoves").RecordedIn
 }
 export type StateHistoryDuration = {
   value: unknown
@@ -325,6 +329,7 @@ export type CounterIncrease = {
     resets: number
     /** The bucket extends outside the requested range or into the future. */
     partial: boolean
+    recorded_in?: import("./deviceMoves").RecordedIn
   }>
 }
 export type DeviceCommand = {

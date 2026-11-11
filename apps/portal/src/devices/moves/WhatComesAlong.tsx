@@ -7,7 +7,7 @@ import type {
   DeviceMoveReviewItem,
 } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
-import { SelectField, TextField } from "@iot-os/ui/components/form-fields"
+import { CheckboxField, SelectField, TextField } from "@iot-os/ui/components/form-fields"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
@@ -21,8 +21,9 @@ const NO_SITE = "__none"
 /**
  * What the move does, as the review says: each device with its name, code and site in
  * the target, how it reports, what blocks it; each dashboard and automation that uses
- * them with its choice; what ends and which profile versions are copied. Edits re-review;
- * nothing changes until Move.
+ * them with its choice; what ends, which profile versions are copied, and whether the
+ * target reads the readings from before the move. Edits re-review; nothing changes until
+ * Move.
  */
 export function WhatComesAlong({
   source,
@@ -35,6 +36,8 @@ export function WhatComesAlong({
   onOverride,
   onChoose,
   onAdd,
+  includeHistory,
+  onIncludeHistory,
 }: {
   source: string
   target: MoveTarget
@@ -47,6 +50,8 @@ export function WhatComesAlong({
   onChoose: (item: DeviceMoveReviewItem, action: DeviceMoveItemAction) => void
   /** Adds an automation's or dashboard's other devices to the move (FR-031). */
   onAdd: (uuids: string[]) => void
+  includeHistory: boolean
+  onIncludeHistory: (include: boolean) => void
 }) {
   const sites = useQuery({ queryKey: ["sites", target.uuid], queryFn: () => api.sites(target.uuid) })
   const siteOptions = [
@@ -64,6 +69,7 @@ export function WhatComesAlong({
   const lifecycles = new Map(devices.map((device) => [device.uuid, device.lifecycle]))
   const inactive = review.devices.filter((device) => lifecycles.get(device.uuid) === "active" && !device.arrives_active)
   const blocked = review.devices.filter((device) => device.blockers.length > 0).length
+  const one = review.devices.length === 1
   const ends = review.ends
   return (
     <div className="flex flex-col gap-3" aria-busy={loading}>
@@ -160,6 +166,21 @@ export function WhatComesAlong({
           </PanelContent>
         )}
       </Panel>
+      {review.history.offered && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>History</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <CheckboxField
+              label="Include readings from before the move"
+              description={`Members of ${target.name} will see ${one ? "the device’s" : "each device’s"} readings from before the move in ${one ? "its" : "their"} charts, tables, exports, dashboards and the API, marked as recorded in ${source}. The readings stay stored in ${source}, for as long as ${source} keeps readings, and ${source} can stop sharing them at any time.`}
+              checked={includeHistory}
+              onCheckedChange={onIncludeHistory}
+            />
+          </PanelContent>
+        </Panel>
+      )}
       {(ends.alerts > 0 || ends.geofence_assignments > 0 || ends.application_grants.length > 0) && (
         <Panel>
           <PanelHeader>

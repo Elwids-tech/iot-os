@@ -21,8 +21,6 @@ use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Devices\Services\DeviceReadings;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\MappingSuggestions;
-use App\Domain\Devices\Services\RetentionService;
-use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -259,7 +257,7 @@ final class DeviceController
         $values['limit'] ??= 500;
         $values['page_size'] ??= 50;
 
-        return DeviceReadings::forOwner($device, app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => app(RetentionService::class)->effective($organization)['days']]));
+        return app(DeviceReadings::class)->records($organization, $device, $values);
     }
 
     public function stateHistory(Request $request, Organization $organization, Device $device)

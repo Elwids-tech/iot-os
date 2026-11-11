@@ -88,7 +88,7 @@ final class MoveCutover
                 }
                 DeviceLink::create([
                     'predecessor_device_id' => $predecessor->id, 'successor_device_id' => $successor->id, 'source_organization_id' => $source->id,
-                    'target_organization_id' => $target->id, 'device_move_id' => $move->id, 'cutover_at' => $at, 'history_included' => false,
+                    'target_organization_id' => $target->id, 'device_move_id' => $move->id, 'cutover_at' => $at, 'history_included' => $move->include_history,
                 ]);
                 $row->update(['successor_device_id' => $successor->id, 'state' => 'moved', 'outstanding_key' => null]);
                 $successors[$predecessor->uuid] = $successor;

@@ -55,7 +55,7 @@ const devices = [device(1, "Tracker 41"), device(2, "Tracker 42"), device(3, "Tr
 // use them only, Fleet and Fleet low flow also use Tracker 44.
 const shopBoard = uuid(301), fleetBoard = uuid(302), fleetFlow = uuid(303), shopFlow = uuid(304), copiedBoard = uuid(305), movedFlow = uuid(306)
 type ItemChoice = { kind: string; uuid: string; action: string }
-type Body = { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; items?: ItemChoice[] }
+type Body = { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; items?: ItemChoice[]; include_history?: boolean }
 
 function itemsFor(body: Body) {
   if (!body.device_uuids.includes(uuid(1))) return []
@@ -105,11 +105,12 @@ function reviewFor(body: Body) {
     ends: { alerts: 1, geofence_assignments: 0, application_grants: [{ name: "Fleet export", devices: 1 }] },
     profile_copies: [{ profile: "GPS tracker", revision: 4, code: "gps-tracker", reused: false }],
     pipe_owner_sees_raw_messages: true,
-    history: { offered: false, include: false },
+    history: { offered: true, include: Boolean(body.include_history) },
     summary: [
       `${rows.length} devices move to Harbour Shop.`,
       `${rows.length} devices keep reporting through the adapter Vendor trackers, which stays with Integrator.`,
       ...(archived.length ? [`${archived.length} automation is archived in Integrator.`] : []),
+      ...(body.include_history ? ["Harbour Shop can read the readings from before the move. They stay stored in Integrator, for as long as Integrator keeps readings."] : []),
     ],
     archives: archived.map(({ kind, uuid, name }) => ({ kind, uuid, name })),
   }
@@ -144,7 +145,7 @@ function moveAt(stage: number, ids: string[]) {
 }
 
 async function setup(page: Page, { owner = false, detail }: { owner?: boolean; detail?: Record<string, unknown> } = {}) {
-  const state = { errors: [] as string[], previews: [] as Record<string, unknown>[], confirmed: null as null | Record<string, unknown>, polls: 0, createdOrganization: null as null | Record<string, unknown> }
+  const state = { errors: [] as string[], previews: [] as Record<string, unknown>[], confirmed: null as null | Record<string, unknown>, polls: 0, createdOrganization: null as null | Record<string, unknown>, stopped: null as null | Record<string, unknown> }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("Failed to load resource")) state.errors.push(message.text())
@@ -191,6 +192,12 @@ async function setup(page: Page, { owner = false, detail }: { owner?: boolean; d
     }
     if (/\/sites$/.test(path)) return json({ data: [] })
     if (path.endsWith("/devices")) return json({ data: devices, meta: { current_page: 1, last_page: 1, total: devices.length } })
+    if (detail && path.endsWith(`/devices/${detail.uuid}/link/history`) && request.method() === "POST") {
+      state.stopped = request.postDataJSON()
+      const link = detail.link as Record<string, unknown>
+      detail.link = { ...link, history: { included: true, stopped_at: ago(0), stopped_reason: "stopped" } }
+      return json({ data: detail.link })
+    }
     if (detail && path.endsWith(`/devices/${detail.uuid}`)) return json({ data: detail })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
@@ -353,7 +360,7 @@ test("a moved device shows where it came from and what it reports through", asyn
     ...device(9, "Shop tracker"),
     candidate: { ...device(9, "Shop tracker").candidate, gateway: null, adapter: null },
     pipe: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", online: true, hosted: true },
-    link: { direction: "moved_from", organization_name: "Integrator", cutover_at: ago(600) },
+    link: { direction: "moved_from", organization_name: "Integrator", cutover_at: ago(600), history: { included: false, stopped_at: null, stopped_reason: null } },
     retention: { days: 90, source: "platform" },
     draft: null,
     draft_artifact: null,
@@ -367,4 +374,73 @@ test("a moved device shows where it came from and what it reports through", asyn
   await expect(page.getByText("· Integrator")).toBeVisible()
   await expect(page.getByRole("link", { name: "Vendor trackers" })).toHaveCount(0)
   expect(state.errors).toEqual([])
+})
+
+test("the mover includes the readings from before the move, off by default", async ({ page }) => {
+  const state = await setup(page)
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move Tracker 41" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  const option = dialog.getByRole("checkbox", { name: "Include readings from before the move" })
+  await expect(option).not.toBeChecked()
+  await expect(dialog.getByText("marked as recorded in Integrator")).toBeVisible()
+  await option.check()
+  await expect.poll(() => state.previews.at(-1)?.include_history).toBe(true)
+  await axe(page)
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await expect(dialog.getByText("Harbour Shop can read the readings from before the move.", { exact: false })).toBeVisible()
+  await dialog.getByRole("button", { name: "Move device" }).click()
+  await expect.poll(() => state.confirmed?.include_history).toBe(true)
+  expect(state.errors).toEqual([])
+})
+
+test("the archived device stops sharing its readings from before the move", async ({ page }) => {
+  const archived = {
+    ...device(8, "Tracker 48"),
+    lifecycle: "archived",
+    presence: "offline",
+    link: { direction: "moved_to", organization_name: "Harbour Shop", cutover_at: ago(600), history: { included: true, stopped_at: null, stopped_reason: null } },
+    retention: { days: 90, source: "platform" },
+    draft: null,
+    draft_artifact: null,
+    configurations: [],
+    installations: [],
+  }
+  const state = await setup(page, { detail: archived })
+  await page.goto(`${base}/devices/${archived.uuid}/overview`)
+  const notice = page.getByRole("alert").filter({ hasText: "Moved to Harbour Shop" })
+  await expect(notice).toContainText("Harbour Shop can read these readings in the new device’s history.")
+  await notice.getByRole("button", { name: "Stop sharing history" }).click()
+  const confirm = page.getByRole("alertdialog", { name: "Stop sharing history?" })
+  await expect(confirm).toContainText("Sharing can’t be turned back on.")
+  await confirm.getByRole("button", { name: "Stop sharing" }).click()
+
+  await expect.poll(() => state.stopped).toEqual({ enabled: false })
+  await expect(notice).toContainText("Sharing the readings from before the move with Harbour Shop stopped")
+  await expect(notice.getByRole("button", { name: "Stop sharing history" })).toHaveCount(0)
+  expect(state.errors).toEqual([])
+})
+
+test("a moved device says its history includes the readings shared from before the move", async ({ page }) => {
+  const moved = {
+    ...device(9, "Shop tracker"),
+    candidate: { ...device(9, "Shop tracker").candidate, gateway: null, adapter: null },
+    pipe: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", online: true, hosted: true },
+    link: { direction: "moved_from", organization_name: "Integrator", cutover_at: ago(600), history: { included: true, stopped_at: null, stopped_reason: null } },
+    retention: { days: 90, source: "platform" },
+    draft: null,
+    draft_artifact: null,
+    configurations: [],
+    installations: [],
+  }
+  await setup(page, { detail: moved })
+  await page.goto(`${base}/devices/${moved.uuid}/overview`)
+  const notice = page.getByRole("alert").filter({ hasText: "Moved from Integrator" })
+  await expect(notice).toContainText("Its history includes that device’s readings from before the move, marked as recorded in Integrator")
+  await expect(notice.getByRole("button", { name: "Stop sharing history" })).toHaveCount(0)
 })

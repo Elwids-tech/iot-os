@@ -63,8 +63,8 @@ final class MovePreview
             'devices.*.uuid' => ['required', 'uuid', 'distinct'], 'devices.*.name' => ['sometimes', 'string', 'max:255'],
             'devices.*.code' => ['sometimes', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/'], 'devices.*.site_uuid' => ['sometimes', 'nullable', 'uuid'],
             ...CarriedItems::rules(),
-            // Readings from before the move are offered from PR 031-9.
-            'include_history' => ['sometimes', 'boolean', 'declined'],
+            // Whether the target may read the predecessors' readings from before the cutover (US6).
+            'include_history' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -73,7 +73,6 @@ final class MovePreview
     {
         return [
             'device_uuids.max' => 'Move at most '.self::LIMIT.' devices at a time.',
-            'include_history.declined' => 'Readings from before the move can’t be included yet.',
         ];
     }
 
@@ -196,10 +195,13 @@ final class MovePreview
             'ends' => $ends,
             'profile_copies' => $copies,
             'pipe_owner_sees_raw_messages' => collect($rows)->contains(fn (array $row): bool => $row['pipe'] !== null),
-            'history' => ['offered' => false, 'include' => false],
+            'history' => ['offered' => true, 'include' => (bool) ($input['include_history'] ?? false)],
             'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $items),
             'archives' => array_values(array_map(fn (array $item): array => ['kind' => $item['kind'], 'uuid' => $item['uuid'], 'name' => $item['name']], array_filter($items, fn (array $item): bool => $item['action'] === 'archive'))),
         ];
+        if ($review['history']['include']) {
+            $review['summary'][] = $target->name.' can read the readings from before the move. They stay stored in '.$source->name.', for as long as '.$source->name.' keeps readings.';
+        }
         // The hash also covers what the review does not show but the cutover copies.
         $state = $devices->map(fn (Device $device): array => [$device->deployment_generation, $device->last_applied_configuration_uuid, $device->draft_revision])->sortKeys()->all();
         $review = ['preview_hash' => hash('sha256', $this->canonical->encode(['review' => $review, 'state' => $state, 'items' => $carried['state'], 'target' => $target->uuid])), ...$review];

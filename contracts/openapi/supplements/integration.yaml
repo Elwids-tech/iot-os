@@ -334,6 +334,10 @@ components:
         count:
           type: integer
           minimum: 0
+        recorded_in:
+          type: string
+          enum: [self, source]
+          description: '`source` for a moved device''s readings from before its move, read from the organization it moved from when the move shared them (spec 031); `self` otherwise. A bucket that spans the move holds both and is `source`.'
     TelemetryHistory:
       type: object
       description: >-
@@ -407,6 +411,10 @@ components:
           type: string
         historical:
           type: boolean
+        recorded_in:
+          type: string
+          enum: [self, source]
+          description: '`source` for a moved device''s readings from before its move, read from the organization it moved from when the move shared them (spec 031); they keep that organization''s `configuration_uuid`. `self` otherwise.'
     TelemetryRecords:
       type: object
       description: >-
@@ -1227,7 +1235,9 @@ operations:
     description: >-
       Readings of one parameter selected and bucketed by receipt time, inclusive
       bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are
-      clipped to the organization's retention and reported back. 422 for an invalid
+      clipped to the organization's retention and reported back. A device moved here
+      with its readings shared (spec 031) also has its predecessor's series from
+      before the move, first, with points `recorded_in` `source`. 422 for an invalid
       window, or (under `errors.runtime`) when the runtime rejects the range, for
       example more than 2000 resulting points; 503 when the runtime is unavailable;
       504 when the range takes longer than the runtime's limit.
@@ -1258,6 +1268,7 @@ operations:
                       min: 90.8
                       max: 91.5
                       count: 12
+                      recorded_in: self
       '422':
         $ref: '#/components/responses/ValidationFailed'
       '503':
@@ -1270,7 +1281,9 @@ operations:
       Unaggregated good-quality observations of one parameter (diagnostics excluded),
       newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit`
       of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and
-      bound to the query; pass `meta.next_cursor` with the same query. 422 for an
+      bound to the query; pass `meta.next_cursor` with the same query. A device moved
+      here with its readings shared (spec 031) continues into its predecessor's records
+      from before the move, `recorded_in` `source`, under the same `limit`. 422 for an
       invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when
       the runtime is unavailable.
     responses:
@@ -1299,6 +1312,7 @@ operations:
                   quality: good
                   timestamp_source: source
                   historical: false
+                  recorded_in: self
               meta:
                 from: '2026-10-11T00:00:00Z'
                 to: '2026-10-12T00:00:00Z'
