@@ -251,12 +251,14 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart sections 2 and 3 in the portal.
 
-- [ ] T037 [US1] `packages/ui/src/lib/status.ts`: `statusOf` gains the move states `stopping`, `completed` and `failed`, and the successor states `pending`, `active`, `inactive` and `failed`, with tests in `status.test.ts`
-- [ ] T038 [US1] `portal/devices/moves/MoveDialog.tsx`: a `Dialog` with the kit `Stepper` (**Where to**, **What comes along**, **Confirm**, **Done**), holding the selection, overrides and `operation_uuid`. Leaving before **Confirm** changes nothing
-- [ ] T039 [US1] `portal/devices/moves/WhereTo.tsx`:
+- [x] T037 [US1] `packages/ui/src/lib/status.ts`: `statusOf` gains the move states `stopping`, `completed` and `failed`, and the successor states `pending`, `active`, `inactive` and `failed`, with tests in `status.test.ts`
+- [x] T038 [US1] `portal/devices/moves/MoveDialog.tsx`: a `Dialog` with the kit `Stepper` (**Where to**, **What comes along**, **Confirm**, **Done**), holding the selection, overrides and `operation_uuid`. Leaving before **Confirm** changes nothing
+- [x] T039 [US1] `portal/devices/moves/WhereTo.tsx`:
   - a `SearchableSelect` fed by `deviceMoveTargets`;
-  - **New organization…** when `new_organization` is present, which creates the organization through the existing billing accounts call and continues with it (FR-003).
-- [ ] T040 [US1] `portal/devices/moves/WhatComesAlong.tsx`, one list in `Panel`s:
+  - **New organization…** when `new_organization` is present, which creates the organization through the existing billing accounts call and continues with it (FR-003). It is the selector's own create option: typing a name offers **New organization “*name*”**.
+
+  The review rows carry `reports_through.owner_organization_name`, so each row names the pipe's owner (added to the API and contract in this PR).
+- [x] T040 [US1] `portal/devices/moves/WhatComesAlong.tsx`, one list in `Panel`s:
   - devices with editable name, code and site;
   - per-row blockers;
   - how each reports, with "stays with *owner*" naming the adapter, never its gateway;
@@ -267,9 +269,9 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - the pipe owner's raw messages notice.
 
   Re-previews on change. **Next** is disabled while `can_confirm` is false
-- [ ] T041 [US1] `portal/devices/moves/Confirm.tsx` (summary sentences, a separate checkbox per archive, **Move**) and `portal/devices/moves/Done.tsx` (polls `deviceMove` with `statusOf`, "Waiting for the runtime to stop *n* devices", links to what moved and to anything needing attention)
-- [ ] T042 [US1] `portal/devices/DeviceDirectory.tsx`:
-  - controlled selection capped at 100, with `bulkActions` **Move to organization**;
+- [x] T041 [US1] `portal/devices/moves/Confirm.tsx` (summary sentences, a separate checkbox per archive, **Move**) and `portal/devices/moves/Done.tsx` (polls `deviceMove` with `statusOf`, "Waiting for the runtime to stop *n* devices", links to what moved and to anything needing attention)
+- [x] T042 [US1] `portal/devices/DeviceDirectory.tsx`:
+  - controlled selection with `bulkActions` **Move to organization**, disabled above 100 with a tooltip saying so (the selection itself stays uncapped, because Export CSV shares it);
   - hidden without `capabilities.devices.move` or when the targets list is empty and `new_organization` is absent;
   - hosted rows show **Adapter: *name* (*owner*)** without a link.
 
@@ -277,8 +279,8 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - the menu entry opens the same dialog for one device;
   - **Moved to *target*** or **Moved from *source*** with the cutover time;
   - **Reports through** with the pipe's kind, name, owner and online state.
-- [ ] T043 [US1] `portal/devices/DiscoveryPage.tsx` and `portal/adapters/connections.tsx`: **In use in *organization*** without a link when `in_use_in` is set
-- [ ] T044 [P] [US1] `apps/portal/e2e/device-moves.spec.ts` with `page.route` mocks:
+- [x] T043 [US1] `portal/devices/DiscoveryPage.tsx` and `portal/adapters/connections.tsx`: **In use in *organization*** without a link when `in_use_in` is set
+- [x] T044 [P] [US1] `apps/portal/e2e/device-moves.spec.ts` with `page.route` mocks:
   - select two devices, pick a target, accept the defaults, confirm, see **Done** complete;
   - a blocked device disables **Next**;
   - **New organization…** for an owner;
@@ -286,13 +288,13 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 ### Phase 6: PR 031-2 documentation and verification
 
-- [ ] T045 Docs:
+- [x] T045 Docs:
   - `docs/features/devices.md`: **Moving devices** (the four steps, what moves, what stays, hosted devices, **Moved to/from**, the gap);
   - `docs/features/adapters.md`: an adapter serving other organizations;
   - `docs/features/access.md`: `Device.move` and the billing account note;
   - `docs/features/billing.md`: moves are neutral;
   - `docs/features/activity-log.md`.
-- [ ] T046 Rebuild the portal; run quickstart sections 2 and 3 in the portal, timing a 20-device move under three minutes (SC-001); `pnpm --filter @iot-os/portal lint`; record in the PR; leak scan; open PR 031-2 against `main`
+- [x] T046 Rebuild the portal; run quickstart sections 2 and 3 in the portal, timing a 20-device move under three minutes (SC-001); `pnpm --filter @iot-os/portal lint`; record in the PR; leak scan; open PR 031-2 against `main`
 
 **Checkpoint**: PR 031-2 merged: US1 is usable for adapter-fed devices. ADR-039 can move to Accepted (T104).
 
@@ -586,7 +588,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 ## Final Phase: Polish and cross-cutting
 
-- [ ] T104 After PR 031-2 merges, ADR-039's status becomes Accepted (with the date and "built in spec 031") in `docs/adr/ADR-039-hosted-devices-and-moves.md` and `docs/adr/README.md`; ADR-026's line updates to match
+- [x] T104 With PR 031-2 (so merging it accepts the ADR), ADR-039's status becomes Accepted (with the date and "built in spec 031") in `docs/adr/ADR-039-hosted-devices-and-moves.md` and `docs/adr/README.md`; ADR-026's line updates to match
 - [ ] T105 After the last PR merges:
   - run `/speckit-converge` until it reports no gaps;
   - remove the roadmap row in `docs/roadmap.md`;

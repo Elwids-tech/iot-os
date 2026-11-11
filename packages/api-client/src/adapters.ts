@@ -227,6 +227,8 @@ export type AdapterCandidate = {
   };
   installation_uuid: string | null;
   device: Device | null;
+  /** The organization of the billing account where the source's device is, when not this one (spec 031); `device` is null then. */
+  in_use_in?: { organization_name: string } | null;
   /** The latest decoder input for this source, when kept, so it can become a fixture. */
   input?: AdapterFixture | null;
 };

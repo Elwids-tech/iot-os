@@ -70,13 +70,16 @@ components:
                 oneOf:
                   - type: 'null'
                   - type: object
-                    required: [kind, name, outcome]
+                    required: [kind, name, owner_organization_name, outcome]
                     properties:
                       kind:
                         type: string
                         enum: [adapter, gateway, direct]
                       name:
                         type: string
+                      owner_organization_name:
+                        type: string
+                        description: The pipe's owner; for a direct device, the device's own organization.
                       outcome:
                         type: string
                         enum: [stays, moves]
@@ -294,7 +297,7 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/DeviceMoveReview'
-            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": false, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends.", "1 dashboard using this device stays in Integrator."], "archives": []}
+            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": false, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends.", "1 dashboard using this device stays in Integrator."], "archives": []}
       '422':
         $ref: '#/components/responses/ValidationFailed'
   GET /v1/organizations/{organization}/device-moves/{move}:

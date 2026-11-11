@@ -294,7 +294,10 @@ export function AdapterDevices({
                   ))}
                 </TableCell>
                 <TableCell>
-                  {c.device ? (
+                  {/* In use in another organization of the billing account (spec 031): its name only, no link. */}
+                  {c.in_use_in ? (
+                    <span className="text-muted-foreground">In use in {c.in_use_in.organization_name}</span>
+                  ) : c.device ? (
                     <Link
                       className="underline"
                       to={`/organizations/${org}/devices/${c.device.uuid}/overview`}
@@ -306,7 +309,9 @@ export function AdapterDevices({
                   )}
                 </TableCell>
                 <TableCell>
-                  {c.device ? (
+                  {c.in_use_in ? (
+                    <Badge variant="secondary">In use in {c.in_use_in.organization_name}</Badge>
+                  ) : c.device ? (
                     <Badge variant="secondary">
                       Linked · {c.device.lifecycle}
                     </Badge>

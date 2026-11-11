@@ -237,6 +237,27 @@ const domains = {
     failed: { tone: "critical", label: "Failed" },
   },
   /** Support ticket priority, set by the team. */
+  /** A device move (spec 031): it waits while the runtime stops the devices, then cuts over. */
+  device_move: {
+    stopping: { tone: "info", label: "Stopping devices" },
+    completed: { tone: "good", label: "Moved" },
+    failed: { tone: "critical", label: "Not moved" },
+  },
+  /** One device of a move, before and at cutover. */
+  device_move_device: {
+    waiting: { tone: "info", label: "Waiting" },
+    stopping: { tone: "info", label: "Stopping" },
+    stopped: { tone: "info", label: "Stopped" },
+    moved: { tone: "good", label: "Moved" },
+    failed: { tone: "critical", label: "Not moved" },
+  },
+  /** The device a move created in the target, as it arrives. */
+  device_move_successor: {
+    pending: { tone: "info", label: "Activating" },
+    active: { tone: "good", label: "Active" },
+    inactive: { tone: "muted", label: "Inactive" },
+    failed: { tone: "critical", label: "Activation failed" },
+  },
   priority: {
     low: { tone: "muted", label: "Low" },
     normal: { tone: "muted", label: "Normal" },

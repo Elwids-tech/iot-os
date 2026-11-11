@@ -943,6 +943,7 @@ function DeviceOnboardingForm() {
                         (p) => !metricFor(p.uuid, p.key, p.label),
                       ) ||
                       candidate?.status === "rejected" ||
+                      !!candidate?.in_use_in ||
                       (!!candidate?.assigned_device_uuid &&
                         candidate.assigned_device_uuid !== setup.device.uuid)
                     }
@@ -959,8 +960,8 @@ function DeviceOnboardingForm() {
                   </Button>
                 )}
               </div>
-              {candidate?.assigned_device_uuid &&
-                candidate.assigned_device_uuid !== setup.device.uuid && (
+              {(candidate?.in_use_in || (candidate?.assigned_device_uuid &&
+                candidate.assigned_device_uuid !== setup.device.uuid)) && (
                   <Alert>
                     <AlertTitle>Source already in use</AlertTitle>
                     <AlertDescription>

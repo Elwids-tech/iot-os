@@ -77,6 +77,16 @@ under **Build → Device adapters** for users with `Device.manage`.
   - Adapter devices always use the **connects to report** style, and an adapter's edge
     is never a gateway, so each vendor device is judged by its own silence. Their
     automatic *Offline after* includes the running revision's poll interval.
+- **Serving other organizations.** A device moved to another organization of the
+  same billing account keeps reporting through the adapter, which stays here with its
+  credentials, decoder and Discovery ([moving devices](devices.md#moving-devices),
+  [ADR-039](../adr/ADR-039-hosted-devices-and-moves.md)). The moved device gets an
+  installation of its own on the same source, owned by this organization, and the
+  adapter is redeployed once so the publisher stamps it. **Sources** and Discovery
+  show such a source **In use in *organization***, with no link and nothing of the
+  device, and activating it again is refused naming that organization. Archiving a
+  device, here or in the other organization, ends its installation, so the source can
+  be activated again.
 - Laravel owns adapters, revisions, fixtures, credentials and discovery. It calls
   the manager's private API from the `device-adapters` queue
   (`adapter-worker`); the runtime reports back to `POST /api/internal/adapters/events`

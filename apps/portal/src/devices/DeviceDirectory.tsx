@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate } from "react-router-dom"
 import { useForm } from "react-hook-form"
@@ -29,7 +29,7 @@ import { Freshness } from "@iot-os/ui/components/freshness"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
-import { ArchiveIcon, CpuIcon, InboxIcon, PlusIcon } from "lucide-react"
+import { ArchiveIcon, CpuIcon, InboxIcon, MoveRightIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { onboardingPath } from "./DeviceOnboarding"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
@@ -49,6 +49,7 @@ import {
   via,
 } from "./shared"
 import { deviceHealth, listStatuses, RECENT_DATA_MS, shortDeviceCode } from "./model"
+import { MOVE_LIMIT, MoveDialog, useCanMove, type MoveSelection } from "./moves/MoveDialog"
 
 /** Lifecycle choices after the default, "Not archived"; "All" includes archived devices. */
 const lifecycleOptions = [
@@ -68,7 +69,12 @@ const expectedSeconds = (device: Device) =>
 const sortColumns: Record<string, string> = { device: "name", code: "code", "last-seen": "last_seen" }
 
 export function DeviceDirectory() {
-  const { org, capabilities } = useDeviceOrganization()
+  const { org, capabilities, query: organization } = useDeviceOrganization()
+  const canMove = useCanMove(org, capabilities.move)
+  const [selected, setSelected] = useState<string[]>([])
+  const [moving, setMoving] = useState<MoveSelection[] | null>(null)
+  // Selections span pages, so the move dialog names devices from every page seen.
+  const seen = useRef(new Map<string, MoveSelection>())
   const url = useUrlState()
   const search = url.get("search"),
     lifecycle = url.get("lifecycle"),
@@ -117,6 +123,7 @@ export function DeviceDirectory() {
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   })
+  for (const device of query.data?.data ?? []) seen.current.set(device.uuid, device)
   const hiddenArchived = lifecycle ? 0 : (archived.data ?? 0)
   const showArchived = () => url.set({ lifecycle: "all" })
   // Headers sort on the server once it echoes the applied sort; sorting one page locally would mislead.
@@ -224,10 +231,13 @@ export function DeviceDirectory() {
         header: "Gateway",
         mobile: "hidden",
         className: "max-w-56 truncate",
-        // An adapter-fed device reads through its adapter, never a gateway anyone manages.
-        value: (device) => device.candidate && via(org, device.candidate.gateway).label,
+        // An adapter-fed device reads through its adapter, never a gateway anyone manages;
+        // a hosted device's pipe belongs to another organization and is never linked (spec 031).
+        value: (device) => (device.pipe?.hosted ? hostedPipe(device) : device.candidate && via(org, device.candidate.gateway).label),
         cell: (device) =>
-          device.candidate?.gateway ? (
+          device.pipe?.hosted ? (
+            <span className="text-muted-foreground">{hostedPipe(device)}</span>
+          ) : device.candidate?.gateway ? (
             <RefLink to={via(org, device.candidate.gateway).to}>
               {via(org, device.candidate.gateway).label}
             </RefLink>
@@ -244,7 +254,7 @@ export function DeviceDirectory() {
     () => [
       { id: "status", label: "Status", value: (device) => deviceHealth(device, listFreshness).label },
       { id: "profile", label: "Profile", value: (device) => device.profile?.name },
-      { id: "gateway", label: "Gateway", value: (device) => device.candidate && via(org, device.candidate.gateway).label },
+      { id: "gateway", label: "Gateway", value: (device) => (device.pipe?.hosted ? hostedPipe(device) : device.candidate && via(org, device.candidate.gateway).label) },
       ...(hasSites ? [{ id: "site", label: "Site", value: (device: Device) => device.site?.name }] : []),
     ],
     [org, hasSites],
@@ -362,6 +372,28 @@ export function DeviceDirectory() {
           onPageSizeChange: (next) => url.set({ per_page: next === 25 ? null : String(next) }),
         }}
         selectable
+        selection={{ value: selected, onChange: setSelected }}
+        bulkActions={({ ids }) =>
+          canMove && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* A disabled button gets no pointer events, so the tooltip hangs on a wrapper. */}
+                <span tabIndex={ids.length > MOVE_LIMIT ? 0 : -1}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={ids.length > MOVE_LIMIT}
+                    onClick={() => setMoving(ids.flatMap((id) => seen.current.get(id) ?? []))}
+                  >
+                    <MoveRightIcon data-icon="inline-start" />
+                    Move to organization
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {ids.length > MOVE_LIMIT && <TooltipContent>Move at most {MOVE_LIMIT} devices at a time.</TooltipContent>}
+            </Tooltip>
+          )
+        }
         exportName="devices"
         rowActions={(device) => (
           <DeviceActions
@@ -410,6 +442,16 @@ export function DeviceDirectory() {
           )
         }
       />
+      {moving && (
+        <MoveDialog
+          org={org}
+          organizationName={organization.data?.name ?? "this organization"}
+          devices={moving}
+          origin="devices"
+          onClose={() => setMoving(null)}
+          onMoved={() => setSelected([])}
+        />
+      )}
       {quickEdit && (
         <QuickEditDialog
           org={org}
@@ -420,6 +462,12 @@ export function DeviceDirectory() {
       )}
     </CollectionPage>
   )
+}
+
+/** "Adapter: Vendor trackers (Integrator)": a hosted device's pipe, by name and owner only. */
+function hostedPipe(device: Device): string {
+  const pipe = device.pipe
+  return pipe ? `${pipe.kind === "adapter" ? "Adapter" : "Gateway"}: ${pipe.name} (${pipe.owner_organization_name})` : ""
 }
 
 function DeviceActions({

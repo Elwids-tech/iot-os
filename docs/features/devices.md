@@ -285,6 +285,55 @@ or it is archived.
 - A lowered limit, or an organization moving into the account, deactivates nothing:
   the account shows as over its limit until devices are deactivated.
 
+## Moving devices
+
+A person who holds `Device.move` in two organizations of the same billing account can
+move up to 100 devices from one to the other
+([spec 031](../../specs/031-move-devices-within-account/spec.md),
+[ADR-039](../adr/ADR-039-hosted-devices-and-moves.md)). There is no acceptance step:
+holding the permission in both organizations is the consent.
+
+**In the portal**, select devices in **Devices** and choose **Move to organization**,
+or choose **Move to organization…** in a device's menu. Four steps follow:
+
+1. **Where to**: the other organizations of the billing account where you can move
+   devices. An owner of the account with room for another organization can type a new
+   name to create one; they become its Organization Admin and the move continues there.
+2. **What comes along**: each device with its name, code and site in the target, how
+   it reports (an adapter or gateway stays with its owner) and anything that blocks it;
+   what stays in the source, what ends, and which profile versions are copied. Edits
+   are checked again as you type. A blocked device keeps **Next** disabled.
+3. **Confirm**: the move in sentences, then **Move**. Nothing changes before this.
+4. **Done**: the move waits for the runtime to stop the active devices, with no
+   timeout, then lists the moved devices and anything that needs attention in the
+   target. You can close it; the move continues.
+
+**What moves.** Each device is archived in the source as **Moved to *target*** and
+keeps its history there. A new device in the target, **Moved from *source***, takes
+its name, code (or `<code>-2` when the target already uses it), tags, attributes, the
+chosen site and a copy of its last applied configuration, on a copy of its profile
+version (one copy per version and organization). An active device arrives active when
+you can activate devices in the target; otherwise it arrives inactive, ready for a
+member who can. The device limit's count and the month's peak don't change.
+
+**What stays.** Adapters and gateways stay with the organization that owns them and
+keep feeding the moved device, which is then a *hosted device*. The target sees the
+pipe's kind, name, owner and whether it is online (**Reports through**), never its
+settings, credentials, Discovery or the gateway behind an adapter. The owner sees the
+source **In use in *target*** and nothing of the device. Dashboards and automations
+stay in the source with the archived device and its history up to the move; integration
+applications keep reading the archived device and never see the new one.
+
+**What ends.** Open alerts on the device end as **Device moved**, geofence assignments
+are removed, unsent commands are cancelled and possibly sent ones become uncertain.
+Readings that arrive between the stop and the start are stored for neither
+organization; the gap is usually seconds.
+
+Not yet: devices behind a gateway and directly connected devices can't be moved, and
+dashboards, automations and history can't come along (later pull requests of spec
+031). An organization with hosted devices, or one in a move, can't leave its billing
+account or be deleted.
+
 ## Offline detection
 
 Every active device is watched for going offline, and an open offline alert is what
@@ -490,6 +539,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `sites`, `settings/timezone` | Sites and organization time zone |
 | `telemetry-captures` | Telemetry viewer |
 | `runtime-status` | Runtime and automation readiness for the portal |
+| `device-move-targets`, `device-moves/preview`, `device-moves`, `device-moves/{move}` | [Moving devices](#moving-devices): targets, review, confirm, progress ([contract](../../specs/031-move-devices-within-account/contracts/platform-api.md)) |
 
 Admin, all with `PlatformAdministration.manage-retention`:
 `GET/PUT /api/v1/admin/settings/telemetry-retention`,
@@ -506,6 +556,7 @@ name, `search` by name or slug, `page`, `per_page`).
 | `Device.manage-connections` | Broker connections, gateways, connection kits, firmware settings and kits | Admin |
 | `Device.activate` | Activate, deactivate, roll back, suspend during capture; bulk onboarding also needs `Device.manage` | Admin |
 | `Device.command` | Send commands | Admin |
+| `Device.move` | Move devices to another organization of the billing account; needed in both | Admin |
 
 Knowing another organization's UUID never bypasses these checks.
 

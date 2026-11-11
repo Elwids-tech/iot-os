@@ -37,6 +37,8 @@ export type DeviceMoveConfirmation = DeviceMoveInput & {
 export type DeviceMoveReportsThrough = {
   kind: "adapter" | "gateway" | "direct"
   name: string
+  /** The pipe's owner, or for a direct device its own organization. */
+  owner_organization_name: string
   outcome: "stays" | "moves"
 }
 

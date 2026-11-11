@@ -191,6 +191,11 @@ accepted until its deactivation is accepted or it is archived
   bulk onboarding tells apart: each source beyond the limit stays registered with its
   device and the reason, and its item fails, so **Retry failed** activates the same
   devices once the limit is raised ([devices](devices.md#bulk-onboarding)).
+- **Device moves.** Moving a device to another organization of the account hands its
+  place to the new device (`DeviceLimit::transfer`) with no claim, check or peak write,
+  so a move at the limit succeeds and the count and peak stay the same
+  ([devices](devices.md#moving-devices)). A device that arrives inactive gives its place
+  back.
 - **Moves and limit changes.** `DeviceLimit::recheck` runs after an organization moves
   (for both accounts), and after a devices override, a plan change, a trial started on
   or moved to another plan, or a plan's device allowance changes, each once the new

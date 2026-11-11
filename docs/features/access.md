@@ -55,7 +55,7 @@ Permissions are enums under each domain's `Permissions/` directory:
 | Family | Permissions |
 | --- | --- |
 | `Organization.*`, `User.*`, `Role.*` | View, create, update, delete members, roles and organization settings |
-| `Device.*` | `view`, `manage`, `manage-connections`, `activate`, `command` ([devices](devices.md#permissions)) |
+| `Device.*` | `view`, `manage`, `manage-connections`, `activate`, `command`, `move` ([devices](devices.md#permissions)) |
 | `DeviceProfile.*`, `TransportBinding.manage` | Profile authoring and publication ([profiles](device-profiles.md#permissions)) |
 | `Workflow.*` | `view`, `manage`, `activate` for DAG automations ([automation](automation.md#api)) |
 | `Dashboard.*` | `view`, `create`, `manage` ([dashboards](dashboards.md#access-and-sharing)) |
@@ -242,6 +242,11 @@ organization of its own. **An account grants no access**: owning it changes noth
 anyone can read or do inside its organizations, and members never see their
 organization's account.
 
+- **Moving devices** between organizations of one account needs `Device.move` in both;
+  the account itself still grants nothing ([devices](devices.md#moving-devices)). A
+  device can then report through an adapter or gateway another organization of the
+  account owns (a hosted device), and an organization with hosted devices, or in a
+  move, can't leave the account or be deleted until they are moved back or archived.
 - **Creating an organization** picks a new billing account (named after the
   organization, with an optional contact email) or an existing one. A request that
   names neither gets a new account, so older API clients keep working. A new account
