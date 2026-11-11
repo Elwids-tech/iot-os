@@ -251,7 +251,8 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     graph,
     Object.fromEntries(boundDevices.map((d, i) => [d, deviceQueries[i]?.data && (deviceQueries[i].data.data[0] ?? null)])),
   );
-  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0 });
+  const movedAway = new Set((live?.moved_devices ?? []).map((device) => device.device_uuid));
+  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0, moved: stale.some((s) => !s.current && movedAway.has(s.binding.device_uuid)) });
   // A running automation applies saves straight away; Save draft keeps them for later.
   const running = isRunning(live);
   // Archived automations are off and read-only until restored.
@@ -974,7 +975,11 @@ function StaleBindingsAlert({
   const lost = [...new Set(stale.filter((s) => !s.current && !away.has(s.binding.device_uuid)).flatMap((s) => nodes(s.binding.role)))];
   return (
     <Alert variant="destructive">
-      <AlertTitle>A device changed since this automation was set up</AlertTitle>
+      <AlertTitle>
+        {gone.length > 0 && changed.length === 0 && lost.length === 0
+          ? `${gone.length === 1 ? "A device it uses" : "Devices it uses"} moved to another organization`
+          : "A device changed since this automation was set up"}
+      </AlertTitle>
       <AlertDescription>
         {changed.length > 0 && (
           <p>

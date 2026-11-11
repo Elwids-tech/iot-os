@@ -13,6 +13,9 @@ describe("activation availability", () => {
     for (const override of [{ empty: true }, { live: { draft_revision: 6 } }, { busy: true }, { live: { ...revision, pending_operation_uuid: "pending" } }, { stale: true }])
       expect(activationUnavailableReason({ ...state, ...override })).toBeTruthy()
   })
+  it("names a device that moved to another organization", () => {
+    expect(activationUnavailableReason({ ...state, stale: true, moved: true })).toBe("A device it uses moved to another organization. Remove it before activation.")
+  })
   it("blocks an archived automation until it is restored", () => {
     expect(activationUnavailableReason({ ...state, live: { ...revision, archived_at: "2026-11-11T09:30:00Z" } })).toBe("Restore this automation before activating it.")
     expect(activationUnavailableReason({ ...state, live: { ...revision, archived_at: null } })).toBeUndefined()
