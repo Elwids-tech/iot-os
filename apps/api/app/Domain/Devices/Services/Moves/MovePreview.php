@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Devices\Services\Moves;
 
 use App\Domain\Automation\Models\Alert;
-use App\Domain\Automation\Models\Workflow;
-use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Services\ProfileCopier;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
@@ -31,9 +29,9 @@ use Illuminate\Validation\ValidationException;
  * changes nothing. Its hash is what the confirmation must match, so a changed situation
  * is reviewed again (research R10).
  *
- * Until PR 031-4 every dashboard and automation stays in the source and `items` is empty;
- * until PRs 031-5 and 031-7 devices behind a gateway and direct devices are blocked
- * (research R22).
+ * The dashboards and automations that use the devices are listed with a choice each
+ * (CarriedItems); until PRs 031-5 and 031-7 devices behind a gateway and direct devices
+ * are blocked (research R22).
  */
 final class MovePreview
 {
@@ -54,6 +52,7 @@ final class MovePreview
         private readonly Pipes $pipes,
         private readonly ProfileCopier $copier,
         private readonly CanonicalJson $canonical,
+        private readonly CarriedItems $carried,
     ) {}
 
     /** @return array<string, list<mixed>> */
@@ -65,8 +64,7 @@ final class MovePreview
             'devices' => ['sometimes', 'array', 'max:'.self::LIMIT], 'devices.*' => ['array:uuid,name,code,site_uuid'],
             'devices.*.uuid' => ['required', 'uuid', 'distinct'], 'devices.*.name' => ['sometimes', 'string', 'max:255'],
             'devices.*.code' => ['sometimes', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/'], 'devices.*.site_uuid' => ['sometimes', 'nullable', 'uuid'],
-            // Dashboards and automations come along from PR 031-4; until then they all stay.
-            'items' => ['sometimes', 'array', 'max:0'],
+            ...CarriedItems::rules(),
             // Readings from before the move are offered from PR 031-9.
             'include_history' => ['sometimes', 'boolean', 'declined'],
         ];
@@ -77,7 +75,6 @@ final class MovePreview
     {
         return [
             'device_uuids.max' => 'Move at most '.self::LIMIT.' devices at a time.',
-            'items.max' => 'Dashboards and automations stay where they are for now.',
             'include_history.declined' => 'Readings from before the move can’t be included yet.',
         ];
     }
@@ -110,9 +107,10 @@ final class MovePreview
 
     /**
      * The review, its hash, and what the confirmation acts on: the devices and each one's
-     * successor, base configuration and artifact.
+     * successor, base configuration and artifact, and the dashboards and automations with
+     * the choice for each.
      *
-     * @return array{review: array<string, mixed>, devices: Collection<string, Device>, rows: list<array<string, mixed>>, artifacts: Collection<int, DeviceProfileArtifact>}
+     * @return array{review: array<string, mixed>, devices: Collection<string, Device>, rows: list<array<string, mixed>>, artifacts: Collection<int, DeviceProfileArtifact>, items: list<array{model: mixed, view: array<string, mixed>}>}
      */
     public function build(Organization $source, Organization $target, User $user, array $input, bool $lock = false): array
     {
@@ -187,6 +185,10 @@ final class MovePreview
         }
 
         $views = array_column($rows, 'view');
+        // Panels and bindings name the source's parameters; the copies map each one (research R5).
+        $parameters = $artifacts->flatMap(fn (DeviceProfileArtifact $artifact) => array_column($artifact->definition['parameters'] ?? [], 'uuid'))->unique()->values()->all();
+        $carried = $this->carried->review($source, $target, $user, $devices, array_column($views, 'arrives_active', 'uuid'), array_combine($parameters, $parameters), $input['items'] ?? []);
+        $items = array_column($carried['rows'], 'view');
         $copies = $artifacts->values()->map(fn (DeviceProfileArtifact $artifact): array => [
             'profile' => $artifact->profile->name, 'revision' => $artifact->revision,
             'code' => $this->copier->codeFor($artifact, $target), 'reused' => $this->copier->copied($artifact, $target),
@@ -195,19 +197,19 @@ final class MovePreview
         $review = [
             'can_confirm' => collect($views)->every(fn (array $view): bool => $view['blockers'] === []),
             'devices' => $views,
-            'items' => [],
+            'items' => $items,
             'ends' => $ends,
             'profile_copies' => $copies,
             'pipe_owner_sees_raw_messages' => collect($rows)->contains(fn (array $row): bool => $row['pipe'] !== null),
             'history' => ['offered' => false, 'include' => false],
-            'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $devices),
-            'archives' => [],
+            'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $items),
+            'archives' => array_values(array_map(fn (array $item): array => ['kind' => $item['kind'], 'uuid' => $item['uuid'], 'name' => $item['name']], array_filter($items, fn (array $item): bool => $item['action'] === 'archive'))),
         ];
         // The hash also covers what the review does not show but the cutover copies.
         $state = $devices->map(fn (Device $device): array => [$device->deployment_generation, $device->last_applied_configuration_uuid, $device->draft_revision])->sortKeys()->all();
-        $review = ['preview_hash' => hash('sha256', $this->canonical->encode(['review' => $review, 'state' => $state, 'target' => $target->uuid])), ...$review];
+        $review = ['preview_hash' => hash('sha256', $this->canonical->encode(['review' => $review, 'state' => $state, 'items' => $carried['state'], 'target' => $target->uuid])), ...$review];
 
-        return ['review' => $review, 'devices' => $devices, 'rows' => $rows, 'artifacts' => $artifacts];
+        return ['review' => $review, 'devices' => $devices, 'rows' => $rows, 'artifacts' => $artifacts, 'items' => $carried['rows']];
     }
 
     /**
@@ -323,13 +325,19 @@ final class MovePreview
     /**
      * @param  list<array<string, mixed>>  $rows
      * @param  array{alerts: int, geofence_assignments: int, application_grants: list<array{name: string, devices: int}>}  $ends
-     * @param  Collection<string, Device>  $devices
+     * @param  list<array<string, mixed>>  $items  the dashboards and automations, as reviewed
      * @return list<string>
      */
-    private function summary(Organization $source, Organization $target, array $rows, array $ends, int $copies, Collection $devices): array
+    private function summary(Organization $source, Organization $target, array $rows, array $ends, int $copies, array $items): array
     {
         $count = fn (int $n, string $one, ?string $many = null): string => $n.' '.($n === 1 ? $one : ($many ?? $one.'s'));
-        $sentences = [$count(count($rows), 'device').' '.(count($rows) === 1 ? 'moves' : 'move').' to '.$target->name.'.'];
+        $chosen = fn (string $kind, string $action): array => array_values(array_filter($items, fn (array $item): bool => $item['kind'] === $kind && $item['action'] === $action));
+        $both = function (int $dashboards, int $automations) use ($count): string {
+            return implode(' and ', array_filter([$dashboards ? $count($dashboards, 'dashboard') : null, $automations ? $count($automations, 'automation') : null]));
+        };
+        $moving = [$count(count($rows), 'device'), ...array_filter([$chosen('dashboard', 'move') ? $count(count($chosen('dashboard', 'move')), 'dashboard') : null, $chosen('automation', 'move') ? $count(count($chosen('automation', 'move')), 'automation') : null])];
+        $many = count($rows) > 1 || count($moving) > 1;
+        $sentences = [(count($moving) > 1 ? implode(', ', array_slice($moving, 0, -1)).' and '.end($moving) : $moving[0]).' '.($many ? 'move' : 'moves').' to '.$target->name.'.'];
         foreach (collect($rows)->pluck('pipe')->filter()->groupBy(fn ($pipe) => $pipe->kind.':'.($pipe->adapterId ?? $pipe->gatewayId)) as $pipes) {
             $pipe = $pipes->first();
             $sentences[] = $count($pipes->count(), 'device').' '.($pipes->count() === 1 ? 'keeps' : 'keep').' reporting through the '.$pipe->kind.' '.$pipe->name.', which stays with '.$pipe->ownerOrganizationName.'.';
@@ -337,6 +345,22 @@ final class MovePreview
         $inactive = collect($rows)->filter(fn (array $row): bool => $row['was_active'] && ! $row['view']['arrives_active'])->count();
         if ($inactive) {
             $sentences[] = $count($inactive, 'active device').' '.($inactive === 1 ? 'arrives' : 'arrive').' inactive, because you can’t activate devices in '.$target->name.'.';
+        }
+        if ($copied = count($chosen('dashboard', 'copy'))) {
+            $sentences[] = $count($copied, 'dashboard').' '.($copied === 1 ? 'is' : 'are').' copied to '.$target->name.' with only the moving devices’ panels.';
+        }
+        $off = count(array_filter($chosen('automation', 'move'), fn (array $item): bool => $item['running'] && ! $item['arrives_running']));
+        if ($off) {
+            $sentences[] = $count($off, 'running automation').' '.($off === 1 ? 'arrives' : 'arrive').' off in '.$target->name.'.';
+        }
+        if ($archived = $both(count($chosen('dashboard', 'archive')), count($chosen('automation', 'archive')))) {
+            $sentences[] = $archived.' '.(count($chosen('dashboard', 'archive')) + count($chosen('automation', 'archive')) === 1 ? 'is' : 'are').' archived in '.$source->name.'.';
+        }
+        if ($kept = count($chosen('dashboard', 'keep'))) {
+            $sentences[] = $count($kept, 'dashboard').' '.($kept === 1 ? 'stays' : 'stay').' in '.$source->name.', showing the moved devices up to the move.';
+        }
+        if ($kept = count($chosen('automation', 'keep'))) {
+            $sentences[] = $count($kept, 'automation').' '.($kept === 1 ? 'stays' : 'stay').' in '.$source->name.' and can’t run until the moved devices are removed from '.($kept === 1 ? 'it' : 'them').'.';
         }
         if ($copies) {
             $sentences[] = $count($copies, 'device profile version').' '.($copies === 1 ? 'is' : 'are').' copied to '.$target->name.'.';
@@ -347,43 +371,7 @@ final class MovePreview
         if ($ends['geofence_assignments']) {
             $sentences[] = $count($ends['geofence_assignments'], 'geofence assignment').' '.($ends['geofence_assignments'] === 1 ? 'ends' : 'end').'.';
         }
-        [$dashboards, $automations] = $this->using($source, $devices);
-        if ($dashboards || $automations) {
-            $parts = array_filter([$dashboards ? $count($dashboards, 'dashboard') : null, $automations ? $count($automations, 'automation') : null]);
-            $sentences[] = implode(' and ', $parts).' using '.($devices->count() === 1 ? 'this device' : 'these devices').' '.($dashboards + $automations === 1 ? 'stays' : 'stay').' in '.$source->name.'.';
-        }
 
         return $sentences;
-    }
-
-    /**
-     * How many of the source's dashboards and automations use the devices. They all stay
-     * until PR 031-4 brings them along.
-     *
-     * @param  Collection<string, Device>  $devices
-     * @return array{0: int, 1: int}
-     */
-    private function using(Organization $source, Collection $devices): array
-    {
-        $uuids = $devices->keys()->flip();
-        $dashboards = Dashboard::where('organization_id', $source->id)->get(['id', 'widgets'])->filter(function (Dashboard $dashboard) use ($uuids): bool {
-            foreach ($dashboard->widgets ?? [] as $widget) {
-                $config = $widget['config'] ?? [];
-                $named = [...array_column($config['sources'] ?? [], 'device_uuid'), ...array_column($config['devices'] ?? [], 'device_uuid'), ...($config['location_device_uuids'] ?? [])];
-                foreach ($named as $uuid) {
-                    if (is_string($uuid) && $uuids->has($uuid)) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        })->count();
-        // Geofence workflows end with their assignment and are not counted here.
-        $automations = Workflow::where('organization_id', $source->id)->get(['id', 'workflow'])->filter(
-            fn (Workflow $workflow): bool => collect($workflow->workflow['bindings'] ?? [])->contains(fn (array $binding): bool => $uuids->has($binding['device_uuid'] ?? ''))
-        )->count();
-
-        return [$dashboards, $automations];
     }
 }

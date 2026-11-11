@@ -42,4 +42,9 @@ final class DeviceMove extends DeviceModel
     {
         return $this->hasMany(DeviceMoveDevice::class)->orderBy('id');
     }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(DeviceMoveItem::class)->orderBy('id');
+    }
 }

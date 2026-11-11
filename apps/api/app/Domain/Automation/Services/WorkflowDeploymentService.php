@@ -108,10 +108,12 @@ final class WorkflowDeploymentService
         if ($deployment->status === 'failed') {
             $workflow->update(['pending_operation_uuid' => null, 'deployment_status' => 'failed']);
         } else {
+            // A deactivation names why it stopped the automation when a device move did (spec 031).
+            $why = $deployment->target === 'inactive' ? $deployment->stopped_reason : null;
             if ($workflow->applied_deployment_uuid) {
-                Deployment::where('uuid', $workflow->applied_deployment_uuid)->whereNull('stopped_reason')->update(['stopped_reason' => $deployment->target === 'active' ? 'superseded' : 'disabled']);
+                Deployment::where('uuid', $workflow->applied_deployment_uuid)->whereNull('stopped_reason')->update(['stopped_reason' => $why ?? ($deployment->target === 'active' ? 'superseded' : 'disabled')]);
             }
-            $workflow->update(['pending_operation_uuid' => null, 'applied_deployment_uuid' => $deployment->target === 'active' ? $deployment->uuid : null, 'deployment_status' => $deployment->target === 'inactive' ? 'inactive' : ($deployment->stopped_reason ? 'suspended' : 'applied')]);
+            $workflow->update(['pending_operation_uuid' => null, 'applied_deployment_uuid' => $deployment->target === 'active' ? $deployment->uuid : null, 'deployment_status' => $deployment->target === 'inactive' ? ($why === Deployment::STOPPED_DEVICE_MOVED ? 'suspended' : 'inactive') : ($deployment->stopped_reason ? 'suspended' : 'applied')]);
         }
         DeviceAudit::record('workflow.deployment_'.$deployment->status, $org->id, null, $workflow->uuid, ['operation_uuid' => $deployment->uuid]);
     }

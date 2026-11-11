@@ -10,6 +10,12 @@ final class Deployment extends DeviceModel
 {
     protected $table = 'automation_deployments';
 
+    /** Stopped because the automation moved to another organization (spec 031). */
+    public const STOPPED_MOVED = 'moved';
+
+    /** Stopped because a device it binds moved to another organization (spec 031 FR-036). */
+    public const STOPPED_DEVICE_MOVED = 'device_moved';
+
     public $timestamps = false;
 
     protected function casts(): array

@@ -7,6 +7,9 @@ namespace Tests\Feature\Domain\Devices\Moves;
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Administration\Services\OrganizationRoleManager;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Automation\Models\Deployment;
+use App\Domain\Automation\Models\Workflow;
+use App\Domain\Dashboards\Services\DashboardDefinition;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Services\AdapterService;
@@ -87,6 +90,7 @@ abstract class MoveTestCase extends TestCase
 
                 return Http::response(match (true) {
                     str_ends_with($path, '/captures') => ['data' => []],
+                    str_ends_with($path, '/dag/compile') => ['valid' => true, 'definition' => $request['workflow'], 'definition_hash' => hash('sha256', json_encode($request['workflow']))],
                     // A reading as the runtime stores it for an adapter-fed device.
                     str_ends_with($path, '/measurements/latest') => ['data' => [['parameter_uuid' => (string) Str::uuid(), 'key' => 'flow_rate', 'value' => 12.5, 'quality' => 'good',
                         'installation_uuid' => (string) Str::uuid(), 'adapter_revision_uuid' => 'pipe-owner-revision', 'manufacturer_serial' => 'WM-1001',
@@ -242,6 +246,83 @@ abstract class MoveTestCase extends TestCase
         $this->answerStops();
 
         return $this->getJson($this->in($source).'/device-moves/'.$move['uuid'])->assertOk()->json('data');
+    }
+
+    /**
+     * A dashboard with one status panel per device, created through the API.
+     *
+     * @param  list<Device>  $devices
+     * @return array<string, mixed>
+     */
+    protected function dashboard(Organization $organization, string $name, array $devices): array
+    {
+        $panels = array_map(function (Device $device): array {
+            $parameter = $this->parameter($device);
+
+            return ['id' => (string) Str::uuid(), 'schema_version' => 2, 'type' => 'status', 'title' => $device->name.' flow', 'description' => '',
+                'config' => ['sources' => [['device_uuid' => $device->uuid, 'parameter_uuid' => $parameter['uuid'], 'label' => 'Flow', 'unit' => $parameter['unit'], 'data_type' => $parameter['data_type'],
+                    'precision' => 2, 'color' => '#2563eb', 'base' => ['label' => 'Current', 'color' => '#64748b'], 'thresholds' => []]]]];
+        }, $devices);
+        $layouts = ['lg' => array_map(fn (array $panel, int $i): array => ['i' => $panel['id'], 'x' => 0, 'y' => $i * 3, 'w' => 6, 'h' => 3], $panels, array_keys($panels))];
+
+        return $this->postJson($this->in($organization).'/dashboards', ['name' => $name, 'widgets' => $panels, 'layouts' => $layouts, 'defaults' => DashboardDefinition::defaults()])->assertOk()->json('data');
+    }
+
+    /**
+     * An alert automation reading each device's flow, created through the API, and turned on
+     * when `$running`, as the runtime would acknowledge it.
+     *
+     * @param  list<Device>  $devices
+     * @param  list<int>  $recipients  user ids notified of its alerts
+     */
+    protected function automation(Organization $organization, string $name, array $devices, bool $running = true, array $recipients = []): Workflow
+    {
+        $this->automationsOn($organization);
+        $bindings = array_map(function (Device $device, int $i): array {
+            $device->refresh();
+            $parameter = $this->parameter($device);
+
+            return ['role' => 'flow_'.$i, 'device_uuid' => $device->uuid, 'configuration_uuid' => $device->applied_configuration_uuid, 'generation' => $device->applied_generation,
+                'parameter_uuid' => $parameter['uuid'], 'data_type' => 'number', 'unit' => (string) $parameter['unit'], 'fresh_seconds' => 120];
+        }, $devices, array_keys($devices));
+        $nodes = [...array_map(fn (array $binding): array => ['id' => 'read_'.$binding['role'], 'type' => 'source.parameter.v1', 'config' => ['binding' => $binding['role']]], $bindings),
+            ['id' => 'low', 'type' => 'compare.v1', 'config' => ['operator' => 'lt', 'value' => 1]], ['id' => 'alert', 'type' => 'action.alert.v1', 'config' => ['title' => 'Low flow']]];
+        $graph = ['schema_version' => 'automation-workflow.v2', 'bindings' => $bindings, 'nodes' => $nodes,
+            'edges' => [['source' => 'read_flow_0', 'source_port' => 'out', 'target' => 'low', 'target_port' => 'in'], ['source' => 'low', 'source_port' => 'out', 'target' => 'alert', 'target_port' => 'in']]];
+        $uuid = $this->postJson($this->in($organization).'/workflows', ['name' => $name, 'workflow' => $graph])->assertCreated()->json('data.uuid');
+        $base = $this->in($organization).'/workflows/'.$uuid;
+        if ($recipients) {
+            $this->putJson($base.'/notifications', ['revision' => 0, 'enabled' => true, 'notify_on_clear' => false, 'recipient_ids' => $recipients])->assertOk();
+        }
+        if ($running) {
+            $this->postJson($base.'/deployments', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'active', 'draft_revision' => 1, 'expected_generation' => 0])->assertStatus(202);
+            $this->deployed(Workflow::where('uuid', $uuid)->firstOrFail());
+        }
+
+        return Workflow::where('uuid', $uuid)->firstOrFail();
+    }
+
+    /** The runtime acknowledges the automation's pending deployment. */
+    protected function deployed(Workflow $workflow): void
+    {
+        $workflow->refresh();
+        $deployment = $workflow->pending_operation_uuid ? Deployment::where('uuid', $workflow->pending_operation_uuid)->firstOrFail() : null;
+        $this->assertNotNull($deployment, $workflow->name.' has no pending deployment.');
+        $this->runtimeEvent('workflow.deployment.v1', ['rule_uuid' => $workflow->uuid, 'organization_uuid' => Organization::findOrFail($workflow->organization_id)->uuid, 'operation_uuid' => $deployment->uuid,
+            'generation' => $deployment->generation, 'target' => $deployment->target, 'status' => 'succeeded'])->assertOk();
+    }
+
+    /** Turns automations on, or off, in the organization. */
+    protected function automationsOn(Organization $organization, bool $enabled = true): void
+    {
+        $revision = $this->getJson($this->in($organization).'/workflows/dag/settings')->assertOk()->json('data.revision');
+        $this->putJson($this->in($organization).'/workflows/dag/settings', ['revision' => $revision, 'enabled' => $enabled, 'stopped' => false])->assertOk();
+    }
+
+    /** @return array<string, mixed> the device's flow parameter, from its applied profile version */
+    protected function parameter(Device $device): array
+    {
+        return collect($device->fresh()->lastAppliedConfiguration->artifact->definition['parameters'])->firstWhere('reports_state', true);
     }
 
     /** The successor of a moved device. */

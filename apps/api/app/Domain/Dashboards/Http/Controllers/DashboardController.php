@@ -13,6 +13,8 @@ use App\Domain\Dashboards\Models\DashboardRevision;
 use App\Domain\Dashboards\Models\DashboardShare;
 use App\Domain\Dashboards\Services\DashboardAccess;
 use App\Domain\Dashboards\Services\DashboardDefinition;
+use App\Domain\Dashboards\Services\DashboardRewrite;
+use App\Domain\Devices\Services\Moves\MovedDevices;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -353,6 +355,8 @@ final class DashboardController
 
         return [...$dashboard->only(['uuid', 'name', 'layouts', 'revision', 'folder', 'access', 'created_by', 'created_at', 'updated_at']),
             ...$dashboard->archiveState(),
+            // Devices of its panels that moved to another organization (spec 031 FR-034).
+            'moved_devices' => array_values(MovedDevices::among($dashboard->organization_id, DashboardRewrite::devices($dashboard->widgets ?? []))),
             'abilities' => ['edit' => $abilities['edit'] && ! $archived, 'share' => $abilities['share'] && ! $archived, 'delete' => $abilities['delete']],
             'widgets' => DashboardDefinition::normalize($dashboard->widgets ?? []),
             'defaults' => $dashboard->defaults ?? DashboardDefinition::defaults(),

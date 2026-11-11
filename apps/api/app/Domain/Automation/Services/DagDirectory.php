@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Services;
 
+use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
+use App\Domain\Devices\Services\Moves\MovedDevices;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -39,6 +41,7 @@ final class DagDirectory
         $bindings = $sources->flatten(1);
         $bound = $workflows->flatMap(fn (Workflow $w) => collect($w->workflow['bindings'] ?? [])->pluck('device_uuid'));
         $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $bound->filter()->unique()->values())->pluck('name', 'uuid');
+        $moved = MovedDevices::among($organization->id, $bound->filter()->unique()->values()->all());
         $labels = [];
         foreach (DeviceConfiguration::whereIn('uuid', $bindings->pluck('configuration_uuid')->unique()->values())->whereHas('device', fn ($query) => $query->where('organization_id', $organization->id))->get(['uuid', 'definition']) as $configuration) {
             foreach (json_decode($configuration->definition['profile_canonical_json'] ?? '{}', true)['parameters'] ?? [] as $parameter) {
@@ -46,7 +49,7 @@ final class DagDirectory
             }
         }
 
-        return $workflows->mapWithKeys(function (Workflow $w) use ($latest, $lastActions, $problems, $sources, $devices, $labels) {
+        return $workflows->mapWithKeys(function (Workflow $w) use ($latest, $lastActions, $problems, $sources, $devices, $labels, $moved) {
             $deployment = $latest->get($w->id);
             $issues = [];
             $diagnostic = DagDiagnostic::describe($deployment?->diagnostic, $w->workflow, $devices->all());
@@ -54,6 +57,9 @@ final class DagDirectory
                 $issues[] = ['source' => 'deployment', 'message' => DagDiagnostic::describe($deployment->diagnostic, $w->workflow, $devices->all(), brief: true) ?: 'Deployment failed.', 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
             } elseif ($deployment?->stopped_reason === 'binding_changed') {
                 $issues[] = ['source' => 'deployment', 'message' => 'Suspended: a bound device configuration changed. Review the bindings and reactivate.', 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
+            } elseif ($deployment?->stopped_reason === Deployment::STOPPED_DEVICE_MOVED) {
+                $gone = array_intersect_key($moved, array_flip(WorkflowRewrite::devices($w->workflow ?? [])));
+                $issues[] = ['source' => 'deployment', 'message' => 'Suspended: '.($gone ? DagDeployment::moved($gone) : 'a device it uses moved to another organization.'), 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
             } elseif ($deployment?->stopped_reason === DagDiagnostic::REVIEW) {
                 $issues[] = ['source' => 'deployment', 'message' => 'Suspended: '.lcfirst(DagDiagnostic::describe(DagDiagnostic::REVIEW, $w->workflow, [], brief: true)), 'at' => $this->iso($deployment->completed_at ?? $deployment->created_at)];
             }

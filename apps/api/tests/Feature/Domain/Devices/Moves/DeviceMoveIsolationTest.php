@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices\Moves;
 
+use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
 use App\Domain\Devices\Models\Device;
@@ -136,6 +137,33 @@ final class DeviceMoveIsolationTest extends MoveTestCase
         $move = $this->getJson($a.'/device-moves/'.$this->move['uuid'])->assertOk()->json('data');
         $this->assertSame(['uuid' => null, 'name' => 'Harbour Shop'], $move['target']);
         $this->assertSame([null, null, $this->x->uuid], [$move['devices'][0]['successor_uuid'], $move['devices'][0]['successor_state'], $move['devices'][0]['predecessor_uuid']]);
+    }
+
+    public function test_each_side_sees_only_its_own_dashboards_and_automations_of_a_move(): void
+    {
+        $y = $this->adapterFed('WM-1002', 'Tracker Y');
+        $z = $this->adapterFed('WM-1003', 'Tracker Z');
+        $shop = $this->dashboard($this->a, 'Shop', [$y]);
+        $fleet = $this->dashboard($this->a, 'Fleet', [$y, $z]);
+        $kept = $this->automation($this->a, 'Fleet low flow', [$y, $z]);
+        $move = $this->moved($this->a, $this->b, [$y]);
+        $inB = $this->successor($y);
+        $copy = Dashboard::where('organization_id', $this->b->id)->where('name', 'Fleet')->firstOrFail();
+
+        $this->actingAs($this->bOnly, 'sanctum');
+        $items = $this->getJson($this->in($this->b).'/device-moves/'.$move['uuid'])->assertOk()->json('data.items');
+        $this->assertSame([[null, null, null], [$copy->uuid, $shop['uuid'], null]], [array_column($items, 'source_uuid'), array_column($items, 'target_uuid')]);
+        $this->getJson($this->in($this->b).'/dashboards/'.$fleet['uuid'])->assertNotFound();
+        $this->getJson($this->in($this->b).'/workflows/'.$kept->uuid)->assertNotFound();
+        $this->assertStringNotContainsString($y->uuid, json_encode($this->getJson($this->in($this->b).'/dashboards/'.$shop['uuid'])->assertOk()->json()));
+
+        $this->actingAs($this->aOnly, 'sanctum');
+        $items = $this->getJson($this->in($this->a).'/device-moves/'.$move['uuid'])->assertOk()->json('data.items');
+        $this->assertSame([[$fleet['uuid'], null, $kept->uuid], [null, null, null]], [array_column($items, 'source_uuid'), array_column($items, 'target_uuid')]);
+        $this->getJson($this->in($this->a).'/dashboards/'.$shop['uuid'])->assertNotFound();
+        $stays = $this->getJson($this->in($this->a).'/dashboards/'.$fleet['uuid'])->assertOk()->json('data');
+        $this->assertSame(['Harbour Shop'], array_column($stays['moved_devices'], 'organization_name'));
+        $this->assertStringNotContainsString($inB->uuid, json_encode([$stays, $this->getJson($this->in($this->a).'/workflows/'.$kept->uuid)->json()]));
     }
 
     public function test_an_organization_outside_the_account_reaches_no_move(): void

@@ -139,6 +139,8 @@ final class ActivityCatalogue
         'dashboard.access_changed' => ['changed who can open dashboard', 'dashboard'],
         'dashboard.deleted' => ['deleted dashboard', 'dashboard'],
         'dashboard.archived' => ['archived dashboard', 'dashboard'],
+        'dashboard.moved_out' => ['moved out dashboard', 'dashboard'],
+        'dashboard.moved_in' => ['moved in dashboard', 'dashboard'],
         // dashboard.restored names restoring an earlier version, so restoring from the archive has a code of its own.
         'dashboard.unarchived' => ['restored archived dashboard', 'dashboard'],
         // Automation and alerts
@@ -146,6 +148,8 @@ final class ActivityCatalogue
         'workflow.deployment_requested' => ['deployed automation', 'workflow'],
         'workflow.notifications_updated' => ['changed the notifications of automation', 'workflow'],
         'workflow.archived' => ['archived automation', 'workflow'],
+        'workflow.moved_out' => ['moved out automation', 'workflow'],
+        'workflow.moved_in' => ['moved in automation', 'workflow'],
         'workflow.unarchived' => ['restored archived automation', 'workflow'],
         'automation.settings_changed' => ['changed automation settings', null],
         'automation.command_requested' => ['requested an automation command', 'command'],

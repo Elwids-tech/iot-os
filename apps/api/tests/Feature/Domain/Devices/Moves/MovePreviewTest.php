@@ -141,7 +141,7 @@ final class MovePreviewTest extends MoveTestCase
         $this->postJson($this->in($this->a).'/device-moves/preview', ['target_organization_uuid' => $this->b->uuid, 'device_uuids' => array_map(fn () => (string) Str::uuid(), range(1, 101))])
             ->assertUnprocessable()->assertJsonValidationErrors(['device_uuids' => 'Move at most 100 devices at a time.']);
         $this->review($this->a, $this->b, [$x], ['include_history' => true])->assertUnprocessable()->assertJsonValidationErrors(['include_history' => 'Readings from before the move can’t be included yet.']);
-        $this->review($this->a, $this->b, [$x], ['items' => [['kind' => 'dashboard', 'uuid' => (string) Str::uuid(), 'action' => 'copy']]])->assertUnprocessable()->assertJsonValidationErrors('items');
+        $this->review($this->a, $this->b, [$x], ['items' => [['kind' => 'dashboard', 'uuid' => (string) Str::uuid(), 'action' => 'delete']]])->assertUnprocessable()->assertJsonValidationErrors('items.0.action');
         // A device of another organization is not found.
         $theirs = $this->unsourced('Their meter', $this->b);
         $this->review($this->a, $this->b, [$theirs])->assertNotFound();
