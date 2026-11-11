@@ -895,6 +895,13 @@ Things that have cost time before. Add to this list when something surprises you
   `DOCS_HOSTED_REF`, so a literal product name in a changed guide passes CI and
   fails the release. Run `DOCS_HOSTED_REF= DOCS_SOURCES=worktree node
   scripts/check-docs.mjs rename` in `apps/docs` after changing a guide.
+- **A new integration operation needs a refreshed `changelog-baseline.json`.** The
+  same split applies to the changelog check: main's CI compares the contract at
+  `DOCS_HOSTED_REF`, the release compares the checkout, so a pull request that adds
+  an operation passes CI and fails the next release build. After a contract change,
+  run `DOCS_SOURCES=worktree node scripts/sources.mjs` and then
+  `node scripts/check-docs.mjs changelog --update` in `apps/docs`, and add a
+  changelog entry if the version changed.
 
 ## Embedded SDK
 
