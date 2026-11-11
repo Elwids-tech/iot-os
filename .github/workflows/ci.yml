@@ -320,9 +320,16 @@ jobs:
         if: matrix.compiler == 'gcc'
         run: |
           # The runner's Ubuntu mirror sometimes stalls without failing (docs/dev/gotchas.md), so
-          # the download gets a limit and another try; the install then reads the downloaded files.
+          # each connection gets a time limit (a stalled source then fails instead of hanging apt),
+          # the download gets another try, and the last try uses Ubuntu's own archive instead of
+          # the runner's mirror. The update prints its sources so a stall shows where it is. The
+          # install then reads the downloaded files.
+          limits=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=2)
           for attempt in 1 2 3; do
-            timeout 60 sudo apt-get update -qq && timeout 120 sudo apt-get install -y -qq --download-only gcc-arm-none-eabi libnewlib-arm-none-eabi && break
+            if [ "$attempt" = 3 ]; then
+              sudo sed -i -E 's#https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list.d/ubuntu.sources || true
+            fi
+            timeout 180 sudo apt-get "${limits[@]}" update -q && timeout 180 sudo apt-get "${limits[@]}" install -y -qq --download-only gcc-arm-none-eabi libnewlib-arm-none-eabi && break
             if [ "$attempt" = 3 ]; then exit 1; fi
             echo "::warning::The package download stalled or failed (attempt $attempt); trying again."
           done

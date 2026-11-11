@@ -761,7 +761,12 @@ Things that have cost time before. Add to this list when something surprises you
   Embedded SDK (gcc) job's `apt-get` normally fetches `gcc-arm-none-eabi` in 14 s;
   twice on 2026-11-06 it printed nothing for 15 minutes, until the job's limit
   cancelled it. The step now downloads under `timeout` and retries, then installs
-  from the downloaded files, so a kill never interrupts dpkg.
+  from the downloaded files, so a kill never interrupts dpkg. From 2026-11-11
+  14:40 UTC every run's `apt-get update` outlasted its 60 s limit three times in a
+  row, on main too. The step now allows 180 s, gives apt a 30 s limit per
+  connection (a stalled source then fails instead of hanging), prints the update's
+  sources, and makes its last try against `archive.ubuntu.com` instead of the
+  runner's mirror.
 - **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
   mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
   object, so the whole page falls to its error screen. The adapters spec mocks it
