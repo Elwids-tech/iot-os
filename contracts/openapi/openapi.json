@@ -19421,6 +19421,7 @@
                       "reports_through": {
                         "kind": "adapter",
                         "name": "Vendor trackers",
+                        "owner_organization_name": "Integrator",
                         "outcome": "stays"
                       },
                       "arrives_active": true,
@@ -35986,6 +35987,7 @@
                       "required": [
                         "kind",
                         "name",
+                        "owner_organization_name",
                         "outcome"
                       ],
                       "properties": {
@@ -35999,6 +36001,10 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "owner_organization_name": {
+                          "type": "string",
+                          "description": "The pipe's owner; for a direct device, the device's own organization."
                         },
                         "outcome": {
                           "type": "string",

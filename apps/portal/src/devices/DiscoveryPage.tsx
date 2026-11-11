@@ -24,7 +24,7 @@ import { BulkOnboardingRun } from "./BulkOnboardingRun"
  * source is onboarded on its own.
  */
 export const bulkSelectable = (c: DiscoveryCandidate) =>
-  Boolean(c.source_device_id) && !c.assigned_device_uuid && !c.setup_device_uuid && c.status !== "rejected" && !c.adapter
+  Boolean(c.source_device_id) && !c.assigned_device_uuid && !c.in_use_in && !c.setup_device_uuid && c.status !== "rejected" && !c.adapter
 
 export function DiscoveryPage() {
   const { org, capabilities } = useDeviceOrganization()
@@ -119,9 +119,13 @@ export function DiscoveryPage() {
     {
       id: "device",
       header: "Device",
-      value: (c) => (c.assigned_device_uuid ? "Onboarded" : c.setup_device_uuid ? "In setup" : "Not onboarded"),
+      value: (c) =>
+        c.in_use_in ? `In use in ${c.in_use_in.organization_name}` : c.assigned_device_uuid ? "Onboarded" : c.setup_device_uuid ? "In setup" : "Not onboarded",
       cell: (c) =>
-        c.assigned_device_uuid ? (
+        // A source whose device moved to another organization of the billing account (spec 031): its name only, no link.
+        c.in_use_in ? (
+          <span className="text-muted-foreground">In use in {c.in_use_in.organization_name}</span>
+        ) : c.assigned_device_uuid ? (
           <RefLink to={devicePath(org, c.assigned_device_uuid)}>View device</RefLink>
         ) : c.setup_device_uuid ? (
           <div className="flex flex-wrap items-center gap-2">

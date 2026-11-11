@@ -748,6 +748,7 @@ export function ConfigurationSection({
                     .filter(
                       (c) =>
                         c.status !== "rejected" &&
+                        !c.in_use_in &&
                         (!c.assigned_device_uuid ||
                           c.assigned_device_uuid === device.uuid) &&
                         (!c.adapter || c.uuid === draft.candidate_uuid),

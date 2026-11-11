@@ -1,0 +1,265 @@
+import { test, expect, type Page } from "@playwright/test"
+import AxeBuilder from "@axe-core/playwright"
+
+// Moving devices to another organization of the billing account (spec 031 US1), against a mocked API.
+const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
+const shop = "0c4f6d2e-58a1-4b9e-9c3d-7f2a1b6e8d40"
+const created = "1d5e7f3a-69b2-4c0f-8d4e-8a3b2c7f9e51"
+const account = "2e6f8a4b-7ac3-4d1a-9e5f-9b4c3d8a0f62"
+const moveId = "3f7a9b5c-8bd4-4e2b-8f6a-ac5d4e9b1a73"
+const base = `/organizations/${org}`
+const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+
+const adapterGateway = {
+  uuid: "66666666-6666-4666-8666-666666666666",
+  name: "Vendor trackers",
+  edge_node_id: "adapter-x",
+  connection_uuid: "88888888-8888-4888-8888-888888888888",
+  group_id: "adapters-x",
+  presence: "online",
+  last_seen_at: ago(3),
+  sources_count: 3,
+  adapter: { uuid: "77777777-7777-4777-8777-777777777777", name: "Vendor trackers" },
+}
+const device = (n: number, name: string, extra: Record<string, unknown> = {}) => ({
+  uuid: uuid(n),
+  code: name.toLowerCase().replaceAll(" ", "-"),
+  name,
+  serial_number: null,
+  description: null,
+  lifecycle: "active",
+  presence: "online",
+  deployment_status: "applied",
+  draft_revision: 2,
+  deployment_generation: 1,
+  state_revision: 1,
+  desired_configuration_uuid: null,
+  applied_configuration_uuid: null,
+  last_applied_configuration_uuid: null,
+  diagnostic: null,
+  last_seen_at: ago(5),
+  operation: null,
+  candidate: {
+    uuid: uuid(100 + n), assigned_device_uuid: uuid(n), source_device_id: `src-${n}`, status: "approved", presence: "online",
+    session_id: null, birth_revision: 1, metrics: [], last_seen_at: ago(5), gateway: adapterGateway, adapter: null, in_use_in: null,
+  },
+  profile: null,
+  pipe: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", online: true, hosted: false },
+  link: null,
+  ...extra,
+})
+const devices = [device(1, "Tracker 41"), device(2, "Tracker 42"), device(3, "Tracker 43", { deployment_status: "pending" })]
+
+function reviewFor(body: { device_uuids: string[]; devices?: { uuid: string; code?: string }[] }) {
+  const rows = body.device_uuids.map((id) => {
+    const row = devices.find((d) => d.uuid === id)!
+    const override = body.devices?.find((d) => d.uuid === id)
+    const blockers = row.deployment_status === "pending" ? ["Waiting for the runtime"] : override?.code === "taken" ? ["Code already used in Harbour Shop"] : []
+    return {
+      uuid: id, name: row.name, code: row.code,
+      successor: { name: row.name, code: override?.code ?? row.code, site_uuid: null },
+      reports_through: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", outcome: "stays" },
+      arrives_active: true,
+      blockers,
+    }
+  })
+  return {
+    preview_hash: "a".repeat(64),
+    can_confirm: rows.every((r) => r.blockers.length === 0),
+    devices: rows,
+    items: [],
+    ends: { alerts: 1, geofence_assignments: 0, application_grants: [{ name: "Fleet export", devices: 1 }] },
+    profile_copies: [{ profile: "GPS tracker", revision: 4, code: "gps-tracker", reused: false }],
+    pipe_owner_sees_raw_messages: true,
+    history: { offered: false, include: false },
+    summary: [
+      `${rows.length} devices move to Harbour Shop.`,
+      `${rows.length} devices keep reporting through the adapter Vendor trackers, which stays with Integrator.`,
+      "1 dashboard using these devices stays in Integrator.",
+    ],
+    archives: [],
+  }
+}
+
+function moveAt(stage: number, ids: string[]) {
+  return {
+    uuid: moveId,
+    status: stage === 0 ? "stopping" : "completed",
+    source: { uuid: org, name: "Integrator" },
+    target: { uuid: shop, name: "Harbour Shop" },
+    confirmed_at: ago(4),
+    cutover_at: stage === 0 ? null : ago(1),
+    waiting_for: { devices_stopping: stage === 0 ? ids.length : 0 },
+    devices: ids.map((id, index) => ({
+      predecessor_uuid: id,
+      successor_uuid: stage === 0 ? null : uuid(200 + index),
+      name: devices.find((d) => d.uuid === id)!.name,
+      state: stage === 0 ? "stopping" : "moved",
+      successor_state: stage === 0 ? null : "pending",
+      successor_reason: null,
+    })),
+    items: [],
+    needs_attention: [],
+    failure_reason: null,
+  }
+}
+
+async function setup(page: Page, { owner = false, detail }: { owner?: boolean; detail?: Record<string, unknown> } = {}) {
+  const state = { errors: [] as string[], previews: [] as Record<string, unknown>[], confirmed: null as null | Record<string, unknown>, polls: 0, createdOrganization: null as null | Record<string, unknown> }
+  page.on("pageerror", (error) => state.errors.push(error.message))
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().includes("Failed to load resource")) state.errors.push(message.text())
+  })
+  const context = {
+    uuid: org,
+    name: "Integrator",
+    slug: "integrator",
+    capabilities: {
+      manage_administration: false,
+      devices: { view: true, manage: true, connections: true, activate: true, command: true, move: true },
+      features: { device_adapters: true },
+    },
+  }
+  await page.route("**/api/**", async (route) => {
+    const request = route.request(),
+      url = new URL(request.url()),
+      path = url.pathname
+    const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) })
+    if (path === "/api/v1/me")
+      return json({ data: { id: 1, name: "Mover", email: "mover@example.test", email_verified_at: "2026-01-01", capabilities: { platform_administration: false }, organizations: [context] } })
+    if (path.endsWith("/context")) return json({ data: context })
+    if (path.endsWith("/device-move-targets"))
+      return json({
+        data: state.createdOrganization ? [{ uuid: created, name: "Corner Shop" }] : owner ? [] : [{ uuid: shop, name: "Harbour Shop" }],
+        ...(owner ? { new_organization: { billing_account_uuid: account } } : {}),
+      })
+    if (path === `/api/v1/billing-accounts/${account}/organizations` && request.method() === "POST") {
+      state.createdOrganization = request.postDataJSON()
+      return json({ data: { uuid: created, name: "Corner Shop", slug: "corner-shop" } }, 201)
+    }
+    if (path.endsWith("/device-moves/preview")) {
+      const body = request.postDataJSON()
+      state.previews.push(body)
+      return json(reviewFor(body))
+    }
+    if (path.endsWith("/device-moves") && request.method() === "POST") {
+      state.confirmed = request.postDataJSON()
+      return json({ data: moveAt(0, state.confirmed!.device_uuids as string[]) }, 202)
+    }
+    if (path.endsWith(`/device-moves/${moveId}`)) {
+      state.polls++
+      return json({ data: moveAt(state.polls > 1 ? 1 : 0, (state.confirmed?.device_uuids as string[]) ?? []) })
+    }
+    if (/\/sites$/.test(path)) return json({ data: [] })
+    if (path.endsWith("/devices")) return json({ data: devices, meta: { current_page: 1, last_page: 1, total: devices.length } })
+    if (detail && path.endsWith(`/devices/${detail.uuid}`)) return json({ data: detail })
+    return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
+  })
+  return state
+}
+
+async function axe(page: Page) {
+  await page.waitForFunction(() => document.getAnimations().length === 0)
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+}
+
+test("a mover selects two devices, picks the target, accepts what comes along and the move completes", async ({ page }) => {
+  const state = await setup(page)
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+
+  const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
+  await expect(dialog.getByRole("button", { name: "Next" })).toBeDisabled()
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  // What comes along: the adapter stays with its owner, endings and copies are listed.
+  await expect(dialog.getByRole("listitem", { name: "Tracker 41" })).toContainText("Adapter Vendor trackers stays with Integrator")
+  await expect(dialog.getByText("1 dashboard using these devices stays in Integrator.")).toBeVisible()
+  await expect(dialog.getByText("Fleet export keeps reading the archived device")).toBeVisible()
+  await expect(dialog.getByText("GPS tracker · version 4 as")).toBeVisible()
+  await axe(page)
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  await expect(dialog.getByText("2 devices move to Harbour Shop.")).toBeVisible()
+  await dialog.getByRole("button", { name: "Move 2 devices" }).click()
+  await expect.poll(() => state.confirmed).not.toBeNull()
+  expect(state.confirmed!.preview_hash).toBe("a".repeat(64))
+  expect(state.confirmed!.operation_uuid).toMatch(/^[0-9a-f-]{36}$/)
+  expect(state.confirmed!.origin).toBe("devices")
+  expect(state.confirmed!.device_uuids).toEqual([uuid(1), uuid(2)])
+
+  // Done waits for the runtime, then links the devices in the target.
+  await expect(dialog.getByText(/Waiting for the runtime to stop 2 devices|Moved to Harbour Shop/)).toBeVisible()
+  await expect(dialog.getByText("Moved to Harbour Shop", { exact: false })).toBeVisible({ timeout: 10000 })
+  await expect(dialog.getByRole("link", { name: "Tracker 41" })).toHaveAttribute("href", `/organizations/${shop}/devices/${uuid(200)}/overview`)
+  expect(state.errors).toEqual([])
+})
+
+test("a blocked device keeps Next disabled, and a code the target uses is refused in place", async ({ page }) => {
+  await setup(page)
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 43" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  await expect(dialog.getByRole("listitem", { name: "Tracker 43" })).toContainText("Waiting for the runtime")
+  await expect(dialog.getByText("1 of 2 can’t move yet.")).toBeVisible()
+  await expect(dialog.getByRole("button", { name: "Next" })).toBeDisabled()
+
+  await page.keyboard.press("Escape")
+  await page.getByRole("checkbox", { name: "Select Tracker 43" }).uncheck()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const single = page.getByRole("dialog", { name: "Move Tracker 42" })
+  await single.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await single.getByRole("button", { name: "Next" }).click()
+  await single.getByLabel("Device code").fill("taken")
+  await expect(single.getByText("Code already used in Harbour Shop")).toBeVisible()
+  await expect(single.getByRole("button", { name: "Next" })).toBeDisabled()
+})
+
+test("an owner of the billing account creates a new organization and moves into it", async ({ page }) => {
+  const state = await setup(page, { owner: true })
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move Tracker 41" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("combobox", { name: "Search organization" }).fill("Corner Shop")
+  await page.getByRole("option", { name: "New organization “Corner Shop”" }).click()
+
+  await expect.poll(() => state.createdOrganization).toEqual({ name: "Corner Shop" })
+  await expect(dialog.getByRole("combobox", { name: "Organization" })).toContainText("Corner Shop")
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await expect.poll(() => state.previews.at(-1)?.target_organization_uuid).toBe(created)
+})
+
+test("a moved device shows where it came from and what it reports through", async ({ page }) => {
+  const moved = {
+    ...device(9, "Shop tracker"),
+    candidate: { ...device(9, "Shop tracker").candidate, gateway: null, adapter: null },
+    pipe: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", online: true, hosted: true },
+    link: { direction: "moved_from", organization_name: "Integrator", cutover_at: ago(600) },
+    retention: { days: 90, source: "platform" },
+    draft: null,
+    draft_artifact: null,
+    configurations: [],
+    installations: [],
+  }
+  const state = await setup(page, { detail: moved })
+  await page.goto(`${base}/devices/${moved.uuid}/overview`)
+  await expect(page.getByRole("alert").filter({ hasText: "Moved from Integrator" })).toBeVisible()
+  await expect(page.getByText("Adapter Vendor trackers")).toBeVisible()
+  await expect(page.getByText("· Integrator")).toBeVisible()
+  await expect(page.getByRole("link", { name: "Vendor trackers" })).toHaveCount(0)
+  expect(state.errors).toEqual([])
+})

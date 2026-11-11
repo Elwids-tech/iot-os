@@ -29,7 +29,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from "@iot-os/ui/components/alert"
-import { CpuIcon, EllipsisIcon, PlusIcon } from "lucide-react"
+import { CpuIcon, EllipsisIcon, MoveRightIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { RequestError, Confirm } from "../components/forms"
 import {
@@ -49,6 +49,7 @@ import { AddToDashboard, EditDetails, FirmwareKitDialog, downloadDeviceSettings 
 import { toast } from "sonner"
 import { DeviceControls } from "../controls/DeviceControls"
 import { DeviceConnectivity } from "./DeviceOnboarding"
+import { MoveDialog, useCanMove } from "./moves/MoveDialog"
 
 const HistorySection = lazy(() => import("./HistorySection"))
 /** Five tabs. Data answers "what did it report", Control "what did we tell it". */
@@ -245,9 +246,10 @@ function Workspace({
     disabled: locked,
     onUnconfirmed,
   })
-  const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | "firmware" | null>(
+  const [dialog, setDialog] = useState<"details" | "dashboard" | "archive" | "firmware" | "move" | null>(
     null,
   )
+  const organization = useDeviceOrganization().query.data
   // Firmware settings and kits are for devices that connect directly, and carry credentials (spec 027).
   const onboarding = useQuery({
     queryKey: ["device-onboarding", org, device.uuid],
@@ -258,6 +260,8 @@ function Workspace({
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [dashboardParameters, setDashboardParameters] = useState<string[]>([])
   const archived = device.lifecycle === "archived"
+  // Moving to another organization of the billing account (spec 031).
+  const canMove = useCanMove(org, capabilities.move && !archived)
   const addParameter =
     capabilities.manage && !archived
       ? (parameter: string) => {
@@ -271,6 +275,7 @@ function Workspace({
       ? "Deactivate the device and wait for the runtime to confirm first."
       : undefined
   const menu = [
+    canMove,
     capabilities.manage && !archived,
     capabilities.activate && lifecycle.action,
     firmware,
@@ -337,6 +342,16 @@ function Workspace({
                       onSelect={lifecycle.action.open}
                     />
                   )}
+                  {canMove && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <MenuAction
+                        label="Move to organization…"
+                        reason={locked ? "Wait for the current request to finish." : undefined}
+                        onSelect={() => setDialog("move")}
+                      />
+                    </>
+                  )}
                   {capabilities.manage && !archived && (
                     <>
                       <DropdownMenuSeparator />
@@ -366,6 +381,7 @@ function Workspace({
         notices={
           <>
             <RequestError error={error} />
+            {device.link && <MovedNotice link={device.link} />}
             {device.diagnostic && (
               <Alert>
                 <AlertTitle>Device needs attention</AlertTitle>
@@ -429,6 +445,15 @@ function Workspace({
           onClose={() => setDialog(null)}
         />
       )}
+      {dialog === "move" && (
+        <MoveDialog
+          org={org}
+          organizationName={organization?.name ?? "this organization"}
+          devices={[device]}
+          origin="device"
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === "firmware" && <FirmwareKitDialog org={org} device={device} onClose={() => setDialog(null)} />}
       {dialog === "dashboard" && (
         <AddToDashboard org={org} device={device} initialParameters={dashboardParameters} onClose={() => setDialog(null)} />
@@ -446,6 +471,26 @@ function Workspace({
         }}
       />
     </Tabs>
+  )
+}
+
+/** Where the device moved to, or came from, and when (spec 031). */
+function MovedNotice({ link }: { link: NonNullable<DeviceDetail["link"]> }) {
+  const away = link.direction === "moved_to"
+  const other = link.organization_name ?? "another organization"
+  return (
+    <Alert>
+      <MoveRightIcon />
+      <AlertTitle>{away ? `Moved to ${other}` : `Moved from ${other}`}</AlertTitle>
+      <AlertDescription>
+        <p>
+          {away
+            ? `It continues in ${other}. This archived record keeps its readings up to the move`
+            : `It continues the device archived in ${other}, which keeps the readings from before the move`}
+          {" "}(<RelativeTime at={link.cutover_at} />).
+        </p>
+      </AlertDescription>
+    </Alert>
   )
 }
 

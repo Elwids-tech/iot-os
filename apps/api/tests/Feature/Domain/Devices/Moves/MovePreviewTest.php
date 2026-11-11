@@ -66,7 +66,7 @@ final class MovePreviewTest extends MoveTestCase
 
         $this->assertTrue($review['can_confirm']);
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $review['preview_hash']);
-        $this->assertSame(['kind' => 'adapter', 'name' => 'Vendor meters', 'outcome' => 'stays'], $review['devices'][0]['reports_through']);
+        $this->assertSame(['kind' => 'adapter', 'name' => 'Vendor meters', 'owner_organization_name' => 'Integrator', 'outcome' => 'stays'], $review['devices'][0]['reports_through']);
         $this->assertNull($review['devices'][1]['reports_through']);
         $this->assertSame([true, false], array_column($review['devices'], 'arrives_active'));
         $this->assertSame(['name' => 'Tracker X', 'code' => 'tracker-x', 'site_uuid' => null], $review['devices'][0]['successor']);
@@ -103,7 +103,7 @@ final class MovePreviewTest extends MoveTestCase
 
         $this->assertFalse($review['can_confirm']);
         $this->assertSame([[MovePreview::ARCHIVED], [MovePreview::WAITING], [MovePreview::WAITING], [MovePreview::MOVING], [MovePreview::GATEWAY], [MovePreview::DIRECT]], array_column($review['devices'], 'blockers'));
-        $this->assertSame(['kind' => 'direct', 'name' => 'Direct meter', 'outcome' => 'moves'], $review['devices'][5]['reports_through']);
+        $this->assertSame(['kind' => 'direct', 'name' => 'Direct meter', 'owner_organization_name' => 'Integrator', 'outcome' => 'moves'], $review['devices'][5]['reports_through']);
         $this->postJson($this->in($this->a).'/device-moves', ['target_organization_uuid' => $this->b->uuid, 'device_uuids' => array_column($review['devices'], 'uuid'),
             'operation_uuid' => (string) Str::uuid(), 'preview_hash' => $review['preview_hash']])->assertUnprocessable()->assertJsonValidationErrors(['devices.0', 'devices.5']);
         $this->assertSame(1, DeviceMove::count());

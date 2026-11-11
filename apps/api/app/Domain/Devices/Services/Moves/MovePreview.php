@@ -177,8 +177,8 @@ final class MovePreview
                 'view' => [
                     'uuid' => $device->uuid, 'name' => $device->name, 'code' => $device->code,
                     'successor' => ['name' => $override['name'] ?? $device->name, 'code' => $code, 'site_uuid' => ($override['site'] ?? null)?->uuid],
-                    'reports_through' => $pipe ? ['kind' => $pipe->kind, 'name' => $pipe->name, 'outcome' => 'stays']
-                        : ($direct ? ['kind' => 'direct', 'name' => $gateway->name, 'outcome' => 'moves'] : null),
+                    'reports_through' => $pipe ? ['kind' => $pipe->kind, 'name' => $pipe->name, 'owner_organization_name' => $pipe->ownerOrganizationName, 'outcome' => 'stays']
+                        : ($direct ? ['kind' => 'direct', 'name' => $gateway->name, 'owner_organization_name' => $source->name, 'outcome' => 'moves'] : null),
                     'arrives_active' => $wasActive && $canActivate,
                     'blockers' => $blockers,
                 ],

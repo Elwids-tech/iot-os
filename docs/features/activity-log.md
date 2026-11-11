@@ -49,7 +49,9 @@ ActivityLog::record('site.updated', $organization, $request->user(), $site, [], 
 - A new action gets a sentence and a subject kind in `ActivityCatalogue`; without one
   it shows its code in words.
 
-Recorded so far: devices, configurations, commands, sites, location bindings,
+Recorded so far: devices (including moves to another organization: `device_move.started`,
+`.completed` and `.failed` in both organizations, `device.moved_out` and `device.moved_in`
+per device), configurations, commands, sites, location bindings,
 geofences, telemetry captures and retention; device profiles (created, edited, each
 draft change, published, deleted); adapters; dashboards (created, edited, duplicated,
 a version restored, sharing changed, archived, restored from the archive, deleted);

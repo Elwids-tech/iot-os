@@ -501,7 +501,17 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
             <span className="text-muted-foreground">None</span>
           )}
         </Detail>
-        {/* An adapter-fed device reads through its adapter, never a gateway anyone manages. */}
+        {/* A hosted device's pipe belongs to another organization: its name, owner and state only (spec 031). */}
+        {device.pipe?.hosted ? (
+          <Detail label="Reports through">
+            <span>
+              {device.pipe.kind === "adapter" ? "Adapter" : "Gateway"} {device.pipe.name}
+              <span className="text-muted-foreground"> · {device.pipe.owner_organization_name}</span>
+            </span>{" "}
+            <Status value={device.pipe.online ? "online" : "unknown"} />
+          </Detail>
+        ) : (
+        /* An adapter-fed device reads through its adapter, never a gateway anyone manages. */
         <Detail label={device.candidate ? via(org, device.candidate.gateway).kind : "Gateway"}>
           {device.candidate?.gateway ? (
             <Link
@@ -514,6 +524,7 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
             <span className="text-muted-foreground">{device.candidate ? via(org, null).name : "None"}</span>
           )}
         </Detail>
+        )}
         <Detail label="Source">
           {device.candidate ? (
             <span className="font-mono">

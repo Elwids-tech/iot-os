@@ -54,7 +54,7 @@ Response (`200`):
   "devices": [{
     "uuid": "…", "name": "Tracker 42", "code": "trk-0042",
     "successor": { "name": "Shop tracker", "code": "trk-0042", "site_uuid": null },
-    "reports_through": { "kind": "adapter", "name": "Vendor trackers", "outcome": "stays" },
+    "reports_through": { "kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays" },
     "arrives_active": true,
     "blockers": []
   }],
