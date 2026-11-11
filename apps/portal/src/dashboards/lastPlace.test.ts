@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { lastDashboardPath, rememberDashboardPlace } from "./lastPlace"
+import { forgetDashboardPlace, lastDashboardPath, rememberDashboardPlace } from "./lastPlace"
 
 describe("last place in Dashboards", () => {
   beforeEach(() => {
@@ -29,6 +29,14 @@ describe("last place in Dashboards", () => {
   it("goes back to the library once the viewer returns to it", () => {
     rememberDashboardPlace(7, "org-a", "d-1")
     rememberDashboardPlace(7, "org-a", null)
+    expect(lastDashboardPath(7, "org-a")).toBe("/organizations/org-a/dashboards")
+  })
+
+  it("falls back to the library from an archived dashboard, and only from that one", () => {
+    rememberDashboardPlace(7, "org-a", "d-1", "?from=now-24h")
+    forgetDashboardPlace(7, "org-a", "d-2")
+    expect(lastDashboardPath(7, "org-a")).toBe("/organizations/org-a/dashboards/d-1?from=now-24h")
+    forgetDashboardPlace(7, "org-a", "d-1")
     expect(lastDashboardPath(7, "org-a")).toBe("/organizations/org-a/dashboards")
   })
 

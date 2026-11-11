@@ -19,6 +19,9 @@ final class DagAuthoring
     /** The largest workflow JSON the runtime compiles. */
     public const MAX_WORKFLOW_BYTES = 262144;
 
+    /** Why an archived automation refuses changes. */
+    public const ARCHIVED = 'This automation is archived. Restore it before making changes.';
+
     public function compile(Organization $org, array $graph, string $uuid, ?string $version = null): array
     {
         validator(['workflow' => $graph], [
@@ -73,6 +76,7 @@ final class DagAuthoring
         return DB::transaction(function () use ($org, $input, $actor, $workflow, $compiled) {
             if ($workflow) {
                 $workflow = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
+                abort_if($workflow->isArchived(), 409, self::ARCHIVED);
                 abort_unless($workflow->draft_revision === ($input['draft_revision'] ?? null), 409, 'The draft changed; your local edits have not been saved.');
             } else {
                 $workflow = new Workflow(['uuid' => $compiled['definition']['uuid'], 'organization_id' => $org->id, 'draft_revision' => 0]);

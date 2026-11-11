@@ -7,6 +7,7 @@ namespace App\Domain\Shared\Http\Resources;
 use App\Domain\Administration\Services\OrganizationAdministrationAuthorization;
 use App\Domain\Administration\Services\OrganizationGrants;
 use App\Domain\Agents\Services\AgentAccess;
+use App\Domain\Automation\Services\DagAuthorization;
 use App\Domain\Dashboards\Services\DashboardAccess;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
 use App\Domain\Devices\Services\DeviceAuthorization;
@@ -54,6 +55,7 @@ final class OrganizationResource extends JsonResource
             'device_profiles' => app(DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
             'devices' => app(DeviceAuthorization::class)->capabilities($user, $this->resource),
             'dashboards' => app(DashboardAccess::class)->capabilities($user, $this->resource),
+            'automation' => app(DagAuthorization::class)->capabilities($user, $this->resource),
             'manage_administration' => $manageAdministration,
             'administration' => app(OrganizationGrants::class)->capabilities($user, $this->resource),
             // Optional platform features, so clients can hide entry points the API would 404.

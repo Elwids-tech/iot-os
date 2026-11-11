@@ -194,7 +194,12 @@ export type AutomationWorkflow = {
   deployment_status: WorkflowDeploymentStatus;
   applied_deployment_uuid: string | null;
   pending_operation_uuid: string | null;
+  /** Set while archived: off, read-only and left out of lists unless asked for. Older APIs omit it. */
+  archived_at?: string | null;
+  archived_by?: import("./archive").ArchivedBy | null;
 };
+/** What the signed-in person may do with an organization's automations (Workflow.*). */
+export type AutomationCapabilities = { view: boolean; manage: boolean; activate: boolean };
 /** DAG automations (schema v2) or geofence workflows (v1). */
 export type WorkflowKind = "automation" | "geofence";
 /** A row of GET workflows. `kind=all` lists DAG automations next to geofence workflows. */

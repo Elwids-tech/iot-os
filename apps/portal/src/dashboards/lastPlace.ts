@@ -40,6 +40,16 @@ export function rememberDashboardPlace(viewer: number, org: string, id: string |
   for (const listener of listeners) listener()
 }
 
+/** Falls back to the library when the viewer's place is this dashboard, for one archived or gone. */
+export function forgetDashboardPlace(viewer: number, org: string, id: string) {
+  try {
+    const place = JSON.parse(read(viewer, org) ?? "null") as Place
+    if (place?.id === id) rememberDashboardPlace(viewer, org, null)
+  } catch {
+    // An unreadable entry already opens the library.
+  }
+}
+
 /** The path of the viewer's last place in Dashboards, or the library. */
 export function lastDashboardPath(viewer: number, org: string): string {
   try {

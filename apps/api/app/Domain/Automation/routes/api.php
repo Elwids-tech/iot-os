@@ -20,6 +20,8 @@ Route::prefix('v1/organizations/{organization}/workflows')->whereUuid(['organiza
     Route::post('dag/validate', [DagController::class, 'validateGraph']);
     Route::match(['GET', 'PUT'], 'dag/settings', [DagController::class, 'settings']);
     Route::put('{workflow}/layout', [DagController::class, 'layout']);
+    Route::post('{workflow}/archive', [DagController::class, 'archive']);
+    Route::post('{workflow}/restore', [DagController::class, 'unarchive']);
     Route::get('{workflow}/actions', [DagController::class, 'history']);
     Route::get('{workflow}/timeline', [DagController::class, 'timeline']);
     Route::get('{workflow}/timeline/{evaluation}', [DagController::class, 'timeline']);

@@ -52,7 +52,8 @@ ActivityLog::record('site.updated', $organization, $request->user(), $site, [], 
 Recorded so far: devices, configurations, commands, sites, location bindings,
 geofences, telemetry captures and retention; device profiles (created, edited, each
 draft change, published, deleted); adapters; dashboards (created, edited, duplicated,
-restored, sharing changed, deleted); automations and alerts; applications and
+a version restored, sharing changed, archived, restored from the archive, deleted);
+automations (including archived and restored) and alerts; applications and
 webhooks; organization members, roles, invitations, time zone, permission ceiling and
 billing account; organizations created and edited by platform administrators; billing
 accounts; platform administrators and super administrators; AI agent access; support

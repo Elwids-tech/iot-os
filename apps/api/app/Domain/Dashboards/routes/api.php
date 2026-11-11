@@ -12,6 +12,8 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'da
     Route::get('dashboards/{dashboard}', [DashboardController::class, 'show']);
     Route::put('dashboards/{dashboard}', [DashboardController::class, 'update']);
     Route::delete('dashboards/{dashboard}', [DashboardController::class, 'destroy']);
+    Route::post('dashboards/{dashboard}/archive', [DashboardController::class, 'archive']);
+    Route::post('dashboards/{dashboard}/restore', [DashboardController::class, 'unarchive']);
     Route::put('dashboards/{dashboard}/star', [DashboardController::class, 'star']);
     Route::post('dashboards/{dashboard}/duplicate', [DashboardController::class, 'duplicate']);
     Route::get('dashboards/{dashboard}/revisions', [DashboardController::class, 'revisions']);

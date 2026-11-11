@@ -133,10 +133,15 @@ final class ActivityCatalogue
         'dashboard.restored' => ['restored an earlier version of dashboard', 'dashboard'],
         'dashboard.access_changed' => ['changed who can open dashboard', 'dashboard'],
         'dashboard.deleted' => ['deleted dashboard', 'dashboard'],
+        'dashboard.archived' => ['archived dashboard', 'dashboard'],
+        // dashboard.restored names restoring an earlier version, so restoring from the archive has a code of its own.
+        'dashboard.unarchived' => ['restored archived dashboard', 'dashboard'],
         // Automation and alerts
         'workflow.draft_saved' => ['saved automation', 'workflow'],
         'workflow.deployment_requested' => ['deployed automation', 'workflow'],
         'workflow.notifications_updated' => ['changed the notifications of automation', 'workflow'],
+        'workflow.archived' => ['archived automation', 'workflow'],
+        'workflow.unarchived' => ['restored archived automation', 'workflow'],
         'automation.settings_changed' => ['changed automation settings', null],
         'automation.command_requested' => ['requested an automation command', 'command'],
         'automation.command_reconciled' => ['reconciled an automation command', 'command'],

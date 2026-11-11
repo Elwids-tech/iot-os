@@ -24,6 +24,9 @@ final class SaveDashboard
     /** Versions kept per dashboard; older ones are pruned on save. */
     public const KEPT_REVISIONS = 50;
 
+    /** Why an archived dashboard refuses changes. */
+    public const ARCHIVED = 'This dashboard is archived. Restore it before making changes.';
+
     /** Fields recorded with their values; the others are only named as changed. */
     private const DIFFED = ['name', 'folder', 'tags'];
 
@@ -71,10 +74,11 @@ final class SaveDashboard
         });
     }
 
-    /** Locks the dashboard for the caller's transaction; 409 when another session saved since `$revision`. */
+    /** Locks the dashboard for the caller's transaction; 409 when another session saved since `$revision` or it is archived. */
     public function lock(Dashboard $dashboard, int $revision): Dashboard
     {
         $locked = Dashboard::whereKey($dashboard->id)->lockForUpdate()->firstOrFail();
+        abort_if($locked->isArchived(), 409, self::ARCHIVED);
         abort_unless($locked->revision === $revision, 409, 'This dashboard changed in another session. Your draft is preserved. Reload the latest version before editing again.');
 
         return $locked;

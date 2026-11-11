@@ -76,12 +76,13 @@ function DashboardDetail({
   })
   const { search } = useLocation()
   const gone = query.error instanceof ApiError && [403, 404].includes(query.error.status)
-  // Remember this dashboard and its view; one that is gone or no longer shared falls back to the library.
+  const archived = Boolean(query.data?.archived_at)
+  // Remember this dashboard and its view; one that is archived, gone or no longer shared falls back to the library.
   useEffect(() => {
     if (viewer === undefined) return
-    if (query.data) rememberDashboardPlace(viewer, org, id, search)
-    else if (gone) rememberDashboardPlace(viewer, org, null)
-  }, [viewer, org, id, search, Boolean(query.data), gone])
+    if (query.data && !archived) rememberDashboardPlace(viewer, org, id, search)
+    else if (gone || archived) rememberDashboardPlace(viewer, org, null)
+  }, [viewer, org, id, search, Boolean(query.data), gone, archived])
   if (query.data)
     return (
       <DashboardWorkspace org={org} saved={query.data} capabilities={capabilities} canManageDevices={canManageDevices} />

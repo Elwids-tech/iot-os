@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Http\Controllers;
 
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagAuthoring;
 use App\Domain\Automation\Services\DagAuthorization;
@@ -71,6 +72,7 @@ final class DagController
     {
         $this->auth->authorize($r->user(), $organization, 'manage', $workflow);
         $this->auth->enabled($organization);
+        abort_if($workflow->isArchived(), 409, DagAuthoring::ARCHIVED);
         $v = $r->validate(['name' => 'required|string|max:255', 'workflow' => 'required|array', 'draft_revision' => 'required|integer|min:1']);
 
         return ['data' => $this->view($this->authoring->save($organization, $v, $r->user()->id, $workflow))];
@@ -83,14 +85,65 @@ final class DagController
         return ['data' => $this->view($workflow)];
     }
 
+    /** Archived automations are left out unless `archived` is `only` or `include`; `archived_count` counts those matching the search. */
     public function index(Request $r, Organization $organization): array
     {
         $this->auth->authorize($r->user(), $organization, 'view');
-        $r->validate(['page' => 'sometimes|integer|min:1', 'search' => 'sometimes|nullable|string|max:255']);
-        $p = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2')->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'))->orderByDesc('id')->paginate(25);
+        $r->validate(['page' => 'sometimes|integer|min:1', 'search' => 'sometimes|nullable|string|max:255', 'archived' => 'sometimes|nullable|in:'.implode(',', Workflow::ARCHIVED_FILTERS)]);
+        $matching = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2')->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'));
+        $p = (clone $matching)->archiveFilter($r->input('archived'))->with('archiver:id,name')->orderByDesc('id')->paginate(25);
         $summaries = app(DagDirectory::class)->summarize($organization, $p->getCollection());
 
-        return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total()]];
+        return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$w->archiveState(), ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total(), 'archived_count' => $matching->whereNotNull('archived_at')->count()]];
+    }
+
+    /**
+     * Turns the automation off, then hides it from lists.
+     *
+     * Needs Workflow.manage and, because it requests a disable deployment, Workflow.activate.
+     */
+    public function archive(Request $r, Organization $organization, Workflow $workflow): array
+    {
+        $this->auth->authorize($r->user(), $organization, 'manage', $workflow);
+        $this->auth->authorize($r->user(), $organization, 'activate', $workflow);
+        abort_unless($workflow->kind() === 'automation', 422, 'Only automations can be archived.');
+
+        return DB::transaction(function () use ($r, $organization, $workflow) {
+            $w = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
+            if (! $w->isArchived()) {
+                // The runtime runs the applied deployment until a disable succeeds; a pending
+                // disable is already turning it off, while a pending activation must finish first.
+                if ($w->pending_operation_uuid !== null) {
+                    abort_if($w->desired_deployment_uuid !== null, 409, 'This automation is being activated. Archive it once that finishes.');
+                } elseif ($w->desired_deployment_uuid !== null || $w->applied_deployment_uuid !== null) {
+                    app(DagDeployment::class)->request($w, ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'inactive', 'draft_revision' => $w->draft_revision, 'expected_generation' => $w->deployment_generation], $r->user());
+                }
+                // Archiving isn't a draft edit, so updated_at keeps saying when the draft last changed.
+                $w->refresh();
+                $w->timestamps = false;
+                $w->update(['archived_at' => now(), 'archived_by' => $r->user()->id]);
+                ActivityLog::record('workflow.archived', $organization, $r->user(), $w);
+            }
+
+            return ['data' => ['uuid' => $w->uuid, ...$w->archiveState()]];
+        });
+    }
+
+    /** Brings an archived automation back to the list. It stays off until someone activates it. */
+    public function unarchive(Request $r, Organization $organization, Workflow $workflow): array
+    {
+        $this->auth->authorize($r->user(), $organization, 'manage', $workflow);
+
+        return DB::transaction(function () use ($r, $organization, $workflow) {
+            $w = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
+            $w->timestamps = false;
+            if ($w->isArchived()) {
+                $w->update(['archived_at' => null, 'archived_by' => null]);
+                ActivityLog::record('workflow.unarchived', $organization, $r->user(), $w);
+            }
+
+            return ['data' => ['uuid' => $w->uuid, ...$w->archiveState()]];
+        });
     }
 
     /** Canvas presentation: node positions, the viewport and node names. None of it reaches the deployed definition. */
@@ -101,6 +154,7 @@ final class DagController
 
         return DB::transaction(function () use ($workflow, $v) {
             $w = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
+            abort_if($w->isArchived(), 409, DagAuthoring::ARCHIVED);
             abort_unless($w->layout_revision === $v['layout_revision'], 409, 'Layout changed.');
             $w->update(['layout' => $v['layout'], 'layout_revision' => $w->layout_revision + 1]);
 
@@ -261,6 +315,6 @@ final class DagController
         // The draft revision that runs (or is being applied), so the editor knows whether saved changes still need applying.
         $active = $w->desired_deployment_uuid ? DB::table('automation_deployments')->where('uuid', $w->desired_deployment_uuid)->value('draft_revision') : null;
 
-        return [...$w->only(self::VIEW), 'deployment_diagnostic' => DagDiagnostic::forWorkflow($deployment?->diagnostic, $w->workflow, $w->organization_id), 'active_revision' => $active];
+        return [...$w->only(self::VIEW), ...$w->archiveState(), 'deployment_diagnostic' => DagDiagnostic::forWorkflow($deployment?->diagnostic, $w->workflow, $w->organization_id), 'active_revision' => $active];
     }
 }

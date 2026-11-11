@@ -18,15 +18,27 @@ portal [`src/dashboards`](../../apps/portal/src/dashboards) (panel registry:
 viewed, Created by me), folder, tag and device filters, sorting and an Access
 column; filters live in the URL. **New dashboard** is the primary action; the "…"
 menu creates one from a template, from a device profile, or by importing JSON.
-Bulk actions export JSON and delete. Stars and "last viewed" are per user and
-never change a dashboard's revision.
+Bulk actions export JSON, archive, restore and delete. Stars and "last viewed" are
+per user and never change a dashboard's revision.
+
+### Archiving
+
+**Archive** (row menu, bulk action, or the dashboard's "…" menu) hides a dashboard
+from the library, the dashboard switcher, Home and search, and makes it read-only:
+saving, restoring a version and changing access get 409 until it is restored. It
+still opens from a link, with a banner and **Restore**, and keeps its panels,
+versions, shares and everyone's stars. The library says "*n* archived dashboards
+hidden · Show"; the **Archived** filter lists them alone or with the others. The
+owner and `Dashboard.manage` archive and restore, as they delete. Archiving is
+reversible, so the library offers **Undo** instead of asking first. Libraries that
+never archive look as before (spec 031 FR-037).
 
 **Dashboards** in the sidebar reopens where the viewer last was in Dashboards: the
 dashboard with its time range and variables, or the library if they went back to it
 ([`lastPlace.ts`](../../apps/portal/src/dashboards/lastPlace.ts)). It is kept per
 person and organization in the browser; kiosk mode and an open panel editor are not
-remembered, and a dashboard that is deleted or no longer shared falls back to the
-library. The header's back link always opens the library.
+remembered, and a dashboard that is archived, deleted or no longer shared falls back
+to the library. The header's back link always opens the library.
 
 ## Editing
 
@@ -142,8 +154,8 @@ shared with). New dashboards are open to the organization. A share grants **Can
 view** or **Can edit**; only the owner and managers change access or delete.
 Duplicating needs `Dashboard.create` and keeps the original's access and shares.
 The API filters the library, returns each dashboard's `access` and the viewer's
-`abilities` (`edit`, `share`, `delete`), and answers 403 for a dashboard you cannot
-open. The organization context includes `capabilities.dashboards`.
+`abilities` (`edit`, `share`, `delete`; an archived dashboard has no `edit` or
+`share`), and answers 403 for a dashboard you cannot open. The organization context includes `capabilities.dashboards`.
 
 The migration that introduced these permissions copied existing grants:
 `Device.view` → `Dashboard.view`, `Device.manage` → `Dashboard.create` and
@@ -156,11 +168,12 @@ Under `/api/v1/organizations/{organization}`:
 
 | Method and path | Needs |
 | --- | --- |
-| `GET dashboards` | `Dashboard.view` (filtered to what you can open) |
+| `GET dashboards` | `Dashboard.view` (filtered to what you can open); `archived=only\|include` lists archived dashboards, `meta.archived_count` counts those you can open |
 | `POST dashboards` | `Dashboard.create` |
 | `GET dashboards/{d}` | view ability (records `last_viewed_at`) |
 | `PUT dashboards/{d}` | edit ability; current `revision` or 409 |
 | `DELETE dashboards/{d}` | delete ability |
+| `POST dashboards/{d}/archive`, `POST dashboards/{d}/restore` | delete ability (owner or `Dashboard.manage`); returns `uuid`, `archived_at`, `archived_by` |
 | `PUT dashboards/{d}/star` | view ability |
 | `POST dashboards/{d}/duplicate` | view ability and `Dashboard.create` |
 | `GET dashboards/{d}/revisions`, `revisions/{n}` | view ability (latest 50 snapshots kept) |

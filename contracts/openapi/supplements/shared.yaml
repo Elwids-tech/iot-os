@@ -93,6 +93,31 @@ components:
         code:
           type: string
           const: profile.draft_conflict
+    ArchiveState:
+      type: object
+      description: >-
+        Whether a dashboard or automation is archived (spec 031 FR-037), returned by its
+        archive and restore operations. Lists hide archived items unless `archived` is
+        `only` or `include`.
+      required: [uuid, archived_at, archived_by]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        archived_at:
+          type: [string, 'null']
+          format: date-time
+        archived_by:
+          description: Who archived it; null when it is not archived or that person was deleted.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [user_id, name]
+              properties:
+                user_id:
+                  type: integer
+                name:
+                  type: [string, 'null']
     CompactPage:
       type: object
       description: >-

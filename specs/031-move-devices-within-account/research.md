@@ -403,8 +403,9 @@ with the extra devices when the mover holds `Device.move` for them.
 - Automations: archiving needs `Workflow.activate`, because it turns the workflow off
   first (a deactivation deployment), and `Workflow.manage`. Restoring needs
   `Workflow.manage` and brings it back off.
-- Activity: `dashboard.archived`, `dashboard.restored`, `workflow.archived`,
-  `workflow.restored`.
+- Activity: `dashboard.archived`, `dashboard.unarchived`, `workflow.archived`,
+  `workflow.unarchived`. `dashboard.restored` already names restoring an earlier
+  version, so restoring from the archive is `unarchived` for both.
 
 **Rationale**: FR-037 and FR-062. Nothing can be deleted for automations today
 (restrict foreign keys), and archiving needs no foreign key change.

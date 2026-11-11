@@ -222,9 +222,15 @@ What each side sees:
 | `POST workflows/{workflow}/archive` | `Workflow.manage` and `Workflow.activate` (it turns the workflow off) |
 | `POST workflows/{workflow}/restore` | `Workflow.manage`; comes back off |
 
-- `GET dashboards` and `GET workflows` take `archived=only|include`. They hide archived
-  items by default and return `archived_count`.
-- Items carry `archived_at` and `archived_by`: `{user_id, name}`, or null.
+- `GET dashboards`, `GET workflows` and `GET workflows/dag` take `archived=only|include`.
+  They hide archived items by default and return `meta.archived_count`.
+- Items carry `archived_at` and `archived_by`: `{user_id, name}`, or null. Archive and
+  restore return `{uuid, archived_at, archived_by}`; repeating either changes nothing.
+- An archived dashboard has no `edit` or `share` ability; saves, version restores and
+  access changes get 409. An archived automation's draft, layout and activation get
+  409, and archiving one whose activation is pending gets 409.
+- The organization context carries `capabilities.automation` (`view`, `manage`,
+  `activate`), so clients hide what the API would refuse.
 
 ## Direct devices (PR 031-7)
 

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Services;
 
+use App\Domain\Automation\Permissions\WorkflowPermission;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\PermissionRegistrar;
 
 final class DagAuthorization
@@ -24,6 +26,36 @@ final class DagAuthorization
         $user->unsetRelation('roles')->unsetRelation('permissions');
         try {
             abort_unless($user->is_super_admin || $user->checkPermissionTo('Workflow.'.$permission), 403);
+        } finally {
+            $r->setPermissionsTeamId($old);
+            $user->unsetRelation('roles')->unsetRelation('permissions');
+        }
+    }
+
+    /**
+     * What the person may do with this organization's automations, so clients hide the
+     * controls the API would refuse.
+     *
+     * @return array{view: bool, manage: bool, activate: bool}
+     */
+    public function capabilities(User $user, Organization $org): array
+    {
+        $member = $user->is_super_admin || $user->organizations()->whereKey($org->id)->exists();
+        $r = app(PermissionRegistrar::class);
+        $old = $r->getPermissionsTeamId();
+        $r->setPermissionsTeamId($org->id);
+        $user->unsetRelation('roles')->unsetRelation('permissions');
+        try {
+            $result = [];
+            foreach (WorkflowPermission::cases() as $permission) {
+                try {
+                    $result[strtolower($permission->name)] = $member && ($user->is_super_admin || $user->hasPermissionTo($permission->value));
+                } catch (PermissionDoesNotExist) {
+                    $result[strtolower($permission->name)] = false;
+                }
+            }
+
+            return $result;
         } finally {
             $r->setPermissionsTeamId($old);
             $user->unsetRelation('roles')->unsetRelation('permissions');

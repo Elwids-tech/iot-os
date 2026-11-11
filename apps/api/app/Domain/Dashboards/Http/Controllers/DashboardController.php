@@ -28,15 +28,30 @@ final class DashboardController
 
     public function __construct(private readonly DashboardAccess $access, private readonly SaveDashboard $save) {}
 
-    /** Only the dashboards this person can open, each with what they may do to it. */
+    /**
+     * Only the dashboards this person can open, each with what they may do to it.
+     *
+     * Archived dashboards are left out unless `archived` is `only` or `include`;
+     * `archived_count` counts the archived ones this person can open.
+     */
     public function index(Request $request, Organization $organization): array
     {
         abort_unless($this->access->capabilities($request->user(), $organization)['view'], 403);
-        $dashboards = Dashboard::query()->where('organization_id', $organization->id)->with(['creator:id,name', 'updater:id,name'])->orderBy('name')->get();
+        $filter = $request->validate(['archived' => ['sometimes', 'nullable', Rule::in(Dashboard::ARCHIVED_FILTERS)]])['archived'] ?? null;
+        $dashboards = Dashboard::query()->where('organization_id', $organization->id)->with(['creator:id,name', 'updater:id,name', 'archiver:id,name'])->orderBy('name')->get();
         $visible = $this->access->visible($request->user(), $organization, $dashboards);
-        $preferences = DB::table('dashboard_user')->where('user_id', $request->user()->id)->whereIn('dashboard_id', $dashboards->modelKeys())->get()->keyBy('dashboard_id');
+        $archived = $visible->filter(fn (array $entry) => $entry['dashboard']->isArchived());
+        $listed = match ($filter) {
+            'only' => $archived,
+            'include' => $visible,
+            default => $visible->reject(fn (array $entry) => $entry['dashboard']->isArchived()),
+        };
+        $preferences = DB::table('dashboard_user')->where('user_id', $request->user()->id)->whereIn('dashboard_id', $listed->map(fn (array $entry) => $entry['dashboard']->id))->get()->keyBy('dashboard_id');
 
-        return ['data' => $visible->map(fn (array $entry) => $this->view($entry['dashboard'], $preferences->get($entry['dashboard']->id), $entry['abilities']))->all()];
+        return [
+            'data' => $listed->map(fn (array $entry) => $this->view($entry['dashboard'], $preferences->get($entry['dashboard']->id), $entry['abilities']))->values()->all(),
+            'meta' => ['archived_count' => $archived->count()],
+        ];
     }
 
     public function store(Request $request, Organization $organization): array
@@ -145,6 +160,41 @@ final class DashboardController
         });
     }
 
+    /** Hides the dashboard from lists and makes it read-only; the owner or Dashboard.manage, as for deleting. */
+    public function archive(Request $request, Organization $organization, Dashboard $dashboard): array
+    {
+        $this->authorizeDashboard($request, $organization, $dashboard, 'delete');
+
+        return DB::transaction(function () use ($dashboard, $organization, $request): array {
+            $locked = Dashboard::whereKey($dashboard->id)->lockForUpdate()->firstOrFail();
+            // Archiving isn't an edit, so updated_at keeps saying when it last changed.
+            $locked->timestamps = false;
+            if (! $locked->isArchived()) {
+                $locked->update(['archived_at' => now(), 'archived_by' => $request->user()->id]);
+                ActivityLog::record('dashboard.archived', $organization, $request->user(), $locked);
+            }
+
+            return ['data' => ['uuid' => $locked->uuid, ...$locked->archiveState()]];
+        });
+    }
+
+    /** Brings an archived dashboard back to the library, as it was; the same people who archive it. */
+    public function unarchive(Request $request, Organization $organization, Dashboard $dashboard): array
+    {
+        $this->authorizeDashboard($request, $organization, $dashboard, 'delete');
+
+        return DB::transaction(function () use ($dashboard, $organization, $request): array {
+            $locked = Dashboard::whereKey($dashboard->id)->lockForUpdate()->firstOrFail();
+            $locked->timestamps = false;
+            if ($locked->isArchived()) {
+                $locked->update(['archived_at' => null, 'archived_by' => null]);
+                ActivityLog::record('dashboard.unarchived', $organization, $request->user(), $locked);
+            }
+
+            return ['data' => ['uuid' => $locked->uuid, ...$locked->archiveState()]];
+        });
+    }
+
     public function destroy(Request $request, Organization $organization, Dashboard $dashboard): Response
     {
         $this->authorizeDashboard($request, $organization, $dashboard, 'delete');
@@ -205,6 +255,7 @@ final class DashboardController
     public function updateAccess(Request $request, Organization $organization, Dashboard $dashboard): array
     {
         $this->authorizeDashboard($request, $organization, $dashboard, 'share');
+        abort_if($dashboard->isArchived(), 409, SaveDashboard::ARCHIVED);
         $values = $request->validate([
             'access' => ['required', Rule::in([DashboardAccess::ORGANIZATION, DashboardAccess::RESTRICTED])],
             'shares' => ['present', 'array', 'max:'.self::MAX_SHARES],
@@ -297,8 +348,12 @@ final class DashboardController
      */
     private function view(Dashboard $dashboard, ?object $preference, array $abilities): array
     {
+        // An archived dashboard is read-only until it is restored.
+        $archived = $dashboard->isArchived();
+
         return [...$dashboard->only(['uuid', 'name', 'layouts', 'revision', 'folder', 'access', 'created_by', 'created_at', 'updated_at']),
-            'abilities' => ['edit' => $abilities['edit'], 'share' => $abilities['share'], 'delete' => $abilities['delete']],
+            ...$dashboard->archiveState(),
+            'abilities' => ['edit' => $abilities['edit'] && ! $archived, 'share' => $abilities['share'] && ! $archived, 'delete' => $abilities['delete']],
             'widgets' => DashboardDefinition::normalize($dashboard->widgets ?? []),
             'defaults' => $dashboard->defaults ?? DashboardDefinition::defaults(),
             'tags' => $dashboard->tags ?? [],

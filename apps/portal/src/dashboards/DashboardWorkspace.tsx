@@ -46,7 +46,8 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@iot-os/ui/components/empty"
-import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { Field, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { Toggle } from "@iot-os/ui/components/toggle"
@@ -72,6 +73,8 @@ import {
 } from "@iot-os/ui/components/sheet"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   ChevronDownIcon,
   ChevronsUpDownIcon,
   CopyIcon,
@@ -188,6 +191,9 @@ export function DashboardWorkspace({
   const [discard, setDiscard] = useState(false)
   const [saving, setSaving] = useState(false)
   const [starring, setStarring] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  // Archived dashboards are read-only (the API sends no edit or share ability) until restored.
+  const archived = Boolean(saved.archived_at)
   const [error, setError] = useState<unknown>(null)
   const [invalidPanel, setInvalidPanel] = useState<string | null>(null)
   const [breakpoint, setBreakpoint] = useState("lg")
@@ -220,6 +226,19 @@ export function DashboardWorkspace({
     queryKey: ["dashboards", org],
     queryFn: () => api.dashboards(org),
   })
+  async function setArchived(archive: boolean) {
+    setArchiving(true)
+    try {
+      await (archive ? api.archiveDashboard(org, saved.uuid) : api.restoreDashboard(org, saved.uuid))
+      await cache.invalidateQueries({ queryKey: ["dashboard", org, saved.uuid] })
+      void cache.invalidateQueries({ queryKey: ["dashboards", org] })
+      toast.success(archive ? `Archived ${saved.name}` : `Restored ${saved.name}`)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setArchiving(false)
+    }
+  }
   const save = useCallback(async () => {
     if (!draft || saving) return false
     if (editorDirty) {
@@ -998,6 +1017,10 @@ export function DashboardWorkspace({
                   {abilities.delete && (
                     <>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled={archiving} onSelect={() => void setArchived(!archived)}>
+                        {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+                        {archived ? "Restore" : "Archive"}
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
                         onSelect={() => setDialog("delete")}
@@ -1048,6 +1071,27 @@ export function DashboardWorkspace({
                 The URL time range is invalid: {absoluteIssue} Showing the saved
                 dashboard default instead.
               </AlertDescription>
+            </Alert>
+          )}
+          {archived && (
+            <Alert>
+              <ArchiveIcon />
+              <AlertTitle>This dashboard is archived</AlertTitle>
+              <AlertDescription>
+                <p>
+                  It is read-only and hidden from the library
+                  {saved.archived_by?.name ? `. ${saved.archived_by.name} archived it ` : ". Archived "}
+                  <RelativeTime at={saved.archived_at} />.
+                </p>
+              </AlertDescription>
+              {abilities.delete && (
+                <AlertAction>
+                  <Button variant="outline" size="sm" disabled={archiving} onClick={() => void setArchived(false)}>
+                    <ArchiveRestoreIcon data-icon="inline-start" />
+                    Restore
+                  </Button>
+                </AlertAction>
+              )}
             </Alert>
           )}
           <RequestError error={error} />

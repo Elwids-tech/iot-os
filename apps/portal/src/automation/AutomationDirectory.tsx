@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { EllipsisIcon, OctagonXIcon, PlusIcon, WorkflowIcon } from "lucide-react";
+import { ArchiveIcon, EllipsisIcon, OctagonXIcon, PlusIcon, WorkflowIcon } from "lucide-react";
+import { toast } from "sonner";
+import type { ArchivedBy, ArchiveFilter } from "@iot-os/api-client";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
 import {
   AlertDialog,
@@ -30,17 +32,32 @@ import {
   PanelHeader,
   PanelTitle,
 } from "@iot-os/ui/components/panel";
-import { StatusMark } from "@iot-os/ui/components/status-mark";
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip";
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state";
 import { CollectionPage } from "@iot-os/ui/templates/collection-page";
 import { api } from "../lib/api";
-import { RequestError } from "../components/forms";
+import { Confirm, errorMessage, RequestError } from "../components/forms";
 import { deploymentState, lastActivity, triggerSummary, type DirectorySummary } from "./directory";
 
-type Row = DirectorySummary & { uuid: string; name: string; draft_revision: number };
+type Row = DirectorySummary & {
+  uuid: string;
+  name: string;
+  draft_revision: number;
+  archived_at?: string | null;
+  archived_by?: ArchivedBy | null;
+};
 type Settings = { enabled: boolean; stopped: boolean; revision: number };
-type Page<T> = { data: T[]; meta: { current_page: number; last_page: number; total: number } };
+type Page<T> = {
+  data: T[];
+  /** archived_count: archived automations matching the search, listed or not. */
+  meta: { current_page: number; last_page: number; total: number; archived_count?: number };
+};
+/** Choices after the default, "Not archived"; "All" includes archived automations. */
+const archivedOptions: { value: ArchiveFilter; label: string }[] = [
+  { value: "only", label: "Archived" },
+  { value: "include", label: "All" },
+];
 
 const url = (org: string, id = "") => `/organizations/${org}/automation${id ? `/${id}` : ""}`;
 
@@ -50,20 +67,40 @@ export function Directory() {
   const cache = useQueryClient();
   const state = useUrlState();
   const search = state.get("search"),
-    page = Number(state.get("page") || 1);
+    page = Number(state.get("page") || 1),
+    archived = archivedOptions.find((o) => o.value === state.get("archived"))?.value;
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [archiving, setArchiving] = useState<Row | null>(null);
+  const session = useQuery({ queryKey: ["session"], queryFn: () => api.me(), staleTime: 60000 });
+  // Older APIs send no automation capabilities; their editor shows the API's refusals instead.
+  const can = session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.automation;
   const settings = useQuery({
     queryKey: ["automation-settings", org],
     queryFn: () => api.automation<{ data: Settings }>(org, "/dag/settings"),
   });
   const list = useQuery({
-    queryKey: ["automation-directory", org, search, page],
+    queryKey: ["automation-directory", org, search, page, archived],
     queryFn: () =>
-      api.automation<Page<Row>>(org, `/dag?${new URLSearchParams({ search, page: String(page) })}`),
+      api.automation<Page<Row>>(
+        org,
+        `/dag?${new URLSearchParams({ search, page: String(page), ...(archived ? { archived } : {}) })}`,
+      ),
     placeholderData: keepPreviousData,
   });
+  // The default view says how many archived automations it leaves out.
+  const hiddenArchived = archived ? 0 : (list.data?.meta.archived_count ?? 0);
+  const showArchived = () => state.set({ archived: "include", page: null });
+  async function restore(w: Row) {
+    try {
+      await api.restoreWorkflow(org, w.uuid);
+      toast.success(`Restored ${w.name}. It stays off until you activate it.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+    await cache.invalidateQueries({ queryKey: ["automation-directory", org] });
+  }
   async function change(values: Partial<Settings>) {
     if (!settings.data) return false;
     setBusy(true);
@@ -97,9 +134,12 @@ export function Directory() {
               : undefined;
           return (
             <>
-              <RowLink to={url(org, w.uuid)} className="block truncate">
-                {w.name}
-              </RowLink>
+              <span className="flex min-w-0 items-center gap-2">
+                <RowLink to={url(org, w.uuid)} className="block truncate">
+                  {w.name}
+                </RowLink>
+                {w.archived_at && <Status value="archived" className="shrink-0 text-meta" />}
+              </span>
               <p className="text-meta text-muted-foreground">
                 Draft revision {w.draft_revision}
                 {live !== undefined && live !== w.draft_revision && ` · live revision ${live}`}
@@ -255,6 +295,7 @@ export function Directory() {
         noun={["automation", "automations"]}
         rows={list.data?.data}
         rowKey={(w) => w.uuid}
+        rowLabel={(w) => w.name}
         rowHref={(w) => url(org, w.uuid)}
         columns={columns}
         error={list.error ? <RequestError error={list.error} /> : undefined}
@@ -264,7 +305,49 @@ export function Directory() {
           value: search,
           onChange: (value) => state.set({ search: value }),
         }}
-        filtered={Boolean(search)}
+        filters={
+          // Organizations that never archive keep the list as it was.
+          (list.data?.meta.archived_count ?? 0) > 0 || archived
+            ? [
+                {
+                  id: "archived",
+                  label: "Archived",
+                  anyLabel: "Not archived",
+                  options: archivedOptions,
+                  value: archived ? [archived] : [],
+                  onChange: (value: string[]) => state.set({ archived: value[0] ?? null, page: null }),
+                },
+              ]
+            : []
+        }
+        // "All" widens the default view, so its count reads as a total, not a match.
+        filtered={Boolean(search || archived === "only")}
+        onReset={() => state.clear(["search", "archived", "page"])}
+        note={
+          hiddenArchived > 0 && (
+            <>
+              {hiddenArchived.toLocaleString()} archived {hiddenArchived === 1 ? "automation" : "automations"} hidden{" "}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-meta"
+                aria-label="Show archived automations"
+                onClick={showArchived}
+              >
+                Show
+              </Button>
+            </>
+          )
+        }
+        rowActions={(w) =>
+          w.archived_at ? (
+            can?.manage ? (
+              <DropdownMenuItem onSelect={() => void restore(w)}>Restore</DropdownMenuItem>
+            ) : null
+          ) : can?.manage && can.activate ? (
+            <DropdownMenuItem onSelect={() => setArchiving(w)}>Archive…</DropdownMenuItem>
+          ) : null
+        }
         pagination={{
           page,
           pageSize: 25,
@@ -273,20 +356,48 @@ export function Directory() {
           onPageChange: (next) => state.set({ page: next > 1 ? String(next) : null }),
         }}
         empty={
-          <EmptyState
-            inset
-            icon={<WorkflowIcon />}
-            title="No automations yet"
-            description="Build a workflow from device inputs, conditions and actions."
-            action={
-              enabled && (
-                <Button size="sm" asChild>
-                  <Link to={url(org, "new")}>New automation</Link>
+          hiddenArchived ? (
+            <EmptyState
+              inset
+              icon={<ArchiveIcon />}
+              title="No current automations"
+              description={`${hiddenArchived.toLocaleString()} archived ${hiddenArchived === 1 ? "automation is" : "automations are"} hidden from this list.`}
+              action={
+                <Button variant="outline" size="sm" onClick={showArchived}>
+                  Show archived automations
                 </Button>
-              )
-            }
-          />
+              }
+            />
+          ) : (
+            <EmptyState
+              inset
+              icon={<WorkflowIcon />}
+              title={archived === "only" ? "No archived automations" : "No automations yet"}
+              description={archived === "only" ? undefined : "Build a workflow from device inputs, conditions and actions."}
+              action={
+                enabled && !archived && (
+                  <Button size="sm" asChild>
+                    <Link to={url(org, "new")}>New automation</Link>
+                  </Button>
+                )
+              }
+            />
+          )
         }
+      />
+      <Confirm
+        open={archiving !== null}
+        title={`Archive ${archiving?.name ?? "automation"}?`}
+        description="It is turned off now and hidden from this list. Restoring it brings it back off, so you choose when it runs again."
+        action="Archive automation"
+        destructive={false}
+        onClose={() => setArchiving(null)}
+        onConfirm={async () => {
+          if (!archiving) return;
+          await api.archiveWorkflow(org, archiving.uuid);
+          toast.success(`Archived ${archiving.name}`);
+          await cache.invalidateQueries({ queryKey: ["automation-directory", org] });
+        }}
       />
       <AlertDialog
         open={confirming}

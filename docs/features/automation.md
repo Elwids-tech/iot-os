@@ -195,6 +195,20 @@ workflows/dag/commands/{command}/reconcile`) with a note and a fresh observation
 the target. Disabling, replacing or stopping cancels pending intents; after the
 dispatch boundary a command may already have reached the device.
 
+### Archiving
+
+**Archive…** in the directory's row menu turns an automation off and hides it from
+the directory, the organization overview and the workflow pickers. A running
+automation gets a disable deployment first; one still being activated is refused
+(409) until that finishes. An archived automation opens read-only, with a banner and
+**Restore**: its draft, layout and activation get 409. **Restore** brings it back
+**off**, so someone chooses when it runs again. The directory says "*n* archived
+automations hidden · Show", and the **Archived** filter lists them. Archiving needs
+`Workflow.manage` and `Workflow.activate`; restoring needs `Workflow.manage`. Only
+DAG automations are archived; geofence workflows follow their geofence (spec 031
+FR-037). The organization context includes `capabilities.automation` (`view`,
+`manage`, `activate`) so the portal hides what it can't do.
+
 ### API
 
 Under `/api/v1/organizations/{organization}/workflows`
@@ -202,9 +216,11 @@ Under `/api/v1/organizations/{organization}/workflows`
 
 | Endpoint | Purpose | Permission |
 | --- | --- | --- |
-| `GET dag/node-types`, `GET dag`, `GET {w}`, `GET dag/resources`, `GET dag/health` | Registry, directory, read, bindable parameters (`controllable=1` also needs `Device.command`), consumer health | `Workflow.view` |
+| `GET dag/node-types`, `GET dag`, `GET {w}`, `GET dag/resources`, `GET dag/health` | Registry, directory (`archived=only\|include`, `meta.archived_count`), read, bindable parameters (`controllable=1` also needs `Device.command`), consumer health | `Workflow.view` |
 | `POST dag/validate`, `POST /`, `PUT {w}`, `PUT {w}/layout`, `POST {w}/simulate`, scenario writes and runs | Authoring and testing | `Workflow.manage` |
 | `POST {w}/deployments`, `PUT dag/settings`, `POST dag/commands/{c}/reconcile` | Activation, preview and emergency stop, reconciliation | `Workflow.activate` |
+| `POST {w}/archive` | Turn off and hide | `Workflow.manage` and `Workflow.activate` |
+| `POST {w}/restore` | Bring back, off | `Workflow.manage` |
 | `GET {w}/execution`, `{w}/actions`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` (execution: `Device.view`) |
 
 Organization Admin has all three `Workflow.*` permissions; Moderators and Members

@@ -44,3 +44,52 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/workflows/{workflow}/archive:
+    description: >-
+      Turns the automation off, by requesting a disable deployment when it runs, and
+      hides it from lists. Its draft, layout and activation then get 409 until it is
+      restored. Needs `Workflow.manage` and `Workflow.activate`; 409 while an
+      activation is pending, 422 for a geofence workflow. Archiving an archived
+      automation changes nothing.
+    responses:
+      '200':
+        description: The automation is archived; a disable deployment may still be pending.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/ArchiveState'
+            example:
+              data:
+                uuid: 9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50
+                archived_at: '2026-11-11T09:30:00+00:00'
+                archived_by:
+                  user_id: 42
+                  name: Ana Silva
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  POST /v1/organizations/{organization}/workflows/{workflow}/restore:
+    description: >-
+      Brings an archived automation back to lists. It stays off until someone activates
+      it. Needs `Workflow.manage`. Restoring a current automation changes nothing.
+    responses:
+      '200':
+        description: The automation is current again, and off.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/ArchiveState'
+            example:
+              data:
+                uuid: 9b2f4c1e-5a7d-4e38-8f0a-2c6d1b3e4f50
+                archived_at: null
+                archived_by: null

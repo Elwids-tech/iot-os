@@ -244,7 +244,8 @@ export function SettingsDialog({
             folder: folder.trim() || null,
             revision: dashboard.revision,
           })
-          cache.setQueryData<Dashboard[]>(["dashboards", org], (all) =>
+          // The library keeps its own list, with archived dashboards; both start with this key.
+          cache.setQueriesData<Dashboard[]>({ queryKey: ["dashboards", org] }, (all) =>
             all?.map((d) => (d.uuid === saved.uuid ? saved : d)),
           )
           cache.setQueryData(["dashboard", org, saved.uuid], saved)

@@ -117,6 +117,9 @@ export type Dashboard = {
   updated_by_name: string | null;
   created_at: string;
   updated_at: string;
+  /** Set while archived: read-only and left out of lists unless asked for. Older APIs omit it. */
+  archived_at?: string | null;
+  archived_by?: import("./archive").ArchivedBy | null;
 };
 /** tags and folder are optional on update; omitted values keep what is stored. */
 export type DashboardInput = Pick<

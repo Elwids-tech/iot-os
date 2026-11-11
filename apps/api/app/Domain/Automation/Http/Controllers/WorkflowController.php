@@ -35,12 +35,14 @@ final class WorkflowController
     public function index(Request $request, Organization $organization): array
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
-        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'search' => ['sometimes', 'nullable', 'string', 'max:255'], 'kind' => ['sometimes', 'in:geofence,all']]);
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'search' => ['sometimes', 'nullable', 'string', 'max:255'], 'kind' => ['sometimes', 'in:geofence,all'], 'archived' => ['sometimes', 'nullable', 'in:'.implode(',', Workflow::ARCHIVED_FILTERS)]]);
         // Geofence (v1) workflows unless the caller opts into DAG automations (v2) with kind=all.
         $versions = $request->input('kind') === 'all' ? ['automation-workflow.v1', 'automation-workflow.v2'] : ['automation-workflow.v1'];
-        $page = Workflow::where('organization_id', $organization->id)->whereIn('workflow->schema_version', $versions)->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->string('search').'%'))->orderBy('id')->paginate($request->integer('per_page', 25));
+        $matching = Workflow::where('organization_id', $organization->id)->whereIn('workflow->schema_version', $versions)->when($request->filled('search'), fn ($query) => $query->where('name', 'like', '%'.$request->string('search').'%'));
+        // Archived automations are left out unless asked for, as in the automation directory.
+        $page = (clone $matching)->archiveFilter($request->input('archived'))->with('archiver:id,name')->orderBy('id')->paginate($request->integer('per_page', 25));
 
-        return ['data' => $page->getCollection()->map(fn ($w) => [...$this->view($w), 'kind' => $w->kind()]), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]];
+        return ['data' => $page->getCollection()->map(fn ($w) => [...$this->view($w), ...$w->archiveState(), 'kind' => $w->kind()]), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(), 'archived_count' => $matching->whereNotNull('archived_at')->count()]];
     }
 
     public function show(Request $request, Organization $organization, Workflow $workflow): array
