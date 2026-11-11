@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { queryOptions, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiError, type ArchivedBy } from "@iot-os/api-client";
+import { ApiError, type ArchivedBy, type MovedDevice } from "@iot-os/api-client";
 import {
   WorkflowEditor,
   nodeLabel,
@@ -122,6 +122,10 @@ type Saved = {
   /** Set while archived: off and read-only until restored. */
   archived_at?: string | null;
   archived_by?: ArchivedBy | null;
+  /** Archived because it moved: the organization it moved to (spec 031). */
+  moved_to?: string | null;
+  /** Bound devices that moved to another organization; activation waits until they are removed. */
+  moved_devices?: MovedDevice[];
 };
 type Page<T> = {
   data: T[];
@@ -573,13 +577,20 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
         {live?.archived_at && (
           <Alert>
             <ArchiveIcon />
-            <AlertTitle>This automation is archived</AlertTitle>
+            <AlertTitle>{live.moved_to ? `This automation moved to ${live.moved_to}` : "This automation is archived"}</AlertTitle>
             <AlertDescription>
-              <p>
-                It is off and hidden from the automation list
-                {live.archived_by?.name ? `. ${live.archived_by.name} archived it ` : ". Archived "}
-                <RelativeTime at={live.archived_at} />. Restore it to change or activate it again.
-              </p>
+              {live.moved_to ? (
+                <p>
+                  It continues in {live.moved_to} with the devices that moved there. This copy is off and keeps its run history
+                  up to the move <RelativeTime at={live.archived_at} />.
+                </p>
+              ) : (
+                <p>
+                  It is off and hidden from the automation list
+                  {live.archived_by?.name ? `. ${live.archived_by.name} archived it ` : ". Archived "}
+                  <RelativeTime at={live.archived_at} />. Restore it to change or activate it again.
+                </p>
+              )}
             </AlertDescription>
             {canManage && (
               <AlertAction>
@@ -651,6 +662,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
         {stale.length > 0 && (
           <StaleBindingsAlert
             stale={stale}
+            moved={live?.moved_devices ?? []}
             devices={deviceQueries.flatMap((q) => q.data?.data ?? [])}
             nodes={(role) => nodesUsing(graph, role).map((n) => nodeTitle(n.id))}
             onRefresh={() => change(refreshBindings(graph, stale))}
@@ -932,18 +944,26 @@ function confirmLabel({ save, approve, verb }: { save: boolean; approve: boolean
   return label[0].toUpperCase() + label.slice(1);
 }
 
-/** Deploy refuses bindings to an earlier device configuration; offers each device's current one. */
+/**
+ * Deploy refuses bindings to an earlier device configuration; offers each device's current
+ * one. A device that moved to another organization is named, with where it went: the
+ * automation stays off until it is removed (spec 031 FR-036).
+ */
 function StaleBindingsAlert({
   stale,
+  moved,
   devices,
   nodes,
   onRefresh,
 }: {
   stale: StaleBinding[];
+  moved: MovedDevice[];
   devices: Resource[];
   nodes: (role: string) => string[];
   onRefresh: () => void;
 }) {
+  const away = new Map(moved.map((device) => [device.device_uuid, device]));
+  const gone = [...new Set(stale.filter((s) => !s.current && away.has(s.binding.device_uuid)).map((s) => s.binding.device_uuid))];
   const changed = [
     ...new Set(
       stale
@@ -951,7 +971,7 @@ function StaleBindingsAlert({
         .map((s) => devices.find((d) => d.device_uuid === s.binding.device_uuid)?.name ?? "A bound device"),
     ),
   ];
-  const lost = [...new Set(stale.filter((s) => !s.current).flatMap((s) => nodes(s.binding.role)))];
+  const lost = [...new Set(stale.filter((s) => !s.current && !away.has(s.binding.device_uuid)).flatMap((s) => nodes(s.binding.role)))];
   return (
     <Alert variant="destructive">
       <AlertTitle>A device changed since this automation was set up</AlertTitle>
@@ -964,6 +984,16 @@ function StaleBindingsAlert({
             reading freshness stay the same.
           </p>
         )}
+        {gone.map((uuid) => {
+          const device = away.get(uuid)!;
+          const using = [...new Set(stale.filter((s) => s.binding.device_uuid === uuid).flatMap((s) => nodes(s.binding.role)))];
+          return (
+            <p key={uuid}>
+              {device.name} moved to {device.organization_name ?? "another organization"}. Remove it from{" "}
+              {using.join(", ") || "this automation"} before turning this automation on.
+            </p>
+          );
+        })}
         {lost.length > 0 && (
           <p>
             {lost.join(", ")}: the device or parameter is no longer available.

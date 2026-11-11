@@ -52,8 +52,9 @@ request.
 | `uses_only_moving` | bool | FR-030 classification |
 | `action` | enum `move`, `copy`, `keep`, `archive` | Allowed per kind and classification, see below |
 | `omitted` | jsonb | `{panels: [...], shares: [...], recipients: [...], references: [...]}` listed before confirming |
-| `target_item_id` | bigint nullable | The moved or copied item |
-| `arrives_running` | bool nullable | Automations: running in the target after cutover |
+| `target_item_id` | bigint nullable | The moved or copied item: the same dashboard row, a new automation |
+| `arrives_running` | bool nullable | Moved automations: starts in the target once its successors are active; false when it arrived off or could not start |
+| `attention` | text nullable | What someone in the target still has to do, such as turning a moved automation on, for **Done** (added in PR 031-4) |
 
 Allowed actions (first is preselected, FR-030):
 
@@ -103,9 +104,9 @@ but history is read one link at a time (R18).
 | `device_installations` | `ended_reason` enum `archived`, `moved` nullable; unique index on `device_adapter_candidate_id` replaced by a partial unique index `WHERE ended_at IS NULL`; backfill ends the installations of archived devices with `archived` | 031-1 |
 | `device_onboardings` | `released_at` timestamptz nullable; the unique index on `(sparkplug_gateway_id, source_device_id)` becomes partial `WHERE released_at IS NULL`; backfill releases rows of archived devices | 031-5 |
 | `dashboards` | `archived_at`, `archived_by` (FK users) in 031-3; `archived_by_move_id` (FK `device_moves`, nullable) in 031-4, since 031-3 can merge before `device_moves` exists | 031-3, 031-4 |
-| `automation_workflows` | `archived_at`, `archived_by` in 031-3; `archived_by_move_id` in 031-4 | 031-3, 031-4 |
+| `automation_workflows` | `archived_at`, `archived_by` in 031-3; `archived_by_move_id` in 031-4, also set on the source's copy of a moved automation | 031-3, 031-4 |
 | `automation_alerts` | `stopped_reason` gains `device_moved` (Laravel-set at cutover) | 031-1 |
-| `automation_deployments` | `stopped_reason` gains `moved` and `device_moved` | 031-4 |
+| `automation_deployments` | `stopped_reason` (a string) gains `moved` and `device_moved`; a disable deployment a move requests carries the reason, and the running deployment it supersedes takes it | 031-4 |
 | `sparkplug_gateways` | `credentials_known_to_organization_id` (FK nullable), `credentials_rotated_at` | 031-7 |
 | `device_move_proposals` (new) | `uuid`, `conversation_id`, `user_id`, `source_organization_id`, `preview` jsonb, `content_hash`, `status` (`proposed`, `applied`, `dismissed`) | 031-10 |
 | Spatie `permissions` | `Device.move` for every guard but `mcp`; Admin roles reconciled by a backfill migration | 031-1 |

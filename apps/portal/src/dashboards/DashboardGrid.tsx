@@ -10,8 +10,10 @@ import type {
   DashboardLayout,
   DashboardView,
   DashboardWidget,
+  MovedDevice,
 } from "@iot-os/api-client"
 import { usePanelGap } from "@iot-os/ui/components/skin"
+import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { cn } from "@iot-os/ui/lib/utils"
 import { GRID_COLUMNS, resolveRange, responsiveLayouts } from "./model"
 import { PanelBody } from "./registry"
@@ -20,11 +22,31 @@ const Grid = WidthProvider(Responsive)
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
 export const ROW_HEIGHT = 48
 
+/** The devices a panel names: its sources, device health devices and GPS map devices. */
+export function panelDevices(widget: DashboardWidget): string[] {
+  const config = widget.config
+  return [
+    ...new Set([
+      ...config.sources.map((source) => source.device_uuid),
+      ...(config.devices ?? []).map((device) => device.device_uuid),
+      ...(config.location_device_uuids ?? []),
+    ]),
+  ]
+}
+
+/** Where a panel's moved devices went, as its header says it: "Moved to Harbour Shop". */
+export function movedNote(widget: DashboardWidget, moved: MovedDevice[] | undefined): string | null {
+  if (!moved?.length) return null
+  const names = new Set(moved.filter((device) => panelDevices(widget).includes(device.device_uuid)).map((device) => device.organization_name ?? "another organization"))
+  return names.size ? `Moved to ${[...names].join(", ")}` : null
+}
+
 /**
  * A dashboard's panels on the grid. On its own it is read-only, so it can draw a
  * proposal that was never saved; with `preview`, Controls panels show their controls
  * without sending commands. The workspace adds drag handles, panel menus and layout
- * editing through the optional props.
+ * editing through the optional props. Panels whose devices moved to another
+ * organization say so; they keep showing those devices' history up to the move.
  */
 export function DashboardGrid({
   org,
@@ -37,6 +59,7 @@ export function DashboardGrid({
   compare,
   onZoom,
   badge,
+  moved,
   display,
   handle,
   menu,
@@ -59,6 +82,8 @@ export function DashboardGrid({
   onZoom?: (from: string, to: string) => void
   /** A note beside the panel title, such as a proposed panel's change. */
   badge?: (widget: DashboardWidget) => ReactNode
+  /** Devices of the dashboard that moved to another organization (spec 031). */
+  moved?: MovedDevice[]
   /** Status panels: the viewer's choice of cells or table. */
   display?: (widget: DashboardWidget) => "cells" | "table" | undefined
   handle?: (widget: DashboardWidget) => ReactNode
@@ -133,6 +158,7 @@ export function DashboardGrid({
                 ? `${devices.length} devices`
                 : devices.join(", ")
           const note = badge?.(widget)
+          const movedTo = movedNote(widget, moved)
           return (
             // Chart dimensions must settle with the grid, not animate through
             // intermediate sizes that trigger synchronous measurement updates.
@@ -165,6 +191,11 @@ export function DashboardGrid({
                     )}
                   </div>
                   {note && <div className="shrink-0 py-0.5">{note}</div>}
+                  {movedTo && (
+                    <StatusMark tone="muted" className="shrink-0 py-0.5 text-xs" title="Readings up to the move">
+                      {movedTo}
+                    </StatusMark>
+                  )}
                   {meta && (
                     <span className="hidden max-w-[40%] truncate py-0.5 text-xs text-muted-foreground sm:block">
                       {meta}

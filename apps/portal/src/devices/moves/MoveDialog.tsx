@@ -5,6 +5,7 @@ import {
   type Device,
   type DeviceMove,
   type DeviceMoveDeviceInput,
+  type DeviceMoveItemInput,
   type DeviceMoveReview,
   type DeviceMoveStale,
 } from "@iot-os/api-client"
@@ -53,10 +54,14 @@ export function useCanMove(org: string, allowed: boolean): boolean {
   return allowed && Boolean(targets.data && (targets.data.data.length > 0 || targets.data.new_organization))
 }
 
+/** A dashboard or automation's key in the choices and archive confirmations. */
+export const itemKey = (item: { kind: string; uuid: string }) => `${item.kind}:${item.uuid}`
+
 /**
  * Moving devices to another organization of the billing account (spec 031): where to,
  * what comes along, confirm, done. Nothing changes until **Move**; closing before then
- * discards the choices.
+ * discards the choices. Dashboards and automations come with a preselected choice each;
+ * a changed choice, or devices added for an automation, re-review at once.
  */
 export function MoveDialog({
   org,
@@ -79,6 +84,9 @@ export function MoveDialog({
   const [target, setTarget] = useState<MoveTarget | null>(null)
   const [overrides, setOverrides] = useState<Record<string, DeviceMoveDeviceInput>>({})
   const [settled, setSettled] = useState(overrides)
+  const [choices, setChoices] = useState<Record<string, DeviceMoveItemInput>>({})
+  const [added, setAdded] = useState<string[]>([])
+  const [archives, setArchives] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [changed, setChanged] = useState(false)
@@ -88,14 +96,15 @@ export function MoveDialog({
     const timer = setTimeout(() => setSettled(overrides), 400)
     return () => clearTimeout(timer)
   }, [overrides])
-  const uuids = useMemo(() => devices.map((device) => device.uuid), [devices])
+  const uuids = useMemo(() => [...devices.map((device) => device.uuid), ...added], [devices, added])
   const input = useMemo(
     () => ({
       target_organization_uuid: target?.uuid ?? "",
       device_uuids: uuids,
       devices: Object.values(settled),
+      items: Object.values(choices),
     }),
-    [target, uuids, settled],
+    [target, uuids, settled, choices],
   )
   const reviewKey = ["device-move-review", org, input]
   const review = useQuery({
@@ -111,7 +120,8 @@ export function MoveDialog({
     setBusy(true)
     setError(null)
     try {
-      const created = await api.createDeviceMove(org, { ...input, operation_uuid: operation, preview_hash: current.preview_hash, origin })
+      const confirmed_archives = current.archives.map(({ kind, uuid }) => ({ kind, uuid }))
+      const created = await api.createDeviceMove(org, { ...input, operation_uuid: operation, preview_hash: current.preview_hash, confirmed_archives, origin })
       setMove(created)
       setStep(4)
       onMoved?.()
@@ -131,10 +141,12 @@ export function MoveDialog({
     }
   }
 
-  const count = devices.length
+  const count = uuids.length
   const title = count === 1 ? `Move ${devices[0].name}` : `Move ${count.toLocaleString()} devices`
   const current = review.data
   const ready = current && !review.isFetching && settled === overrides
+  // Each archive is confirmed on its own before Move (FR-006).
+  const archivesConfirmed = Boolean(current?.archives.every((item) => archives[itemKey(item)]))
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
@@ -169,10 +181,22 @@ export function MoveDialog({
               onOverride={(uuid, values) =>
                 setOverrides((current) => ({ ...current, [uuid]: { ...current[uuid], ...values, uuid } }))
               }
+              onChoose={(item, action) =>
+                setChoices((current) => ({ ...current, [itemKey(item)]: { kind: item.kind, uuid: item.uuid, action } }))
+              }
+              onAdd={(more) => setAdded((current) => [...new Set([...current, ...more])].filter((uuid) => !devices.some((device) => device.uuid === uuid)))}
             />
           </>
         )}
-        {step === 3 && current && <Confirm review={current} target={target?.name ?? ""} />}
+        {step === 3 && current && (
+          <Confirm
+            review={current}
+            source={organizationName}
+            target={target?.name ?? ""}
+            confirmed={archives}
+            onConfirm={(item, checked) => setArchives((current) => ({ ...current, [itemKey(item)]: checked }))}
+          />
+        )}
         {step === 4 && move && <Done org={org} move={move} />}
         <RequestError error={error} />
         <DialogFooter>
@@ -203,7 +227,7 @@ export function MoveDialog({
                 </Button>
               )}
               {step === 3 && current && (
-                <Button disabled={busy || !current.can_confirm} onClick={() => void confirm(current)}>
+                <Button disabled={busy || !current.can_confirm || !archivesConfirmed} onClick={() => void confirm(current)}>
                   {busy ? "Moving…" : count === 1 ? "Move device" : `Move ${count.toLocaleString()} devices`}
                 </Button>
               )}

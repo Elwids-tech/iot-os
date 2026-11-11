@@ -358,28 +358,40 @@ out of scope).
 - The copy is owned by the mover, with `access = restricted` and no shares.
 - The original is untouched.
 
-**Moving an automation.**
-- `organization_id` changes, and bindings are rewritten through the maps.
-- Recipients who aren't target members with `Device.view` are removed and listed.
-- `deployment_status` becomes `inactive` (the source deployment is superseded with
-  `stopped_reason = moved`).
-- The workflow is activated in the target with a new deployment only when all of these
-  hold:
+**Moving an automation.** (Corrected in PR 031-4: the plan had the workflow change
+`organization_id` in place. The runtime keys `rule_heads` by workflow UUID and refuses a
+deployment for the same UUID under another organization, "tenant mismatch"
+(`runtime/storage/dag.go`), so an automation, like a device, can't change organization
+in place.)
+- The automation is recreated in the target with a new UUID: its name, layout and
+  graph, the bindings rewritten through the maps onto the successor's pending
+  configuration and generation. A successor that arrives inactive has no configuration
+  yet, so its binding names the nil UUID until the editor re-binds it.
+- Recipients who aren't verified target members with `Device.view` are removed and
+  listed; notifications turn off when none is left.
+- The source's automation is turned off (a disable deployment, superseding the running
+  one with `stopped_reason = moved`) and archived with `archived_by_move_id`, as
+  **Moved to *target***. Its run history (`automation_actions` and the runtime's DAG
+  tables) stays with it in the source.
+- The new automation starts in the target only when all of these hold:
   - it was running;
-  - `automation_settings.enabled` is true in the target;
+  - `automation_settings.enabled` is true in the target (and not stopped);
   - the mover holds `Workflow.activate` there;
-  - it has no command node.
-- Otherwise it arrives off and **Done** lists it.
-- Run history (`automation_actions` and the runtime's DAG tables) stays with the old
-  deployment in the source.
+  - it has no command node;
+  - its successors arrive active.
+  An automation activates against applied configurations, so it starts once the
+  runtime has applied its successors there (`ContinueDeviceMove` after their
+  `device.applied.v1`), as the mover.
+- Otherwise it arrives off and **Done** lists it, with the reason.
 
 **Keeping an automation.** On its own, the runtime suspends a workflow bound to a
 deactivated device only at its next evaluation (`binding_changed`, from
 `checkDAGBindings` in `runtime/storage/dag.go:47-60`), and a workflow that used only
 moved devices is never evaluated again. So at cutover each kept workflow that still
 binds a predecessor is turned off in the runtime (an inactive deployment) and set
-`suspended` with `stopped_reason = device_moved` and the moved device's name.
-Activation is refused until a source member removes the binding (FR-036).
+`suspended` with `stopped_reason = device_moved`; the editor and directory name the
+moved device from the predecessor's link. Activation is refused until a source member
+removes the binding (FR-036), for a kept workflow that was off as well.
 
 **Archiving** uses R12. **Add *n* devices to this move** (FR-031) re-runs the preview
 with the extra devices when the mover holds `Device.move` for them.

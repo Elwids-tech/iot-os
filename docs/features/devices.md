@@ -301,12 +301,16 @@ or choose **Move to organization…** in a device's menu. Four steps follow:
    name to create one; they become its Organization Admin and the move continues there.
 2. **What comes along**: each device with its name, code and site in the target, how
    it reports (an adapter or gateway stays with its owner) and anything that blocks it;
-   what stays in the source, what ends, and which profile versions are copied. Edits
-   are checked again as you type. A blocked device keeps **Next** disabled.
-3. **Confirm**: the move in sentences, then **Move**. Nothing changes before this.
+   each dashboard and automation that uses the devices, with a choice made for it
+   ([below](#dashboards-and-automations-in-a-move)); what ends, and which profile
+   versions are copied. Edits are checked again as you type. A blocked device keeps
+   **Next** disabled. Accepting every preselected choice is enough.
+3. **Confirm**: the move in sentences. Anything to be archived is listed on its own and
+   needs its own tick before **Move**. Nothing changes before this.
 4. **Done**: the move waits for the runtime to stop the active devices, with no
-   timeout, then lists the moved devices and anything that needs attention in the
-   target. You can close it; the move continues.
+   timeout, then links the moved devices and the dashboards and automations moved,
+   copied, kept or archived, and lists anything that needs someone in the target, such
+   as an automation to turn on. You can close it; the move continues.
 
 **What moves.** Each device is archived in the source as **Moved to *target*** and
 keeps its history there. A new device in the target, **Moved from *source***, takes
@@ -320,19 +324,62 @@ member who can. The device limit's count and the month's peak don't change.
 keep feeding the moved device, which is then a *hosted device*. The target sees the
 pipe's kind, name, owner and whether it is online (**Reports through**), never its
 settings, credentials, Discovery or the gateway behind an adapter. The owner sees the
-source **In use in *target*** and nothing of the device. Dashboards and automations
-stay in the source with the archived device and its history up to the move; integration
-applications keep reading the archived device and never see the new one.
+source **In use in *target*** and nothing of the device. Integration applications keep
+reading the archived device and never see the new one.
 
 **What ends.** Open alerts on the device end as **Device moved**, geofence assignments
 are removed, unsent commands are cancelled and possibly sent ones become uncertain.
 Readings that arrive between the stop and the start are stored for neither
 organization; the gap is usually seconds.
 
+### Dashboards and automations in a move
+
+Every dashboard and automation of the source that uses a moving device is listed, as
+using only moving devices or other devices too, with these choices (the first is
+preselected; archiving never is):
+
+| What | Uses | Choices |
+| --- | --- | --- |
+| Dashboard | only moving devices | **Move**, **Keep in *source***, **Archive in *source*** |
+| Dashboard | other devices too | **Copy the moving devices' panels**, **Don't copy** |
+| Automation | only moving devices | **Move**, **Keep in *source***, **Archive in *source*** |
+| Automation | other devices too | **Keep in *source***, **Archive in *source*** |
+
+A choice that needs a permission you lack isn't offered: `Dashboard.create` in the
+target to move or copy a dashboard, `Workflow.manage` there to move an automation, and
+in the source the dashboard's ownership or `Dashboard.manage`, or `Workflow.manage` and
+`Workflow.activate`, to archive. Each row says what the choice leaves out. When a row
+also uses devices that stay, **Add *n* devices to this move** adds them and every row
+is worked out again.
+
+- **A moved dashboard** leaves the source with its name, layout, panel settings and
+  versions, each panel pointing at the new devices. Its owner and its shares with
+  members of the target stay; role shares and shares with anyone else are dropped and
+  listed, and you become the owner when its owner isn't a member of the target. A panel
+  that names a geofence, or an automation that doesn't come along, loses that reference.
+- **A copied dashboard** is a new dashboard in the target with only the moving devices'
+  panels and panel sources, owned by you and shared with no one. Panels left with
+  nothing are listed. The original stays as it was.
+- **A moved automation** continues in the target on the new devices. Alert recipients
+  who aren't members of the target able to view devices are removed and listed. It
+  keeps running only when it was running, automations are on in the target, you can
+  turn automations on there, it sends no device commands and its devices arrive
+  active; it starts there once they are. Otherwise it arrives off, and **Done** lists
+  it to turn on. The source's automation is turned off and archived as **Moved to
+  *target***, with its run history.
+- **A kept dashboard** doesn't change. Its panels keep showing the archived devices'
+  history up to the move, marked **Moved to *target***, and it saves as before.
+- **A kept automation** that still uses a moved device is turned off and suspended,
+  naming the device, and can't be turned on until a source member removes the device
+  from it ([automation](automation.md#moved-devices)).
+- **Archived** dashboards and automations are hidden behind **Show archived**, as they
+  are outside moves; an archived automation is turned off.
+
+No dashboard or automation ends up using devices of two organizations.
+
 Not yet: devices behind a gateway and directly connected devices can't be moved, and
-dashboards, automations and history can't come along (later pull requests of spec
-031). An organization with hosted devices, or one in a move, can't leave its billing
-account or be deleted.
+history can't come along (later pull requests of spec 031). An organization with hosted
+devices, or one in a move, can't leave its billing account or be deleted.
 
 ## Offline detection
 

@@ -19,18 +19,59 @@ export type DeviceMoveDeviceInput = {
   site_uuid?: string | null
 }
 
+export type DeviceMoveItemKind = "dashboard" | "automation"
+
+/**
+ * What happens to a dashboard or automation that uses a moving device. `keep` on a
+ * dashboard that also uses other devices reads **Don't copy**.
+ */
+export type DeviceMoveItemAction = "move" | "copy" | "keep" | "archive"
+
+/** A choice for one dashboard or automation, overriding the preselected one. */
+export type DeviceMoveItemInput = {
+  kind: DeviceMoveItemKind
+  uuid: string
+  action: DeviceMoveItemAction
+}
+
 export type DeviceMoveInput = {
   target_organization_uuid: string
   /** 1–100 devices of the organization. */
   device_uuids: string[]
   devices?: DeviceMoveDeviceInput[]
+  /** An override the item doesn't offer falls back to the preselected choice. */
+  items?: DeviceMoveItemInput[]
 }
 
 export type DeviceMoveConfirmation = DeviceMoveInput & {
   operation_uuid: string
   /** The `preview_hash` of the review the person confirmed. */
   preview_hash: string
+  /** Exactly the review's `archives`, each confirmed on its own. */
+  confirmed_archives?: { kind: DeviceMoveItemKind; uuid: string }[]
   origin?: "devices" | "device"
+}
+
+/** A dashboard or automation of the source that uses a moving device (spec 031 US2). */
+export type DeviceMoveReviewItem = {
+  kind: DeviceMoveItemKind
+  uuid: string
+  name: string
+  /** False when it also uses devices that stay. */
+  uses_only_moving: boolean
+  /** The choices the person may make; the first is preselected and archive never is. */
+  actions: DeviceMoveItemAction[]
+  action: DeviceMoveItemAction
+  /** What the chosen action leaves out, as plain phrases. */
+  omitted: { panels: string[]; shares: string[]; recipients: string[]; references: string[] }
+  /** Its devices that aren't moving; `can_add` offers adding them to the move. */
+  other_devices: { count: number; can_add: boolean; device_uuids: string[] } | null
+  /** Automations: whether it is on now. */
+  running: boolean | null
+  /** A moving automation that keeps running in the target, once its devices are active there. */
+  arrives_running: boolean | null
+  /** What happens to it, in a sentence. */
+  outcome: string | null
 }
 
 /** How a device reports: a pipe `stays` with its owner; a direct device's own gateway `moves`. */
@@ -57,8 +98,8 @@ export type DeviceMoveReview = {
     /** Plain sentences, such as "Waiting for the runtime". */
     blockers: string[]
   }[]
-  /** Dashboards and automations stay in the source until they can come along (spec 031 PR 4). */
-  items: never[]
+  /** Dashboards first, then automations, each by name. */
+  items: DeviceMoveReviewItem[]
   ends: {
     alerts: number
     geofence_assignments: number
@@ -69,7 +110,8 @@ export type DeviceMoveReview = {
   pipe_owner_sees_raw_messages: boolean
   history: { offered: boolean; include: boolean }
   summary: string[]
-  archives: never[]
+  /** The items to be archived, confirmed on their own. */
+  archives: { kind: DeviceMoveItemKind; uuid: string; name: string }[]
 }
 
 /** 409 for a review that went stale: the fresh one to confirm instead. */
@@ -100,9 +142,31 @@ export type DeviceMove = {
     successor_state: DeviceMoveSuccessorState | null
     successor_reason: string | null
   }[]
-  items: never[]
-  needs_attention: { kind: "device"; uuid: string; name: string; reason: string }[]
+  /**
+   * What happened to each dashboard and automation. `source_uuid` shows to members of the
+   * source for what stayed, was archived or was copied from; `target_uuid` to members of the
+   * target for what moved or was copied there.
+   */
+  items: {
+    kind: DeviceMoveItemKind
+    name: string | null
+    action: DeviceMoveItemAction
+    source_uuid: string | null
+    target_uuid: string | null
+    /** A moved automation turned on once its devices are active; false when it arrived off. */
+    arrives_running: boolean | null
+  }[]
+  /** For members of the target: devices that arrived inactive or failed, and automations to turn on. */
+  needs_attention: { kind: "device" | "automation"; uuid: string; name: string; reason: string }[]
   failure_reason: string | null
+}
+
+/** A device a dashboard or automation still names that moved to another organization (spec 031). */
+export type MovedDevice = {
+  device_uuid: string
+  name: string
+  organization_name: string | null
+  cutover_at: string
 }
 
 /** Where a device moved to, or from (spec 031). */

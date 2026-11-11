@@ -198,6 +198,10 @@ export type AutomationWorkflow = {
   /** Set while archived: off, read-only and left out of lists unless asked for. Older APIs omit it. */
   archived_at?: string | null;
   archived_by?: import("./archive").ArchivedBy | null;
+  /** Archived because it moved: the organization it moved to (spec 031). DAG automations only. */
+  moved_to?: string | null;
+  /** Bound devices that moved to another organization; it can't be turned on until they are removed. DAG automations only. */
+  moved_devices?: import("./deviceMoves").MovedDevice[];
 };
 /** What the signed-in person may do with an organization's automations (Workflow.*). */
 export type AutomationCapabilities = { view: boolean; manage: boolean; activate: boolean };

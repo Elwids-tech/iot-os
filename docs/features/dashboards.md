@@ -33,6 +33,26 @@ owner and `Dashboard.manage` archive and restore, as they delete. Archiving is
 reversible, so the library offers **Undo** instead of asking first. Libraries that
 never archive look as before (spec 031 FR-037).
 
+### Moved devices
+
+When devices move to another organization of the billing account, the mover chooses
+for each dashboard that uses them
+([moving devices](devices.md#dashboards-and-automations-in-a-move)):
+
+- **Move** (it uses only moving devices): the dashboard leaves this organization with
+  its panels, layout and versions, pointing at the new devices. Its owner and shares
+  with members of the target stay; role shares and other people's shares are dropped,
+  and so are their stars. A move can also archive it here instead.
+- **Copy** (it uses other devices too): the target gets a new dashboard with only the
+  moving devices' panels and sources, owned by the mover and shared with no one; this
+  one stays as it was.
+- **Keep** / **Don't copy**: nothing changes. Panels of a moved device keep showing its
+  history up to the move and say **Moved to *target***, and the dashboard saves as
+  before.
+
+`GET dashboards/{dashboard}` carries `moved_devices` (`device_uuid`, `name`,
+`organization_name`, `cutover_at`) for the devices of its panels that moved away.
+
 **Dashboards** in the sidebar reopens where the viewer last was in Dashboards: the
 dashboard with its time range and variables, or the library if they went back to it
 ([`lastPlace.ts`](../../apps/portal/src/dashboards/lastPlace.ts)). It is kept per

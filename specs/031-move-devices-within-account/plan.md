@@ -154,6 +154,9 @@ Each is argued in [research.md](research.md).
 13. **Laravel stops alerts on predecessors with `device_moved` (R7).**
 14. **The constitution amendment is MINOR (1.1.0).** It bounds an existing principle
     rather than removing or redefining it.
+15. **A moved automation is recreated in the target (R11, corrected in PR 031-4).** The
+    runtime ties a workflow's UUID to one organization, so the source's is turned off
+    and archived as moved, and the new one starts once its successors are active.
 
 ## Design
 

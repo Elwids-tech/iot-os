@@ -165,6 +165,30 @@ still be activated while the device's last request shows as failed. Only a pendi
 device request blocks activation
 ([ADR-027](../adr/ADR-027-adapter-fed-activation-and-applied-generation.md)).
 
+### Moved devices
+
+When a bound device moves to another organization of the billing account
+([moving devices](devices.md#dashboards-and-automations-in-a-move)), its automations
+either come along or stay:
+
+- **Moved**: the automation continues in the target on the new device, with a new
+  identity, because the runtime ties an automation to one organization. It starts there
+  once its devices are active, when it was running, automations are on there, the mover
+  can turn automations on there and it sends no device commands; otherwise it arrives
+  off and the move's **Done** step lists it. The source's automation is turned off with
+  `stopped_reason = moved` and archived as **Moved to *target***, keeping its run
+  history; the directory says where it went.
+- **Kept**: an automation that still binds the moved device is turned off at cutover
+  with a disable deployment whose `stopped_reason` is `device_moved`, and reads
+  **suspended**. The editor and directory name the device and where it went, and
+  activation answers 409 ("*Device* moved to *target*. Remove it from this automation
+  before turning it on.") until a source member removes it from the bindings. An
+  automation that was off stays off and refuses activation the same way.
+
+`GET workflows/{w}` carries `moved_devices` (`device_uuid`, `name`,
+`organization_name`, `cutover_at`) and, for one archived by a move, `moved_to`; `GET
+workflows/dag` rows carry `moved_to`.
+
 ### Execution and actions
 
 The **Execution** tab shows state, the latest node trace, timers, consumer health

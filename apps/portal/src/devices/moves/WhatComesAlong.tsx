@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/react-query"
-import type { DeviceMoveDeviceInput, DeviceMoveReportsThrough, DeviceMoveReview } from "@iot-os/api-client"
+import type {
+  DeviceMoveDeviceInput,
+  DeviceMoveItemAction,
+  DeviceMoveReportsThrough,
+  DeviceMoveReview,
+  DeviceMoveReviewItem,
+} from "@iot-os/api-client"
+import { Button } from "@iot-os/ui/components/button"
 import { SelectField, TextField } from "@iot-os/ui/components/form-fields"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
@@ -13,8 +20,9 @@ const NO_SITE = "__none"
 
 /**
  * What the move does, as the review says: each device with its name, code and site in
- * the target, how it reports, what blocks it; what stays, what ends and which profile
- * versions are copied. Edits re-review; nothing changes until Move.
+ * the target, how it reports, what blocks it; each dashboard and automation that uses
+ * them with its choice; what ends and which profile versions are copied. Edits re-review;
+ * nothing changes until Move.
  */
 export function WhatComesAlong({
   source,
@@ -25,6 +33,8 @@ export function WhatComesAlong({
   error,
   overrides,
   onOverride,
+  onChoose,
+  onAdd,
 }: {
   source: string
   target: MoveTarget
@@ -34,6 +44,9 @@ export function WhatComesAlong({
   error: unknown
   overrides: Record<string, DeviceMoveDeviceInput>
   onOverride: (uuid: string, values: Omit<DeviceMoveDeviceInput, "uuid">) => void
+  onChoose: (item: DeviceMoveReviewItem, action: DeviceMoveItemAction) => void
+  /** Adds an automation's or dashboard's other devices to the move (FR-031). */
+  onAdd: (uuids: string[]) => void
 }) {
   const sites = useQuery({ queryKey: ["sites", target.uuid], queryFn: () => api.sites(target.uuid) })
   const siteOptions = [
@@ -51,7 +64,6 @@ export function WhatComesAlong({
   const lifecycles = new Map(devices.map((device) => [device.uuid, device.lifecycle]))
   const inactive = review.devices.filter((device) => lifecycles.get(device.uuid) === "active" && !device.arrives_active)
   const blocked = review.devices.filter((device) => device.blockers.length > 0).length
-  const staying = review.summary.filter((sentence) => /dashboard|automation/.test(sentence))
   const ends = review.ends
   return (
     <div className="flex flex-col gap-3" aria-busy={loading}>
@@ -117,20 +129,36 @@ export function WhatComesAlong({
       )}
       <Panel>
         <PanelHeader>
-          <PanelTitle>Stays in {source}</PanelTitle>
+          <PanelTitle>Dashboards and automations</PanelTitle>
+          <PanelDescription>
+            {review.items.length
+              ? "Each one that uses these devices, with a choice made for it. Accepting them is enough."
+              : "No dashboard or automation uses these devices."}
+          </PanelDescription>
         </PanelHeader>
-        <PanelContent className="flex flex-col gap-1 text-body">
-          {staying.length ? staying.map((sentence) => <p key={sentence}>{sentence}</p>) : <p>No dashboard or automation uses these devices.</p>}
-          <p className="text-muted-foreground">
-            Dashboards and automations keep showing the archived devices and their history up to the move.
-          </p>
-          {review.pipe_owner_sees_raw_messages && (
-            <p className="text-muted-foreground">
-              Adapters and gateways stay with their owner, who keeps seeing the raw messages of these devices’ sources but
-              nothing of the devices in {target.name}.
-            </p>
-          )}
-        </PanelContent>
+        {review.items.length > 0 && (
+          <PanelContent>
+            <ul className="flex flex-col divide-y">
+              {review.items.map((item) => (
+                <CarriedItem
+                  key={`${item.kind}:${item.uuid}`}
+                  item={item}
+                  source={source}
+                  target={target.name}
+                  disabled={loading}
+                  onChoose={(action) => onChoose(item, action)}
+                  onAdd={onAdd}
+                />
+              ))}
+            </ul>
+          </PanelContent>
+        )}
+        {review.pipe_owner_sees_raw_messages && (
+          <PanelContent className="text-body text-muted-foreground">
+            Adapters and gateways stay with their owner, who keeps seeing the raw messages of these devices’ sources but
+            nothing of the devices in {target.name}.
+          </PanelContent>
+        )}
       </Panel>
       {(ends.alerts > 0 || ends.geofence_assignments > 0 || ends.application_grants.length > 0) && (
         <Panel>
@@ -173,6 +201,74 @@ export function WhatComesAlong({
         </Panel>
       )}
     </div>
+  )
+}
+
+/** The words for each choice; keeping a dashboard that also uses other devices means not copying it. */
+export function actionLabel(item: Pick<DeviceMoveReviewItem, "kind" | "uses_only_moving">, action: DeviceMoveItemAction, source: string, target: string): string {
+  if (action === "move") return `Move to ${target}`
+  if (action === "copy") return `Copy the moving devices’ panels to ${target}`
+  if (action === "archive") return `Archive in ${source}`
+  return item.kind === "dashboard" && !item.uses_only_moving ? "Don’t copy" : `Keep in ${source}`
+}
+
+const OMITTED: Array<[keyof DeviceMoveReviewItem["omitted"], string]> = [
+  ["panels", "Left out"],
+  ["shares", "No longer shared with"],
+  ["recipients", "No longer alerted"],
+  ["references", "Loses"],
+]
+
+/** One dashboard or automation: whether it uses only moving devices, its choice, and what that leaves out. */
+function CarriedItem({
+  item,
+  source,
+  target,
+  disabled,
+  onChoose,
+  onAdd,
+}: {
+  item: DeviceMoveReviewItem
+  source: string
+  target: string
+  disabled: boolean
+  onChoose: (action: DeviceMoveItemAction) => void
+  onAdd: (uuids: string[]) => void
+}) {
+  const others = item.other_devices
+  const kind = item.kind === "dashboard" ? "Dashboard" : "Automation"
+  return (
+    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0" aria-label={`${kind} ${item.name}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="font-medium">{item.name}</span>
+        <span className="text-meta text-muted-foreground">
+          {kind}
+          {item.running && " · on"} ·{" "}
+          {others ? `also uses ${others.count === 1 ? "1 device" : `${others.count.toLocaleString()} devices`} that ${others.count === 1 ? "stays" : "stay"}` : "uses only these devices"}
+        </span>
+      </div>
+      <SelectField
+        label={`What happens to ${item.name}`}
+        labelHidden
+        value={item.action}
+        disabled={disabled || item.actions.length < 2}
+        options={item.actions.map((action) => ({ value: action, label: actionLabel(item, action, source, target) }))}
+        onChange={(action) => onChoose(action as DeviceMoveItemAction)}
+      />
+      {item.outcome && <p className="text-meta text-muted-foreground">{item.outcome}</p>}
+      {OMITTED.filter(([key]) => item.omitted[key].length > 0).map(([key, label]) => (
+        <p key={key} className="text-meta text-muted-foreground">
+          {label}: {item.omitted[key].join(", ")}
+        </p>
+      ))}
+      {others?.can_add && (
+        <div>
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => onAdd(others.device_uuids)}>
+            Add {others.count === 1 ? "1 device" : `${others.count.toLocaleString()} devices`} to this move
+          </Button>
+        </div>
+      )}
+    </li>
   )
 }
 

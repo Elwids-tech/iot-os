@@ -343,27 +343,27 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart section 4.
 
-- [ ] T053 [US2] Migration `migrations/2026_11_XX_000006_create_device_move_items.php` (data-model § Carried item: `kind` enum "`dashboard`, `automation`", `action` enum "`move`, `copy`, `keep`, `archive`", `omitted` jsonb, `target_item_id` nullable, `arrives_running` "bool nullable"); `archived_by_move_id` FK `device_moves` nullable on `dashboards` and `automation_workflows`; `automation_deployments.stopped_reason` gains `moved` and `device_moved`; model `Devices/Models/DeviceMoveItem.php`
-- [ ] T054 [P] [US2] `Dashboards/Services/DashboardRewrite.php`: a pure function `(widgets, layouts, deviceMap, parameterMap, keepOnly: bool)`. It returns rewritten widgets and layouts plus omitted panels and references. It covers:
+- [x] T053 [US2] Migration `migrations/2026_11_XX_000006_create_device_move_items.php` (data-model § Carried item: `kind` enum "`dashboard`, `automation`", `action` enum "`move`, `copy`, `keep`, `archive`", `omitted` jsonb, `target_item_id` nullable, `arrives_running` "bool nullable"); `archived_by_move_id` FK `device_moves` nullable on `dashboards` and `automation_workflows`; `automation_deployments.stopped_reason` gains `moved` and `device_moved`; model `Devices/Models/DeviceMoveItem.php`
+- [x] T054 [P] [US2] `Dashboards/Services/DashboardRewrite.php`: a pure function `(widgets, layouts, deviceMap, parameterMap, keepOnly: bool)`. It returns rewritten widgets and layouts plus omitted panels and references. It covers:
   - `config.sources[].device_uuid` and `parameter_uuid`;
   - `config.devices[].device_uuid`;
   - `config.location_device_uuids[]`;
   - `geofence_uuid` and `workflow_uuid`, kept only when mapped.
 
   `tests/Dashboards/DashboardRewriteTest.php` covers every panel type
-- [ ] T055 [P] [US2] `Automation/Services/WorkflowRewrite.php`: a pure function rewriting `workflow.bindings[].device_uuid`, `configuration_uuid` (to the successor's) and `parameter_uuid`, and reporting command nodes. `tests/Automation/WorkflowRewriteTest.php`
-- [ ] T056 [US2] `Devices/Services/Moves/CarriedItems.php` (research R11):
+- [x] T055 [P] [US2] `Automation/Services/WorkflowRewrite.php`: a pure function rewriting `workflow.bindings[].device_uuid`, `configuration_uuid` (to the successor's) and `parameter_uuid`, and reporting command nodes. `tests/Automation/WorkflowRewriteTest.php`
+- [x] T056 [US2] `Devices/Services/Moves/CarriedItems.php` (research R11):
   - **Classify**: find the source dashboards and automations using moving devices, mark each "only moving" or "others too", list the actions allowed per data-model § Carried item, and preselect the first. Drop actions the mover lacks permission for (`Dashboard.create` in the target to move or copy; `Workflow.manage` in the target to move; the archive permissions of R12 in the source). Never preselect archive.
   - **Omissions**: compute shares (user shares of target members survive, role shares are dropped), recipients (target members with `Device.view` stay), and panels.
   - **`other_devices`**: count the item's other devices and whether the mover may move them (FR-031).
-- [ ] T057 [US2] `MovePreview` and `MoveRequests` take `items[]` overrides and `confirmed_archives[]`, which must "list exactly the items whose action is `archive`". `MoveCutover` applies the items:
+- [x] T057 [US2] `MovePreview` and `MoveRequests` take `items[]` overrides and `confirmed_archives[]`, which must "list exactly the items whose action is `archive`". `MoveCutover` applies the items:
   - **Move dashboard**: set the target organization, rewrite through `DashboardRewrite`, filter shares, set the owner, move its revisions.
   - **Copy dashboard**: create a target dashboard owned by the mover with `access = restricted` and no shares.
-  - **Move automation**: set the target organization, rewrite through `WorkflowRewrite`, filter recipients, and supersede the source deployment with `moved`. Activate in the target only when it was running, target `automation_settings.enabled` is true, the mover holds `Workflow.activate` there, and it has no command node. Otherwise it arrives off and goes into `needs_attention`.
+  - **Move automation**: recreate it in the target with a new UUID, rewritten through `WorkflowRewrite`, with recipients filtered; turn the source's off (superseding its deployment with `moved`) and archive it with `archived_by_move_id`. Start it in the target, once its successors are applied, only when it was running, target `automation_settings.enabled` is true, the mover holds `Workflow.activate` there, it has no command node and its successors arrive active. Otherwise it arrives off and goes into `needs_attention`. (Corrected in this PR: the runtime refuses a workflow UUID under a second organization, research R11.)
   - **Keep automation** still binding a predecessor: request an inactive deployment and set it `suspended` with `stopped_reason = device_moved` naming the device (FR-036).
   - **Archive**: as in PR 031-3, with `archived_by_move_id`.
-- [ ] T058 [US2] `DagController` activation refuses a workflow suspended with `device_moved` while a binding still names an archived, moved device. The editor's `StaleBindingsAlert` (`portal/automation/Automation.tsx`) names the moved device
-- [ ] T059 [P] [US2] `tests/Devices/Moves/CarriedItemsTest.php`, the spec's Independent Test:
+- [x] T058 [US2] `DagController` activation refuses a workflow suspended with `device_moved` while a binding still names an archived, moved device. The editor's `StaleBindingsAlert` (`portal/automation/Automation.tsx`) names the moved device
+- [x] T059 [P] [US2] `tests/Devices/Moves/CarriedItemsTest.php`, the spec's Independent Test:
   - D1 and W1 use only X; D2 and W2 use X and Y;
   - after the move D1 and W1 are in B on B's X;
   - B has D2's copy with X's panels only;
@@ -375,14 +375,14 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - a recipient outside B is removed and listed;
   - **Add *n* devices** recomputes the rows;
   - no dashboard or automation in A or B uses devices of the other (FR-038, SC-010).
-- [ ] T060 [P] [US2] `tests/Devices/Moves/CarriedAlertTest.php`: a moved alert automation that met the conditions raises its next alert in B with no editing, with the runtime faked (SC-004)
-- [ ] T061 [US2] Portal:
+- [x] T060 [P] [US2] `tests/Devices/Moves/CarriedAlertTest.php`: a moved alert automation that met the conditions raises its next alert in B with no editing, with the runtime faked (SC-004)
+- [x] T061 [US2] Portal:
   - `portal/devices/moves/WhatComesAlong.tsx` rows with choices (a `Select` per row) and **Add *n* devices to this move**;
   - `Confirm.tsx` lists archives separately;
   - `Done.tsx` lists automations to turn on.
 
   Dashboard panels mark a moved device: **Moved to *target*** on panels whose device is a predecessor (`portal/dashboards`). `packages/api-client` item types; OpenAPI export
-- [ ] T062 [P] [US2] `apps/portal/e2e/device-moves.spec.ts`: accept the preselected choices for a dashboard that moves, one copied and an automation kept, then confirm an archive separately
+- [x] T062 [P] [US2] `apps/portal/e2e/device-moves.spec.ts`: accept the preselected choices for a dashboard that moves, one copied and an automation kept, then confirm an archive separately
 - [ ] T063 Docs: `docs/features/devices.md` **Moving devices** gains dashboards and automations; `docs/features/dashboards.md`; `docs/features/automation.md` (`device_moved`). Rebuild api, workers and portal; run quickstart 4; have a first-time user run the two-device move without help, under one minute (SC-009); record; leak scan; open PR 031-4
 
 ---
