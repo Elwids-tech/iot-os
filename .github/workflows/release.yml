@@ -35,7 +35,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq mosquitto mosquitto-clients
           npm install --no-save --prefix .local/adapter-tests node-red@4.1.13
-          MOSQUITTO_BIN=mosquitto npm run test:integration --prefix services/adapters
+          # Ubuntu 26.04's AppArmor profile for /usr/sbin/mosquitto only allows files
+          # under /etc/mosquitto, so the test's brokers could not read their configs in
+          # the temp directory. The profile attaches by path; a copy runs unconfined.
+          install -m 0755 "$(command -v mosquitto)" "$RUNNER_TEMP/mosquitto"
+          MOSQUITTO_BIN="$RUNNER_TEMP/mosquitto" npm run test:integration --prefix services/adapters
       - name: Verify Mosquitto TLS, tenant ACLs and durable recovery
         run: |
           docker build -f deploy/docker/runtime/Dockerfile -t elwids-mosquitto-runtime:check .
