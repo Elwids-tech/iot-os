@@ -21,6 +21,7 @@ use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceConfigurationService;
+use App\Domain\Devices\Services\Moves\CarriedItems;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use ErrorException;
@@ -380,6 +381,11 @@ final class RuntimeController
                 if ($moving) {
                     $moving->update(['state' => $event['type'] === 'device.deactivated.v1' ? 'stopped' : 'failed']);
                     ContinueDeviceMove::dispatch($moving->device_move_id)->afterCommit();
+                }
+                // A successor's activation answered: automations that moved with it may start.
+                $arrived = $operation->target_state === 'active' ? DeviceMoveDevice::where('successor_device_id', $device->id)->value('device_move_id') : null;
+                if ($arrived && CarriedItems::waiting($arrived)) {
+                    ContinueDeviceMove::dispatch($arrived)->afterCommit();
                 }
                 $device->increment('state_revision');
                 DeviceAudit::record($event['type'], $device->organization_id, null, $device->uuid, ['generation' => $device->deployment_generation, 'operation_uuid' => $operation->uuid, 'configuration_uuid' => $operation->configuration_uuid]);

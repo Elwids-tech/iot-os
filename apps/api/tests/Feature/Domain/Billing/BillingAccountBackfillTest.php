@@ -19,7 +19,8 @@ final class BillingAccountBackfillTest extends TestCase
     {
         // The device move, invoice, data point, usage and plans migrations reference billing
         // accounts, so they go first and come back last; PostgreSQL refuses to drop a table
-        // others point at.
+        // others point at. Carried items and archive columns point at device moves.
+        $items = require database_path('migrations/2026_11_20_000006_create_device_move_items.php');
         $moves = require database_path('migrations/2026_11_20_000002_create_device_moves.php');
         $payments = require database_path('migrations/2026_11_16_000000_add_billing_payments.php');
         $invoices = require database_path('migrations/2026_11_15_000000_create_billing_invoices.php');
@@ -27,6 +28,7 @@ final class BillingAccountBackfillTest extends TestCase
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $items->down();
         $moves->down();
         $payments->down();
         $invoices->down();

@@ -89,10 +89,12 @@ tests that ran. For PRs that change the runtime or contracts, also run
    - W1 and W2 running, W1 with a recipient who is a member of B.
 2. Move X to B, accepting the preselected choices. Expected:
    - D1 and W1 are in B on B's X, and W1 is running and raises its next alert in B
-     (SC-004).
+     (SC-004). A's W1 is archived as **Moved to B**.
    - B has a copy of D2 with only X's panels.
-   - A's D2 is unchanged and saves.
+   - A's D2 is unchanged, marks X **Moved to B** and saves.
    - W2 is suspended in A, naming X, until X is removed from it.
+   - The review offered **Add 1 device to this move** on W2, and an archive needed its
+     own tick on **Confirm**.
 3. Archive a dashboard and an automation outside a move. They hide behind **Show
    archived**, and a restored automation comes back off.
 

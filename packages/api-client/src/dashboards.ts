@@ -120,6 +120,8 @@ export type Dashboard = {
   /** Set while archived: read-only and left out of lists unless asked for. Older APIs omit it. */
   archived_at?: string | null;
   archived_by?: import("./archive").ArchivedBy | null;
+  /** Devices of its panels that moved to another organization; panels mark them. Older APIs omit it. */
+  moved_devices?: import("./deviceMoves").MovedDevice[];
 };
 /** tags and folder are optional on update; omitted values keep what is stored. */
 export type DashboardInput = Pick<

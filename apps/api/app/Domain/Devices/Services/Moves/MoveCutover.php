@@ -41,6 +41,8 @@ use Throwable;
  * what does not move. Pipes stay: an adapter-fed successor gets a new installation on
  * the same adapter source, and each adapter is redeployed once after commit; a successor
  * behind a gateway takes the same gateway source and activates against its live birth.
+ * Dashboards and automations are moved, copied, kept or archived as confirmed
+ * (CarriedItems).
  */
 final class MoveCutover
 {
@@ -50,6 +52,7 @@ final class MoveCutover
         private readonly ProfileCopier $copier,
         private readonly DeviceLimit $limit,
         private readonly MoveFailure $failure,
+        private readonly CarriedItems $items,
     ) {}
 
     /** Returns without a change unless the move is stopping and every device has stopped. */
@@ -76,6 +79,7 @@ final class MoveCutover
             $at = now();
             $adapters = [];
             $moved = [];
+            $successors = [];
             foreach ($rows as $row) {
                 $predecessor = $predecessors[$row->predecessor_device_id];
                 [$successor, $adapter] = $this->successor($row, $predecessor, $target, $mover, $copies, $row->arrives_active && $activate);
@@ -87,10 +91,12 @@ final class MoveCutover
                     'target_organization_id' => $target->id, 'device_move_id' => $move->id, 'cutover_at' => $at, 'history_included' => $move->include_history,
                 ]);
                 $row->update(['successor_device_id' => $successor->id, 'state' => 'moved', 'outstanding_key' => null]);
+                $successors[$predecessor->uuid] = $successor;
                 ActivityLog::record('device.moved_out', $source, $mover, $predecessor, ['target' => $target->name, 'move_uuid' => $move->uuid]);
                 ActivityLog::record('device.moved_in', $target, $mover, $successor, ['source' => $source->name, 'move_uuid' => $move->uuid]);
                 $moved[] = $predecessor;
             }
+            $this->items->apply($move, $source, $target, $mover, $successors, array_merge([], ...array_map(fn (DeviceProfileCopy $copy): array => $copy->parameter_map, array_values($copies))));
             $this->endAlerts($move, $source, $predecessors->keys());
             foreach ($predecessors as $predecessor) {
                 app(GeofenceService::class)->removeDevice($source, $predecessor, $mover->id);
@@ -131,7 +137,7 @@ final class MoveCutover
             }
         }
 
-        return null;
+        return $this->items->refusal($move, $source, $target, $mover, $predecessors->pluck('uuid')->all());
     }
 
     /**

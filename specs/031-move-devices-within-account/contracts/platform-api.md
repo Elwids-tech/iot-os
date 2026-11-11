@@ -95,10 +95,14 @@ Notes:
   already has a device with it, archived ones included (a device moved back meets its
   archived predecessor's code). A code the person sets that the target uses is the
   blocker "Code already used in *target*".
-- `items` and `archives` are refused when not empty, and `include_history` when true,
-  until the pull requests that bring them.
-- `items` is empty before PR 031-4. Until then every dashboard and automation stays,
-  and `summary` says so.
+- `include_history` is refused when true until PR 031-9.
+- `items` lists every dashboard and automation of the source that uses a moving device
+  (FR-030), dashboards first, each by name. Each row also carries `running`
+  (automations: on now), `arrives_running` (a moving automation that keeps running)
+  and `outcome` (what happens to it, in a sentence); `other_devices` carries the
+  `device_uuids` to add when `can_add` is true. An override in `items` that the row
+  doesn't offer falls back to the preselected action; one for an item not listed is
+  ignored.
 - `history.offered` is false before PR 031-9.
 - `archives` lists each item to be archived, so it can be confirmed on its own
   (FR-006).
@@ -176,7 +180,12 @@ What each side sees:
   `successor_reason` holds the runtime's reason, or the activation's refusal, for a
   failure. `needs_attention` lists, for members of the target, successors of active
   devices that arrived inactive or failed.
-- `items` is empty until PR 031-4.
+- `items` lists `{kind, name, action, source_uuid, target_uuid, arrives_running}` for
+  each dashboard and automation the move listed. `source_uuid` shows to members of the
+  source for what stayed there, was archived or was copied from; `target_uuid` to
+  members of the target for what moved or was copied there.
+- `needs_attention` also lists, as `kind: "automation"`, moved automations that arrived
+  off or could not start, with the reason.
 
 ## Device reads (PR 031-1)
 

@@ -6,11 +6,16 @@ import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { api } from "../../lib/api"
 import { LoadError } from "../../components/forms"
+import { dashboardPath } from "../../dashboards/model"
 import { devicePath } from "../shared"
+
+const automationPath = (org: string, uuid: string) => `/organizations/${encodeURIComponent(org)}/automation/${encodeURIComponent(uuid)}`
 
 /**
  * How the move is going. It waits for the runtime to stop the active devices, with no
- * timeout, then lists what moved and anything that needs attention in the target.
+ * timeout, then lists what moved, the dashboards and automations moved, copied, kept or
+ * archived, and anything that needs attention in the target, such as an automation to
+ * turn on.
  */
 export function Done({ org, move }: { org: string; move: DeviceMove }) {
   const query = useQuery({
@@ -22,7 +27,9 @@ export function Done({ org, move }: { org: string; move: DeviceMove }) {
   })
   const current = query.data
   const target = current.target
+  const source = current.source
   const stopping = current.waiting_for.devices_stopping
+  const done = current.status === "completed"
   return (
     <div className="flex flex-col gap-3" aria-live="polite">
       <Panel>
@@ -72,6 +79,49 @@ export function Done({ org, move }: { org: string; move: DeviceMove }) {
           </ul>
         </PanelContent>
       </Panel>
+      {current.items.length > 0 && current.status !== "failed" && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Dashboards and automations</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <ul className="flex flex-col gap-1 text-body">
+              {current.items.map((item, index) => {
+                const org = item.target_uuid ? target.uuid : source.uuid
+                const uuid = item.target_uuid ?? item.source_uuid
+                const name = item.name ?? (item.kind === "dashboard" ? "A dashboard" : "An automation")
+                const where =
+                  item.action === "move"
+                    ? `${done ? "Moved" : "Moves"} to ${target.name}`
+                    : item.action === "copy"
+                      ? `${done ? "Copied" : "Copied when the move completes"} to ${target.name}`
+                      : item.action === "archive"
+                        ? `${done ? "Archived" : "Archived when the move completes"} in ${source.name}`
+                        : `Stays in ${source.name}${item.kind === "automation" ? ", off until the moved devices are removed from it" : ""}`
+                return (
+                  <li key={`${item.kind}-${index}`}>
+                    {org && uuid && done ? (
+                      <Link
+                        className="text-primary underline-offset-4 hover:underline"
+                        to={item.kind === "dashboard" ? dashboardPath(org, uuid) : automationPath(org, uuid)}
+                      >
+                        {name}
+                      </Link>
+                    ) : (
+                      name
+                    )}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {where}
+                      {item.arrives_running && " and turns on once its devices are active"}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </PanelContent>
+        </Panel>
+      )}
       {current.needs_attention.length > 0 && (
         <Panel>
           <PanelHeader>
@@ -82,7 +132,10 @@ export function Done({ org, move }: { org: string; move: DeviceMove }) {
               {current.needs_attention.map((item) => (
                 <li key={item.uuid}>
                   {target.uuid ? (
-                    <Link className="text-primary underline-offset-4 hover:underline" to={devicePath(target.uuid, item.uuid) + "/configuration"}>
+                    <Link
+                      className="text-primary underline-offset-4 hover:underline"
+                      to={item.kind === "automation" ? automationPath(target.uuid, item.uuid) : devicePath(target.uuid, item.uuid) + "/configuration"}
+                    >
                       {item.name}
                     </Link>
                   ) : (

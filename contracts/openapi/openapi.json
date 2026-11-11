@@ -19129,11 +19129,37 @@
                   },
                   "items": {
                     "type": "array",
-                    "description": "Dashboards and automations come along from PR 031-4; until then they all stay.",
                     "items": {
-                      "type": "string"
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "dashboard",
+                            "automation"
+                          ]
+                        },
+                        "uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "move",
+                            "copy",
+                            "keep",
+                            "archive"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "uuid",
+                        "action"
+                      ]
                     },
-                    "maxItems": 0
+                    "maxItems": 500
                   },
                   "include_history": {
                     "type": "boolean",
@@ -19160,14 +19186,31 @@
                       "string",
                       "null"
                     ],
-                    "description": "Assistant cards confirm from PR 031-10; archives come with PR 031-4."
+                    "description": "Assistant cards confirm from PR 031-10."
                   },
                   "confirmed_archives": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "dashboard",
+                            "automation"
+                          ]
+                        },
+                        "uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "uuid"
+                      ]
                     },
-                    "maxItems": 0
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -19241,7 +19284,16 @@
                         "successor_reason": null
                       }
                     ],
-                    "items": [],
+                    "items": [
+                      {
+                        "kind": "dashboard",
+                        "name": "Fleet",
+                        "action": "copy",
+                        "source_uuid": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+                        "target_uuid": null,
+                        "arrives_running": null
+                      }
+                    ],
                     "needs_attention": [],
                     "failure_reason": null
                   }
@@ -19380,11 +19432,37 @@
                   },
                   "items": {
                     "type": "array",
-                    "description": "Dashboards and automations come along from PR 031-4; until then they all stay.",
                     "items": {
-                      "type": "string"
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "dashboard",
+                            "automation"
+                          ]
+                        },
+                        "uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "move",
+                            "copy",
+                            "keep",
+                            "archive"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "uuid",
+                        "action"
+                      ]
                     },
-                    "maxItems": 0
+                    "maxItems": 500
                   },
                   "include_history": {
                     "type": "boolean",
@@ -19430,7 +19508,37 @@
                       "blockers": []
                     }
                   ],
-                  "items": [],
+                  "items": [
+                    {
+                      "kind": "dashboard",
+                      "uuid": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+                      "name": "Fleet",
+                      "uses_only_moving": false,
+                      "actions": [
+                        "copy",
+                        "keep"
+                      ],
+                      "action": "copy",
+                      "omitted": {
+                        "panels": [
+                          "Fuel level (Tracker 7)"
+                        ],
+                        "shares": [],
+                        "recipients": [],
+                        "references": []
+                      },
+                      "other_devices": {
+                        "count": 1,
+                        "can_add": true,
+                        "device_uuids": [
+                          "7b2e9c41-0d3f-4a5b-8c6d-9e0f1a2b3c4d"
+                        ]
+                      },
+                      "running": null,
+                      "arrives_running": null,
+                      "outcome": "Harbour Shop gets a copy with 1 of its 2 panels, owned by you and shared with no one."
+                    }
+                  ],
                   "ends": {
                     "alerts": 1,
                     "geofence_assignments": 0,
@@ -19457,9 +19565,9 @@
                   "summary": [
                     "1 device moves to Harbour Shop.",
                     "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.",
+                    "1 dashboard is copied to Harbour Shop with only the moving devices’ panels.",
                     "1 device profile version is copied to Harbour Shop.",
-                    "1 open alert ends.",
-                    "1 dashboard using this device stays in Integrator."
+                    "1 open alert ends."
                   ],
                   "archives": []
                 }
@@ -19574,7 +19682,16 @@
                         "successor_reason": null
                       }
                     ],
-                    "items": [],
+                    "items": [
+                      {
+                        "kind": "dashboard",
+                        "name": "Fleet",
+                        "action": "copy",
+                        "source_uuid": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+                        "target_uuid": null,
+                        "arrives_running": null
+                      }
+                    ],
                     "needs_attention": [],
                     "failure_reason": null
                   }
@@ -36036,11 +36153,67 @@
           },
           "items": {
             "type": "array",
-            "maxItems": 0,
-            "items": false
+            "description": "The dashboards and automations the move listed. `source_uuid` shows to members of the source for what stayed there, was archived or was copied from; `target_uuid` to members of the target for what moved or was copied there.",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "name",
+                "action",
+                "source_uuid",
+                "target_uuid",
+                "arrives_running"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "dashboard",
+                    "automation"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "move",
+                    "copy",
+                    "keep",
+                    "archive"
+                  ]
+                },
+                "source_uuid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "target_uuid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "arrives_running": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "A moved automation turned on in the target once its devices are active; false when it arrived off or could not start."
+                }
+              }
+            }
           },
           "needs_attention": {
             "type": "array",
+            "description": "For members of the target, devices that arrived inactive or failed and automations to turn on.",
             "items": {
               "type": "object",
               "required": [
@@ -36053,7 +36226,8 @@
                 "kind": {
                   "type": "string",
                   "enum": [
-                    "device"
+                    "device",
+                    "automation"
                   ]
                 },
                 "uuid": {
@@ -36079,7 +36253,7 @@
       },
       "DeviceMoveReview": {
         "type": "object",
-        "description": "What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay.",
+        "description": "What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`, and `confirmed_archives` naming exactly the items in `archives`. `items` lists the dashboards and automations of the source that use a moving device, each with the choice made for it; `history.offered` says whether the target can be given the readings from before the move.",
         "required": [
           "preview_hash",
           "can_confirm",
@@ -36206,8 +36380,10 @@
           },
           "items": {
             "type": "array",
-            "maxItems": 0,
-            "items": false
+            "description": "Dashboards first, then automations, each by name.",
+            "items": {
+              "$ref": "#/components/schemas/DeviceMoveReviewItem"
+            }
           },
           "ends": {
             "type": "object",
@@ -36298,8 +36474,178 @@
           },
           "archives": {
             "type": "array",
-            "maxItems": 0,
-            "items": false
+            "description": "The items whose action is `archive`, confirmed on their own (FR-006).",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "uuid",
+                "name"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "dashboard",
+                    "automation"
+                  ]
+                },
+                "uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeviceMoveReviewItem": {
+        "type": "object",
+        "description": "A dashboard or automation of the source that uses a moving device (spec 031 FR-030). `actions` are the choices the person may make, the first preselected; archiving is never preselected, and a choice needing a permission the person lacks is left out. Send `items` overrides of `{kind, uuid, action}` to change one; an override the item doesn't offer falls back to the first.",
+        "required": [
+          "kind",
+          "uuid",
+          "name",
+          "uses_only_moving",
+          "actions",
+          "action",
+          "omitted",
+          "other_devices",
+          "running",
+          "arrives_running",
+          "outcome"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "dashboard",
+              "automation"
+            ]
+          },
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "uses_only_moving": {
+            "type": "boolean",
+            "description": "False when it also uses devices that stay."
+          },
+          "actions": {
+            "type": "array",
+            "description": "Dashboards: `move`, `keep`, `archive` when they use only moving devices, else `copy`, `keep` (shown as **Don't copy**). Automations: `move`, `keep`, `archive`, else `keep`, `archive`.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "move",
+                "copy",
+                "keep",
+                "archive"
+              ]
+            }
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "move",
+              "copy",
+              "keep",
+              "archive"
+            ]
+          },
+          "omitted": {
+            "type": "object",
+            "description": "What the chosen action leaves out, as plain phrases.",
+            "required": [
+              "panels",
+              "shares",
+              "recipients",
+              "references"
+            ],
+            "properties": {
+              "panels": {
+                "type": "array",
+                "description": "Panels left out of a copy or move, and panel sources left out of a copied panel.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "shares": {
+                "type": "array",
+                "description": "Shares of a moved dashboard that can't come along, roles and people who aren't members of the target.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recipients": {
+                "type": "array",
+                "description": "Alert recipients of a moved automation who aren't members of the target able to view devices.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "references": {
+                "type": "array",
+                "description": "Geofences and automations panels name that don't come along.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "other_devices": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The devices it uses that aren't moving, when there are any. With `can_add`, adding `device_uuids` to the move recomputes every row (FR-031).",
+            "required": [
+              "count",
+              "can_add",
+              "device_uuids"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "can_add": {
+                "type": "boolean"
+              },
+              "device_uuids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "running": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Automations only; whether it is turned on now."
+          },
+          "arrives_running": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "A moving automation keeps running only when it is running, automations are on in the target, the person may turn them on there, it sends no device commands and its devices arrive active. It starts there once they are active."
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What happens to it, in a sentence."
           }
         }
       },

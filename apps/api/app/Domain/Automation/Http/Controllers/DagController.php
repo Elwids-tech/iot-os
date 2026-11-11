@@ -12,12 +12,15 @@ use App\Domain\Automation\Services\DagDeployment;
 use App\Domain\Automation\Services\DagDiagnostic;
 use App\Domain\Automation\Services\DagDirectory;
 use App\Domain\Automation\Services\DagTimeline;
+use App\Domain\Automation\Services\WorkflowRewrite;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Devices\Services\Moves\CarriedItems;
+use App\Domain\Devices\Services\Moves\MovedDevices;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
@@ -93,8 +96,9 @@ final class DagController
         $matching = Workflow::where('organization_id', $organization->id)->where('workflow->schema_version', 'automation-workflow.v2')->when($r->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$r->string('search').'%'));
         $p = (clone $matching)->archiveFilter($r->input('archived'))->with('archiver:id,name')->orderByDesc('id')->paginate(25);
         $summaries = app(DagDirectory::class)->summarize($organization, $p->getCollection());
+        $movedTo = CarriedItems::movedTo($p->getCollection()->whereNotNull('archived_by_move_id')->modelKeys());
 
-        return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$w->archiveState(), ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total(), 'archived_count' => $matching->whereNotNull('archived_at')->count()]];
+        return ['data' => $p->getCollection()->map(fn ($w) => [...$w->only(self::VIEW), ...$w->archiveState(), 'moved_to' => $movedTo[$w->id] ?? null, ...$summaries[$w->id]]), 'meta' => ['current_page' => $p->currentPage(), 'last_page' => $p->lastPage(), 'total' => $p->total(), 'archived_count' => $matching->whereNotNull('archived_at')->count()]];
     }
 
     /**
@@ -315,6 +319,11 @@ final class DagController
         // The draft revision that runs (or is being applied), so the editor knows whether saved changes still need applying.
         $active = $w->desired_deployment_uuid ? DB::table('automation_deployments')->where('uuid', $w->desired_deployment_uuid)->value('draft_revision') : null;
 
-        return [...$w->only(self::VIEW), ...$w->archiveState(), 'deployment_diagnostic' => DagDiagnostic::forWorkflow($deployment?->diagnostic, $w->workflow, $w->organization_id), 'active_revision' => $active];
+        // Archived as moved, and the bound devices that moved away (spec 031): the editor names them.
+        $movedTo = $w->archived_by_move_id ? CarriedItems::movedTo([$w->id]) : [];
+
+        return [...$w->only(self::VIEW), ...$w->archiveState(), 'moved_to' => $movedTo[$w->id] ?? null,
+            'moved_devices' => array_values(MovedDevices::among($w->organization_id, WorkflowRewrite::devices($w->workflow ?? []))),
+            'deployment_diagnostic' => DagDiagnostic::forWorkflow($deployment?->diagnostic, $w->workflow, $w->organization_id), 'active_revision' => $active];
     }
 }

@@ -10,15 +10,20 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Devices\Services\Moves\MovedDevices;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
 
 final class DagDeployment
 {
-    public function request(Workflow $workflow, array $input, User $actor): Deployment
+    /**
+     * `$reason` says why a deactivation stops the automation, such as a device move
+     * (spec 031); the deployment it replaces stops with the same reason.
+     */
+    public function request(Workflow $workflow, array $input, User $actor, ?string $reason = null): Deployment
     {
-        return DB::transaction(function () use ($workflow, $input, $actor) {
+        return DB::transaction(function () use ($workflow, $input, $actor, $reason) {
             $w = Workflow::whereKey($workflow->id)->lockForUpdate()->firstOrFail();
             $org = Organization::findOrFail($w->organization_id);
             $existing = Deployment::where('uuid', $input['operation_uuid'])->first();
@@ -33,6 +38,9 @@ final class DagDeployment
             $hash = null;
             if ($input['target_state'] === 'active') {
                 abort_if($w->isArchived(), 409, 'This automation is archived. Restore it before turning it on.');
+                if ($moved = MovedDevices::among($org->id, WorkflowRewrite::devices($w->workflow ?? []))) {
+                    abort(409, self::moved($moved));
+                }
                 app(DagAuthorization::class)->enabled($org);
                 $settings = DB::table('automation_settings')->where('organization_id', $org->id)->lockForUpdate()->first();
                 abort_if($settings->stopped, 409, 'Organization automation is stopped.');
@@ -61,7 +69,7 @@ final class DagDeployment
             } else {
                 abort_if(count($grants) > 0, 422, 'Disable does not accept command grants.');
             }
-            $d = Deployment::create(['uuid' => $input['operation_uuid'], 'automation_workflow_id' => $w->id, 'generation' => $w->deployment_generation + 1, 'draft_revision' => $w->draft_revision, 'target' => $input['target_state'], 'definition' => $definition, 'definition_hash' => $hash, 'command_grants' => $grants, 'status' => 'pending', 'created_by' => $actor->id, 'created_at' => now()]);
+            $d = Deployment::create(['uuid' => $input['operation_uuid'], 'automation_workflow_id' => $w->id, 'generation' => $w->deployment_generation + 1, 'draft_revision' => $w->draft_revision, 'target' => $input['target_state'], 'definition' => $definition, 'definition_hash' => $hash, 'command_grants' => $grants, 'status' => 'pending', 'stopped_reason' => $input['target_state'] === 'inactive' ? $reason : null, 'created_by' => $actor->id, 'created_at' => now()]);
             $w->update(['deployment_generation' => $d->generation, 'deployment_status' => 'pending', 'pending_operation_uuid' => $d->uuid, 'desired_deployment_uuid' => $d->target === 'active' ? $d->uuid : null]);
             DB::table('automation_actions')->whereIn('automation_deployment_id', Deployment::where('automation_workflow_id', $w->id)->select('id'))->where('status', 'accepted')->update(['status' => 'cancelled', 'diagnostic' => 'Deployment replaced or disabled.', 'updated_at' => now()]);
             DeviceAudit::enqueue('workflow.deploy.v2', ['operation_uuid' => $d->uuid, 'rule_uuid' => $w->uuid, 'organization_uuid' => $org->uuid, 'generation' => $d->generation, 'target' => $d->target, 'definition' => $definition]);
@@ -69,5 +77,19 @@ final class DagDeployment
 
             return $d;
         });
+    }
+
+    /**
+     * Why an automation bound to moved devices can't be turned on (spec 031 FR-036).
+     *
+     * @param  array<string, array{name: string, organization_name: ?string}>  $moved
+     */
+    public static function moved(array $moved): string
+    {
+        $first = reset($moved);
+        $others = count($moved) - 1;
+
+        return $first['name'].($others ? ' and '.$others.' other '.($others === 1 ? 'device' : 'devices') : '').' moved'
+            .($first['organization_name'] ? ' to '.$first['organization_name'] : '').'. Remove '.($others ? 'them' : 'it').' from this automation before turning it on.';
     }
 }

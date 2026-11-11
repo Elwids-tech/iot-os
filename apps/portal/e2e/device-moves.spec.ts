@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import AxeBuilder from "@axe-core/playwright"
 
-// Moving devices to another organization of the billing account (spec 031 US1), against a mocked API.
+// Moving devices to another organization of the billing account (spec 031 US1 and US2), against a mocked API.
 const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
 const shop = "0c4f6d2e-58a1-4b9e-9c3d-7f2a1b6e8d40"
 const created = "1d5e7f3a-69b2-4c0f-8d4e-8a3b2c7f9e51"
@@ -49,9 +49,40 @@ const device = (n: number, name: string, extra: Record<string, unknown> = {}) =>
   link: null,
   ...extra,
 })
-const devices = [device(1, "Tracker 41"), device(2, "Tracker 42"), device(3, "Tracker 43", { deployment_status: "pending" })]
+const devices = [device(1, "Tracker 41"), device(2, "Tracker 42"), device(3, "Tracker 43", { deployment_status: "pending" }), device(4, "Tracker 44")]
 
-function reviewFor(body: { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; include_history?: boolean }) {
+// Dashboards and automations using Tracker 41 and 42 (spec 031 US2): Shop and Shop low flow
+// use them only, Fleet and Fleet low flow also use Tracker 44.
+const shopBoard = uuid(301), fleetBoard = uuid(302), fleetFlow = uuid(303), shopFlow = uuid(304), copiedBoard = uuid(305), movedFlow = uuid(306)
+type ItemChoice = { kind: string; uuid: string; action: string }
+type Body = { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; items?: ItemChoice[]; include_history?: boolean }
+
+function itemsFor(body: Body) {
+  if (!body.device_uuids.includes(uuid(1))) return []
+  const everything = body.device_uuids.includes(uuid(4))
+  const omitted = (panels: string[] = []) => ({ panels, shares: [], recipients: [], references: [] })
+  const rows = [
+    { kind: "dashboard", uuid: fleetBoard, name: "Fleet", uses_only_moving: everything, actions: everything ? ["move", "keep", "archive"] : ["copy", "keep"],
+      omitted: omitted(everything ? [] : ["Tracker 44 flow (Tracker 44)"]), other_devices: everything ? null : { count: 1, can_add: true, device_uuids: [uuid(4)] }, running: null },
+    { kind: "dashboard", uuid: shopBoard, name: "Shop", uses_only_moving: true, actions: ["move", "keep", "archive"], omitted: omitted(), other_devices: null, running: null },
+    { kind: "automation", uuid: fleetFlow, name: "Fleet low flow", uses_only_moving: everything, actions: everything ? ["move", "keep", "archive"] : ["keep", "archive"],
+      omitted: omitted(), other_devices: everything ? null : { count: 1, can_add: true, device_uuids: [uuid(4)] }, running: true },
+    { kind: "automation", uuid: shopFlow, name: "Shop low flow", uses_only_moving: true, actions: ["move", "keep", "archive"], omitted: omitted(), other_devices: null, running: true },
+  ]
+  return rows.map((row) => {
+    const wanted = body.items?.find((choice) => choice.kind === row.kind && choice.uuid === row.uuid)?.action
+    const action = wanted && row.actions.includes(wanted) ? wanted : row.actions[0]
+    const outcome = {
+      move: row.kind === "automation" ? "Moves to Harbour Shop and keeps running there once its devices are active." : "Moves to Harbour Shop.",
+      copy: "Harbour Shop gets a copy with 1 of its 2 panels, owned by you and shared with no one.",
+      keep: row.kind === "automation" ? "Stays in Integrator and is turned off until Tracker 41 and Tracker 42 are removed from it." : "Stays in Integrator and shows Tracker 41 and Tracker 42 up to the move.",
+      archive: row.kind === "automation" ? "Turned off and archived in Integrator." : "Archived in Integrator.",
+    }[action]
+    return { ...row, action, arrives_running: row.kind === "automation" && action === "move" ? true : null, outcome }
+  })
+}
+
+function reviewFor(body: Body) {
   const rows = body.device_uuids.map((id) => {
     const row = devices.find((d) => d.uuid === id)!
     const override = body.devices?.find((d) => d.uuid === id)
@@ -64,11 +95,13 @@ function reviewFor(body: { device_uuids: string[]; devices?: { uuid: string; cod
       blockers,
     }
   })
+  const items = itemsFor(body)
+  const archived = items.filter((item) => item.action === "archive")
   return {
-    preview_hash: "a".repeat(64),
+    preview_hash: (body.items ?? []).length || body.device_uuids.length > 2 ? "b".repeat(64) : "a".repeat(64),
     can_confirm: rows.every((r) => r.blockers.length === 0),
     devices: rows,
-    items: [],
+    items,
     ends: { alerts: 1, geofence_assignments: 0, application_grants: [{ name: "Fleet export", devices: 1 }] },
     profile_copies: [{ profile: "GPS tracker", revision: 4, code: "gps-tracker", reused: false }],
     pipe_owner_sees_raw_messages: true,
@@ -76,10 +109,10 @@ function reviewFor(body: { device_uuids: string[]; devices?: { uuid: string; cod
     summary: [
       `${rows.length} devices move to Harbour Shop.`,
       `${rows.length} devices keep reporting through the adapter Vendor trackers, which stays with Integrator.`,
-      "1 dashboard using these devices stays in Integrator.",
+      ...(archived.length ? [`${archived.length} automation is archived in Integrator.`] : []),
       ...(body.include_history ? ["Harbour Shop can read the readings from before the move. They stay stored in Integrator, for as long as Integrator keeps readings."] : []),
     ],
-    archives: [],
+    archives: archived.map(({ kind, uuid, name }) => ({ kind, uuid, name })),
   }
 }
 
@@ -100,7 +133,12 @@ function moveAt(stage: number, ids: string[]) {
       successor_state: stage === 0 ? null : "pending",
       successor_reason: null,
     })),
-    items: [],
+    items: ids.includes(uuid(1)) ? [
+      { kind: "dashboard", name: "Fleet", action: "copy", source_uuid: fleetBoard, target_uuid: copiedBoard, arrives_running: null },
+      { kind: "dashboard", name: "Shop", action: "move", source_uuid: null, target_uuid: shopBoard, arrives_running: null },
+      { kind: "automation", name: "Fleet low flow", action: "archive", source_uuid: fleetFlow, target_uuid: null, arrives_running: null },
+      { kind: "automation", name: "Shop low flow", action: "move", source_uuid: shopFlow, target_uuid: movedFlow, arrives_running: true },
+    ] : [],
     needs_attention: [],
     failure_reason: null,
   }
@@ -174,8 +212,8 @@ async function axe(page: Page) {
 test("a mover selects two devices, picks the target, accepts what comes along and the move completes", async ({ page }) => {
   const state = await setup(page)
   await page.goto(`${base}/devices`)
-  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
   await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 44" }).check()
   await page.getByRole("button", { name: "Move to organization" }).click()
 
   const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
@@ -185,8 +223,8 @@ test("a mover selects two devices, picks the target, accepts what comes along an
   await dialog.getByRole("button", { name: "Next" }).click()
 
   // What comes along: the adapter stays with its owner, endings and copies are listed.
-  await expect(dialog.getByRole("listitem", { name: "Tracker 41" })).toContainText("Adapter Vendor trackers stays with Integrator")
-  await expect(dialog.getByText("1 dashboard using these devices stays in Integrator.")).toBeVisible()
+  await expect(dialog.getByRole("listitem", { name: "Tracker 42" })).toContainText("Adapter Vendor trackers stays with Integrator")
+  await expect(dialog.getByText("No dashboard or automation uses these devices.")).toBeVisible()
   await expect(dialog.getByText("Fleet export keeps reading the archived device")).toBeVisible()
   await expect(dialog.getByText("GPS tracker · version 4 as")).toBeVisible()
   await axe(page)
@@ -198,12 +236,79 @@ test("a mover selects two devices, picks the target, accepts what comes along an
   expect(state.confirmed!.preview_hash).toBe("a".repeat(64))
   expect(state.confirmed!.operation_uuid).toMatch(/^[0-9a-f-]{36}$/)
   expect(state.confirmed!.origin).toBe("devices")
-  expect(state.confirmed!.device_uuids).toEqual([uuid(1), uuid(2)])
+  expect(state.confirmed!.device_uuids).toEqual([uuid(2), uuid(4)])
+  expect(state.confirmed!.confirmed_archives).toEqual([])
 
   // Done waits for the runtime, then links the devices in the target.
   await expect(dialog.getByText(/Waiting for the runtime to stop 2 devices|Moved to Harbour Shop/)).toBeVisible()
   await expect(dialog.getByText("Moved to Harbour Shop", { exact: false })).toBeVisible({ timeout: 10000 })
-  await expect(dialog.getByRole("link", { name: "Tracker 41" })).toHaveAttribute("href", `/organizations/${shop}/devices/${uuid(200)}/overview`)
+  await expect(dialog.getByRole("link", { name: "Tracker 42" })).toHaveAttribute("href", `/organizations/${shop}/devices/${uuid(200)}/overview`)
+  expect(state.errors).toEqual([])
+})
+
+test("dashboards and automations come along with their preselected choices, and an archive is confirmed on its own", async ({ page }) => {
+  const state = await setup(page)
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  // Each one has its preselected choice: Shop moves, Fleet is copied, Fleet low flow stays.
+  const row = (name: string) => dialog.getByRole("listitem", { name })
+  await expect(row("Dashboard Shop").getByRole("combobox", { name: "What happens to Shop" })).toHaveText("Move to Harbour Shop")
+  await expect(row("Dashboard Fleet").getByRole("combobox", { name: "What happens to Fleet" })).toHaveText("Copy the moving devices’ panels to Harbour Shop")
+  await expect(row("Dashboard Fleet")).toContainText("Left out: Tracker 44 flow (Tracker 44)")
+  await expect(row("Automation Fleet low flow").getByRole("combobox", { name: "What happens to Fleet low flow" })).toHaveText("Keep in Integrator")
+  await expect(row("Automation Fleet low flow")).toContainText("is turned off until Tracker 41 and Tracker 42 are removed from it")
+  await expect(row("Automation Fleet low flow").getByRole("button", { name: "Add 1 device to this move" })).toBeVisible()
+  await expect(row("Automation Shop low flow")).toContainText("keeps running there once its devices are active")
+  await axe(page)
+
+  // Archiving Fleet low flow instead re-reviews, and Confirm asks for that archive on its own.
+  await row("Automation Fleet low flow").getByRole("combobox", { name: "What happens to Fleet low flow" }).click()
+  await page.getByRole("option", { name: "Archive in Integrator" }).click()
+  await expect.poll(() => state.previews.at(-1)?.items).toEqual([{ kind: "automation", uuid: fleetFlow, action: "archive" }])
+  await expect(row("Automation Fleet low flow")).toContainText("Turned off and archived in Integrator.")
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await expect(dialog.getByText("1 automation is archived in Integrator.")).toBeVisible()
+  const move = dialog.getByRole("button", { name: "Move 2 devices" })
+  await expect(move).toBeDisabled()
+  await dialog.getByRole("checkbox", { name: "Archive automation Fleet low flow" }).check()
+  await axe(page)
+  await move.click()
+  await expect.poll(() => state.confirmed).not.toBeNull()
+  expect(state.confirmed!.items).toEqual([{ kind: "automation", uuid: fleetFlow, action: "archive" }])
+  expect(state.confirmed!.confirmed_archives).toEqual([{ kind: "automation", uuid: fleetFlow }])
+
+  // Done links what moved or was copied in the target, and what was archived here.
+  await expect(dialog.getByRole("link", { name: "Shop", exact: true })).toHaveAttribute("href", `/organizations/${shop}/dashboards/${shopBoard}`, { timeout: 10000 })
+  await expect(dialog.getByRole("link", { name: "Fleet", exact: true })).toHaveAttribute("href", `/organizations/${shop}/dashboards/${copiedBoard}`)
+  await expect(dialog.getByRole("link", { name: "Fleet low flow" })).toHaveAttribute("href", `/organizations/${org}/automation/${fleetFlow}`)
+  await expect(dialog.getByRole("listitem").filter({ hasText: "Shop low flow" })).toContainText("Moved to Harbour Shop and turns on once its devices are active")
+  expect(state.errors).toEqual([])
+})
+
+test("adding an automation's other devices recomputes every row", async ({ page }) => {
+  const state = await setup(page)
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await dialog.getByRole("listitem", { name: "Automation Fleet low flow" }).getByRole("button", { name: "Add 1 device to this move" }).click()
+
+  await expect.poll(() => state.previews.at(-1)?.device_uuids).toEqual([uuid(1), uuid(2), uuid(4)])
+  const bigger = page.getByRole("dialog", { name: "Move 3 devices" })
+  await expect(bigger.getByRole("listitem", { name: "Tracker 44" })).toBeVisible()
+  await expect(bigger.getByRole("listitem", { name: "Automation Fleet low flow" }).getByRole("combobox")).toHaveText("Move to Harbour Shop")
+  await expect(bigger.getByRole("listitem", { name: "Dashboard Fleet" }).getByRole("combobox")).toHaveText("Move to Harbour Shop")
   expect(state.errors).toEqual([])
 })
 

@@ -95,9 +95,10 @@ final class MoveEndingsTest extends MoveTestCase
             'config' => ['sources' => [['device_uuid' => $x->uuid, 'parameter_uuid' => $parameter['uuid'], 'label' => 'Flow', 'unit' => $parameter['unit'], 'data_type' => $parameter['data_type'], 'precision' => 2, 'color' => '#2563eb',
                 'base' => ['label' => 'Below range', 'color' => '#64748b'], 'thresholds' => [['value' => 0, 'label' => 'Flowing', 'color' => '#2563eb']]]]]];
         $dashboard = $this->postJson($this->in($this->a).'/dashboards', ['name' => 'Fleet', 'widgets' => [$panel], 'layouts' => [], 'defaults' => DashboardDefinition::defaults()])->assertOk()->json('data');
-        $this->assertContains('1 dashboard using this device stays in Integrator.', $this->review($this->a, $this->b, [$x])->json('summary'));
+        $keep = ['items' => [['kind' => 'dashboard', 'uuid' => $dashboard['uuid'], 'action' => 'keep']]];
+        $this->assertContains('1 dashboard stays in Integrator, showing the moved devices up to the move.', $this->review($this->a, $this->b, [$x], $keep)->json('summary'));
 
-        $this->moved($this->a, $this->b, [$x]);
+        $this->moved($this->a, $this->b, [$x], $keep);
 
         $saved = $this->putJson($this->in($this->a).'/dashboards/'.$dashboard['uuid'], ['name' => 'Fleet', 'widgets' => $dashboard['widgets'], 'layouts' => $dashboard['layouts'], 'defaults' => $dashboard['defaults'], 'revision' => $dashboard['revision']])->assertOk()->json('data');
         $this->assertSame($x->uuid, $saved['widgets'][0]['config']['sources'][0]['device_uuid']);

@@ -6,6 +6,7 @@ namespace App\Domain\Devices\Jobs;
 
 use App\Domain\Devices\Models\DeviceMove;
 use App\Domain\Devices\Models\DeviceMoveDevice;
+use App\Domain\Devices\Services\Moves\CarriedItems;
 use App\Domain\Devices\Services\Moves\MoveCutover;
 use App\Domain\Devices\Services\Moves\MoveFailure;
 use App\Domain\Shared\Models\Organization;
@@ -18,7 +19,8 @@ use Throwable;
  * Takes a move on after the runtime answered one of its stops (spec 031, research R10).
  * Idempotent: it locks the move and does nothing until every device has stopped. A
  * refused stop fails the move, and so does a cutover that can't complete; a failed move
- * resumes devices whose late stop arrives afterwards.
+ * resumes devices whose late stop arrives afterwards. After cutover, a successor's
+ * runtime answer may let a moved automation start (CarriedItems::start).
  */
 final class ContinueDeviceMove implements ShouldQueue
 {
@@ -31,10 +33,15 @@ final class ContinueDeviceMove implements ShouldQueue
         $this->onConnection(config('devices.queue_connection', 'database'))->onQueue('default');
     }
 
-    public function handle(MoveCutover $cutover, MoveFailure $failure): void
+    public function handle(MoveCutover $cutover, MoveFailure $failure, CarriedItems $items): void
     {
         $move = DeviceMove::find($this->moveId);
         if (! $move) {
+            return;
+        }
+        if ($move->status === 'completed') {
+            $items->start($move);
+
             return;
         }
         if ($move->status === 'failed') {

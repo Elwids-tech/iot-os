@@ -46,6 +46,8 @@ type Row = DirectorySummary & {
   draft_revision: number;
   archived_at?: string | null;
   archived_by?: ArchivedBy | null;
+  /** Archived because it moved to this organization (spec 031). */
+  moved_to?: string | null;
 };
 type Settings = { enabled: boolean; stopped: boolean; revision: number };
 type Page<T> = {
@@ -140,6 +142,7 @@ export function Directory() {
                 </RowLink>
                 {w.archived_at && <Status value="archived" className="shrink-0 text-meta" />}
               </span>
+              {w.moved_to && <p className="text-meta text-muted-foreground">Moved to {w.moved_to}</p>}
               <p className="text-meta text-muted-foreground">
                 Draft revision {w.draft_revision}
                 {live !== undefined && live !== w.draft_revision && ` · live revision ${live}`}

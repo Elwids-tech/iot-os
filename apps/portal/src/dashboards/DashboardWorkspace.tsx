@@ -703,6 +703,7 @@ export function DashboardWorkspace({
     <DashboardGrid
       widgets={dashboard.widgets}
       layouts={dashboard.layouts}
+      moved={saved.moved_devices}
       {...bodyProps}
       display={(widget) => displays[widget.id]}
       editable={Boolean(draft) && !saving && !kiosk}
