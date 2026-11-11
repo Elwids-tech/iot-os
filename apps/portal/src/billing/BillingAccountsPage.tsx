@@ -129,10 +129,12 @@ export default function BillingAccountsPage() {
   const openInvoice = state.get("invoice") || null
   const paid = invoices.data?.invoices.find((item) => item.uuid === paying && !payable(item))
 
-  // Once Stripe's event has arrived, say so and forget the return marker.
+  // Once Stripe's event has arrived, say so and forget the return marker. The router
+  // drops the marker in a transition, and a refetch landing first runs the effect
+  // again, so each toast has an id: sonner shows one per id.
   useEffect(() => {
     if (savingCard && account?.payment_method) {
-      toast.success(`${cardName(account.payment_method)} saved`)
+      toast.success(`${cardName(account.payment_method)} saved`, { id: `card-saved-${account.uuid}` })
       state.set({ card: null })
     }
   }, [savingCard, account?.payment_method, state])
@@ -147,7 +149,7 @@ export default function BillingAccountsPage() {
   }, [session, paying, account, state, queryClient])
   useEffect(() => {
     if (paid) {
-      toast.success(`Payment received for ${paid.number}`)
+      toast.success(`Payment received for ${paid.number}`, { id: `paid-${paid.uuid}` })
       state.set({ paid: null })
       // The open invoice too, which was loaded before Stripe's event arrived.
       void queryClient.invalidateQueries({ queryKey: ownedInvoicesKey(paid.billing_account.uuid) })
