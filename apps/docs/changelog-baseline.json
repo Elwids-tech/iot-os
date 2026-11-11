@@ -14,9 +14,12 @@
     "GET /integration/v1/organizations/{organization}/geofences",
     "GET /integration/v1/organizations/{organization}/geofences/{uuid}",
     "GET /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}",
+    "GET /integration/v1/organizations/{organization}/sites",
+    "GET /integration/v1/organizations/{organization}/telemetry/stream",
     "POST /integration/v1/organizations/{organization}/geofences",
     "POST /integration/v1/organizations/{organization}/geofences/{uuid}/activations/{batch}/items/{item}/retry",
     "POST /integration/v1/organizations/{organization}/location-map/query",
+    "POST /integration/v1/organizations/{organization}/telemetry/latest/query",
     "PUT /integration/v1/organizations/{organization}/geofences/{uuid}"
   ],
   "event_types": [
