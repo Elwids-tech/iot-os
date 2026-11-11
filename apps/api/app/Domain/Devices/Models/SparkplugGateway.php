@@ -47,9 +47,13 @@ final class SparkplugGateway extends DeviceModel
         return $this->hasOne(DeviceAdapter::class, 'sparkplug_gateway_id');
     }
 
-    /** The open Gateway offline alert of this gateway (spec 018), if any. */
+    /**
+     * The open Gateway offline alert of this gateway (spec 018), if any: its own
+     * organization's, never a hosted organization's alert for its devices (spec 031).
+     */
     public function offlineAlert(): HasOne
     {
-        return $this->hasOne(Alert::class, 'subject_gateway_id')->ofMany(['id' => 'max'], fn ($query) => $query->where('automation_alerts.kind', Alert::GATEWAY_OFFLINE)->whereNull('automation_alerts.cleared_at'));
+        return $this->hasOne(Alert::class, 'subject_gateway_id')->ofMany(['id' => 'max'], fn ($query) => $query->where('automation_alerts.kind', Alert::GATEWAY_OFFLINE)->whereNull('automation_alerts.cleared_at')
+            ->whereExists(fn ($owner) => $owner->selectRaw('1')->from('sparkplug_gateways as owner')->whereColumn('owner.id', 'automation_alerts.subject_gateway_id')->whereColumn('owner.organization_id', 'automation_alerts.organization_id')));
     }
 }

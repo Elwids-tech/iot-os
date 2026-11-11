@@ -265,7 +265,7 @@ final class BulkOnboarding
         abort_unless($candidate, 422, 'no longer discovered on this gateway');
         $item->discovery_candidate_id = $candidate->id;
         abort_if($candidate->status === 'rejected', 422, 'ignored in Discovery');
-        abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $candidate->source_device_id)->exists()
+        abort_if(DeviceOnboarding::where('sparkplug_gateway_id', $gateway->id)->where('source_device_id', $candidate->source_device_id)->whereNull('released_at')->exists()
             || Device::where('reserved_source_uuid', $candidate->uuid)->exists(), 422, 'already onboarded');
         $match = $this->suggestions->forSource($artifact, array_values($candidate->metrics ?? []));
         abort_if($match['problems'] !== [], 422, implode('; ', $match['problems']));

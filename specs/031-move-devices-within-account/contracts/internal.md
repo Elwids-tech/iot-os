@@ -37,10 +37,13 @@ devices that moved:
 
 ## `device.connectivity.v1`: hosted gateway episodes (PR 031-5)
 
-A gateway episode is attributed to the gateway's organization from
-`edgeOrganization`, no longer to its first member's (`internal/app/connectivity.go`).
-When an offline gateway also carries devices of other organizations, the runtime keeps
-one more episode per such organization:
+A gateway episode is attributed to the gateway's organization, no longer to its first
+member's (`internal/app/connectivity.go`). In PR 031-5 that is the connection's
+organization, which the tracker learns from the control state's `connections[]`
+(`connectivityTracker.organize`, called in `syncState` before any gateway is
+evaluated); PR 031-7 makes it `edgeOrganization`, with the per-edge override. When an
+offline gateway also carries devices of other organizations, the runtime keeps one
+more episode per such organization:
 
 - it is keyed `gateway:<connection>/<edge>@<organization uuid>`;
 - it holds only that organization's devices;
@@ -64,11 +67,18 @@ The rest of the payload is unchanged: `episode`, `transition`, `affected_device_
 and so on.
 
 - `pipe_organization_uuid` is null or absent on every other episode.
+- The owner's episode then holds only the owner's devices; when every device behind
+  the gateway is hosted, the owner has no episode.
 - The projector (`ConnectivityProjector`) takes the subject from the event's
   organization as today. When `pipe_organization_uuid` is set, it resolves the gateway
-  there instead. It accepts the subject only when both organizations share a billing
-  account and every affected device is a hosted device of that gateway. It stores the
-  alert in the hosted organization, showing the pipe's name only.
+  there instead, through `Pipes::hostedGateway`. It accepts the subject only when both
+  organizations share a billing account and every affected device is a hosted device of
+  that gateway. It stores the alert in the hosted organization with the episode key
+  `gateway:<connection>/<edge>@<organization uuid>#<episode>`, showing the pipe's name
+  only (`subject.uuid` is null, [platform API](platform-api.md#hosted-gateway-alerts-pr-031-5)).
+- A stored hosted row that no device claims any more is stopped as
+  `definition_removed` in its organization, with `pipe_organization_uuid` from the
+  connection.
 - Existing episode keys `gateway:<connection>/<edge>` keep meaning the gateway owner's
   episode, so stored rows (`device_runtime.connectivity`) need no migration.
 - Cases: a hosted subject with and without the field; the field on a device subject

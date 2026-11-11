@@ -395,32 +395,36 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart sections 5.1 and 5.2.
 
-- [ ] T064 [P] [US5] `contracts/internal/events/device.connectivity.v1.{schema,fixture,cases}.json`: optional `subject.pipe_organization_uuid` (uuid or null), allowed only for `kind = gateway`. Cases: present, absent, on a device subject (refused). `python3 tooling/verify-devices-contracts.py`
-- [ ] T065 [US5] `runtime/app/connectivity.go`:
-  - the gateway episode organization is the edge's connection organization, not `members[0].organization`;
-  - for members of other organizations, keep an extra episode keyed `gateway:<connection>/<edge>@<organization uuid>` with only that organization's devices and `pipe_organization_uuid` set on its events;
-  - existing keys keep their meaning.
-- [ ] T066 [P] [US5] `runtime/app/connectivity_test.go`:
+- [x] T064 [P] [US5] `contracts/internal/events/device.connectivity.v1.{schema,fixture,cases}.json`: optional `subject.pipe_organization_uuid` (uuid or null), allowed only for `kind = gateway`. Cases: present, null on an owner's episode, absent (the fixture), on a device or source subject (refused), not a UUID (refused). `python3 tooling/verify-devices-contracts.py`
+- [x] T065 [US5] `runtime/app/connectivity.go`:
+  - the gateway episode organization is the edge's connection organization, not `members[0].organization`: `connectivityTracker.organize`, called for every connection in `syncState`, records it (until a connection is known, the first member's, as before);
+  - for members of other organizations, keep an extra episode keyed `gateway:<connection>/<edge>@<organization uuid>` with only that organization's devices and `pipe_organization_uuid` set on its events; the owner's episode holds only the owner's devices;
+  - existing keys keep their meaning; a device is suppressed by its own organization's episode.
+- [x] T066 [P] [US5] `runtime/app/connectivity_test.go`:
   - mixed-organization members give two episodes;
   - the owner's episode is attributed to the gateway's organization even when the first member is hosted;
-  - a stored row with the old key restores;
-  - one organization behaves as before;
+  - a gateway serving only hosted devices gives the hosted episode alone;
+  - stored rows with the old key and a hosted key restore;
+  - an orphaned hosted row stops in its organization, naming the pipe;
+  - one organization behaves as before, with no `pipe_organization_uuid`;
   - the produced events validate against the contract.
-- [ ] T067 [US5] `Automation/Services/ConnectivityProjector.php`: when `pipe_organization_uuid` is set, resolve the gateway in that organization through `Pipes`. Accept it only when both organizations share an account and every affected device is hosted on that gateway. Store the alert in the event's organization with the pipe's name only; if this changes the alert API's subject shape, export OpenAPI and update `packages/api-client`. `tests/Automation/HostedGatewayAlertTest.php` covers A's alert, B's alert, a forged `pipe_organization_uuid` from another account (ignored), and C
-- [ ] T068 [US1] Migration `migrations/2026_11_XX_000007_release_device_onboardings.php`:
+- [x] T067 [US5] `Automation/Services/ConnectivityProjector.php`: when `pipe_organization_uuid` is set, resolve the gateway in that organization through `Pipes::hostedGateway`. Accept it only when both organizations share an account and every affected device is hosted on that gateway. Store the alert in the event's organization, keyed `gateway:<connection>/<edge>@<organization uuid>#<episode>`, with the pipe's name only: `Alert::subjectSummary` gives `subject.uuid = null` for another organization's gateway, and `SparkplugGateway::offlineAlert` takes only the gateway organization's alert. OpenAPI (`OfflineAlertSubject.uuid` nullable), `packages/api-client` (`AlertSubject.uuid`) and the portal's alert links follow. `tests/Feature/Domain/Automation/HostedGatewayAlertTest.php` covers A's alert, B's alert, a forged `pipe_organization_uuid` from another account (ignored), devices the gateway doesn't serve (ignored), and C
+- [x] T068 [US1] Migration `migrations/2026_11_20_000007_release_device_onboardings.php`:
   - `device_onboardings.released_at`;
   - the unique index on `(sparkplug_gateway_id, source_device_id)` becomes partial "`WHERE released_at IS NULL`";
   - backfill released rows of archived devices.
 
-  `DeviceController::archive` and `MoveCutover` release the row. `OnboardingController.php:74` and `BulkOnboarding.php:268` ignore released rows
-- [ ] T069 [US1] `MovePreview` lifts the gateway blocker. `Pipes::for` covers gateway sources, including a gateway's own metrics (`source_device_id = ''`). The successor activates against the live birth
-- [ ] T070 [P] [US1] `tests/Devices/Moves/GatewayMoveTest.php`:
+  `DeviceController::archive` and `MoveCutover` release the row (`DeviceOnboarding::release`). `OnboardingController.php:74` and `BulkOnboarding.php:268` ignore released rows
+- [x] T069 [US1] `MovePreview` lifts the gateway blocker. `Pipes::for` covers gateway sources, including a gateway's own metrics (`source_device_id = ''`). The successor activates against the live birth. A gateway alert ends at cutover only when every device it lists moves (`Alert::endingWithMoved`, used by the review's `ends` and by `MoveCutover`)
+- [x] T070 [P] [US1] `tests/Feature/Domain/Devices/Moves/GatewayMoveTest.php`:
   - two devices behind a gateway, one moves;
   - the gateway stays in A, even when every device behind it moves;
   - the gateway's own metrics device moves;
   - A's Discovery shows **In use in B**;
   - a mixed move of adapter-fed and gateway devices;
-  - B sends a command to its hosted gateway device, and the runtime is asked under B's organization (US1 AS9).
+  - B sends a command to its hosted gateway device, and the runtime is asked under B's organization (US1 AS9);
+  - a gateway alert stays open for the devices that stay;
+  - archiving and moving release the setup, so the source is onboarded again.
 
   Extend `DeviceMoveIsolationTest` with gateway, connection and gateway-firmware routes as B-only (404)
 - [ ] T071 Docs: `docs/features/alerts.md` (hosted gateway alerts, `device_moved`) and `docs/features/devices.md` (gateway pipes). Rebuild api, workers and runtime; run quickstart 1 (`./taskw runtime:test` too), 5.1 and 5.2; record; leak scan; open PR 031-5
