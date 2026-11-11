@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { CircleAlertIcon, InfoIcon, TriangleAlertIcon } from "lucide-react"
 import type {
   DeviceMoveDeviceInput,
   DeviceMoveItemAction,
@@ -6,11 +7,11 @@ import type {
   DeviceMoveReview,
   DeviceMoveReviewItem,
 } from "@iot-os/api-client"
+import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
 import { CheckboxField, SelectField, TextField } from "@iot-os/ui/components/form-fields"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { api } from "../../lib/api"
 import { RequestError, fieldError } from "../../components/forms"
 import type { MoveSelection } from "./MoveDialog"
@@ -72,7 +73,7 @@ export function WhatComesAlong({
   const one = review.devices.length === 1
   const ends = review.ends
   return (
-    <div className="flex flex-col gap-3" aria-busy={loading}>
+    <div className="flex min-w-0 flex-col gap-3" aria-busy={loading}>
       <RequestError error={error} />
       <Panel>
         <PanelHeader>
@@ -94,9 +95,10 @@ export function WhatComesAlong({
                     <span className="text-meta text-muted-foreground">{reportsThrough(device.reports_through)}</span>
                   </div>
                   {device.blockers.map((blocker) => (
-                    <StatusMark key={blocker} tone="critical">
-                      {blocker}
-                    </StatusMark>
+                    <Alert key={blocker} variant="destructive" role="note">
+                      <CircleAlertIcon />
+                      <AlertDescription>{blocker}</AlertDescription>
+                    </Alert>
                   ))}
                   <div className="grid gap-3 sm:grid-cols-3">
                     <TextField
@@ -127,11 +129,23 @@ export function WhatComesAlong({
           </ul>
         </PanelContent>
       </Panel>
+      {review.pipe_owner_sees_raw_messages && (
+        <Alert role="note" className="border-info/40 bg-info/5">
+          <InfoIcon className="text-info" />
+          <AlertDescription className="text-foreground">
+            Adapters and gateways stay with their owner, who keeps seeing the raw messages of these devices’ sources but
+            nothing of the devices in {target.name}.
+          </AlertDescription>
+        </Alert>
+      )}
       {inactive.length > 0 && (
-        <StatusMark tone="warning">
-          {inactive.length === 1 ? "1 active device arrives" : `${inactive.length.toLocaleString()} active devices arrive`} inactive:
-          you can’t activate devices in {target.name}. A member who can will activate {inactive.length === 1 ? "it" : "them"} there.
-        </StatusMark>
+        <Alert role="note" className="border-warning/40 bg-warning/5">
+          <TriangleAlertIcon className="text-warning" />
+          <AlertDescription className="text-foreground">
+            {inactive.length === 1 ? "1 active device arrives" : `${inactive.length.toLocaleString()} active devices arrive`} inactive:
+            you can’t activate devices in {target.name}. A member who can will activate {inactive.length === 1 ? "it" : "them"} there.
+          </AlertDescription>
+        </Alert>
       )}
       <Panel>
         <PanelHeader>
@@ -159,12 +173,6 @@ export function WhatComesAlong({
             </ul>
           </PanelContent>
         )}
-        {review.pipe_owner_sees_raw_messages && (
-          <PanelContent className="text-body text-muted-foreground">
-            Adapters and gateways stay with their owner, who keeps seeing the raw messages of these devices’ sources but
-            nothing of the devices in {target.name}.
-          </PanelContent>
-        )}
       </Panel>
       {review.history.offered && (
         <Panel>
@@ -182,16 +190,15 @@ export function WhatComesAlong({
         </Panel>
       )}
       {(ends.alerts > 0 || ends.geofence_assignments > 0 || ends.application_grants.length > 0) && (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Ends with the move</PanelTitle>
-          </PanelHeader>
-          <PanelContent>
-            <ul className="flex flex-col gap-1 text-body">
-              {ends.alerts > 0 && <li>{ends.alerts === 1 ? "1 open alert" : `${ends.alerts.toLocaleString()} open alerts`} end.</li>}
+        <Alert role="note" className="border-info/40 bg-info/5">
+          <InfoIcon className="text-info" />
+          <AlertTitle>Ends with the move</AlertTitle>
+          <AlertDescription className="text-foreground">
+            <ul className="flex flex-col gap-1">
+              {ends.alerts > 0 && <li>{ends.alerts === 1 ? "1 open alert ends" : `${ends.alerts.toLocaleString()} open alerts end`}.</li>}
               {ends.geofence_assignments > 0 && (
                 <li>
-                  {ends.geofence_assignments === 1 ? "1 geofence assignment" : `${ends.geofence_assignments.toLocaleString()} geofence assignments`} end.
+                  {ends.geofence_assignments === 1 ? "1 geofence assignment ends" : `${ends.geofence_assignments.toLocaleString()} geofence assignments end`}.
                 </li>
               )}
               {ends.application_grants.map((grant) => (
@@ -201,16 +208,15 @@ export function WhatComesAlong({
                 </li>
               ))}
             </ul>
-          </PanelContent>
-        </Panel>
+          </AlertDescription>
+        </Alert>
       )}
       {review.profile_copies.length > 0 && (
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Profiles copied to {target.name}</PanelTitle>
-          </PanelHeader>
-          <PanelContent>
-            <ul className="flex flex-col gap-1 text-body">
+        <Alert role="note" className="border-info/40 bg-info/5">
+          <InfoIcon className="text-info" />
+          <AlertTitle>Profiles copied to {target.name}</AlertTitle>
+          <AlertDescription className="text-foreground">
+            <ul className="flex flex-col gap-1">
               {review.profile_copies.map((copy) => (
                 <li key={`${copy.profile}-${copy.revision}`}>
                   {copy.profile} · version {copy.revision} as <span className="font-mono text-code">{copy.code}</span>
@@ -218,8 +224,8 @@ export function WhatComesAlong({
                 </li>
               ))}
             </ul>
-          </PanelContent>
-        </Panel>
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   )

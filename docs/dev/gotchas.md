@@ -822,6 +822,12 @@ Things that have cost time before. Add to this list when something surprises you
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
   will cover their buttons.
+- **`StatusMark` never wraps.** It is `whitespace-nowrap`, made for a short
+  status label. A sentence in it ran one line past a dialog's edge, and
+  `DialogContent`'s `overflow-y-auto` turned that into sideways scrolling (the
+  device move dialog's Confirm step was 488px too wide). Put a note or warning in
+  an `Alert` with an icon (`border-info/40 bg-info/5`, or `warning`), as
+  `devices/moves/Confirm.tsx` does.
 - **A `CollectionPage` description shares the title's row.** `PageHeader` shows it
   inline and truncates it, and the title truncates with it, so a sentence beside
   header actions cut the portal's title to "Billing acc…". Keep the description to

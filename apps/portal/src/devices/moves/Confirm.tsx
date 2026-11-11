@@ -1,7 +1,8 @@
+import { InfoIcon } from "lucide-react"
 import type { DeviceMoveReview } from "@iot-os/api-client"
+import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { CheckboxField } from "@iot-os/ui/components/form-fields"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
-import { StatusMark } from "@iot-os/ui/components/status-mark"
 
 type Archive = DeviceMoveReview["archives"][number]
 
@@ -25,13 +26,13 @@ export function Confirm({
 }) {
   const stopping = review.devices.some((device) => device.reports_through !== null)
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3">
       <Panel>
         <PanelHeader>
           <PanelTitle>Moving to {target}</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-body">
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-body break-words">
             {review.summary.map((sentence) => (
               <li key={sentence}>{sentence}</li>
             ))}
@@ -59,12 +60,15 @@ export function Confirm({
           </PanelContent>
         </Panel>
       )}
-      <StatusMark tone="info">
-        {stopping
-          ? "Active devices stop first. The move completes once the runtime has stopped them; readings that arrive in between are not stored."
-          : "The move completes as soon as you confirm."}{" "}
-        Each device here is archived as moved and keeps its history.
-      </StatusMark>
+      <Alert role="note" className="border-info/40 bg-info/5">
+        <InfoIcon className="text-info" />
+        <AlertDescription className="text-foreground">
+          {stopping
+            ? "Active devices stop first. The move completes once the runtime has stopped them; readings that arrive in between are not stored."
+            : "The move completes as soon as you confirm."}{" "}
+          Each device here is archived as moved and keeps its history.
+        </AlertDescription>
+      </Alert>
     </div>
   )
 }
