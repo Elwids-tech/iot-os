@@ -561,7 +561,9 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - **Stop sharing history** on the predecessor's page.
 
   `packages/api-client`; OpenAPI export
-- [ ] T097 Docs: `docs/features/devices.md` (Measurements and history across a move). Rebuild api and portal; run quickstart 8; record; leak scan; open PR 031-9
+- [x] T097 Docs: `docs/features/devices.md` (Measurements and history across a move). Rebuild api and portal; run quickstart 8; record; leak scan; open PR 031-9
+
+  Done: also `docs/features/integrations.md` and `activity-log.md`. Rebuilt api, default-worker (it runs the cutover), runtime and portal, from a tree holding 031-5 too; quickstart 8 recorded in PR 031-9
 
 ---
 
