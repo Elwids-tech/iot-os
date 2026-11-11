@@ -2031,6 +2031,10 @@ export class ApiClient {
   deviceMove(org: string, move: string, signal?: AbortSignal) {
     return this.data<import("./deviceMoves").DeviceMove>(`/api/v1/organizations/${encodeURIComponent(org)}/device-moves/${encodeURIComponent(move)}`, "GET", undefined, signal)
   }
+  /** Stops sharing a moved device's readings from before the move; only on the device the move left here. */
+  stopSharingDeviceHistory(org: string, device: string) {
+    return this.data<import("./deviceMoves").DeviceLink>(this.devicePath(org, device) + "/link/history", "POST", { enabled: false })
+  }
   deviceOperation(org: string, id: string, operation: string) {
     return this.request<import("./devices").DeviceOperationResponse>(
       this.devicePath(org, id) + "/operations/" + encodeURIComponent(operation),

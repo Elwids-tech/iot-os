@@ -59,6 +59,9 @@ abstract class MoveTestCase extends TestCase
     /** The runtime requests Laravel made, by path. */
     protected array $runtime = [];
 
+    /** The same requests with their query: [path, query]. */
+    protected array $runtimeQueries = [];
+
     private ?DeviceAdapter $adapter = null;
 
     protected function setUp(): void
@@ -84,6 +87,11 @@ abstract class MoveTestCase extends TestCase
             $path = parse_url($request->url(), PHP_URL_PATH);
             if (str_starts_with($request->url(), 'http://runtime.test')) {
                 $this->runtime[] = $path;
+                parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+                $this->runtimeQueries[] = [$path, $query];
+                if (($answer = $this->runtimeAnswer($path, $query)) !== null) {
+                    return Http::response($answer);
+                }
 
                 return Http::response(match (true) {
                     str_ends_with($path, '/captures') => ['data' => []],
@@ -107,6 +115,16 @@ abstract class MoveTestCase extends TestCase
         });
         Artisan::call('devices:prepare-water-meter-profile');
         $this->actingAs($this->mover, 'sanctum');
+    }
+
+    /**
+     * A test's own answer to a runtime request, before the fixture's; null leaves it to them.
+     *
+     * @param  array<string, mixed>  $query
+     */
+    protected function runtimeAnswer(string $path, array $query): ?array
+    {
+        return null;
     }
 
     /** @param list<Organization> $organizations Organization Admin in each */

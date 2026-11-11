@@ -31,7 +31,7 @@ components:
               format: uuid
     DeviceMoveReview:
       type: object
-      description: What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay; until readings can be shared `history.offered` is false.
+      description: What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay.
       required: [preview_hash, can_confirm, devices, items, ends, profile_copies, pipe_owner_sees_raw_messages, history, summary, archives]
       properties:
         preview_hash:
@@ -132,12 +132,14 @@ components:
           type: boolean
         history:
           type: object
+          description: '**Include readings from before the move** (spec 031 US6), off by default. With `include_history: true` the target''s members read each predecessor''s readings from before the cutover in the new device''s history; they stay stored in the source, under its retention.'
           required: [offered, include]
           properties:
             offered:
               type: boolean
             include:
               type: boolean
+              description: The request's `include_history`. It is part of the hash, so a confirmation must ask for the same.
         summary:
           type: array
           items:
@@ -227,6 +229,31 @@ components:
                 type: string
         failure_reason:
           type: [string, 'null']
+    DeviceLink:
+      type: object
+      description: Where a device moved (spec 031). `history` says whether the readings from before the cutover are shared with the organization it moved to, and when and why sharing stopped.
+      required: [direction, organization_name, cutover_at, history]
+      properties:
+        direction:
+          type: string
+          enum: [moved_to, moved_from]
+        organization_name:
+          type: [string, 'null']
+        cutover_at:
+          type: string
+          format: date-time
+        history:
+          type: object
+          required: [included, stopped_at, stopped_reason]
+          properties:
+            included:
+              type: boolean
+            stopped_at:
+              type: [string, 'null']
+              format: date-time
+            stopped_reason:
+              type: [string, 'null']
+              enum: [stopped, left_account, null]
     DeviceMoveSide:
       type: object
       required: [uuid, name]
@@ -297,7 +324,7 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/DeviceMoveReview'
-            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": false, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends.", "1 dashboard using this device stays in Integrator."], "archives": []}
+            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": true, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends.", "1 dashboard using this device stays in Integrator."], "archives": []}
       '422':
         $ref: '#/components/responses/ValidationFailed'
   GET /v1/organizations/{organization}/device-moves/{move}:
@@ -364,14 +391,36 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/devices/{device}/link/history:
+    description: 'Stops sharing a moved device''s readings from before the move with the organization it moved to (spec 031 FR-052), with `{"enabled": false}`. Only on the archived device the move left here, and only with `Device.move` here; it records `device_link.history_stopped`. Sharing can''t be turned back on, and stopping again changes nothing. 404 for a device that didn''t move away, 409 when the move didn''t share its readings.'
+    responses:
+      '200':
+        description: The archived device's link, with sharing stopped.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/DeviceLink'
+            example: {"data": {"direction": "moved_to", "organization_name": "Harbour Shop", "cutover_at": "2026-11-20T09:31:12.000000Z", "history": {"included": true, "stopped_at": "2026-11-21T08:00:00.000000Z", "stopped_reason": "stopped"}}}
+      '409':
+        $ref: '#/components/responses/Conflict'
   GET /v1/organizations/{organization}/devices/{device}/measurements/history:
+    description: The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`.
     responses:
       '503':
         $ref: '#/components/responses/RuntimeUnavailable'
+  GET /v1/organizations/{organization}/devices/{device}/measurements/records:
+    description: The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision.
   GET /v1/organizations/{organization}/devices/{device}/measurements/state-history:
+    description: Durations and a timeline of a boolean, enum or colour parameter. Each timeline segment carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the segments up to the cutover are its predecessor's (`source`), and durations add up both.
     responses:
       '504':
         $ref: '#/components/responses/RangeTimeout'
+  GET /v1/organizations/{organization}/devices/{device}/measurements/increase:
+    description: A counter's increase per calendar bucket, cut in `timezone` (by default the device's site's, then its organization's). Every point carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the predecessor's buckets before the cutover are added in, and the bucket that holds the cutover sums both and is `source`.
   POST /v1/organizations/{organization}/devices/{device}/onboarding/provision:
     responses:
       '202':
@@ -387,7 +436,7 @@ operations:
     description: The organization's devices, 25 per page by default. Each row carries `pipe` and `link` as `GET devices/{device}` does (spec 031).
   GET /v1/organizations/{organization}/devices/{device}:
     description: >-
-      A device. `pipe` is what brings its messages in, null without a source or for a directly connected device: `kind` (`adapter` or `gateway`), `name`, `owner_organization_name`, `online` and `hosted`, true when another organization of the billing account owns the pipe (spec 031). For a hosted device `candidate.gateway` and `candidate.adapter` are null; the candidate keeps its `metrics` and `birth_revision`, and its installations' `adapter_revision_uuid` is null. `link` is null unless the device moved: `direction` (`moved_to` on the archived device, `moved_from` on the new one), the other organization's `organization_name` and `cutover_at`.
+      A device. `pipe` is what brings its messages in, null without a source or for a directly connected device: `kind` (`adapter` or `gateway`), `name`, `owner_organization_name`, `online` and `hosted`, true when another organization of the billing account owns the pipe (spec 031). For a hosted device `candidate.gateway` and `candidate.adapter` are null; the candidate keeps its `metrics` and `birth_revision`, and its installations' `adapter_revision_uuid` is null. `link` is null unless the device moved: `direction` (`moved_to` on the archived device, `moved_from` on the new one), the other organization's `organization_name`, `cutover_at`, and `history`: whether the readings from before the cutover are `included` in the new device's history, and when sharing stopped (`stopped_at`, `stopped_reason`: `stopped` by the source, or `left_account` when either organization left the billing account).
   GET /v1/organizations/{organization}/discovery-candidates:
     description: The organization's discovered sources. A source whose device is in another organization of the billing account (a hosted device, spec 031) carries `in_use_in` with that organization's name, and its `assigned_device_uuid` is null.
     responses:

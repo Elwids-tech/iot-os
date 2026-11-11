@@ -1,10 +1,11 @@
 # Contract: Internal Messages
 
-Changes to the Laravel–runtime contracts in `contracts/internal/`. Both are additive,
-optional fields. Each changes its schema, fixture and cases together with the Go and
-PHP tests that read them, in the same pull request (constitution IV, ADR-015). The
-activation, configuration and adapter deploy payloads don't change: a successor is an
-ordinary device whose definition names its own organization.
+Changes to the Laravel–runtime contracts in `contracts/internal/`, and one to the
+runtime's internal HTTP reads. All are additive and optional. Each contract changes its
+schema, fixture and cases together with the Go and PHP tests that read them, in the
+same pull request (constitution IV, ADR-015). The activation, configuration and adapter
+deploy payloads don't change: a successor is an ordinary device whose definition names
+its own organization.
 
 ## `internal.control-state.v1`: a gateway's own organization (PR 031-7)
 
@@ -83,3 +84,11 @@ and so on.
   episode, so stored rows (`device_runtime.connectivity`) need no migration.
 - Cases: a hosted subject with and without the field; the field on a device subject
   (refused).
+
+## `GET /internal/measurements/history`: a chosen bucket width (PR 031-9)
+
+The history read takes an optional `bucket_seconds`, from 1 to a year, that replaces
+the width the range would give. Laravel passes one width to both reads of a moved
+device's history (research R18), so their buckets share edges. A width that would give
+more than `max_points` buckets in the range is 422. Without it the read behaves as
+today.

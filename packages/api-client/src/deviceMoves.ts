@@ -24,6 +24,8 @@ export type DeviceMoveInput = {
   /** 1–100 devices of the organization. */
   device_uuids: string[]
   devices?: DeviceMoveDeviceInput[]
+  /** Let the target read each device's readings from before the move; off by default. */
+  include_history?: boolean
 }
 
 export type DeviceMoveConfirmation = DeviceMoveInput & {
@@ -67,6 +69,7 @@ export type DeviceMoveReview = {
   }
   profile_copies: { profile: string; revision: number; code: string; reused: boolean }[]
   pipe_owner_sees_raw_messages: boolean
+  /** **Include readings from before the move**: the request's `include_history`, part of the hash. */
   history: { offered: boolean; include: boolean }
   summary: string[]
   archives: never[]
@@ -110,7 +113,23 @@ export type DeviceLink = {
   direction: "moved_to" | "moved_from"
   organization_name: string | null
   cutover_at: string
+  /**
+   * Whether the readings from before the cutover are shared with the organization the
+   * device moved to, and when and why sharing stopped.
+   */
+  history: {
+    included: boolean
+    stopped_at: string | null
+    stopped_reason: "stopped" | "left_account" | null
+  }
 }
+
+/**
+ * Where a history reading was recorded: `source` for a moved device's predecessor's
+ * readings from before the move, read from the organization it moved from; `self`
+ * otherwise. A bucket that spans the move holds both and is `source`.
+ */
+export type RecordedIn = "self" | "source"
 
 /**
  * What brings a device's messages in. `hosted` is true when another organization of the

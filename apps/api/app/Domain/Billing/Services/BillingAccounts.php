@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Services;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Billing\Models\Invoice;
+use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\Pipes;
 use App\Domain\Devices\Services\RetentionGuard;
@@ -153,6 +154,10 @@ final class BillingAccounts
             ]);
 
             $locked->forceFill(['billing_account_id' => $target->getKey()])->save();
+            // Readings from before a move are shared only inside one account, and stay stopped if it comes back (FR-052).
+            DeviceLink::query()->where('history_included', true)->whereNull('history_stopped_at')
+                ->where(fn ($query) => $query->where('source_organization_id', $locked->getKey())->orWhere('target_organization_id', $locked->getKey()))
+                ->update(['history_stopped_at' => $at, 'history_stopped_by' => $actor->getKey(), 'history_stopped_reason' => 'left_account', 'updated_at' => $at]);
             // Its devices now count for the new account: peaks and warnings follow (FR-007, FR-025).
             app(DeviceLimit::class)->recheck($from);
             app(DeviceLimit::class)->recheck($target);

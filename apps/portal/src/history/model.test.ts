@@ -161,6 +161,39 @@ describe("history CSV", () => {
     expect(rows[2]).toContain("RGB profile,profile,2,artifact")
     expect(records[0].event_uuid).toBe("event-new")
   })
+  it("says where each reading was recorded only when some are from before a move", () => {
+    const record = (event_uuid: string, received_at: string, recorded_in?: "self" | "source") => ({
+      event_uuid,
+      configuration_uuid: "configuration",
+      parameter_uuid: "parameter",
+      received_at,
+      observed_at: received_at,
+      data_type: "number",
+      unit: "L/min",
+      value: 12,
+      quality: "good",
+      recorded_in,
+    })
+    const context = {
+      deviceUuid: "device",
+      deviceName: "Meter",
+      parameterUuid: "parameter",
+      parameterKey: "flow_rate",
+      parameterLabel: "Flow rate",
+      configurations: [],
+    }
+    const moved = buildHistoryCsv(
+      [record("after", "2026-11-10T12:05:00.000Z", "self"), record("before", "2026-11-10T11:55:00.000Z", "source")],
+      context,
+    ).split("\r\n")
+    expect(moved[0].endsWith(",recorded_in")).toBe(true)
+    expect(moved[1].startsWith("2026-11-10T11:55:00.000Z")).toBe(true)
+    expect(moved[1].endsWith(",source")).toBe(true)
+    expect(moved[2].endsWith(",self")).toBe(true)
+    const own = buildHistoryCsv([record("own", "2026-11-10T12:05:00.000Z", "self")], context).split("\r\n")
+    expect(own[0].endsWith(",profile_artifact_uuid")).toBe(true)
+    expect(own[1].endsWith(",self")).toBe(false)
+  })
   it("neutralizes formula text but keeps negative numbers numeric", () => {
     for (const text of ["=1+1", "+1", "-cmd", "@SUM(A1)", "\tx", "\rx"])
       expect(csvCell(text).replace(/^"|"$/g, "")).toMatch(/^'/)

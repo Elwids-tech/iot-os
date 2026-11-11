@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Devices\Moves;
 
+use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
@@ -15,9 +17,10 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 
 /**
- * The hosted-device crossing (spec 031 FR-060, SC-005, constitution III as amended by
- * ADR-039): within one billing account, members of only one side see nothing more than
- * ADR-039 lists, and organizations outside the account see nothing at all. A's routes
+ * The two crossings (spec 031 FR-060, SC-005, constitution III as amended by ADR-039),
+ * hosted devices and history across a move: within one billing account, members of only
+ * one side see nothing more than ADR-039 lists, and organizations outside the account
+ * see nothing at all. A's routes
  * answer 403 to anyone who isn't a member, as they always have; reaching A's records
  * through one's own organization is 404.
  */
@@ -205,6 +208,61 @@ final class DeviceMoveIsolationTest extends MoveTestCase
         // A hosted source is never C's to hold, even by naming it.
         $probe = $this->postJson($c.'/devices', ['name' => 'Probe', 'code' => 'probe'])->assertCreated()->json('data');
         $this->putJson($c.'/devices/'.$probe['uuid'].'/configuration', [...$this->inB->draft, 'candidate_uuid' => $this->inB->candidate->uuid, 'draft_revision' => $probe['draft_revision']])->assertNotFound();
+    }
+
+    public function test_readings_from_before_the_cutover_reach_the_target_only_when_shared_only_for_the_predecessor_and_only_within_the_account(): void
+    {
+        $reads = function (Device $device): void {
+            $window = ['from' => now()->subDay()->toIso8601String(), 'to' => now()->addMinute()->toIso8601String(), 'parameter_uuid' => $device->fresh()->draft['mappings'][0]['parameter_uuid']];
+            foreach (['history', 'records'] as $read) {
+                $this->getJson($this->in($this->b).'/devices/'.$device->uuid.'/measurements/'.$read.'?'.http_build_query($window))->assertOk();
+            }
+        };
+        $fromA = fn (): array => collect($this->runtimeQueries)->filter(fn (array $request): bool => ($request[1]['organization_uuid'] ?? null) === $this->a->uuid)
+            ->map(fn (array $request): string => $request[1]['device_uuid'])->unique()->values()->all();
+        $this->actingAs($this->bOnly, 'sanctum');
+
+        // X moved without the option: B's reads of its device never reach A.
+        $this->runtimeQueries = [];
+        $reads($this->inB);
+        $this->assertSame([], $fromA());
+        $this->assertSame(['included' => false, 'stopped_at' => null, 'stopped_reason' => null], $this->getJson($this->in($this->b).'/devices/'.$this->inB->uuid)->json('data.link.history'));
+
+        // Y moved with it: its device reads Y under A, and nothing of X.
+        $y = $this->adapterFed('WM-1002', 'Tracker Y');
+        $this->as($this->mover, fn () => $this->moved($this->a, $this->b, [$y], ['include_history' => true]));
+        $yInB = $this->successor($y);
+        $this->applied($yInB);
+        $this->runtimeQueries = [];
+        $reads($yInB);
+        $reads($this->inB);
+        $this->assertSame([$y->uuid], $fromA());
+
+        // Outside the account nothing is read from A, even before the link records it.
+        $this->b->forceFill(['billing_account_id' => $this->c->billing_account_id])->save();
+        $this->runtimeQueries = [];
+        $reads($yInB);
+        $this->assertSame([], $fromA());
+        $this->assertNull(DeviceLink::where('successor_device_id', $yInB->id)->value('history_stopped_at'));
+    }
+
+    public function test_only_a_source_member_with_move_permission_stops_sharing_and_c_reaches_nothing(): void
+    {
+        $y = $this->adapterFed('WM-1002', 'Tracker Y');
+        $this->moved($this->a, $this->b, [$y], ['include_history' => true]);
+        $yInB = $this->successor($y);
+        $stop = '/devices/'.$y->uuid.'/link/history';
+
+        $this->as($this->bOnly, fn () => $this->postJson($this->in($this->b).$stop, ['enabled' => false])->assertNotFound());
+        // B's side of the link isn't B's to stop.
+        $this->as($this->bOnly, fn () => $this->postJson($this->in($this->b).'/devices/'.$yInB->uuid.'/link/history', ['enabled' => false])->assertNotFound());
+        $this->as($this->cAdmin, fn () => $this->postJson($this->in($this->c).$stop, ['enabled' => false])->assertNotFound());
+        $this->as($this->cAdmin, fn () => $this->getJson($this->in($this->c).'/devices/'.$yInB->uuid.'/measurements/records?'.http_build_query(['from' => now()->subDay()->toIso8601String(), 'to' => now()->toIso8601String(), 'parameter_uuid' => (string) Str::uuid()]))->assertNotFound());
+        // A member of A without Device.move can't either.
+        $viewer = $this->person('a-viewer', []);
+        $this->join($viewer, $this->a, OrganizationRoleName::MEMBER);
+        $this->as($viewer, fn () => $this->postJson($this->in($this->a).$stop, ['enabled' => false])->assertForbidden());
+        $this->assertNull(DeviceLink::where('predecessor_device_id', $y->id)->value('history_stopped_at'));
     }
 
     public function test_after_cutover_the_runtime_stores_the_source_only_for_b(): void

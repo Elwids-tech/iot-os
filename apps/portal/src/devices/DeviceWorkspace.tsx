@@ -381,7 +381,7 @@ function Workspace({
         notices={
           <>
             <RequestError error={error} />
-            {device.link && <MovedNotice link={device.link} />}
+            {device.link && <MovedNotice org={org} device={device.uuid} link={device.link} canStop={capabilities.move} />}
             {device.diagnostic && (
               <Alert>
                 <AlertTitle>Device needs attention</AlertTitle>
@@ -474,10 +474,29 @@ function Workspace({
   )
 }
 
-/** Where the device moved to, or came from, and when (spec 031). */
-function MovedNotice({ link }: { link: NonNullable<DeviceDetail["link"]> }) {
+/**
+ * Where the device moved to, or came from, and when (spec 031), and whether the readings
+ * from before the move are shared with the organization it moved to. On the archived
+ * device, a member who can move devices stops sharing them.
+ */
+function MovedNotice({
+  org,
+  device,
+  link,
+  canStop,
+}: {
+  org: string
+  device: string
+  link: NonNullable<DeviceDetail["link"]>
+  canStop: boolean
+}) {
+  const cache = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
   const away = link.direction === "moved_to"
   const other = link.organization_name ?? "another organization"
+  const history = link.history ?? { included: false, stopped_at: null, stopped_reason: null }
+  const shared = history.included && !history.stopped_at
+  const stopped = history.included && history.stopped_at
   return (
     <Alert>
       <MoveRightIcon />
@@ -486,10 +505,42 @@ function MovedNotice({ link }: { link: NonNullable<DeviceDetail["link"]> }) {
         <p>
           {away
             ? `It continues in ${other}. This archived record keeps its readings up to the move`
-            : `It continues the device archived in ${other}, which keeps the readings from before the move`}
+            : shared
+              ? `It continues the device archived in ${other}. Its history includes that device’s readings from before the move, marked as recorded in ${other}`
+              : `It continues the device archived in ${other}, which keeps the readings from before the move`}
           {" "}(<RelativeTime at={link.cutover_at} />).
         </p>
+        {away && shared && <p>{other} can read these readings in the new device’s history.</p>}
+        {stopped && (
+          <p>
+            {history.stopped_reason === "left_account"
+              ? `The readings from before the move stopped being shared when ${away ? other : "an organization"} left the billing account`
+              : away
+                ? `Sharing the readings from before the move with ${other} stopped`
+                : `${other} stopped sharing the readings from before the move`}{" "}
+            (<RelativeTime at={history.stopped_at!} />).
+          </p>
+        )}
+        {away && shared && canStop && (
+          <div>
+            <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+              Stop sharing history
+            </Button>
+          </div>
+        )}
       </AlertDescription>
+      <Confirm
+        open={confirming}
+        title="Stop sharing history?"
+        description={`${other} will no longer see this device’s readings from before the move. They stay here. Sharing can’t be turned back on.`}
+        action="Stop sharing"
+        onClose={() => setConfirming(false)}
+        onConfirm={async () => {
+          await api.stopSharingDeviceHistory(org, device)
+          await cache.invalidateQueries({ queryKey: ["device", org, device] })
+          toast.success(`Readings from before the move are no longer shared with ${other}`)
+        }}
+      />
     </Alert>
   )
 }

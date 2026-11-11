@@ -445,6 +445,10 @@ type HistoryOptions struct {
 	// MergeConfigurations joins configuration revisions that share a data type
 	// and unit into one series and reports where each revision starts.
 	MergeConfigurations bool
+	// BucketSeconds, when set, replaces the width derived from the range, so two
+	// reads of different ranges share bucket edges (spec 031: a moved device's
+	// history joins its predecessor's).
+	BucketSeconds int64
 }
 
 var ErrCounterUnitChanged = errors.New("The counter's unit changed in this range. Choose a range on one side of the change.")
@@ -452,6 +456,9 @@ var ErrHistoryTooBroad = errors.New("This range contains too many values or conf
 
 func (s *Store) History(ctx context.Context, org, device, param string, from, to time.Time, maxPoints int, options HistoryOptions) ([]HistorySeries, error) {
 	seconds := int64(math.Ceil(to.Sub(from).Seconds() / float64(maxPoints/2)))
+	if options.BucketSeconds > 0 {
+		seconds = options.BucketSeconds
+	}
 	if seconds < 1 {
 		seconds = 1
 	}

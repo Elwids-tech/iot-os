@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Integrations\Http;
 
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Services\DeviceReadings;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
@@ -95,17 +96,16 @@ final class TelemetryController
             'page_size' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'cursor' => ['sometimes', 'string', 'max:512'],
         ]);
-        $result = app(RuntimeClient::class)->request('GET', '/internal/measurements/records', [
+        // A moved device's records continue into its predecessor's when they were shared (spec 031).
+        $result = app(DeviceReadings::class)->records($organization, $device, [
             ...$values, 'limit' => $values['limit'] ?? 500, 'page_size' => $values['page_size'] ?? 50,
-            'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid,
-            'retention_days' => app(RetentionService::class)->effective($organization)['days'],
         ]);
 
         return ['schema_version' => 'telemetry-records.v1', 'device_uuid' => $device->uuid,
             'parameter_uuid' => $values['parameter_uuid'],
             'data' => array_map(fn (array $row) => Arr::only($row, [
                 'event_uuid', 'configuration_uuid', 'parameter_uuid', 'received_at', 'observed_at',
-                'data_type', 'unit', 'value', 'quality', 'timestamp_source', 'historical',
+                'data_type', 'unit', 'value', 'quality', 'timestamp_source', 'historical', 'recorded_in',
             ]), $result['data']),
             'meta' => Arr::only($result['meta'], ['from', 'to', 'limit', 'page_size', 'returned', 'consumed', 'next_cursor', 'has_more', 'limit_reached'])];
     }
@@ -134,17 +134,15 @@ final class TelemetryController
         $device = $this->device($request, $organization, $uuid);
         $values = $this->window($request) + $request->validate(['max_points' => ['sometimes', 'integer', 'min:10', 'max:1000']]);
         $retention = app(RetentionService::class)->effective($organization)['days'];
-        $result = app(RuntimeClient::class)->request('GET', '/internal/measurements/history', [
-            ...$values, 'max_points' => $values['max_points'] ?? 500,
-            'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $retention,
-        ], RuntimeClient::RANGE_TIMEOUT);
+        // Receipt time, a series per configuration; a moved device's predecessor's series come first (spec 031).
+        $result = app(DeviceReadings::class)->history($organization, $device, [...$values, 'max_points' => $values['max_points'] ?? 500], observed: false);
 
         return ['schema_version' => 'telemetry-history.v1', 'device_uuid' => $device->uuid,
             'parameter_uuid' => $values['parameter_uuid'], 'retention_days' => $retention,
             'from' => $result['from'] ?? null, 'to' => $result['to'] ?? null,
             'data' => array_map(fn (array $series) => [
                 ...Arr::only($series, ['configuration_uuid', 'unit', 'data_type']),
-                'points' => array_map(fn (array $point) => Arr::only($point, ['at', 'value', 'min', 'max', 'count']), $series['points']),
+                'points' => array_map(fn (array $point) => Arr::only($point, ['at', 'value', 'min', 'max', 'count', 'recorded_in']), $series['points']),
             ], $result['data'] ?? [])];
     }
 }

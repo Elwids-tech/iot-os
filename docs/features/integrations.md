@@ -173,6 +173,12 @@ within the application's resolved grant; without `entities:read` it is 403.
   newest first by `(received_at, event_uuid)`, `page_size` 1–100, a total `limit`
   of 1–5000 with `limit_reached`, and a signed cursor bound to the query. Not a
   complete export.
+- **Moved devices.** Points and records carry `recorded_in`. For a device moved into
+  the organization with its readings shared ([moving devices](devices.md#measurements-and-history-across-a-move)),
+  history also has the archived device's series from before the move, first, and
+  records continue into its records under the same `limit`; those are `source`,
+  read from the organization the device moved from under its retention. Everything
+  else is `self`.
 - **Location bindings** lists every binding version the runtime applied
   successfully, superseded and stopped versions included, so an older event can be
   read through the binding it was recorded under. A listed version's workflow may no

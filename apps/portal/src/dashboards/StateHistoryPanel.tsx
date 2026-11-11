@@ -18,6 +18,7 @@ import { RequestError } from "../components/forms"
 import { StateHistoryVisualization } from "../history/StateHistoryVisualization"
 import { displayStates } from "./profileDisplay"
 import { appliedParameters, historyRefresh, resolveRange, sourceKey } from "./model"
+import { recordedInName } from "./panelData"
 import { telemetryRequest } from "./requests"
 
 export function HistoryStatePanel({
@@ -118,6 +119,7 @@ export function HistoryStatePanel({
                 states={displayStates(
                   appliedParameters(device).find((p) => p.uuid === source.parameter_uuid),
                 )}
+                recordedIn={recordedInName(device)}
               />
             ) : (
               <Alert>

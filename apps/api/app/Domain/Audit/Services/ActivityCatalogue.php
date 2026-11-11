@@ -97,6 +97,7 @@ final class ActivityCatalogue
         'device_move.started' => ['started moving devices', 'device_move'],
         'device_move.completed' => ['finished moving devices', 'device_move'],
         'device_move.failed' => ['could not move devices', 'device_move'],
+        'device_link.history_stopped' => ['stopped sharing the readings from before the move of', 'device'],
         'command.prepared' => ['prepared a command', 'command'],
         'command.confirmed' => ['sent a command', 'command'],
         'command.cancelled' => ['cancelled a command', 'command'],

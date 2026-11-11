@@ -21,7 +21,7 @@ import {
   timeLabel,
   valueBands,
 } from "./model"
-import { useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
+import { recordedInName, useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
 import { readingTime } from "./ReadoutPanels"
 import type { PanelProps } from "./registry"
 
@@ -124,6 +124,20 @@ export default function TimeSeriesPanel({
     const at = Date.parse(c.created_at)
     return at >= from && at <= to
   })
+  // A moved device's readings from before its move, shared by where they were recorded (spec 031): shaded, the move marked.
+  const earlier = queries.flatMap((query, index) => {
+    const times = (query.data?.series ?? []).flatMap((s) =>
+      s.points.filter((p) => p.recorded_in === "source" && p.count > 0).map((p) => Date.parse(p.at)),
+    )
+    if (!times.length) return []
+    const device = devices(sources[index].device_uuid)?.data
+    const link = device?.link?.direction === "moved_from" ? device.link : null
+    return [{
+      from: Math.max(from, Math.min(...times)),
+      to: Math.min(to, link ? Date.parse(link.cutover_at) : Math.max(...times)),
+      organization: recordedInName(device),
+    }]
+  })
   const hasData = series.some((s) => s.points.some((p) => p.value !== null))
   const failed = queries.flatMap((query, index) =>
     query.error ? [{ query, index }] : [],
@@ -161,12 +175,18 @@ export default function TimeSeriesPanel({
       formatTime: (time) => timeLabel(new Date(time).toISOString(), view.timezone),
       formatValue: (value, line) =>
         `${formatNumber(value, precision(lineIndex.get(line.key) ?? 0))}${unit ? ` ${unit}` : ""}`,
-      areas: episodes.map((episode) => ({
-        from: Math.max(from, Date.parse(episode.activated_at!)),
-        to: Math.min(to, episode.cleared_at ? Date.parse(episode.cleared_at) : to),
-        color: "var(--warning)",
-      })),
-      markers: commands.map((command) => ({ at: Date.parse(command.created_at), color: "var(--commanded)" })),
+      areas: [
+        ...earlier.map((span) => ({ from: span.from, to: span.to, color: "var(--muted-foreground)" })),
+        ...episodes.map((episode) => ({
+          from: Math.max(from, Date.parse(episode.activated_at!)),
+          to: Math.min(to, episode.cleared_at ? Date.parse(episode.cleared_at) : to),
+          color: "var(--warning)",
+        })),
+      ],
+      markers: [
+        ...earlier.map((span) => ({ at: span.to, color: "var(--muted-foreground)" })),
+        ...commands.map((command) => ({ at: Date.parse(command.created_at), color: "var(--commanded)" })),
+      ],
       thresholds: thresholds.map((threshold) => ({
         value: threshold.value,
         color: bandColor(threshold.color),
@@ -191,12 +211,14 @@ export default function TimeSeriesPanel({
     value === undefined ? "—" : formatNumber(value, precision(index))
   return (
     <div className="@container flex h-full min-h-56 flex-col gap-2">
-      {(clipped || incompatible) && (
+      {(clipped || incompatible || earlier.length > 0) && (
         <p role="note" className="text-xs text-muted-foreground">
           {clipped &&
             `Older than ${retainedDays} days is past device retention. `}
           {incompatible &&
-            "Segments with another unit or data type are left out."}
+            "Segments with another unit or data type are left out. "}
+          {earlier.length > 0 &&
+            `Shaded: recorded in ${[...new Set(earlier.map((span) => span.organization))].join(", ")} before the move.`}
         </p>
       )}
       {queries.every((q) => q.isPending) ? (
