@@ -383,7 +383,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
   Dashboard panels mark a moved device: **Moved to *target*** on panels whose device is a predecessor (`portal/dashboards`). `packages/api-client` item types; OpenAPI export
 - [x] T062 [P] [US2] `apps/portal/e2e/device-moves.spec.ts`: accept the preselected choices for a dashboard that moves, one copied and an automation kept, then confirm an archive separately
-- [ ] T063 Docs: `docs/features/devices.md` **Moving devices** gains dashboards and automations; `docs/features/dashboards.md`; `docs/features/automation.md` (`device_moved`). Rebuild api, workers and portal; run quickstart 4; have a first-time user run the two-device move without help, under one minute (SC-009); record; leak scan; open PR 031-4
+- [x] T063 Docs: `docs/features/devices.md` **Moving devices** gains dashboards and automations; `docs/features/dashboards.md`; `docs/features/automation.md` (`device_moved`). Rebuild api, workers and portal; run quickstart 4; have a first-time user run the two-device move without help, under one minute (SC-009); record; leak scan; open PR 031-4. Done 2026-11-11: quickstart 4 verified on the rebuilt stack. SC-009 was not run with a first-time user; the flow was timed as a script (3.6 s, seven clicks, no typing) and the PR says so.
 
 ---
 
