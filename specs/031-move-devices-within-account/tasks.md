@@ -588,7 +588,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 ## Final Phase: Polish and cross-cutting
 
-- [ ] T104 After PR 031-2 merges, ADR-039's status becomes Accepted (with the date and "built in spec 031") in `docs/adr/ADR-039-hosted-devices-and-moves.md` and `docs/adr/README.md`; ADR-026's line updates to match
+- [x] T104 With PR 031-2 (so merging it accepts the ADR), ADR-039's status becomes Accepted (with the date and "built in spec 031") in `docs/adr/ADR-039-hosted-devices-and-moves.md` and `docs/adr/README.md`; ADR-026's line updates to match
 - [ ] T105 After the last PR merges:
   - run `/speckit-converge` until it reports no gaps;
   - remove the roadmap row in `docs/roadmap.md`;
