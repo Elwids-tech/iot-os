@@ -67,8 +67,8 @@ final class MovePreview
             'devices.*.code' => ['sometimes', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/'], 'devices.*.site_uuid' => ['sometimes', 'nullable', 'uuid'],
             // Dashboards and automations come along from PR 031-4; until then they all stay.
             'items' => ['sometimes', 'array', 'max:0'],
-            // Readings from before the move are offered from PR 031-9.
-            'include_history' => ['sometimes', 'boolean', 'declined'],
+            // Whether the target may read the predecessors' readings from before the cutover (US6).
+            'include_history' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -78,7 +78,6 @@ final class MovePreview
         return [
             'device_uuids.max' => 'Move at most '.self::LIMIT.' devices at a time.',
             'items.max' => 'Dashboards and automations stay where they are for now.',
-            'include_history.declined' => 'Readings from before the move can’t be included yet.',
         ];
     }
 
@@ -199,10 +198,13 @@ final class MovePreview
             'ends' => $ends,
             'profile_copies' => $copies,
             'pipe_owner_sees_raw_messages' => collect($rows)->contains(fn (array $row): bool => $row['pipe'] !== null),
-            'history' => ['offered' => false, 'include' => false],
+            'history' => ['offered' => true, 'include' => (bool) ($input['include_history'] ?? false)],
             'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $devices),
             'archives' => [],
         ];
+        if ($review['history']['include']) {
+            $review['summary'][] = $target->name.' can read the readings from before the move. They stay stored in '.$source->name.', for as long as '.$source->name.' keeps readings.';
+        }
         // The hash also covers what the review does not show but the cutover copies.
         $state = $devices->map(fn (Device $device): array => [$device->deployment_generation, $device->last_applied_configuration_uuid, $device->draft_revision])->sortKeys()->all();
         $review = ['preview_hash' => hash('sha256', $this->canonical->encode(['review' => $review, 'state' => $state, 'target' => $target->uuid])), ...$review];

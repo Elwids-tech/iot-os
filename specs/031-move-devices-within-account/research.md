@@ -514,17 +514,33 @@ That is why US1 ships for adapter-fed devices first.
 
 ### R18. History across the move (US6)
 
-**Decision**: the runtime doesn't change. `DeviceReadings` (every history read in
-Laravel: charts, tables, exports, dashboard panels and the device API) asks the runtime
-twice for a successor whose link includes history:
+**Decision**: `DeviceReadings` (every history read in Laravel: charts, tables, exports,
+dashboard panels, the device API, the agents' measurement tool and applications'
+`telemetry/history` and `telemetry/records`) asks the runtime twice for a successor
+whose link includes history:
 
 - the predecessor's readings, under the source organization, the source's retention
-  and `until = cutover_at`, with parameter UUIDs mapped through the profile copy;
+  and `until = cutover_at`, with parameter UUIDs mapped back through the profile copy;
 - then the successor's own readings.
 
-It merges them, splitting aggregate buckets at the cutover and recombining them from
-counts. Whether the runtime's aggregate responses already carry a count per bucket is
-unchecked; if not, PR 031-9 adds the field as an additive runtime change. Each predecessor reading carries `recorded_in: "source"`.
+It merges them (`Moves/EarlierReadings` decides the crossing, `Moves/JoinedReadings`
+joins the answers):
+
+- **Aggregates.** The runtime's aggregate history already carries `count` per bucket.
+  Its bucket width follows the range, so two ranges would not share bucket edges: PR
+  031-9 adds an optional `bucket_seconds` request parameter (an additive runtime
+  change, at most `max_points` buckets), and Laravel picks one width for the joined
+  range. The bucket that holds the cutover recombines from the counts; pauses are
+  found again across the join with the runtime's rule.
+- **Records** continue page by page from the successor's into the predecessor's, under
+  one `limit`, with a cursor `earlier.<own consumed>.<runtime cursor>`.
+- **State history** runs to the cutover, then from it; durations add up both.
+- **Counter increase** sums the calendar buckets; consumption between the last reading
+  before the move and the first after isn't counted.
+
+Every reading carries `recorded_in`: `source` for the predecessor's, `self` otherwise;
+a bucket that holds both is `source`. Predecessor records keep the source's
+`configuration_uuid` and lose its installation and adapter revision.
 
 - **Stopping.** `POST devices/{device}/link/history` (`{enabled: false}`), on the
   predecessor by a source member with `Device.move`, sets `history_stopped_at`.
@@ -535,8 +551,8 @@ unchecked; if not, PR 031-9 adds the field as an additive runtime change. Each p
   two organizations only.
 
 **Rationale**: Laravel decides the crossing and the runtime only answers per-organization
-queries it already serves (constitution I and III), so there is no runtime change and
-no copy.
+queries it already serves (constitution I and III), so nothing is copied and the only
+runtime change is the bucket width a caller may choose.
 
 ### R19. The assistant (US7)
 

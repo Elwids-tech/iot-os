@@ -348,6 +348,15 @@ func (a *Application) historyHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	options := storage.HistoryOptions{ObservedTime: q.Get("time_basis") == "observed", MergeConfigurations: q.Get("merge_configurations") == "1"}
+	if raw := q.Get("bucket_seconds"); raw != "" {
+		seconds, err := strconv.ParseInt(raw, 10, 64)
+		// Up to a year wide, and no more than maxPoints buckets in the range.
+		if err != nil || seconds < 1 || seconds > 366*86400 || to.Sub(from).Seconds() > float64(seconds)*float64(maxPoints) {
+			respond(w, 422, map[string]string{"message": "invalid history range"})
+			return
+		}
+		options.BucketSeconds = seconds
+	}
 	series, e := a.Store.History(r.Context(), q.Get("organization_uuid"), q.Get("device_uuid"), q.Get("parameter_uuid"), from, to, maxPoints, options)
 	if e != nil {
 		if errors.Is(e, storage.ErrHistoryTooBroad) {

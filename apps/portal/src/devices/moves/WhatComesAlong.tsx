@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import type { DeviceMoveDeviceInput, DeviceMoveReportsThrough, DeviceMoveReview } from "@iot-os/api-client"
-import { SelectField, TextField } from "@iot-os/ui/components/form-fields"
+import { CheckboxField, SelectField, TextField } from "@iot-os/ui/components/form-fields"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
@@ -14,7 +14,8 @@ const NO_SITE = "__none"
 /**
  * What the move does, as the review says: each device with its name, code and site in
  * the target, how it reports, what blocks it; what stays, what ends and which profile
- * versions are copied. Edits re-review; nothing changes until Move.
+ * versions are copied, and whether the target reads the readings from before the move.
+ * Edits re-review; nothing changes until Move.
  */
 export function WhatComesAlong({
   source,
@@ -25,6 +26,8 @@ export function WhatComesAlong({
   error,
   overrides,
   onOverride,
+  includeHistory,
+  onIncludeHistory,
 }: {
   source: string
   target: MoveTarget
@@ -34,6 +37,8 @@ export function WhatComesAlong({
   error: unknown
   overrides: Record<string, DeviceMoveDeviceInput>
   onOverride: (uuid: string, values: Omit<DeviceMoveDeviceInput, "uuid">) => void
+  includeHistory: boolean
+  onIncludeHistory: (include: boolean) => void
 }) {
   const sites = useQuery({ queryKey: ["sites", target.uuid], queryFn: () => api.sites(target.uuid) })
   const siteOptions = [
@@ -52,6 +57,7 @@ export function WhatComesAlong({
   const inactive = review.devices.filter((device) => lifecycles.get(device.uuid) === "active" && !device.arrives_active)
   const blocked = review.devices.filter((device) => device.blockers.length > 0).length
   const staying = review.summary.filter((sentence) => /dashboard|automation/.test(sentence))
+  const one = review.devices.length === 1
   const ends = review.ends
   return (
     <div className="flex flex-col gap-3" aria-busy={loading}>
@@ -132,6 +138,21 @@ export function WhatComesAlong({
           )}
         </PanelContent>
       </Panel>
+      {review.history.offered && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>History</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <CheckboxField
+              label="Include readings from before the move"
+              description={`Members of ${target.name} will see ${one ? "the device’s" : "each device’s"} readings from before the move in ${one ? "its" : "their"} charts, tables, exports, dashboards and the API, marked as recorded in ${source}. The readings stay stored in ${source}, for as long as ${source} keeps readings, and ${source} can stop sharing them at any time.`}
+              checked={includeHistory}
+              onCheckedChange={onIncludeHistory}
+            />
+          </PanelContent>
+        </Panel>
+      )}
       {(ends.alerts > 0 || ends.geofence_assignments > 0 || ends.application_grants.length > 0) && (
         <Panel>
           <PanelHeader>

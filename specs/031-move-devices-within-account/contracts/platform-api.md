@@ -187,7 +187,7 @@ What each side sees:
   "direction": "moved_from",
   "organization_name": "Integrator",
   "cutover_at": "…",
-  "history": { "included": false, "stopped_at": null }
+  "history": { "included": false, "stopped_at": null, "stopped_reason": null }
 },
 "pipe": {
   "kind": "adapter",
@@ -280,11 +280,20 @@ is stopping. Organization deletion lists the same as the `hosted_devices` blocke
 ## History (PR 031-9)
 
 - `POST devices/{device}/link/history` with `{"enabled": false}`, on a predecessor,
-  needs `Device.move` in its organization. It records `device_link.history_stopped`.
-  Turning history back on isn't offered.
-- History reads of a successor whose link includes history (`GET devices/{device}/readings`,
-  exports, dashboard panel queries) return earlier readings with
+  needs `Device.move` in its organization. It records `device_link.history_stopped`
+  in both organizations and answers `200` with the device's `link`. Turning history
+  back on isn't offered (`enabled: true` is 422); stopping again changes nothing; a
+  device that isn't a predecessor is 404, and a link without history 409.
+- History reads of a successor whose link includes history
+  (`GET devices/{device}/measurements/history`, `records`, `state-history`,
+  `increase`, which also serve exports and dashboard panels, and applications'
+  `telemetry/history` and `telemetry/records`) return earlier readings with
   `"recorded_in": "source"`. Every other reading carries `"recorded_in": "self"`.
+- `link.history` is `{included, stopped_at, stopped_reason}`, `stopped_reason` being
+  `stopped` or `left_account`.
+- With `include_history: true` the review's `summary` adds "*Target* can read the
+  readings from before the move. They stay stored in *source*, for as long as
+  *source* keeps readings."
 
 ## Assistant (PR 031-10)
 

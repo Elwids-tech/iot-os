@@ -948,7 +948,8 @@
                           "value": 91.2,
                           "min": 90.8,
                           "max": 91.5,
-                          "count": 12
+                          "count": 12,
+                          "recorded_in": "self"
                         }
                       ]
                     }
@@ -1004,7 +1005,7 @@
           }
         ],
         "summary": "Read bucketed telemetry history",
-        "description": "Readings of one parameter selected and bucketed by receipt time, inclusive bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are clipped to the organization's retention and reported back. 422 for an invalid window, or (under `errors.runtime`) when the runtime rejects the range, for example more than 2000 resulting points; 503 when the runtime is unavailable; 504 when the range takes longer than the runtime's limit."
+        "description": "Readings of one parameter selected and bucketed by receipt time, inclusive bounds, at most 31 days and `max_points` 10 to 1000 (default 500). Bounds are clipped to the organization's retention and reported back. A device moved here with its readings shared (spec 031) also has its predecessor's series from before the move, first, with points `recorded_in` `source`. 422 for an invalid window, or (under `errors.runtime`) when the runtime rejects the range, for example more than 2000 resulting points; 503 when the runtime is unavailable; 504 when the range takes longer than the runtime's limit."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest": {
@@ -1229,7 +1230,8 @@
                       "value": 91.1,
                       "quality": "good",
                       "timestamp_source": "source",
-                      "historical": false
+                      "historical": false,
+                      "recorded_in": "self"
                     }
                   ],
                   "meta": {
@@ -1291,7 +1293,7 @@
           }
         ],
         "summary": "Read raw telemetry records",
-        "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable."
+        "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. A device moved here with its readings shared (spec 031) continues into its predecessor's records from before the move, `recorded_in` `source`, under the same `limit`. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable."
       }
     },
     "/integration/v1/organizations/{organization}/events": {
@@ -7902,7 +7904,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_130",
+        "operationId": "domain.devices.retention.show_131",
         "tags": [
           "Retention"
         ],
@@ -7951,7 +7953,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_131",
+        "operationId": "domain.devices.retention.update_132",
         "tags": [
           "Retention"
         ],
@@ -8289,7 +8291,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_128",
+        "operationId": "domain.devices.retention.show_129",
         "tags": [
           "Retention"
         ],
@@ -8321,7 +8323,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_129",
+        "operationId": "domain.devices.retention.update_130",
         "tags": [
           "Retention"
         ],
@@ -19135,7 +19137,7 @@
                   },
                   "include_history": {
                     "type": "boolean",
-                    "description": "Readings from before the move are offered from PR 031-9."
+                    "description": "Whether the target may read the predecessors' readings from before the cutover (US6)."
                   },
                   "operation_uuid": {
                     "type": "string",
@@ -19386,7 +19388,7 @@
                   },
                   "include_history": {
                     "type": "boolean",
-                    "description": "Readings from before the move are offered from PR 031-9."
+                    "description": "Whether the target may read the predecessors' readings from before the cutover (US6)."
                   }
                 },
                 "required": [
@@ -19449,7 +19451,7 @@
                   ],
                   "pipe_owner_sees_raw_messages": true,
                   "history": {
-                    "offered": false,
+                    "offered": true,
                     "include": false
                   },
                   "summary": [
@@ -22865,7 +22867,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
-        "description": "A device. `pipe` is what brings its messages in, null without a source or for a directly connected device: `kind` (`adapter` or `gateway`), `name`, `owner_organization_name`, `online` and `hosted`, true when another organization of the billing account owns the pipe (spec 031). For a hosted device `candidate.gateway` and `candidate.adapter` are null; the candidate keeps its `metrics` and `birth_revision`, and its installations' `adapter_revision_uuid` is null. `link` is null unless the device moved: `direction` (`moved_to` on the archived device, `moved_from` on the new one), the other organization's `organization_name` and `cutover_at`.",
+        "description": "A device. `pipe` is what brings its messages in, null without a source or for a directly connected device: `kind` (`adapter` or `gateway`), `name`, `owner_organization_name`, `online` and `hosted`, true when another organization of the billing account owns the pipe (spec 031). For a hosted device `candidate.gateway` and `candidate.adapter` are null; the candidate keeps its `metrics` and `birth_revision`, and its installations' `adapter_revision_uuid` is null. `link` is null unless the device moved: `direction` (`moved_to` on the archived device, `moved_from` on the new one), the other organization's `organization_name`, `cutover_at`, and `history`: whether the readings from before the cutover are `included` in the new device's history, and when sharing stopped (`stopped_at`, `stopped_reason`: `stopped` by the source, or `left_account` when either organization left the billing account).",
         "x-schema-status": "pending"
       },
       "patch": {
@@ -24347,6 +24349,113 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/devices/{device}/link/history": {
+      "post": {
+        "operationId": "deviceLink.history",
+        "summary": "Stops sharing a moved device's readings from before the move with the organization\nit moved to (FR-052). Only on the archived predecessor, by a member of its\norganization holding `Device.move`. Sharing can't be turned back on; stopping again\nchanges nothing. Answers with the device's link",
+        "tags": [
+          "DeviceLink"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device",
+            "in": "path",
+            "required": true,
+            "description": "The device UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The archived device's link, with sharing stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeviceLink"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "direction": "moved_to",
+                    "organization_name": "Harbour Shop",
+                    "cutover_at": "2026-11-20T09:31:12.000000Z",
+                    "history": {
+                      "included": true,
+                      "stopped_at": "2026-11-21T08:00:00.000000Z",
+                      "stopped_reason": "stopped"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Stops sharing a moved device's readings from before the move with the organization it moved to (spec 031 FR-052), with `{\"enabled\": false}`. Only on the archived device the move left here, and only with `Device.move` here; it records `device_link.history_stopped`. Sharing can't be turned back on, and stopping again changes nothing. 404 for a device that didn't move away, 409 when the move didn't share its readings."
+      }
+    },
     "/v1/organizations/{organization}/devices/{device}/mapping-suggestions": {
       "get": {
         "operationId": "device.mappingSuggestions",
@@ -24516,6 +24625,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
+        "description": "The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`.",
         "x-schema-status": "pending"
       }
     },
@@ -24630,6 +24740,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
+        "description": "A counter's increase per calendar bucket, cut in `timezone` (by default the device's site's, then its organization's). Every point carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the predecessor's buckets before the cutover are added in, and the bucket that holds the cutover sums both and is `source`.",
         "x-schema-status": "pending"
       }
     },
@@ -24804,6 +24915,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
+        "description": "The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision.",
         "x-schema-status": "pending"
       }
     },
@@ -24905,6 +25017,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
+        "description": "Durations and a timeline of a boolean, enum or colour parameter. Each timeline segment carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the segments up to the cutover are its predecessor's (`source`), and durations add up both.",
         "x-schema-status": "pending"
       }
     },
@@ -30535,7 +30648,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_174",
+        "operationId": "domain.automation.dag.settings_175",
         "tags": [
           "Dag"
         ],
@@ -30610,7 +30723,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_175",
+        "operationId": "domain.automation.dag.settings_176",
         "tags": [
           "Dag"
         ],
@@ -32017,7 +32130,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_188",
+        "operationId": "domain.automation.scenario.save_189",
         "tags": [
           "Scenario"
         ],
@@ -32133,7 +32246,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_189",
+        "operationId": "domain.automation.scenario.save_190",
         "tags": [
           "Scenario"
         ],
@@ -32678,7 +32791,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_180",
+        "operationId": "domain.automation.dag.timeline_181",
         "tags": [
           "Dag"
         ],
@@ -32749,7 +32862,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_181",
+        "operationId": "domain.automation.dag.timeline_182",
         "tags": [
           "Dag"
         ],
@@ -35741,6 +35854,66 @@
           }
         }
       },
+      "DeviceLink": {
+        "type": "object",
+        "description": "Where a device moved (spec 031). `history` says whether the readings from before the cutover are shared with the organization it moved to, and when and why sharing stopped.",
+        "required": [
+          "direction",
+          "organization_name",
+          "cutover_at",
+          "history"
+        ],
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "moved_to",
+              "moved_from"
+            ]
+          },
+          "organization_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cutover_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "history": {
+            "type": "object",
+            "required": [
+              "included",
+              "stopped_at",
+              "stopped_reason"
+            ],
+            "properties": {
+              "included": {
+                "type": "boolean"
+              },
+              "stopped_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "stopped_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "stopped",
+                  "left_account",
+                  null
+                ]
+              }
+            }
+          }
+        }
+      },
       "DeviceMove": {
         "type": "object",
         "description": "A move as one person sees it (spec 031). Each side is named; uuids of an organization show only to its members, so predecessor uuids to members of the source and successors, their states and reasons to members of the target.",
@@ -35906,7 +36079,7 @@
       },
       "DeviceMoveReview": {
         "type": "object",
-        "description": "What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay; until readings can be shared `history.offered` is false.",
+        "description": "What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`. Until dashboards and automations come along (spec 031 PR 4) `items` and `archives` are empty and `summary` says they stay.",
         "required": [
           "preview_hash",
           "can_confirm",
@@ -36102,6 +36275,7 @@
           },
           "history": {
             "type": "object",
+            "description": "**Include readings from before the move** (spec 031 US6), off by default. With `include_history: true` the target's members read each predecessor's readings from before the cutover in the new device's history; they stay stored in the source, under its retention.",
             "required": [
               "offered",
               "include"
@@ -36111,7 +36285,8 @@
                 "type": "boolean"
               },
               "include": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "The request's `include_history`. It is part of the hash, so a confirmation must ask for the same."
               }
             }
           },
@@ -40900,6 +41075,14 @@
           "count": {
             "type": "integer",
             "minimum": 0
+          },
+          "recorded_in": {
+            "type": "string",
+            "enum": [
+              "self",
+              "source"
+            ],
+            "description": "`source` for a moved device's readings from before its move, read from the organization it moved from when the move shared them (spec 031); `self` otherwise. A bucket that spans the move holds both and is `source`."
           }
         }
       },
@@ -41125,6 +41308,14 @@
           },
           "historical": {
             "type": "boolean"
+          },
+          "recorded_in": {
+            "type": "string",
+            "enum": [
+              "self",
+              "source"
+            ],
+            "description": "`source` for a moved device's readings from before its move, read from the organization it moved from when the move shared them (spec 031); they keep that organization's `configuration_uuid`. `self` otherwise."
           }
         }
       },

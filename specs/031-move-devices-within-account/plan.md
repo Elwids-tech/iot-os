@@ -197,7 +197,9 @@ Each is argued in [research.md](research.md).
 `DashboardPermissionBackfill`, and the label in `packages/ui/src/lib/permission-labels.ts`.
 
 **Readings**: `DeviceReadings` merges the predecessor's history for linked successors
-(R18, PR 031-9).
+(R18, PR 031-9), with `Moves/EarlierReadings` and `Moves/JoinedReadings`. The device
+controller's records read and the integration `TelemetryController` history and records
+go through it too.
 
 ### API: other domains
 
@@ -371,7 +373,7 @@ ticks its tasks and updates its docs.
 | 031-6 | **US5 pipe operations.** Hosted counts, refusals naming organizations, `confirm_hosted_devices`, the review test; docs | 031-5 | quickstart 5.3–5.4; api and portal rebuilt |
 | 031-7 | **US3 direct devices.** Gateway moves; `gateways[]` in the control state; edge organization for captures and episodes; credential rotation and warning; docs | 031-5 | quickstart 6; api, workers, runtime and portal rebuilt |
 | 031-8 | **US4 onboarding into another organization**, for adapter and gateway sources | 031-5 | quickstart 7; api and portal rebuilt |
-| 031-9 | **US6 history across the move.** The option; merged reads; stop; revoke on leaving the account; docs | 031-2 | quickstart 8; api and portal rebuilt |
+| 031-9 | **US6 history across the move.** The option; merged reads; stop; revoke on leaving the account; the runtime's optional `bucket_seconds` for history; docs | 031-2 | quickstart 8; api, runtime and portal rebuilt |
 | 031-10 | **US7 the assistant card** | 031-4 | quickstart 9; api and portal rebuilt |
 
 **Order**:

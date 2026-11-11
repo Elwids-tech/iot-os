@@ -530,16 +530,18 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
 **Independent Test**: quickstart section 8.
 
-- [ ] T092 [US6] `MovePreview` offers `history`, and `MoveRequests` stores `include_history` on the move and `history_included` on each link
-- [ ] T093 [US6] `Devices/Services/DeviceReadings.php`. First check that the runtime's aggregate history responses carry a count per bucket; if they don't, add it in this PR as an additive runtime response field with its tests. Then:
+- [x] T092 [US6] `MovePreview` offers `history`, and `MoveRequests` stores `include_history` on the move and `history_included` on each link
+- [x] T093 [US6] `Devices/Services/DeviceReadings.php`. First check that the runtime's aggregate history responses carry a count per bucket; if they don't, add it in this PR as an additive runtime response field with its tests. Then:
   - for a successor whose link has `history_included` and no `history_stopped_at`, query the runtime for the predecessor under the source organization with the source's retention and `until = cutover_at`, mapping parameter UUIDs through the profile copy's map;
   - merge with the successor's own readings, splitting aggregate buckets at the cutover and recombining them from counts;
   - mark readings `recorded_in: "source"` or `"self"`;
   - never follow a second link.
 
   Applies to charts, tables, exports, dashboard panel queries and the device API
-- [ ] T094 [US6] `Devices/Http/Controllers/DeviceLinkController.php` `POST devices/{device}/link/history` with `{enabled: false}` on a predecessor (`Device.move`), recording `device_link.history_stopped`. `BillingAccounts::move` sets `history_stopped_reason = left_account` on every link touching the organization
-- [ ] T095 [P] [US6] `tests/Devices/Moves/HistoryAcrossMoveTest.php`:
+
+  Done: the count was there; the buckets' width wasn't shared, so the runtime's history takes an optional `bucket_seconds` (Go HTTP and DB tests). Records, state history and counter increase merge too, the records read and applications' `telemetry/history` and `telemetry/records` go through `DeviceReadings`, and every reading carries `recorded_in` (research R18)
+- [x] T094 [US6] `Devices/Http/Controllers/DeviceLinkController.php` `POST devices/{device}/link/history` with `{enabled: false}` on a predecessor (`Device.move`), recording `device_link.history_stopped`. `BillingAccounts::move` sets `history_stopped_reason = left_account` on every link touching the organization
+- [x] T095 [P] [US6] `tests/Feature/Domain/Devices/Moves/HistoryAcrossMoveTest.php`, and `tests/Unit/Domain/Devices/JoinedReadingsTest.php` for the joins:
   - with the option, B's history includes A's readings before the cutover, labelled;
   - without it, none;
   - stopping hides them;
@@ -549,7 +551,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   - A's retention applies.
 
   Extend `DeviceMoveIsolationTest` (FR-060: "only with the option on, only for the predecessor, and only within the account")
-- [ ] T096 [US6] Portal:
+- [x] T096 [US6] Portal:
   - **Include readings from before the move** (off by default) in `WhatComesAlong.tsx`, with the explanation;
   - history charts mark points recorded in the source;
   - **Stop sharing history** on the predecessor's page.

@@ -78,6 +78,7 @@ export function MoveDialog({
   const [step, setStep] = useState(1)
   const [target, setTarget] = useState<MoveTarget | null>(null)
   const [overrides, setOverrides] = useState<Record<string, DeviceMoveDeviceInput>>({})
+  const [includeHistory, setIncludeHistory] = useState(false)
   const [settled, setSettled] = useState(overrides)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -94,8 +95,9 @@ export function MoveDialog({
       target_organization_uuid: target?.uuid ?? "",
       device_uuids: uuids,
       devices: Object.values(settled),
+      include_history: includeHistory,
     }),
-    [target, uuids, settled],
+    [target, uuids, settled, includeHistory],
   )
   const reviewKey = ["device-move-review", org, input]
   const review = useQuery({
@@ -169,6 +171,8 @@ export function MoveDialog({
               onOverride={(uuid, values) =>
                 setOverrides((current) => ({ ...current, [uuid]: { ...current[uuid], ...values, uuid } }))
               }
+              includeHistory={includeHistory}
+              onIncludeHistory={setIncludeHistory}
             />
           </>
         )}

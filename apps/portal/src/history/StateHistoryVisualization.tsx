@@ -54,6 +54,7 @@ export function StateHistoryVisualization({
   timezone = "browser",
   states = [],
   group,
+  recordedIn,
 }: {
   history: StateHistory
   configurations: DeviceConfiguration[]
@@ -61,6 +62,8 @@ export function StateHistoryVisualization({
   timezone?: "browser" | "utc"
   /** Profile labels and tones for the parameter's values. */
   states?: StateLabel[]
+  /** The organization a moved device's segments from before the move were recorded in (spec 031). */
+  recordedIn?: string
   /** Linked time charts on a dashboard share a crosshair. */
   group?: string
 }) {
@@ -84,12 +87,17 @@ export function StateHistoryVisualization({
             to: Date.parse(segment.to),
             color: segmentColor(segment, colour, states),
             label: segmentLabel(segment, colour, states),
-            detail: configuration ? `${configuration.configurationLabel} · ${configuration.profileLabel}` : undefined,
+            detail:
+              segment.recorded_in === "source"
+                ? `Recorded in ${recordedIn ?? "the organization it moved from"}, before the move`
+                : configuration
+                  ? `${configuration.configurationLabel} · ${configuration.profileLabel}`
+                  : undefined,
             unknown: !segment.known || (colour && !validHexColor(segment.value)),
           }
         }),
       }),
-    [theme, history, configurations, colour, timezone, JSON.stringify(states)],
+    [theme, history, configurations, colour, timezone, JSON.stringify(states), recordedIn],
   )
   const observedColours = colour
     ? [

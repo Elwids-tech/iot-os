@@ -2,6 +2,8 @@ export interface TelemetryRecord {
   event_uuid: string; configuration_uuid: string; parameter_uuid: string;
   received_at: string; observed_at: string; data_type: string; unit: string | null;
   value: unknown; quality: string; timestamp_source: string; historical: boolean;
+  /** `source` for a moved device's readings from before its move, read where they were recorded. */
+  recorded_in?: "self" | "source";
 }
 export interface RecordOptions extends Omit<HistoryOptions, "maxPoints"> {
   limit?: number; pageSize?: number; cursor?: string;
@@ -40,7 +42,7 @@ export interface LatestBatchEntry {
   readings: TelemetryReading[];
 }
 export interface LatestBatch { schema_version: "telemetry-latest-batch.v1"; data: LatestBatchEntry[] }
-export interface HistoryPoint { at: string; value: unknown; count: number; min?: number; max?: number }
+export interface HistoryPoint { at: string; value: unknown; count: number; min?: number; max?: number; recorded_in?: "self" | "source" }
 export interface TelemetryHistory {
   schema_version: "telemetry-history.v1"; device_uuid: string; parameter_uuid: string;
   retention_days: number; from: string | null; to: string | null;

@@ -160,6 +160,9 @@ export function buildHistoryCsv(
     "profile_revision",
     "profile_artifact_uuid",
   ]
+  // Only an export holding a moved device's readings from before the move says where each was recorded.
+  const recordedIn = records.some((record) => record.recorded_in === "source")
+  if (recordedIn) headers.push("recorded_in")
   const rows = [...records]
     .sort(
       (a, b) =>
@@ -190,6 +193,7 @@ export function buildHistoryCsv(
         configuration?.profile_uuid,
         configuration?.profile_revision,
         configuration?.profile_artifact_uuid,
+        ...(recordedIn ? [record.recorded_in ?? "self"] : []),
       ]
         .map(csvCell)
         .join(",")

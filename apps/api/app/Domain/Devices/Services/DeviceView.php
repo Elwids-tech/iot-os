@@ -228,10 +228,11 @@ final class DeviceView
     }
 
     /**
-     * Where the device moved to, or moved from, with the other organization's name and the
-     * cutover time; null without a move. A device that moved on is shown as moved to.
+     * Where the device moved to, or moved from, with the other organization's name, the
+     * cutover time, and whether the readings from before the cutover are shared with the
+     * target; null without a move. A device that moved on is shown as moved to.
      *
-     * @return ?array{direction: string, organization_name: ?string, cutover_at: string}
+     * @return ?array{direction: string, organization_name: ?string, cutover_at: string, history: array{included: bool, stopped_at: ?string, stopped_reason: ?string}}
      */
     public static function link(Device $device): ?array
     {
@@ -242,7 +243,8 @@ final class DeviceView
         }
         $other = Organization::withTrashed()->whereKey($to ? $link->target_organization_id : $link->source_organization_id)->value('name');
 
-        return ['direction' => $to ? 'moved_to' : 'moved_from', 'organization_name' => $other, 'cutover_at' => $link->cutover_at->toJSON()];
+        return ['direction' => $to ? 'moved_to' : 'moved_from', 'organization_name' => $other, 'cutover_at' => $link->cutover_at->toJSON(),
+            'history' => ['included' => $link->history_included, 'stopped_at' => $link->history_stopped_at?->toJSON(), 'stopped_reason' => $link->history_stopped_reason]];
     }
 
     /**

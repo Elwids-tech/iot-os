@@ -301,8 +301,10 @@ or choose **Move to organization…** in a device's menu. Four steps follow:
    name to create one; they become its Organization Admin and the move continues there.
 2. **What comes along**: each device with its name, code and site in the target, how
    it reports (an adapter or gateway stays with its owner) and anything that blocks it;
-   what stays in the source, what ends, and which profile versions are copied. Edits
-   are checked again as you type. A blocked device keeps **Next** disabled.
+   what stays in the source, what ends, and which profile versions are copied; and
+   **Include readings from before the move**, off by default
+   ([below](#measurements-and-history-across-a-move)). Edits are checked again as you
+   type. A blocked device keeps **Next** disabled.
 3. **Confirm**: the move in sentences, then **Move**. Nothing changes before this.
 4. **Done**: the move waits for the runtime to stop the active devices, with no
    timeout, then lists the moved devices and anything that needs attention in the
@@ -330,9 +332,47 @@ Readings that arrive between the stop and the start are stored for neither
 organization; the gap is usually seconds.
 
 Not yet: devices behind a gateway and directly connected devices can't be moved, and
-dashboards, automations and history can't come along (later pull requests of spec
-031). An organization with hosted devices, or one in a move, can't leave its billing
-account or be deleted.
+dashboards and automations can't come along (later pull requests of spec 031). An
+organization with hosted devices, or one in a move, can't leave its billing account or
+be deleted.
+
+### Measurements and history across a move
+
+With **Include readings from before the move**, the target's members read each moved
+device's readings from before the move in its history: charts, the records table and
+its CSV export, dashboard panels, the assistant's and agents' measurement tools, the
+API (`GET devices/{device}/measurements/history`, `records`, `state-history`,
+`increase`) and applications' `telemetry/history` and `telemetry/records`
+(US6, [research R18](../../specs/031-move-devices-within-account/research.md)).
+Nothing is copied:
+
+- **Where they stay.** The readings stay stored for the source, under the source's
+  retention, and the target sees them for as long as the source keeps them. Laravel
+  decides the crossing and asks the runtime twice, once for the archived device under
+  the source and once for the new device, then joins the answers; the runtime never
+  reads across organizations.
+- **Labelled.** Every reading carries `recorded_in`: `source` for the archived
+  device's, `self` for the device's own. The device page's chart shades the span
+  recorded in the source, marks the move and names the source in its tooltip; the
+  records table starts a **Recorded in *source* before the move** group; a CSV that
+  holds such readings gains a `recorded_in` column.
+- **Joined.** Both answers use one bucket width, so the bucket that holds the cutover
+  combines the two from their counts (and is labelled `source`), and the line breaks
+  only where the readings paused. Records continue page by page from the device's own
+  into the archived device's, under the same `limit`. A state timeline runs up to the
+  cutover, then on; counter buckets add up. Consumption between the device's last
+  reading before the move and its first after isn't counted.
+- **One link only.** A device that moved twice reads only its own predecessor's
+  readings; the readings that predecessor shared from an earlier move stay with the
+  organization it moved to. Each link was chosen by someone who could move devices
+  between those two organizations only.
+- **Stopping.** On the archived device, a source member with `Device.move` chooses
+  **Stop sharing history** (`POST devices/{device}/link/history` with
+  `{"enabled": false}`, recorded as `device_link.history_stopped` in both
+  organizations). Sharing also stops for good when either organization leaves the
+  billing account (`stopped_reason: left_account`). It can't be turned back on. The
+  device's `link.history` (`included`, `stopped_at`, `stopped_reason`) shows where it
+  stands on both sides.
 
 ## Offline detection
 
@@ -540,6 +580,7 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `telemetry-captures` | Telemetry viewer |
 | `runtime-status` | Runtime and automation readiness for the portal |
 | `device-move-targets`, `device-moves/preview`, `device-moves`, `device-moves/{move}` | [Moving devices](#moving-devices): targets, review, confirm, progress ([contract](../../specs/031-move-devices-within-account/contracts/platform-api.md)) |
+| `devices/{d}/link/history` | Stop sharing the readings from before a move ([history across a move](#measurements-and-history-across-a-move)) |
 
 Admin, all with `PlatformAdministration.manage-retention`:
 `GET/PUT /api/v1/admin/settings/telemetry-retention`,

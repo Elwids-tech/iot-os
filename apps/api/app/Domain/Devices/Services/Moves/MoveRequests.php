@@ -91,7 +91,7 @@ final class MoveRequests
             $move = DeviceMove::create([
                 'operation_uuid' => $input['operation_uuid'], 'request_hash' => $hash,
                 'source_organization_id' => $source->id, 'target_organization_id' => $target->id, 'billing_account_id' => $source->billing_account_id,
-                'mover_id' => $user->id, 'origin' => $body['origin'], 'include_history' => false, 'status' => 'stopping',
+                'mover_id' => $user->id, 'origin' => $body['origin'], 'include_history' => $review['history']['include'], 'status' => 'stopping',
                 'review' => $review, 'confirmed_at' => now(),
             ]);
             foreach ($built['rows'] as $i => $row) {
