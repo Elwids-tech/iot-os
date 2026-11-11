@@ -23,7 +23,7 @@ import { errorMessage } from "../components/forms"
 import { PERIOD_LABELS } from "./calendar"
 import { consumptionModel, zoneNote } from "./consumption"
 import { profilePrecision, seriesColor, sourceKey } from "./model"
-import { reportingTimezone, useConsumption, useDevices } from "./panelData"
+import { recordedInName, reportingTimezone, useConsumption, useDevices } from "./panelData"
 import type { PanelProps } from "./registry"
 
 const BUCKET_NAMES: Record<CounterBucket, string> = {
@@ -61,6 +61,16 @@ export default function ConsumptionPanel({ org, widget, view, window, onZoom, pr
   const amount = (value: number, index: number) =>
     `${formatNumber(value, precision(index))}${unit ? ` ${unit}` : ""}`
   const colors = sources.map((s) => theme.color(seriesColor(s.color)))
+  // A moved device's readings from before its move, shared by where they were recorded (spec 031).
+  const earlier = [
+    ...new Set(
+      queries.flatMap((query, index) =>
+        query.data?.increase.points.some((point) => point.recorded_in === "source")
+          ? [recordedInName(devices(sources[index].device_uuid)?.data)]
+          : [],
+      ),
+    ),
+  ]
 
   const option = useMemo<ChartOption | null>(() => {
     if (!model?.hasData) return null
@@ -189,10 +199,11 @@ export default function ConsumptionPanel({ org, widget, view, window, onZoom, pr
           {model && ` · per ${BUCKET_NAMES[model.bucket]}`}
         </p>
       </div>
-      {(model?.coarsened || note || resets > 0) && (
+      {(model?.coarsened || note || resets > 0 || earlier.length > 0) && (
         <p role="note" className="text-xs text-muted-foreground">
           {model?.coarsened && "Too many bars for this range, so bar size is automatic. "}
           {resets > 0 && (resets === 1 ? "1 meter reset or rollover handled. " : `${resets} meter resets or rollovers handled. `)}
+          {earlier.length > 0 && `Includes readings recorded in ${earlier.join(", ")} before the move. `}
           {note}
         </p>
       )}

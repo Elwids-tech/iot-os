@@ -108,6 +108,11 @@ export function useHistory(
   })
 }
 
+/** Where a moved device's readings from before its move were recorded, when they are shared (spec 031). */
+export const recordedInName = (device?: DeviceDetail) =>
+  (device?.link?.direction === "moved_from" && device.link.organization_name) ||
+  "the organization it moved from"
+
 /** The zone that cuts a device's days and months: its site's, else its organization's. */
 export const reportingTimezone = (device?: DeviceDetail) =>
   device?.reporting_timezone ?? device?.site?.timezone

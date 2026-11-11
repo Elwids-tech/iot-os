@@ -553,7 +553,7 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
   Extend `DeviceMoveIsolationTest` (FR-060: "only with the option on, only for the predecessor, and only within the account")
 - [x] T096 [US6] Portal:
   - **Include readings from before the move** (off by default) in `WhatComesAlong.tsx`, with the explanation;
-  - history charts mark points recorded in the source;
+  - history charts mark points recorded in the source (the device page, and dashboard time-series, state and consumption panels, since FR-051 names dashboard panels);
   - **Stop sharing history** on the predecessor's page.
 
   `packages/api-client`; OpenAPI export

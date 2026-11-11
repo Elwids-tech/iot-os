@@ -352,10 +352,12 @@ Nothing is copied:
   the source and once for the new device, then joins the answers; the runtime never
   reads across organizations.
 - **Labelled.** Every reading carries `recorded_in`: `source` for the archived
-  device's, `self` for the device's own. The device page's chart shades the span
-  recorded in the source, marks the move and names the source in its tooltip; the
-  records table starts a **Recorded in *source* before the move** group; a CSV that
-  holds such readings gains a `recorded_in` column.
+  device's, `self` for the device's own. The device page's chart and dashboard
+  time-series panels shade the span recorded in the source and mark the move (the
+  device page also names the source in its tooltip); state timelines name it on those
+  segments, and consumption panels say so; the records table starts a **Recorded in
+  *source* before the move** group; a CSV that holds such readings gains a
+  `recorded_in` column.
 - **Joined.** Both answers use one bucket width, so the bucket that holds the cutover
   combines the two from their counts (and is labelled `source`), and the line breaks
   only where the readings paused. Records continue page by page from the device's own
