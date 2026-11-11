@@ -453,6 +453,14 @@ Things that have cost time before. Add to this list when something surprises you
   The pilot's first integrator saw its two adapters listed as gateways beside its one
   real gateway.
 
+- **Ubuntu 26.04 confines the apt `mosquitto` with AppArmor.** Its profile lets
+  `/usr/sbin/mosquitto` read only `/etc/mosquitto` and `/var/lib/mosquitto`, so a
+  broker started with a config in a temp directory exits at once. The release's live
+  adapter protocol test failed this way when `ubuntu-latest` moved from 24.04 to
+  26.04. The release runs a copy of the binary from `$RUNNER_TEMP`, which the profile
+  does not cover. Docker containers don't enforce the host's profiles, so the failure
+  does not reproduce there.
+
 - **Polled readings can be stale before the automation sees them.** A DAG binding's
   `fresh_seconds` counts from the reading's observed time
   ([`evaluator.go`](../../services/runtime/internal/dag/evaluator.go)), and a polling

@@ -19,12 +19,13 @@ const children = [];
 const clients = [];
 let callback;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// message may be a function, so a failure reports what a child printed while we waited.
 async function until(check, message) {
   for (let i = 0; i < 120; i++) {
     if (await check()) return;
     await delay(100);
   }
-  throw Error(message);
+  throw Error(typeof message === "function" ? message() : message);
 }
 async function port() {
   return new Promise((resolve) => {
@@ -48,7 +49,12 @@ function child(command, args, env = {}) {
   process.stderr.on("data", (data) => {
     diagnostic += data;
   });
-  process.on("error", () => {});
+  process.on("error", (error) => {
+    diagnostic += `${error}\n`;
+  });
+  process.on("exit", (code, signal) => {
+    diagnostic += `exited with ${signal || code}\n`;
+  });
   process.diagnostic = () => diagnostic.slice(-5000);
   return process;
 }
@@ -155,7 +161,7 @@ async function publish(client, topic, payload) {
         } catch {
           return false;
         }
-      }, `Broker ${label} failed: ${process.diagnostic()}`);
+      }, () => `Broker ${label} failed: ${process.diagnostic()}`);
       return `mqtts://127.0.0.1:${listen}`;
     }
     const pass = () => crypto.randomBytes(24).toString("hex");
@@ -253,7 +259,7 @@ async function publish(client, topic, payload) {
         } catch {
           return false;
         }
-      }, `Node-RED ${label} failed: ${process.diagnostic()}`);
+      }, () => `Node-RED ${label} failed: ${process.diagnostic()}`);
       assert.equal((await fetch(url + "/flows")).status, 401);
       return { admin, data };
     }
