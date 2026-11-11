@@ -757,18 +757,16 @@ Things that have cost time before. Add to this list when something surprises you
   through apt. That took 30 s on one run and 11 min 40 s on another, which
   pushed the docs job past its 20-minute limit. CI installs the headless shell
   without it.
-- **The Cortex-M7 toolchain download can stall until the job is cancelled.** The
-  Embedded SDK (gcc) job's `apt-get` normally fetches `gcc-arm-none-eabi` in 14 s;
-  twice on 2026-11-06 it printed nothing for 15 minutes, until the job's limit
-  cancelled it. The step now downloads under `timeout` and retries, then installs
-  from the downloaded files, so a kill never interrupts dpkg. From 2026-11-11
-  14:40 UTC every run's `apt-get update` outlasted its 60 s limit three times in a
-  row, on main too: `ubuntu-latest` is Ubuntu 26.04, whose sources read the mirror
-  list `/etc/apt/apt-mirrors.txt`, and its `azure.archive.ubuntu.com` entry timed out
-  on every `InRelease`. Editing `ubuntu.sources` changes nothing there. The step now
-  writes `archive.ubuntu.com` into the mirror list, gives apt a 30 s limit per
-  connection (a stalled source then fails instead of hanging), allows 180 s per try
-  and prints the update's sources.
+- **CI's Cortex-M7 toolchain comes from Arm, not apt.** The Embedded SDK (gcc) job
+  used to install Ubuntu's `gcc-arm-none-eabi`. Twice on 2026-11-06 `apt-get` printed
+  nothing for 15 minutes, until the job's limit cancelled it. From 2026-11-11 14:40 UTC
+  the runners couldn't resolve `azure.archive.ubuntu.com` or `archive.ubuntu.com` at
+  all ("Temporary failure resolving"), while `packages.microsoft.com` worked, on main
+  too and on the same runner image as the last passing run. The job now downloads
+  Arm GNU Toolchain 14.2.rel1 (the release Ubuntu packages, and the board's
+  compiler) from developer.arm.com, checks its SHA-256 and caches the archive. On
+  Ubuntu 26.04 runners, apt's sources read the mirror list `/etc/apt/apt-mirrors.txt`,
+  so editing `ubuntu.sources` doesn't change the mirror.
 - **A mocked spec that opens the workspace panel must mock `/help/page`.** Catch-all
   mocks answer `{ data: [] }`, and the panel reads `articles[0]` from the page
   object, so the whole page falls to its error screen. The adapters spec mocks it

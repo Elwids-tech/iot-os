@@ -314,27 +314,30 @@ jobs:
           cmake -S firmware/sdk -B .local/sdk-build -DIOTOS_SANITIZE=ON -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
           cmake --build .local/sdk-build -j"$(nproc)"
           ctest --test-dir .local/sdk-build --output-on-failure
-      # The board's compiler: fails on -Werror, a gateway over 32 KiB, static data or heap use,
-      # and builds the FreeRTOS ports against a pinned kernel (tests/freertos-config).
+      # Arm's GNU Toolchain 14.2.rel1, the board's compiler (docs/hardware/rt1050-evkb.md) and the
+      # one Ubuntu packages as gcc-arm-none-eabi. It comes from Arm, pinned by checksum, because
+      # the runners lost Ubuntu's archive on 2026-11-11 (docs/dev/gotchas.md).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.compiler == 'gcc'
+        with:
+          path: .local/arm-gnu-toolchain.tar.xz
+          key: arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi
+      # Fails on -Werror, a gateway over 32 KiB, static data or heap use, and builds the FreeRTOS
+      # ports against a pinned kernel (tests/freertos-config).
       - name: Cross-compile for the Cortex-M7 and check its size
         if: matrix.compiler == 'gcc'
         run: |
-          # The runner's Ubuntu mirror stalls without failing (docs/dev/gotchas.md). Its sources read
-          # a mirror list whose Azure mirror stopped answering, so the list now names Ubuntu's own
-          # archive (packages are signed either way). Each connection gets a time limit, so a stalled
-          # source fails instead of hanging apt, and the download gets another try. The update
-          # prints its sources so a stall shows where it is. The install then reads the downloaded
-          # files.
-          if [ -f /etc/apt/apt-mirrors.txt ]; then
-            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          archive=.local/arm-gnu-toolchain.tar.xz
+          if [ ! -f "$archive" ]; then
+            mkdir -p .local
+            curl -fsSL --retry 3 --connect-timeout 30 --max-time 600 -o "$archive" \
+              https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
           fi
-          limits=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=2)
-          for attempt in 1 2 3; do
-            timeout 180 sudo apt-get "${limits[@]}" update -q && timeout 180 sudo apt-get "${limits[@]}" install -y -qq --download-only gcc-arm-none-eabi libnewlib-arm-none-eabi && break
-            if [ "$attempt" = 3 ]; then exit 1; fi
-            echo "::warning::The package download stalled or failed (attempt $attempt); trying again."
-          done
-          sudo apt-get install -y -qq gcc-arm-none-eabi libnewlib-arm-none-eabi
+          echo "62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823  $archive" | sha256sum -c -
+          mkdir -p .local/arm-gnu-toolchain
+          tar -xJf "$archive" -C .local/arm-gnu-toolchain --strip-components=1
+          export PATH="$PWD/.local/arm-gnu-toolchain/bin:$PATH"
+          arm-none-eabi-gcc --version | head -1
           cmake -S firmware/sdk -B .local/sdk-arm -DCMAKE_TOOLCHAIN_FILE="$PWD/firmware/sdk/cmake/arm-none-eabi.cmake" -DFETCHCONTENT_BASE_DIR="$PWD/.local/fetchcontent"
           cmake --build .local/sdk-arm --target iotos_size iotos_freertos_check
 
