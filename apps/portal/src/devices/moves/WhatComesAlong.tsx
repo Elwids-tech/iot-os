@@ -217,7 +217,7 @@ export function WhatComesAlong({
           <PanelContent>
             <CheckboxField
               label="Include readings from before the move"
-              description={`Members of ${target.name} will see ${one ? "the device’s" : "each device’s"} readings from before the move in ${one ? "its" : "their"} charts, tables, exports, dashboards and the API, marked as recorded in ${source}. The readings stay stored in ${source}, for as long as ${source} keeps readings, and ${source} can stop sharing them at any time.`}
+              description={`Members of ${target.name} will see ${one ? "the device’s" : "each device’s"} readings from before the move, from earlier moves too, in ${one ? "its" : "their"} charts, tables, exports, dashboards and the API, marked as recorded in ${source}. The readings stay stored where they were recorded, for as long as that organization keeps readings, and ${source} can stop sharing them at any time.`}
               checked={includeHistory}
               onCheckedChange={onIncludeHistory}
             />

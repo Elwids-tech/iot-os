@@ -24751,7 +24751,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
-        "description": "The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`. A device moved back also has the readings it recorded in this organization before, first, as `self` (ADR-040).",
+        "description": "The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6, which shares its whole history, earlier moves included, ADR-041), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`. A device moved back also has the readings it recorded in this organization before, first, as `self` (ADR-040).",
         "x-schema-status": "pending"
       }
     },
@@ -25041,7 +25041,7 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
-        "description": "The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision. A device moved back continues into the readings it recorded in this organization before, as `self` (ADR-040).",
+        "description": "The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6, which shares its whole history, earlier moves included, ADR-041), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision. A device moved back continues into the readings it recorded in this organization before, as `self` (ADR-040).",
         "x-schema-status": "pending"
       }
     },

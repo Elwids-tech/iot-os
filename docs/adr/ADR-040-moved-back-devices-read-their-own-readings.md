@@ -1,6 +1,6 @@
 # ADR-040: A Device Moved Back Reads Its Organization's Earlier Readings
 
-**Status:** Accepted 2026-11-12, built in [spec 031](../../specs/031-move-devices-within-account/spec.md) (FR-053)
+**Status:** Accepted 2026-11-12, built in [spec 031](../../specs/031-move-devices-within-account/spec.md) (FR-053); amended by [ADR-041](ADR-041-shared-history-follows-every-move.md) (shared history follows every earlier move)
 **Date:** 2026-11-12
 **Amends:** [ADR-039](ADR-039-hosted-devices-and-moves.md)
 **Relates to:** [spec 031 research R18](../../specs/031-move-devices-within-account/research.md#r18-history-across-the-move-us6)

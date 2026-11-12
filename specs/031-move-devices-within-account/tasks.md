@@ -575,14 +575,23 @@ A device moved A→B without its readings and back to A read only B's (empty) re
 - [x] T110 [P] [US6] `HistoryAcrossMoveTest`: the round trip with history off and on for each move; A→B→D→A; each parameter mapped back through both copies; a counter across both moves; stopping and leaving the account end only the shared part; a records cursor across parts. `JoinedReadingsTest` for three parts. Portal e2e: the review of a device moved back
 - [x] T111 Docs: `docs/features/devices.md`, `docs/features/integrations.md`. Rebuild api and portal; run quickstart 8 step 4; leak scan; open the PR
 
+### The whole history moves (FR-051, ADR-041; after the moving-back fix)
+
+On the pilot a device moved A→B without its readings, back to A with them, and to B again with them: B saw only the readings since its return to A.
+
+- [x] T112 [US6] ADR-041 amends ADR-039 and ADR-040; spec (Clarifications, US6 scenarios 2 and 4, Moving again, FR-051, FR-052, FR-060), research R18, plan, data model, contract and quickstart 8 step 5
+- [x] T113 [US6] `Moves/EarlierReadings` walks the chain once (`chain()`): a predecessor is read when the device after it is read and their link shares, or when a device of its organization is read later; each part under the organization it was recorded in, `self` for the device's own organization. `MovePreview` adds the sentence for devices that bring earlier moves; the portal's option says "from earlier moves too"
+- [x] T114 [P] [US6] `HistoryAcrossMoveTest`: a shared chain A→B→D (stopping A's link ends A's readings downstream), a move that doesn't share ends the chain, A→B→A→B with the first move unshared, a device moved back reads what its organization could read before, and A→B→D→A with every part
+- [x] T115 Docs: `docs/features/devices.md`, `docs/features/integrations.md`. Rebuild api and portal; run quickstart 8 step 5; open the PR
+
 ### Automations turned off in the target (FR-039; after PR 031-4)
 
 A move put an automation in an organization that had never turned automations on: its editor said the node catalog was unavailable, and nobody could save or activate it.
 
-- [x] T112 [US2] Spec (Clarifications 2026-11-12, US2 scenario 10, edge case, FR-035, FR-039), research R11, data model, contract and quickstart 4 step 4
-- [x] T113 [US2] `CarriedItems`: the review's `automations` (`enabled`, `offered`, `turn_on`) and the outcomes and summary while automations are off; `turn_on_automations` on review and confirmation, stored as `device_moves.turns_on_automations`; the cutover turns automations on before the items and refuses when the mover lost `Workflow.activate`; `MoveView` lists moved automations while automations are off. `GET dag/node-types` needs only `Workflow.view`. Scenario reads need only `Workflow.view` too. OpenAPI export
-- [x] T114 [US2] Portal: **What comes along** warns and offers **Turn on automations in *target***; the automation editor reads the settings, says automations are off, offers **Turn on automations** to `Workflow.activate`, and holds Save and Activate. `@iot-os/workflow-editor`: a host message for an unavailable catalog, and a click that drifts a few pixels no longer moves the node
-- [x] T115 [P] [US2] `CarriedItemsTest` (turning on, waiting while off, the permission at review and cutover); portal e2e for the review and the editor; `activation.test.ts`. Docs: `docs/features/devices.md`, `docs/features/automation.md`. Rebuild api, default-worker and portal; run quickstart 4 step 4
+- [x] T116 [US2] Spec (Clarifications 2026-11-12, US2 scenario 10, edge case, FR-035, FR-039), research R11, data model, contract and quickstart 4 step 4
+- [x] T117 [US2] `CarriedItems`: the review's `automations` (`enabled`, `offered`, `turn_on`) and the outcomes and summary while automations are off; `turn_on_automations` on review and confirmation, stored as `device_moves.turns_on_automations`; the cutover turns automations on before the items and refuses when the mover lost `Workflow.activate`; `MoveView` lists moved automations while automations are off. `GET dag/node-types` needs only `Workflow.view`. Scenario reads need only `Workflow.view` too. OpenAPI export
+- [x] T118 [US2] Portal: **What comes along** warns and offers **Turn on automations in *target***; the automation editor reads the settings, says automations are off, offers **Turn on automations** to `Workflow.activate`, and holds Save and Activate. `@iot-os/workflow-editor`: a host message for an unavailable catalog, and a click that drifts a few pixels no longer moves the node
+- [x] T119 [P] [US2] `CarriedItemsTest` (turning on, waiting while off, the permission at review and cutover); portal e2e for the review and the editor; `activation.test.ts`. Docs: `docs/features/devices.md`, `docs/features/automation.md`. Rebuild api, default-worker and portal; run quickstart 4 step 4
 
 ---
 

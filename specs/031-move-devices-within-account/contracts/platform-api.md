@@ -331,11 +331,16 @@ is stopping. Organization deletion lists the same as the `hosted_devices` blocke
   `increase`, which also serve exports and dashboard panels, and applications'
   `telemetry/history` and `telemetry/records`) return earlier readings with
   `"recorded_in": "source"`. Every other reading carries `"recorded_in": "self"`.
-- The same reads of any successor also return the readings of each earlier predecessor
-  in its own organization, up to the cutover it left at, as `"recorded_in": "self"`
-  (FR-053), oldest first: those, then the shared predecessor's, then its own. Records
-  page newest first through them; a records cursor from before the move is
-  `earlier.<consumed>.<hops>.<runtime cursor>`.
+- The same reads of any successor also return every earlier part of its history,
+  oldest first, then its own: each earlier device it reads through links that share
+  (FR-051, ADR-041) or in its own organization (FR-053), up to the cutover that device
+  left at. Readings recorded in the successor's organization carry `"self"`, any other
+  `"source"`. Records page newest first through them; a records cursor from before the
+  move is `earlier.<consumed>.<hops>.<runtime cursor>`.
+- With `include_history: true`, when a moving device's history already reaches earlier
+  moves, the `summary` adds "1 device also brings the readings from before its earlier
+  moves, which stay stored where they were recorded." (or "*n* devices also bring…
+  their…").
 - `link.history` is `{included, stopped_at, stopped_reason}`, `stopped_reason` being
   `stopped` or `left_account`.
 - With `include_history: true` the review's `summary` adds "*Target* can read the

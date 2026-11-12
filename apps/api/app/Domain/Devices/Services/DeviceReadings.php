@@ -17,11 +17,12 @@ use Illuminate\Validation\ValidationException;
  * the same way. Callers validate input and check access.
  *
  * Every history read here also serves a moved device's readings from before its move
- * (spec 031 US6, ADR-040): its predecessor's when the mover shared them, under the
- * source, and those of any earlier predecessor in its own organization. Laravel asks the
- * runtime once for the device and once for each earlier part, and joins the answers,
- * oldest first. Each reading carries `recorded_in`: `self`, or `source` for the shared
- * predecessor's.
+ * (spec 031 US6, ADR-040, ADR-041): its predecessor's whole history when the mover
+ * shared it, earlier moves included, and those of any earlier predecessor in its own
+ * organization, each under the organization it was recorded in. Laravel asks the runtime
+ * once for the device and once for each earlier part, and joins the answers, oldest
+ * first. Each reading carries `recorded_in`: `self`, or `source` for readings recorded
+ * in another organization.
  */
 final class DeviceReadings
 {

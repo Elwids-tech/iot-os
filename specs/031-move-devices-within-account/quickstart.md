@@ -151,6 +151,9 @@ From A's adapter **Discovery**, activate a new serial into B. Expected:
    reconnects to the readings it recorded in A. A's chart for the new device is
    continuous from its readings before the first move: B's (with the option) and its
    own follow, and A's readings carry no "recorded in" label (FR-053).
+5. Move it to B again with the option on. The review says it also brings the readings
+   from before its earlier moves. B's chart for the new device goes back as far as A's
+   did (FR-051, ADR-041).
 
 ## 9. The assistant (US7; PR 031-10)
 
