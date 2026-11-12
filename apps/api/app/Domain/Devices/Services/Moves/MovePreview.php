@@ -205,6 +205,11 @@ final class MovePreview
         ];
         if ($review['history']['include']) {
             $review['summary'][] = $target->name.' can read the readings from before the move. They stay stored in '.$source->name.', for as long as '.$source->name.' keeps readings.';
+            // What the devices' histories already hold from their earlier moves comes along too (ADR-041).
+            if ($earlier = $devices->filter(fn (Device $device): bool => EarlierReadings::reachesEarlier($device))->count()) {
+                $review['summary'][] = $earlier === 1 ? '1 device also brings the readings from before its earlier moves, which stay stored where they were recorded.'
+                    : $earlier.' devices also bring the readings from before their earlier moves, which stay stored where they were recorded.';
+            }
         }
         if ($returning = count(array_filter($views, fn (array $view): bool => $view['returns']))) {
             $review['summary'][] = $returning === 1 ? '1 device returns to '.$target->name.' and reconnects to the readings it recorded there before.'

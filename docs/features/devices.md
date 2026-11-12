@@ -423,20 +423,26 @@ Nothing is copied:
   into the archived device's, under the same `limit`. A state timeline runs up to the
   cutover, then on; counter buckets add up. Consumption between the device's last
   reading before the move and its first after isn't counted.
-- **One link only, across organizations.** A device that moved twice reads only its
-  own predecessor's readings from another organization; the readings that predecessor
-  shared from an earlier move stay with the organization it moved to. Each link was
-  chosen by someone who could move devices between those two organizations only.
+- **The whole history moves.** A move with the option brings everything the device's
+  history showed, earlier moves included
+  ([ADR-041](../adr/ADR-041-shared-history-follows-every-move.md)): moved A→B→C with
+  both moves sharing, C reads B's and A's readings, each under the organization that
+  recorded it. A move without the option ends the chain for the devices after it, except
+  for their own organizations' readings. When a moving device already holds readings
+  from earlier moves, the review adds **1 device also brings the readings from before
+  its earlier moves…**
 - **Moved back.** A device moved back to an organization it was in reconnects to the
   readings it recorded there, whatever the option said on each move
   ([ADR-040](../adr/ADR-040-moved-back-devices-read-their-own-readings.md)). They are
   that organization's own readings, read under its retention up to the cutover the
   device left at, and labelled `self`; stopping or leaving the account doesn't end
   them. A→B→A reads A's readings, then B's if the move back shared them, then the
-  device's own; A→B→C→A reads A's, then C's if shared, never B's. The move's review
+  device's own; A→B→C→A reads A's, then C's if shared, and B's if both later moves
+  shared. The move's review
   says **1 device returns to *A* and reconnects to the readings it recorded there
   before.** Records page newest first through every part.
-- **Stopping.** On the archived device, a source member with `Device.move` chooses
+- **Stopping.** It ends what crossed that move for every device after it. On the
+  archived device, a source member with `Device.move` chooses
   **Stop sharing history** (`POST devices/{device}/link/history` with
   `{"enabled": false}`, recorded as `device_link.history_stopped` in both
   organizations). Sharing also stops for good when either organization leaves the

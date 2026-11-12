@@ -10,9 +10,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Joins a moved device's history with the earlier parts of it (spec 031 US6, research
- * R18, ADR-040). Every reading says where it was recorded: `source` for the shared
- * predecessor's, `self` for the device's own and its own organization's earlier
- * predecessors'. These are pure functions of the runtime answers, each earlier part
+ * R18, ADR-040, ADR-041). Every reading says where it was recorded: `self` in the
+ * device's own organization, `source` in another. These are pure functions of the runtime answers, each earlier part
  * given oldest first as `{recorded_in, data}`.
  */
 final class JoinedReadings

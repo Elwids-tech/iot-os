@@ -141,8 +141,9 @@ Each is argued in [research.md](research.md).
 6. **The target can't capture a hosted device's raw messages (R8).** Captures show the
    pipe's traffic, which stays with the pipe owner.
 7. **Restricted permission ceilings don't gain `Device.move` automatically (R9).**
-8. **History never follows a chain of moves across organizations (R18).** A device
-   moved back reads its own organization's earlier readings (FR-053, ADR-040).
+8. **Shared history follows the whole chain (R18, ADR-041).** A move that shares brings
+   everything its predecessor's history showed; a device moved back reads its own
+   organization's earlier readings (FR-053, ADR-040).
 9. **A direct device's `onboarding-` connection stays with the source (R13).** It stays
    as the Sparkplug group's namespace. The source can't be deleted or leave the
    account while it carries another organization's gateway.

@@ -558,9 +558,14 @@ a bucket that holds both is `source`. Predecessor records keep the source's
   predecessor by a source member with `Device.move`, sets `history_stopped_at`.
 - **Leaving the account.** Either organization leaving the account sets it too
   (`left_account`).
-- **No chains across organizations.** A link shares only its own predecessor's readings
-  from another organization, never those of a link before it, because the person who
-  chose it held `Device.move` in those two organizations only.
+- **Chains (2026-11-12, ADR-041; this replaced "no chains across organizations").** A
+  link that shares brings everything the predecessor's history showed at the cutover,
+  earlier moves included: a successor reads an earlier device when every link between
+  them shares, or when a device of that earlier device's organization is read later in
+  the chain. Stopping a link, or leaving the account, ends what crossed it for every
+  device after it. The original rule, one link only because the mover held `Device.move`
+  in those two organizations, left a device moved A→B→A→B with only the readings since
+  its return to A.
 - **The own organization's earlier readings (2026-11-12, ADR-040).** A device moved back
   reconnects to what it recorded there. `EarlierReadings::for` walks `device_links` back
   through `movedFrom`, mapping the parameter through each hop's
@@ -568,10 +573,10 @@ a bucket that holds both is `source`. Predecessor records keep the source's
   own organization is an earlier part: read under the successor's organization and
   retention, up to the cutover it left at, labelled `self`. No option, stop or account
   change applies, since nothing crosses. The walk stops where a parameter doesn't map.
-  The parts are read oldest first and joined in that order: the own organization's
-  earlier predecessors, then the immediate predecessor's shared readings (`source`), then
-  the device's own. A→B→A reads A's, B's if the move back shared them, then its own;
-  A→B→C→A reads A's, C's if shared, never B's. Records page newest first through the same
+  Every part, own organization or shared (`source`), is read under the organization it
+  was recorded in, oldest first, then the device's own. A→B→A reads A's, B's if the move
+  back shared them, then its own; A→B→C→A reads A's, C's if shared, B's if both later
+  moves shared. Records page newest first through the same
   parts, with the cursor `earlier.<consumed before the part>.<the part's hops>.<runtime
   cursor>`; a cursor into a part whose sharing stopped goes on with the older parts.
   State history reads each part from the cutover before it, so the ranges stay

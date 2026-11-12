@@ -575,6 +575,15 @@ A device moved A→B without its readings and back to A read only B's (empty) re
 - [x] T110 [P] [US6] `HistoryAcrossMoveTest`: the round trip with history off and on for each move; A→B→D→A; each parameter mapped back through both copies; a counter across both moves; stopping and leaving the account end only the shared part; a records cursor across parts. `JoinedReadingsTest` for three parts. Portal e2e: the review of a device moved back
 - [x] T111 Docs: `docs/features/devices.md`, `docs/features/integrations.md`. Rebuild api and portal; run quickstart 8 step 4; leak scan; open the PR
 
+### The whole history moves (FR-051, ADR-041; after the moving-back fix)
+
+On the pilot a device moved A→B without its readings, back to A with them, and to B again with them: B saw only the readings since its return to A.
+
+- [x] T112 [US6] ADR-041 amends ADR-039 and ADR-040; spec (Clarifications, US6 scenarios 2 and 4, Moving again, FR-051, FR-052, FR-060), research R18, plan, data model, contract and quickstart 8 step 5
+- [x] T113 [US6] `Moves/EarlierReadings` walks the chain once (`chain()`): a predecessor is read when the device after it is read and their link shares, or when a device of its organization is read later; each part under the organization it was recorded in, `self` for the device's own organization. `MovePreview` adds the sentence for devices that bring earlier moves; the portal's option says "from earlier moves too"
+- [x] T114 [P] [US6] `HistoryAcrossMoveTest`: a shared chain A→B→D (stopping A's link ends A's readings downstream), a move that doesn't share ends the chain, A→B→A→B with the first move unshared, a device moved back reads what its organization could read before, and A→B→D→A with every part
+- [x] T115 Docs: `docs/features/devices.md`, `docs/features/integrations.md`. Rebuild api and portal; run quickstart 8 step 5; open the PR
+
 ---
 
 ## PR 031-10: US7, the assistant
