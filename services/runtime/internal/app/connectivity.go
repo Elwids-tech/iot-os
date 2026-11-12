@@ -218,6 +218,9 @@ func (d *deviceTrack) interval(now time.Time) (time.Duration, bool) {
 	return (gaps[middle-1] + gaps[middle]) / 2, true
 }
 
+// checkIns is how many readings the device's interval is learned from.
+func (d *deviceTrack) checkIns(now time.Time) int { return len(d.window(now)) }
+
 func (d *deviceTrack) poll() time.Duration {
 	if d.settings.PollIntervalSeconds == nil {
 		return 0
@@ -1195,7 +1198,7 @@ func (t *connectivityTracker) state(organization string, uuids []string, now tim
 		if d == nil || d.organization != organization || d.removed != "" {
 			continue
 		}
-		state := connectivityState{DeviceUUID: uuid, MonitoringSince: timePointer(d.monitoringSince), LastHeardAt: timePointer(d.lastHeard), LastObservedAt: timePointer(d.lastObserved), ReadingsCounted: len(d.window(now)), PollIntervalSeconds: d.settings.PollIntervalSeconds, OfflineAfterAutomatic: d.settings.OfflineAfterSeconds == nil}
+		state := connectivityState{DeviceUUID: uuid, MonitoringSince: timePointer(d.monitoringSince), LastHeardAt: timePointer(d.lastHeard), LastObservedAt: timePointer(d.lastObserved), ReadingsCounted: d.checkIns(now), PollIntervalSeconds: d.settings.PollIntervalSeconds, OfflineAfterAutomatic: d.settings.OfflineAfterSeconds == nil}
 		if d.heard {
 			state.AnchorAt = timePointer(d.silenceStart())
 		}
