@@ -255,6 +255,8 @@ function CanvasButton({
   );
 }
 const nodeTypes = { automation: GraphNode };
+/** How far, in screen pixels, a pointer moves on a node before it drags rather than clicks. */
+const NODE_DRAG_THRESHOLD = 4;
 type Choice = { value: string; label: string };
 // Short, static option lists use a plain select; longer ones get search (shadcn: 2–7 options).
 const SELECT_LIMIT = 7;
@@ -307,8 +309,11 @@ export function WorkflowEditor({
     update: (node: WorkflowNode) => void,
   ) => ReactNode;
   renderConfig?: (node: WorkflowNode, key: string, update: (node: WorkflowNode) => void) => ReactNode;
-  /** Node catalog request state: `error` when it failed, `stale` when served from cache. */
-  catalog?: { error?: boolean; stale?: boolean; cachedAt?: string };
+  /**
+   * Node catalog request state: `error` when it failed, `stale` when served from cache.
+   * `message` says why it failed when the host knows better than a runtime outage.
+   */
+  catalog?: { error?: boolean; message?: string; stale?: boolean; cachedAt?: string };
   /** Host panel docked beside the canvas in place of the node inspector (e.g. simulation). */
   panel?: { label: string; description?: ReactNode; content: ReactNode };
   /** Per-node results to highlight on the canvas, keyed by node ID. */
@@ -915,8 +920,8 @@ export function WorkflowEditor({
               <div role="status" className="workflow-palette-unavailable">
                 <CloudOffIcon aria-hidden="true" className="size-4 shrink-0" />
                 <p>
-                  The node catalog is unavailable right now — existing nodes
-                  can still be viewed; adding nodes needs the device runtime.
+                  {catalog?.message ??
+                    "The node catalog is unavailable right now — existing nodes can still be viewed; adding nodes needs the device runtime."}
                 </p>
               </div>
             ) : (
@@ -1107,6 +1112,10 @@ export function WorkflowEditor({
                 setPanelOpen(true);
               }}
               onConnect={connect}
+              // React Flow's defaults (drag after 1px, click within 0px) make a click that drifts
+              // a pixel a drag, which moves the node and leaves unsaved layout changes behind.
+              nodeDragThreshold={NODE_DRAG_THRESHOLD}
+              nodeClickDistance={NODE_DRAG_THRESHOLD}
               onNodesChange={(changes) => {
                 const positions = { ...layout.positions };
                 let moved = false;

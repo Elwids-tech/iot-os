@@ -16,7 +16,7 @@ import {
   type Resource,
   type WorkflowNode,
 } from "@iot-os/workflow-editor";
-import { ArchiveIcon, ArchiveRestoreIcon, MailIcon, Redo2Icon, SparklesIcon, Undo2Icon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, MailIcon, Redo2Icon, SparklesIcon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import {
   Card,
@@ -211,6 +211,16 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     queryFn: () => api.automation<NodeCatalog>(org, "/dag/node-types"),
     retry: 1,
   });
+  // Shared with the directory, whose Enable automation preview turns them on.
+  const settings = useQuery({
+    queryKey: ["automation-settings", org],
+    queryFn: () => api.automation<{ data: { enabled: boolean; stopped: boolean; revision: number } }>(org, "/dag/settings"),
+  });
+  // Viewing works while automations are off (an automation may have moved here, spec 031
+  // FR-039); changing, simulating and activating wait until they are on. An API older than
+  // that refuses the catalog with 403 too.
+  const automationsOff =
+    settings.data?.data.enabled === false || (registry.error instanceof ApiError && registry.error.status === 403);
   const nodeTypes = useMemo(
     () => (registry.data?.data ?? []).map((type) => type.type === "action.command.v1" ? { ...type, label: "Set Device State" } : type),
     [registry.data],
@@ -252,7 +262,8 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
     Object.fromEntries(boundDevices.map((d, i) => [d, deviceQueries[i]?.data && (deviceQueries[i].data.data[0] ?? null)])),
   );
   const movedAway = new Set((live?.moved_devices ?? []).map((device) => device.device_uuid));
-  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0, moved: stale.some((s) => !s.current && movedAway.has(s.binding.device_uuid)) });
+  const activationReason = activationUnavailableReason({ busy, empty: graph.nodes.length === 0, saved, live, stale: stale.length > 0, moved: stale.some((s) => !s.current && movedAway.has(s.binding.device_uuid)), off: automationsOff });
+  const saveBlocked = automationsOff ? "Turn on automations in this organization before changing it." : undefined;
   // A running automation applies saves straight away; Save draft keeps them for later.
   const running = isRunning(live);
   // Archived automations are off and read-only until restored.
@@ -310,7 +321,17 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
   };
   const session = useQuery({ queryKey: ["session"], queryFn: () => api.me(), staleTime: 60000 });
   // Older APIs send no automation capabilities; the API's refusal then shows as an error.
-  const canManage = session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.automation?.manage ?? true;
+  const capabilities = session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.automation;
+  const canManage = capabilities?.manage ?? true;
+  // Turning automations on is the directory's Enable automation preview: Workflow.activate.
+  const canTurnOn = Boolean(capabilities?.activate);
+  async function turnOnAutomations() {
+    if (!settings.data) return;
+    await api.automation(org, "/dag/settings", "PUT", { ...settings.data.data, enabled: true });
+    await queryClient.invalidateQueries({ queryKey: ["automation-settings", org] });
+    await registry.refetch();
+    toast.success("Automations are on in this organization.");
+  }
   async function restore() {
     if (!saved) return;
     await api.restoreWorkflow(org, saved.uuid);
@@ -508,7 +529,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
             )}
             {running ? (
               <>
-                <Button size="sm" variant={dirty || !layoutDirty ? "outline" : "default"} disabled={busy || !needsSave} onClick={() => void run(async () => void (await save()))}>
+                <Button size="sm" variant={dirty || !layoutDirty ? "outline" : "default"} disabled={busy || !needsSave || automationsOff} title={saveBlocked} onClick={() => void run(async () => void (await save()))}>
                   {dirty ? "Save draft" : "Save"}
                 </Button>
                 <Button
@@ -526,8 +547,8 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
                 <Button
                   size="sm"
                   variant={needsSave ? "default" : "outline"}
-                  disabled={busy || archived}
-                  title={archived ? "Restore this automation before changing it." : undefined}
+                  disabled={busy || archived || automationsOff}
+                  title={archived ? "Restore this automation before changing it." : saveBlocked}
                   onClick={() => void run(async () => void (await save()))}
                 >
                   Save
@@ -573,8 +594,29 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
           />
         }
       >
-        {activationReason && !busy && <p className="text-sm text-muted-foreground" role="status">{activationReason}</p>}
+        {activationReason && !busy && !automationsOff && <p className="text-sm text-muted-foreground" role="status">{activationReason}</p>}
         <RequestError error={error ?? detail.error} />
+        {automationsOff && (
+          <Alert className="border-warning/40 bg-warning/5">
+            <TriangleAlertIcon className="text-warning" />
+            <AlertTitle>Automations are turned off in this organization</AlertTitle>
+            <AlertDescription className="text-foreground">
+              <p>
+                You can look at this automation, but changing, simulating or turning it on waits until automations are
+                turned on.{" "}
+                {canTurnOn
+                  ? "Turning them on here is the same as Enable automation preview on the Automations page."
+                  : "A member who can activate automations, such as an organization admin, turns them on from the Automations page."}
+              </p>
+              {/* In the flow rather than an AlertAction, which leaves room for a one-word button only. */}
+              {canTurnOn && settings.data && (
+                <Button className="mt-2" variant="outline" size="sm" disabled={busy} onClick={() => void run(turnOnAutomations)}>
+                  Turn on automations
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {live?.archived_at && (
           <Alert>
             <ArchiveIcon />
@@ -733,6 +775,11 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
               registry={nodeTypes}
               catalog={{
                 error: Boolean(registry.error),
+                // An API that refuses the catalog while automations are off, rather than a runtime outage.
+                message:
+                  registry.error instanceof ApiError && registry.error.status === 403
+                    ? "Automations are turned off in this organization, so the node catalog isn’t available. Existing nodes can still be viewed."
+                    : undefined,
                 stale: registry.data?.meta?.stale,
                 cachedAt: registry.data?.meta?.cached_at,
               }}

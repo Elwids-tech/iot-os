@@ -21,7 +21,10 @@ final class ScenarioController
     private function authorize(Request $r, Organization $organization, Workflow $workflow, ?Scenario $scenario = null): void
     {
         $this->auth->authorize($r->user(), $organization, $r->isMethod('GET') ? 'view' : 'manage', $workflow);
-        $this->auth->enabled($organization);
+        // Reading scenarios and their runs works while automations are off (spec 031 FR-039); saving and running doesn't.
+        if (! $r->isMethod('GET')) {
+            $this->auth->enabled($organization);
+        }
         abort_unless(($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2', 422, 'Scenarios require a v2 workflow.');
         if ($scenario) {
             abort_unless($scenario->automation_workflow_id === $workflow->id, 404);

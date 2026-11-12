@@ -32,6 +32,14 @@ with `Workflow.activate`. The same settings hold the organization **emergency
 stop**, which blocks activation and cancels every pending action (commands, alerts
 and events). The stop does not affect geofence rules.
 
+While automations are off, saving, validating, simulating and activating answer 403
+("Automations are turned off in this organization."). Reading doesn't need them on:
+the directory, an automation, the node catalogue (`GET dag/node-types`) and saved test
+scenarios with their runs need only `Workflow.view`. An automation that came along with a device move can sit in an
+organization with automations off; its editor shows its nodes, says automations are
+off, holds **Save** and **Activate**, and offers **Turn on automations** to members
+with `Workflow.activate` (others are told to ask one, on the **Automations** page).
+
 ### Authoring
 
 The editor ([`@iot-os/workflow-editor`](../../packages/workflow-editor), React
@@ -175,7 +183,9 @@ either come along or stay:
   identity, because the runtime ties an automation to one organization. It starts there
   once its devices are active, when it was running, automations are on there, the mover
   can turn automations on there and it sends no device commands; otherwise it arrives
-  off and the move's **Done** step lists it. The source's automation is turned off with
+  off and the move's **Done** step lists it. Where automations are off, the move's
+  review says so and a mover with `Workflow.activate` there can turn them on as part of
+  the move; until someone does, nobody can change or turn it on there. The source's automation is turned off with
   `stopped_reason = moved` and archived as **Moved to *target***, keeping its run
   history; the directory says where it went.
 - **Kept**: an automation that still binds the moved device is turned off at cutover

@@ -33,10 +33,11 @@ final class DagController
 {
     public function __construct(private readonly DagAuthorization $auth, private readonly DagAuthoring $authoring, private readonly RuntimeClient $runtime) {}
 
+    /** The node catalog, readable while automations are turned off. */
     public function registry(Request $r, Organization $organization): array
     {
+        // Only Workflow.view: an automation that moved where automations are off still shows its nodes (spec 031 FR-039).
         $this->auth->authorize($r->user(), $organization, 'view');
-        $this->auth->enabled($organization);
 
         // The catalog changes only with runtime releases, so the last copy keeps
         // existing graphs readable while the runtime is unavailable.

@@ -157,6 +157,12 @@ What shapes the design:
   history the device had at the move, earlier moves included, each part read where it
   was recorded. Stopping a link, or leaving the account, ends what crossed it for every
   device after it (FR-051, FR-052, ADR-041).
+- Q: What happens to an automation that moves to an organization where automations are
+  turned off? → A: It still moves, off, and the review says first that nobody there can
+  change or turn it on until automations are turned on. A mover who may turn them on in
+  the target (the permission the settings toggle needs) is offered to as part of the
+  move, unticked. Its editor shows its nodes while automations are off, and says where
+  they are turned on and who can (FR-039).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -346,6 +352,15 @@ Then:
    restored automation comes back off.
 9. **Then** no dashboard or automation, moved, copied or kept, uses devices of two
    organizations.
+10. **Given** an automation that moves to an organization where automations are turned
+    off, **Then** its row and the summary say nobody can change or turn it on there
+    until automations are turned on.
+    - A mover who may turn them on there is offered **Turn on automations in
+      *target***, unticked. Ticking it turns them on at cutover, before the automation
+      arrives, so a running one can keep running.
+    - Otherwise it arrives off, and **Done** lists it until automations are turned on.
+    - Its editor shows its nodes, says automations are off, and offers to turn them on
+      to those who may; others are told who can, on the **Automations** page.
 
 ---
 
@@ -570,8 +585,9 @@ the card, and after confirming, the result matches a move made from the device l
   shows or uses only the predecessors' history from then on.
 - An automation that moves but sends device commands arrives off: its command
   authorizations were given in the source and must be given again in the target.
-- A target without automations turned on still receives moved automations; they arrive
-  off until automations are turned on there.
+- A target without automations turned on still receives moved automations. They arrive
+  off, and nobody can change or turn them on there until automations are turned on,
+  which the mover may do as part of the move (FR-039).
 - Two dashboards or automations in the target may end up with the same name; names
   aren't unique, so nothing is renamed.
 - A telemetry capture running on a predecessor ends at cutover.
@@ -751,9 +767,9 @@ the card, and after confirming, the result matches a move made from the device l
   the successors wherever it used the predecessors.
   - Alert recipients who are members of the target and can view devices stay; the
     others are removed and listed before confirming.
-  - It keeps running only when it was running, automations are turned on in the target,
-    the mover may activate automations there, and it sends no device commands.
-    Otherwise it arrives off.
+  - It keeps running only when it was running, automations are turned on in the target
+    (or the move turns them on, FR-039), the mover may activate automations there, and
+    it sends no device commands. Otherwise it arrives off.
   - Its run history up to cutover stays with the source.
 - **FR-036**: An automation that stays in the source MUST NOT keep using a moved device.
   If it still refers to one, it MUST be suspended, naming the moved device, until a
@@ -764,6 +780,17 @@ the card, and after confirming, the result matches a move made from the device l
   archived**, and can be restored by a member with the matching permission. A restored
   automation comes back off. Archiving is available outside moves too.
 - **FR-038**: No dashboard or automation MAY use devices of two organizations.
+- **FR-039**: When an automation moves to an organization where automations are turned
+  off, the review MUST say before confirming that nobody can change or turn it on there
+  until they are turned on.
+  - A mover who holds what turning them on needs there (`Workflow.activate`, as for the
+    settings toggle) MUST be offered to turn them on as part of the move. It MUST NOT be
+    preselected. The cutover turns them on before the automations move and records it
+    in the target's activity, and fails the move if the mover lost that permission.
+  - Otherwise **Done** MUST list each such automation until automations are turned on.
+  - Reading a moved automation and the node catalog MUST NOT need automations turned
+    on. Its editor MUST say automations are off, where they are turned on and who can,
+    rather than report the node catalog as unavailable.
 
 **Onboarding into another organization**
 

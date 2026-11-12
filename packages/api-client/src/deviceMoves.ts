@@ -43,6 +43,11 @@ export type DeviceMoveInput = {
   items?: DeviceMoveItemInput[]
   /** Let the target read each device's readings from before the move; off by default. */
   include_history?: boolean
+  /**
+   * Turn automations on in the target at cutover, for an automation that moves where they
+   * are off; honoured only when the review offers it (spec 031 FR-039).
+   */
+  turn_on_automations?: boolean
 }
 
 export type DeviceMoveConfirmation = DeviceMoveInput & {
@@ -117,6 +122,13 @@ export type DeviceMoveReview = {
   pipe_owner_sees_raw_messages: boolean
   /** **Include readings from before the move**: the request's `include_history`, part of the hash. */
   history: { offered: boolean; include: boolean }
+  /**
+   * Automations in the target (FR-039). Where they are off, nobody can change or turn on an
+   * automation that moves there until they are turned on. `offered` when one moves, they are
+   * off, and the mover may turn them on there; `turn_on` is the request's
+   * `turn_on_automations` when offered, part of the hash.
+   */
+  automations: { enabled: boolean; offered: boolean; turn_on: boolean }
   summary: string[]
   /** The items to be archived, confirmed on their own. */
   archives: { kind: DeviceMoveItemKind; uuid: string; name: string }[]

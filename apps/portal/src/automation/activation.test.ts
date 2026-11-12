@@ -20,6 +20,10 @@ describe("activation availability", () => {
     expect(activationUnavailableReason({ ...state, live: { ...revision, archived_at: "2026-11-11T09:30:00Z" } })).toBe("Restore this automation before activating it.")
     expect(activationUnavailableReason({ ...state, live: { ...revision, archived_at: null } })).toBeUndefined()
   })
+  it("waits for automations to be turned on in the organization", () => {
+    expect(activationUnavailableReason({ ...state, off: true })).toBe("Turn on automations in this organization before activating it.")
+    expect(activationUnavailableReason({ ...state, off: false })).toBeUndefined()
+  })
   it("allows reactivation after the disable acknowledgement clears pending state", () => {
     expect(activationUnavailableReason({ ...state, live: { ...revision, pending_operation_uuid: "disable" } })).toBeTruthy()
     expect(activationUnavailableReason({ ...state, live: { ...revision, pending_operation_uuid: null } })).toBeUndefined()

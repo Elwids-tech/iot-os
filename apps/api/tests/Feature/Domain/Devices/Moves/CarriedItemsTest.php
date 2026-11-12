@@ -13,6 +13,8 @@ use App\Domain\Dashboards\Models\Dashboard;
 use App\Domain\Dashboards\Services\DashboardRewrite;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceMove;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Dashboards and automations come along with a move (spec 031 US2, the Independent Test):
@@ -22,6 +24,11 @@ use App\Domain\Devices\Models\DeviceMove;
  */
 final class CarriedItemsTest extends MoveTestCase
 {
+    protected function runtimeAnswer(string $path, array $query): ?array
+    {
+        return str_ends_with($path, '/dag/node-types') ? [['type' => 'compare.v1', 'label' => 'Compare']] : null;
+    }
+
     public function test_the_preselected_choices_move_copy_and_keep_and_nothing_crosses(): void
     {
         $x = $this->adapterFed('WM-1001', 'Tracker X');
@@ -172,11 +179,96 @@ final class CarriedItemsTest extends MoveTestCase
 
         $this->automation($this->a, 'Y flow', [$y]);
         $this->automationsOn($this->b, false);
-        $this->assertSame('Moves to Harbour Shop and arrives off, because automations are turned off in Harbour Shop.', $this->review($this->a, $this->b, [$y])->json('items.0.outcome'));
+        $this->assertSame('Moves to Harbour Shop and arrives off, because automations are turned off in Harbour Shop. Nobody can change or turn it on there until automations are turned on in Harbour Shop.',
+            $this->review($this->a, $this->b, [$y])->json('items.0.outcome'));
         $move = $this->moved($this->a, $this->b, [$y]);
         $this->applied($this->successor($y));
         $this->assertSame(['Turn it on in Harbour Shop: it arrived off because automations are turned off in Harbour Shop.'], array_column($this->getJson($this->in($this->b).'/device-moves/'.$move['uuid'])->json('data.needs_attention'), 'reason'));
         $this->assertSame(0, Workflow::where('organization_id', $this->b->id)->where('name', 'Y flow')->value('deployment_generation'));
+    }
+
+    /** FR-039: where automations are off, a mover who may turn them on there can choose to, and the cutover does first. */
+    public function test_a_mover_may_turn_automations_on_where_an_automation_moves(): void
+    {
+        $x = $this->adapterFed('WM-1001', 'Tracker X');
+        $this->automation($this->a, 'Shop low flow', [$x]);
+
+        $review = $this->review($this->a, $this->b, [$x])->assertOk()->json();
+        $this->assertSame(['enabled' => false, 'offered' => true, 'turn_on' => false], $review['automations']);
+        $this->assertSame([false, 'Moves to Harbour Shop and arrives off, because automations are turned off in Harbour Shop. Nobody can change or turn it on there until automations are turned on in Harbour Shop.'],
+            [$review['items'][0]['arrives_running'], $review['items'][0]['outcome']]);
+        $this->assertContains('Automations are turned off in Harbour Shop. Until someone turns them on there, the automation that moves can’t be changed or turned on.', $review['summary']);
+
+        $turnOn = ['turn_on_automations' => true];
+        $review = $this->review($this->a, $this->b, [$x], $turnOn)->assertOk()->json();
+        $this->assertSame(['enabled' => false, 'offered' => true, 'turn_on' => true], $review['automations']);
+        $this->assertSame([true, 'Moves to Harbour Shop and keeps running there once its devices are active.'], [$review['items'][0]['arrives_running'], $review['items'][0]['outcome']]);
+        $this->assertContains('Automations are turned on in Harbour Shop.', $review['summary']);
+        // The choice is part of the hash, so a confirmation must ask for what was reviewed.
+        $this->postJson($this->in($this->a).'/device-moves', ['target_organization_uuid' => $this->b->uuid, 'device_uuids' => [$x->uuid], ...$turnOn,
+            'operation_uuid' => (string) Str::uuid(), 'preview_hash' => $this->review($this->a, $this->b, [$x])->json('preview_hash')])->assertConflict();
+        // Keeping the automation in the source leaves nothing to turn on.
+        $kept = $this->review($this->a, $this->b, [$x], [...$turnOn, 'items' => [['kind' => 'automation', 'uuid' => $review['items'][0]['uuid'], 'action' => 'keep']]])->json('automations');
+        $this->assertSame(['enabled' => false, 'offered' => false, 'turn_on' => false], $kept);
+
+        $move = $this->moved($this->a, $this->b, [$x], $turnOn);
+        $this->assertTrue($this->getJson($this->in($this->b).'/workflows/dag/settings')->assertOk()->json('data.enabled'));
+        $this->assertSame(1, DB::table('activity_log')->where('organization_id', $this->b->id)->where('event', 'automation.settings_changed')->where('properties->move_uuid', $move['uuid'])->count());
+        $this->applied($this->successor($x));
+        $moved = Workflow::where('organization_id', $this->b->id)->where('name', 'Shop low flow')->firstOrFail();
+        $this->assertNotNull($moved->desired_deployment_uuid);
+        $this->assertSame([], $this->getJson($this->in($this->b).'/device-moves/'.$move['uuid'])->json('data.needs_attention'));
+    }
+
+    /** FR-039: without turning them on, the moved automation shows its nodes but waits for automations, and Done says so. */
+    public function test_an_automation_that_moves_where_automations_are_off_shows_and_waits(): void
+    {
+        $x = $this->adapterFed('WM-1001', 'Tracker X');
+        $this->automation($this->a, 'Shop low flow', [$x], running: false);
+
+        $this->assertSame('Moves to Harbour Shop, off as it is now. Nobody can change or turn it on there until automations are turned on in Harbour Shop.',
+            $this->review($this->a, $this->b, [$x])->json('items.0.outcome'));
+        $move = $this->moved($this->a, $this->b, [$x]);
+        $this->assertFalse(DeviceMove::where('uuid', $move['uuid'])->firstOrFail()->turns_on_automations);
+        $this->applied($this->successor($x));
+        $moved = Workflow::where('organization_id', $this->b->id)->where('name', 'Shop low flow')->firstOrFail();
+        $attention = fn (): array => $this->getJson($this->in($this->b).'/device-moves/'.$move['uuid'])->assertOk()->json('data.needs_attention');
+        $this->assertSame([['kind' => 'automation', 'uuid' => $moved->uuid, 'name' => 'Shop low flow', 'reason' => 'Turn on automations in Harbour Shop to change or run it.']], $attention());
+        // Only members of the target are told.
+        $this->as($this->aOnly, fn () => $this->assertSame([], $this->getJson($this->in($this->a).'/device-moves/'.$move['uuid'])->assertOk()->json('data.needs_attention')));
+
+        $workflows = $this->in($this->b).'/workflows';
+        $this->getJson($workflows.'/'.$moved->uuid)->assertOk();
+        $this->getJson($workflows.'/dag/node-types')->assertOk()->assertJsonPath('data.0.type', 'compare.v1');
+        $this->getJson($workflows.'/'.$moved->uuid.'/scenarios')->assertOk();
+        $this->putJson($workflows.'/'.$moved->uuid, ['name' => 'Shop low flow', 'workflow' => $moved->workflow, 'draft_revision' => $moved->draft_revision])
+            ->assertForbidden()->assertJsonPath('message', 'Automations are turned off in this organization.');
+
+        $this->automationsOn($this->b);
+        $this->assertSame([], $attention());
+    }
+
+    /** FR-039: turning automations on is the settings toggle's, so it needs Workflow.activate in the target, and still at cutover. */
+    public function test_only_a_mover_who_may_turn_automations_on_is_offered_it(): void
+    {
+        $x = $this->adapterFed('WM-1001', 'Tracker X');
+        $this->automation($this->a, 'Shop low flow', [$x]);
+        $roles = app(OrganizationRoleManager::class);
+        $builder = $roles->create($this->b, $this->mover, 'Automation builder', ['Device.view', 'Device.move', 'Workflow.view', 'Workflow.manage'])->id;
+
+        $move = $this->confirm($this->a, $this->b, [$x], ['turn_on_automations' => true])->assertAccepted()->json('data');
+        $roles->syncMemberRoles($this->b, $this->mover, [$builder]);
+        $this->answerStops();
+        $failed = $this->getJson($this->in($this->a).'/device-moves/'.$move['uuid'])->assertOk()->json('data');
+        $this->assertSame(['failed', 'The person who moved the devices can no longer turn on automations in Harbour Shop.'], [$failed['status'], $failed['failure_reason']]);
+        $this->assertFalse(DB::table('automation_settings')->where('organization_id', $this->b->id)->where('enabled', true)->exists());
+
+        // Without it, the move is still offered, but turning automations on isn't.
+        $x->refresh();
+        $this->applied($x);
+        $review = $this->review($this->a, $this->b, [$x->fresh()], ['turn_on_automations' => true])->assertOk()->json();
+        $this->assertSame(['move', 'keep', 'archive'], $review['items'][0]['actions']);
+        $this->assertSame(['enabled' => false, 'offered' => false, 'turn_on' => false], $review['automations']);
     }
 
     public function test_adding_the_other_devices_recomputes_every_row(): void

@@ -97,6 +97,16 @@ tests that ran. For PRs that change the runtime or contracts, also run
      own tick on **Confirm**.
 3. Archive a dashboard and an automation outside a move. They hide behind **Show
    archived**, and a restored automation comes back off.
+4. Automations turned off in the target (FR-039). Create organization E in the account
+   without turning automations on, and an automation W3 in A using only device Z.
+   - Move Z to E. **What comes along** warns that automations are turned off in E and
+     offers **Turn on automations in E**, unticked. Leave it. **Done** lists W3: "Turn on
+     automations in E to change or run it."
+   - Open W3 in E. Its nodes show, the banner says automations are turned off, Save and
+     Activate wait, and **Turn on automations** turns them on; Done no longer lists it.
+   - Move another device with a running automation to an organization with automations
+     off, ticking the option. Automations are on there after the move, and the
+     automation runs once its device is active.
 
 ## 5. Gateway pipes (PRs 031-5 and 031-6)
 

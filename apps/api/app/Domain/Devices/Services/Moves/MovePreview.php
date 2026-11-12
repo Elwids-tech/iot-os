@@ -67,6 +67,8 @@ final class MovePreview
             ...CarriedItems::rules(),
             // Whether the target may read the predecessors' readings from before the cutover (US6).
             'include_history' => ['sometimes', 'boolean'],
+            // Whether to turn automations on in the target, for an automation that moves there (FR-039).
+            'turn_on_automations' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -185,7 +187,7 @@ final class MovePreview
         $views = array_column($rows, 'view');
         // Panels and bindings name the source's parameters; the copies map each one (research R5).
         $parameters = $artifacts->flatMap(fn (DeviceProfileArtifact $artifact) => array_column($artifact->definition['parameters'] ?? [], 'uuid'))->unique()->values()->all();
-        $carried = $this->carried->review($source, $target, $user, $devices, array_column($views, 'arrives_active', 'uuid'), array_combine($parameters, $parameters), $input['items'] ?? []);
+        $carried = $this->carried->review($source, $target, $user, $devices, array_column($views, 'arrives_active', 'uuid'), array_combine($parameters, $parameters), $input['items'] ?? [], (bool) ($input['turn_on_automations'] ?? false));
         $items = array_column($carried['rows'], 'view');
         $copies = $artifacts->values()->map(fn (DeviceProfileArtifact $artifact): array => [
             'profile' => $artifact->profile->name, 'revision' => $artifact->revision,
@@ -200,7 +202,9 @@ final class MovePreview
             'profile_copies' => $copies,
             'pipe_owner_sees_raw_messages' => collect($rows)->contains(fn (array $row): bool => $row['pipe'] !== null),
             'history' => ['offered' => true, 'include' => (bool) ($input['include_history'] ?? false)],
-            'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $items),
+            // Automations in the target, for the automations that move there (FR-039).
+            'automations' => $carried['automations'],
+            'summary' => $this->summary($source, $target, $rows, $ends, count($copies), $items, $carried['automations']),
             'archives' => array_values(array_map(fn (array $item): array => ['kind' => $item['kind'], 'uuid' => $item['uuid'], 'name' => $item['name']], array_filter($items, fn (array $item): bool => $item['action'] === 'archive'))),
         ];
         if ($review['history']['include']) {
@@ -335,9 +339,10 @@ final class MovePreview
      * @param  list<array<string, mixed>>  $rows
      * @param  array{alerts: int, geofence_assignments: int, application_grants: list<array{name: string, devices: int}>}  $ends
      * @param  list<array<string, mixed>>  $items  the dashboards and automations, as reviewed
+     * @param  array{enabled: bool, offered: bool, turn_on: bool}  $automations
      * @return list<string>
      */
-    private function summary(Organization $source, Organization $target, array $rows, array $ends, int $copies, array $items): array
+    private function summary(Organization $source, Organization $target, array $rows, array $ends, int $copies, array $items, array $automations): array
     {
         $count = fn (int $n, string $one, ?string $many = null): string => $n.' '.($n === 1 ? $one : ($many ?? $one.'s'));
         $chosen = fn (string $kind, string $action): array => array_values(array_filter($items, fn (array $item): bool => $item['kind'] === $kind && $item['action'] === $action));
@@ -361,6 +366,12 @@ final class MovePreview
         $off = count(array_filter($chosen('automation', 'move'), fn (array $item): bool => $item['running'] && ! $item['arrives_running']));
         if ($off) {
             $sentences[] = $count($off, 'running automation').' '.($off === 1 ? 'arrives' : 'arrive').' off in '.$target->name.'.';
+        }
+        if ($automations['turn_on']) {
+            $sentences[] = 'Automations are turned on in '.$target->name.'.';
+        } elseif (! $automations['enabled'] && $moved = count($chosen('automation', 'move'))) {
+            $sentences[] = 'Automations are turned off in '.$target->name.'. Until someone turns them on there, '
+                .($moved === 1 ? 'the automation that moves' : 'the '.$moved.' automations that move').' can’t be changed or turned on.';
         }
         if ($archived = $both(count($chosen('dashboard', 'archive')), count($chosen('automation', 'archive')))) {
             $sentences[] = $archived.' '.(count($chosen('dashboard', 'archive')) + count($chosen('automation', 'archive')) === 1 ? 'is' : 'are').' archived in '.$source->name.'.';

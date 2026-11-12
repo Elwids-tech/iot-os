@@ -38,7 +38,8 @@ Request:
   "device_uuids": ["…"],
   "devices": [{ "uuid": "…", "name": "Shop tracker", "code": "trk-0042", "site_uuid": null }],
   "items": [{ "kind": "dashboard", "uuid": "…", "action": "copy" }],
-  "include_history": false
+  "include_history": false,
+  "turn_on_automations": false
 }
 ```
 
@@ -75,6 +76,7 @@ Response (`200`):
   }],
   "pipe_owner_sees_raw_messages": true,
   "history": { "offered": true, "include": false },
+  "automations": { "enabled": true, "offered": false, "turn_on": false },
   "summary": [
     "2 devices and 1 dashboard move to Harbour Shop.",
     "1 dashboard is copied with 3 of its 7 panels."
@@ -111,6 +113,15 @@ Notes:
   readings it recorded there before." (or "*n* devices return… they…").
 - `archives` lists each item to be archived, so it can be confirmed on its own
   (FR-006).
+- `automations` (FR-039): `enabled` says whether automations are turned on in the
+  target. While they are off, each automation that moves adds "Nobody can change or
+  turn it on there until automations are turned on in *target*." to its `outcome`, and
+  the `summary` adds "Automations are turned off in *target*. Until someone turns them
+  on there, the automation that moves can't be changed or turned on." `offered` is true
+  when an automation moves, they are off, and the mover holds `Workflow.activate` in the
+  target. `turn_on` is the request's `turn_on_automations` when offered, else false;
+  it is part of the hash, a running automation that moves may then keep running, and
+  the `summary` says "Automations are turned on in *target*." instead.
 
 ## Confirm (PR 031-1)
 
@@ -190,7 +201,12 @@ What each side sees:
   source for what stayed there, was archived or was copied from; `target_uuid` to
   members of the target for what moved or was copied there.
 - `needs_attention` also lists, as `kind: "automation"`, moved automations that arrived
-  off or could not start, with the reason.
+  off or could not start, with the reason, and, while automations are turned off in the
+  target, every automation the move brought there: "Turn on automations in *target* to
+  change or run it." (FR-039).
+- A move confirmed with `turn_on_automations` fails at cutover with "The person who
+  moved the devices can no longer turn on automations in *target*." when the mover lost
+  `Workflow.activate` there.
 
 ## Device reads (PR 031-1)
 

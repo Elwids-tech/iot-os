@@ -32,7 +32,7 @@ components:
     DeviceMoveReview:
       type: object
       description: What a move would do (spec 031, contract § Review). It changes nothing. Confirm with the same body plus `preview_hash`, and `confirmed_archives` naming exactly the items in `archives`. `items` lists the dashboards and automations of the source that use a moving device, each with the choice made for it; `history.offered` says whether the target can be given the readings from before the move.
-      required: [preview_hash, can_confirm, devices, items, ends, profile_copies, pipe_owner_sees_raw_messages, history, summary, archives]
+      required: [preview_hash, can_confirm, devices, items, ends, profile_copies, pipe_owner_sees_raw_messages, history, automations, summary, archives]
       properties:
         preview_hash:
           type: string
@@ -144,6 +144,20 @@ components:
             include:
               type: boolean
               description: The request's `include_history`. It is part of the hash, so a confirmation must ask for the same.
+        automations:
+          type: object
+          description: 'Automations in the target (spec 031 FR-039). Where they are turned off, nobody can change or turn on an automation that moves there until they are turned on, and each moving automation''s `outcome` and the `summary` say so. A mover who may turn them on there (`Workflow.activate`, as the settings toggle needs) can ask to with `turn_on_automations: true`; the cutover then turns them on before the automations move.'
+          required: [enabled, offered, turn_on]
+          properties:
+            enabled:
+              type: boolean
+              description: Whether automations are turned on in the target now.
+            offered:
+              type: boolean
+              description: An automation moves, automations are off in the target, and the mover may turn them on there.
+            turn_on:
+              type: boolean
+              description: The request's `turn_on_automations` when offered, else false. It is part of the hash, so a confirmation must ask for the same.
         summary:
           type: array
           items:
