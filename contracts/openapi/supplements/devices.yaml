@@ -44,7 +44,7 @@ components:
           type: array
           items:
             type: object
-            required: [uuid, name, code, successor, reports_through, arrives_active, blockers]
+            required: [uuid, name, code, successor, reports_through, arrives_active, returns, blockers]
             properties:
               uuid:
                 type: string
@@ -86,6 +86,9 @@ components:
               arrives_active:
                 type: boolean
                 description: Active now, and the person may activate devices in the target.
+              returns:
+                type: boolean
+                description: The device, or one before it, was in the target before. Its successor reconnects to the readings recorded there, whatever `include_history` says (ADR-040), and `summary` says so.
               blockers:
                 type: array
                 description: Plain sentences; any blocker stops the confirmation.
@@ -430,7 +433,7 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/DeviceMoveReview'
-            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays"}, "arrives_active": true, "blockers": []}], "items": [{"kind": "dashboard", "uuid": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", "name": "Fleet", "uses_only_moving": false, "actions": ["copy", "keep"], "action": "copy", "omitted": {"panels": ["Fuel level (Tracker 7)"], "shares": [], "recipients": [], "references": []}, "other_devices": {"count": 1, "can_add": true, "device_uuids": ["7b2e9c41-0d3f-4a5b-8c6d-9e0f1a2b3c4d"]}, "running": null, "arrives_running": null, "outcome": "Harbour Shop gets a copy with 1 of its 2 panels, owned by you and shared with no one."}], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": true, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 dashboard is copied to Harbour Shop with only the moving devices’ panels.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends."], "archives": []}
+            example: {"preview_hash": "9b2d0c5e1f3a4b6c7d8e9f00112233445566778899aabbccddeeff0011223344", "can_confirm": true, "devices": [{"uuid": "6a1f8a52-5a8e-4f4e-9d77-1c2b3d4e5f60", "name": "Tracker 42", "code": "trk-0042", "successor": {"name": "Shop tracker", "code": "trk-0042", "site_uuid": null}, "reports_through": {"kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays"}, "arrives_active": true, "returns": false, "blockers": []}], "items": [{"kind": "dashboard", "uuid": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", "name": "Fleet", "uses_only_moving": false, "actions": ["copy", "keep"], "action": "copy", "omitted": {"panels": ["Fuel level (Tracker 7)"], "shares": [], "recipients": [], "references": []}, "other_devices": {"count": 1, "can_add": true, "device_uuids": ["7b2e9c41-0d3f-4a5b-8c6d-9e0f1a2b3c4d"]}, "running": null, "arrives_running": null, "outcome": "Harbour Shop gets a copy with 1 of its 2 panels, owned by you and shared with no one."}], "ends": {"alerts": 1, "geofence_assignments": 0, "application_grants": [{"name": "Fleet export", "devices": 1}]}, "profile_copies": [{"profile": "GPS tracker", "revision": 4, "code": "gps-tracker", "reused": false}], "pipe_owner_sees_raw_messages": true, "history": {"offered": true, "include": false}, "summary": ["1 device moves to Harbour Shop.", "1 device keeps reporting through the adapter Vendor trackers, which stays with Integrator.", "1 dashboard is copied to Harbour Shop with only the moving devices’ panels.", "1 device profile version is copied to Harbour Shop.", "1 open alert ends."], "archives": []}
       '422':
         $ref: '#/components/responses/ValidationFailed'
   GET /v1/organizations/{organization}/device-moves/{move}:
@@ -514,19 +517,19 @@ operations:
       '409':
         $ref: '#/components/responses/Conflict'
   GET /v1/organizations/{organization}/devices/{device}/measurements/history:
-    description: The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`.
+    description: The parameter's history in buckets, at observed time, joining configuration revisions. Every point carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the points before the cutover are its predecessor's, read from the source under the source's retention, with `recorded_in` `source`; the rest are `self`. A bucket that spans the cutover holds both and is `source`. A device moved back also has the readings it recorded in this organization before, first, as `self` (ADR-040).
     responses:
       '503':
         $ref: '#/components/responses/RuntimeUnavailable'
   GET /v1/organizations/{organization}/devices/{device}/measurements/records:
-    description: The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision.
+    description: The parameter's stored readings, newest first, a page at a time; pass `meta.next_cursor` as `cursor`. Every record carries `recorded_in`. For a device moved here with its readings shared (spec 031 US6), the pages continue into its predecessor's records from before the cutover, `recorded_in` `source`, under the same `limit`; they keep the predecessor's `configuration_uuid` but not its installation or adapter revision. A device moved back continues into the readings it recorded in this organization before, as `self` (ADR-040).
   GET /v1/organizations/{organization}/devices/{device}/measurements/state-history:
-    description: Durations and a timeline of a boolean, enum or colour parameter. Each timeline segment carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the segments up to the cutover are its predecessor's (`source`), and durations add up both.
+    description: Durations and a timeline of a boolean, enum or colour parameter. Each timeline segment carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the segments up to the cutover are its predecessor's (`source`), and durations add up both. A device moved back also has the segments it recorded in this organization before, first, as `self` (ADR-040).
     responses:
       '504':
         $ref: '#/components/responses/RangeTimeout'
   GET /v1/organizations/{organization}/devices/{device}/measurements/increase:
-    description: A counter's increase per calendar bucket, cut in `timezone` (by default the device's site's, then its organization's). Every point carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the predecessor's buckets before the cutover are added in, and the bucket that holds the cutover sums both and is `source`.
+    description: A counter's increase per calendar bucket, cut in `timezone` (by default the device's site's, then its organization's). Every point carries `recorded_in`; for a device moved here with its readings shared (spec 031 US6), the predecessor's buckets before the cutover are added in, and the bucket that holds the cutover sums both and is `source`. A device moved back also adds the buckets it recorded in this organization before, as `self` (ADR-040).
   POST /v1/organizations/{organization}/devices/{device}/onboarding/provision:
     responses:
       '202':

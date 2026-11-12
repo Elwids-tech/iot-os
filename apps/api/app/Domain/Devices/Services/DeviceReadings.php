@@ -17,13 +17,18 @@ use Illuminate\Validation\ValidationException;
  * the same way. Callers validate input and check access.
  *
  * Every history read here also serves a moved device's readings from before its move
- * when the mover shared them (spec 031 US6): Laravel asks the runtime once for the
- * device and once for its predecessor under the source, and joins the answers. Each
- * reading carries `recorded_in`: `self`, or `source` for the predecessor's.
+ * (spec 031 US6, ADR-040): its predecessor's when the mover shared them, under the
+ * source, and those of any earlier predecessor in its own organization. Laravel asks the
+ * runtime once for the device and once for each earlier part, and joins the answers,
+ * oldest first. Each reading carries `recorded_in`: `self`, or `source` for the shared
+ * predecessor's.
  */
 final class DeviceReadings
 {
-    /** How a records cursor marks the predecessor's pages: `earlier.<own records consumed>.<runtime cursor>`. */
+    /**
+     * How a records cursor marks the pages from before the move:
+     * `earlier.<records consumed before the part>.<the part's hops>.<runtime cursor>`.
+     */
     private const EARLIER_CURSOR = 'earlier.';
 
     public function __construct(private readonly RuntimeClient $runtime, private readonly RetentionService $retention) {}
@@ -71,28 +76,34 @@ final class DeviceReadings
         $basis = $observed ? ['time_basis' => 'observed', 'merge_configurations' => 1] : [];
         $days = $this->retention->effective($organization)['days'];
         $query = [...$values, ...$basis, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $days];
-        $earlier = $this->earlier($device, $values);
-        if (! $earlier) {
+        $parts = $this->earlier($device, $values);
+        if ($parts === []) {
             $own = $this->runtime->request('GET', '/internal/measurements/history', $query, RuntimeClient::RANGE_TIMEOUT);
 
             return [...$own, 'data' => JoinedReadings::series([], $own['data'] ?? [], $observed)];
         }
-        // One bucket width for both answers, so their buckets meet at the same edges.
-        $width = $earlier->bucketSeconds($values, $days);
+        // One bucket width for every answer, so their buckets meet at the same edges.
+        $width = EarlierReadings::bucketSeconds($parts, $values, $days);
         $own = $this->runtime->request('GET', '/internal/measurements/history', [...$query, 'bucket_seconds' => $width], RuntimeClient::RANGE_TIMEOUT);
-        $before = $this->runtime->request('GET', '/internal/measurements/history', [...$earlier->query($values), ...$basis, 'bucket_seconds' => $width], RuntimeClient::RANGE_TIMEOUT);
-        $series = JoinedReadings::series($before['data'] ?? [], $own['data'] ?? [], $observed, $width);
-        // The runtime's own limit, over both answers.
+        $before = array_map(fn (EarlierReadings $part): array => ['recorded_in' => $part->recordedIn,
+            'answer' => $this->runtime->request('GET', '/internal/measurements/history', [...$part->query($values), ...$basis, 'bucket_seconds' => $width], RuntimeClient::RANGE_TIMEOUT)], $parts);
+        $series = JoinedReadings::series(array_map(fn (array $part): array => ['recorded_in' => $part['recorded_in'], 'data' => $part['answer']['data'] ?? []], $before), $own['data'] ?? [], $observed, $width);
+        // The runtime's own limit, over every answer.
         if (array_sum(array_map(fn (array $one): int => count($one['points']), $series)) > 2000) {
             throw ValidationException::withMessages(['runtime' => 'This range contains too many values or configuration changes. Choose a shorter range.']);
         }
+        $from = $own['from'] ?? null;
+        foreach ($before as $part) {
+            $from = self::earliest($part['answer']['from'] ?? null, $from);
+        }
 
-        return [...$own, 'from' => self::earliest($before['from'] ?? null, $own['from'] ?? null), 'data' => $series];
+        return [...$own, 'from' => $from, 'data' => $series];
     }
 
     /**
      * Stored readings, newest first, a page at a time. A moved device's pages continue
-     * into its predecessor's readings once its own run out, under the same limit.
+     * into the readings from before its move once its own run out, newest part first,
+     * under the same limit.
      *
      * @param  array{from: string, to: string, parameter_uuid: string, limit: int, page_size: int, cursor?: string}  $values
      */
@@ -100,69 +111,109 @@ final class DeviceReadings
     {
         $values = [...$values, 'limit' => (int) $values['limit'], 'page_size' => (int) $values['page_size']];
         $query = [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $this->retention->effective($organization)['days']];
-        $earlier = $this->earlier($device, $values);
+        $parts = array_reverse($this->earlier($device, $values));
         $cursor = $values['cursor'] ?? '';
         if (str_starts_with($cursor, self::EARLIER_CURSOR)) {
-            [, $consumed, $next] = array_pad(explode('.', $cursor, 3), 3, '');
-            if (! ctype_digit($consumed) || (int) $consumed >= $values['limit']) {
+            [, $consumed, $hops, $next] = array_pad(explode('.', $cursor, 4), 4, '');
+            if (! ctype_digit($consumed) || (int) $consumed >= $values['limit'] || ! ctype_digit($hops)) {
                 throw ValidationException::withMessages(['cursor' => 'This cursor is not valid. Load the records again.']);
             }
-            // Sharing stopped between two pages: the predecessor's readings end here.
-            if (! $earlier) {
+            // The part the cursor reads and the older ones. Sharing stopped between two pages
+            // ends the predecessor's readings there; the device's own organization's go on.
+            $rest = array_values(array_filter($parts, fn (EarlierReadings $part): bool => $part->hops >= (int) $hops));
+            if ($rest === []) {
                 return ['data' => [], 'meta' => ['from' => $values['from'], 'to' => $values['to'], 'limit' => $values['limit'], 'page_size' => $values['page_size'],
                     'returned' => 0, 'consumed' => (int) $consumed, 'next_cursor' => null, 'has_more' => false, 'limit_reached' => false]];
             }
 
-            return $this->earlierRecords($earlier, $values, (int) $consumed, $values['page_size'], $next);
+            return $this->earlierRecords($rest, $values, (int) $consumed, $values['page_size'], $rest[0]->hops === (int) $hops ? $next : '');
         }
         $own = self::forOwner($device, $this->runtime->request('GET', '/internal/measurements/records', $query));
         $own['data'] = JoinedReadings::mark($own['data'] ?? [], JoinedReadings::SELF);
         $meta = $own['meta'] ?? [];
         $consumed = (int) ($meta['consumed'] ?? 0);
-        if (! $earlier || ($meta['next_cursor'] ?? null) !== null || ($meta['limit_reached'] ?? false) || $consumed >= $values['limit']) {
+        if ($parts === [] || ($meta['next_cursor'] ?? null) !== null || ($meta['limit_reached'] ?? false) || $consumed >= $values['limit']) {
             return $own;
         }
         $room = $values['page_size'] - count($own['data']);
-        $before = $this->earlierRecords($earlier, $values, $consumed, max(1, $room), '');
         if ($room < 1) {
-            // This page is full: the predecessor's readings start on the next one, if it has any.
-            $more = $before['data'] !== [];
+            // This page is full: the readings from before start on the next one, if there are any.
+            $first = $this->firstEarlier($parts, $values, $consumed);
 
-            return [...$own, 'meta' => [...$meta, 'from' => $before['meta']['from'], 'next_cursor' => $more ? self::EARLIER_CURSOR.$consumed.'.' : null, 'has_more' => $more]];
+            return [...$own, 'meta' => [...$meta, 'from' => $first['meta']['from'] ?? $meta['from'] ?? $values['from'],
+                'next_cursor' => $first ? self::EARLIER_CURSOR.$consumed.'.'.$parts[0]->hops.'.' : null, 'has_more' => $first !== null]];
         }
+        $before = $this->earlierRecords($parts, $values, $consumed, $room, '');
 
         return ['data' => [...$own['data'], ...$before['data']], 'meta' => [...$before['meta'], 'to' => $meta['to'] ?? $values['to'], 'returned' => count($own['data']) + count($before['data'])]];
     }
 
     /**
-     * A page of the predecessor's records, after `$consumed` of the device's own, with a
-     * cursor that continues them.
+     * A page of the readings from before the move, after `$consumed` records: each part in
+     * turn, newest first, from `$cursor` in the first, with a cursor that continues them.
      *
+     * @param  non-empty-list<EarlierReadings>  $parts  newest first
      * @param  array<string, mixed>  $values
      */
-    private function earlierRecords(EarlierReadings $earlier, array $values, int $consumed, int $pageSize, string $cursor): array
+    private function earlierRecords(array $parts, array $values, int $consumed, int $pageSize, string $cursor): array
     {
-        $result = $this->runtime->request('GET', '/internal/measurements/records', [...$earlier->query(array_diff_key($values, ['cursor' => true])),
-            'limit' => $values['limit'] - $consumed, 'page_size' => $pageSize, ...($cursor === '' ? [] : ['cursor' => $cursor])]);
-        $meta = $result['meta'] ?? [];
-        $next = $meta['next_cursor'] ?? null;
+        $data = [];
+        $meta = [];
+        foreach ($parts as $i => $part) {
+            if (count($data) >= $pageSize) {
+                // This page is full: the next one starts with this part, if any part left has readings.
+                $first = $this->firstEarlier(array_slice($parts, $i), $values, $consumed);
+                $meta = [...$meta, 'next_cursor' => $first ? self::EARLIER_CURSOR.$consumed.'.'.$part->hops.'.' : null, 'has_more' => $first !== null];
+                break;
+            }
+            $result = $this->runtime->request('GET', '/internal/measurements/records', [...$part->query(array_diff_key($values, ['cursor' => true])),
+                'limit' => $values['limit'] - $consumed, 'page_size' => $pageSize - count($data), ...($cursor === '' ? [] : ['cursor' => $cursor])]);
+            $cursor = '';
+            $meta = $result['meta'] ?? [];
+            $data = [...$data, ...JoinedReadings::earlierRecords($result['data'] ?? [], $values['parameter_uuid'], $part->recordedIn)];
+            $next = $meta['next_cursor'] ?? null;
+            if ($next !== null) {
+                $meta['next_cursor'] = self::EARLIER_CURSOR.$consumed.'.'.$part->hops.'.'.$next;
+            }
+            // The runtime counts from the part's first record, its cursor's included.
+            $consumed += (int) ($meta['consumed'] ?? 0);
+            if ($next !== null || ($meta['limit_reached'] ?? false) || $consumed >= $values['limit']) {
+                break;
+            }
+        }
 
-        return ['data' => JoinedReadings::earlierRecords($result['data'] ?? [], $values['parameter_uuid']), 'meta' => [...$meta,
-            'limit' => $values['limit'], 'page_size' => $values['page_size'], 'consumed' => $consumed + (int) ($meta['consumed'] ?? 0),
-            'next_cursor' => $next === null ? null : self::EARLIER_CURSOR.$consumed.'.'.$next]];
+        return ['data' => $data, 'meta' => [...$meta, 'limit' => $values['limit'], 'page_size' => $values['page_size'], 'returned' => count($data), 'consumed' => $consumed]];
     }
 
     /**
-     * The predecessor's side of a moved device's history, when the requested range reaches
-     * before the cutover within the source's retention.
+     * A one-record page from the first part that has any record, or null.
+     *
+     * @param  list<EarlierReadings>  $parts  newest first
+     * @param  array<string, mixed>  $values
+     */
+    private function firstEarlier(array $parts, array $values, int $consumed): ?array
+    {
+        foreach ($parts as $part) {
+            $result = $this->runtime->request('GET', '/internal/measurements/records', [...$part->query(array_diff_key($values, ['cursor' => true])),
+                'limit' => $values['limit'] - $consumed, 'page_size' => 1]);
+            if (($result['data'] ?? []) !== []) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The earlier parts of a moved device's history that the requested range reaches
+     * within their retention, oldest first.
      *
      * @param  array{from: string, to: string, parameter_uuid: string}  $values
+     * @return list<EarlierReadings>
      */
-    private function earlier(Device $device, array $values): ?EarlierReadings
+    private function earlier(Device $device, array $values): array
     {
-        $earlier = EarlierReadings::for($device, $values['parameter_uuid']);
-
-        return $earlier?->window($values) ? $earlier : null;
+        return array_values(array_filter(EarlierReadings::for($device, $values['parameter_uuid']), fn (EarlierReadings $part): bool => $part->window($values) !== null));
     }
 
     private static function earliest(?string $first, ?string $second): ?string
@@ -188,24 +239,46 @@ final class DeviceReadings
         }
 
         $query = [...$values, 'organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'retention_days' => $this->retention->effective($organization)['days']];
-        $earlier = $this->earlier($device, $values);
-        if (! $earlier) {
+        $parts = $this->earlier($device, $values);
+        if ($parts === []) {
             $own = $this->runtime->request('GET', '/internal/measurements/state-history', $query, RuntimeClient::RANGE_TIMEOUT);
 
             return [...$own, 'data' => [...$own['data'], 'timeline' => JoinedReadings::mark($own['data']['timeline'] ?? [], JoinedReadings::SELF)]];
         }
-        // The device's own timeline starts at the cutover, the predecessor's ends there; the
-        // segments are shared between them by the time each covers.
+        // Each part's timeline runs from the cutover before it, or the start of the range, to
+        // its own cutover, and the device's own from the last one; the segments are shared
+        // between them by the time each covers.
         $values['max_points'] = (int) $values['max_points'];
-        $window = $earlier->window($values);
         $to = CarbonImmutable::parse($values['to'])->min(CarbonImmutable::now());
-        $from = CarbonImmutable::parse($values['from'])->max($earlier->cutover);
-        $share = $window['to']->diffInMilliseconds($window['from'], true) / max(1, $to->diffInMilliseconds($window['from'], true));
-        $points = $from->lessThan($to) ? max(10, min($values['max_points'] - 10, (int) round($values['max_points'] * $share))) : $values['max_points'];
-        $before = $this->runtime->request('GET', '/internal/measurements/state-history', [...$earlier->query($values), 'max_points' => $points], RuntimeClient::RANGE_TIMEOUT);
-        $own = $from->lessThan($to) ? $this->runtime->request('GET', '/internal/measurements/state-history', [...$query, 'from' => $from->toJSON(), 'max_points' => max(10, $values['max_points'] - $points)], RuntimeClient::RANGE_TIMEOUT) : null;
+        $start = CarbonImmutable::parse($values['from']);
+        $ranges = [];
+        foreach ($parts as $part) {
+            $window = $part->window($values);
+            $from = $window['from']->max($start);
+            if ($window['to']->greaterThan($from)) {
+                $ranges[] = [$part, $from, $window['to']];
+            }
+            $start = $start->max($part->cutover);
+        }
+        $ownFrom = CarbonImmutable::parse($values['from'])->max($start);
+        if ($ownFrom->lessThan($to)) {
+            $ranges[] = [null, $ownFrom, $to];
+        }
+        $total = max(1.0, array_sum(array_map(fn (array $range): float => $range[2]->diffInMilliseconds($range[1], true), $ranges)));
+        $before = [];
+        $own = null;
+        foreach ($ranges as [$part, $from, $until]) {
+            $points = count($ranges) === 1 ? $values['max_points'] : max(10, (int) round($values['max_points'] * $until->diffInMilliseconds($from, true) / $total));
+            $answer = $this->runtime->request('GET', '/internal/measurements/state-history', [...($part ? $part->query($values) : $query),
+                'from' => $from->toJSON(), 'to' => $until->toJSON(), 'max_points' => $points], RuntimeClient::RANGE_TIMEOUT)['data'];
+            if ($part) {
+                $before[] = ['recorded_in' => $part->recordedIn, 'data' => $answer];
+            } else {
+                $own = $answer;
+            }
+        }
 
-        return ['data' => JoinedReadings::stateHistory($before['data'], $own['data'] ?? null)];
+        return ['data' => JoinedReadings::stateHistory($before, $own)];
     }
 
     /**
@@ -227,14 +300,15 @@ final class DeviceReadings
             'rollover_at' => $counter['rollover_at'] ?? null,
             'retention_days' => $this->retention->effective($organization)['days']];
         $own = $this->runtime->request('GET', '/internal/measurements/increase', $query, RuntimeClient::RANGE_TIMEOUT);
-        $earlier = $this->earlier($device, $values);
-        if (! $earlier) {
+        $parts = $this->earlier($device, $values);
+        if ($parts === []) {
             return [...$own, 'data' => [...$own['data'], 'points' => JoinedReadings::mark($own['data']['points'] ?? [], JoinedReadings::SELF)]];
         }
-        // The copied profile keeps the counter's settings, so the predecessor rolls over alike.
-        $before = $this->runtime->request('GET', '/internal/measurements/increase', [...$earlier->query($values), 'rollover_at' => $query['rollover_at']], RuntimeClient::RANGE_TIMEOUT);
+        // The copied profiles keep the counter's settings, so the predecessors roll over alike.
+        $before = array_map(fn (EarlierReadings $part): array => ['recorded_in' => $part->recordedIn,
+            'data' => $this->runtime->request('GET', '/internal/measurements/increase', [...$part->query($values), 'rollover_at' => $query['rollover_at']], RuntimeClient::RANGE_TIMEOUT)['data']], $parts);
 
-        return ['data' => JoinedReadings::increase($before['data'], $own['data'])];
+        return ['data' => JoinedReadings::increase($before, $own['data'])];
     }
 
     /** The counter settings from the newest configuration that defines the parameter as a counter. */

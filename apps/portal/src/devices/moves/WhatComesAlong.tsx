@@ -23,8 +23,9 @@ const NO_SITE = "__none"
  * What the move does, as the review says: each device with its name, code and site in
  * the target, how it reports, what blocks it; each dashboard and automation that uses
  * them with its choice; what ends, which profile versions are copied, and whether the
- * target reads the readings from before the move. Edits re-review; nothing changes until
- * Move.
+ * target reads the readings from before the move. A device moved back reconnects to the
+ * readings it recorded in the target before, whatever the option. Edits re-review; nothing
+ * changes until Move.
  */
 export function WhatComesAlong({
   source,
@@ -71,6 +72,7 @@ export function WhatComesAlong({
   const inactive = review.devices.filter((device) => lifecycles.get(device.uuid) === "active" && !device.arrives_active)
   const blocked = review.devices.filter((device) => device.blockers.length > 0).length
   const one = review.devices.length === 1
+  const returning = review.devices.filter((device) => device.returns).length
   const ends = review.ends
   return (
     <div className="flex min-w-0 flex-col gap-3" aria-busy={loading}>
@@ -186,6 +188,17 @@ export function WhatComesAlong({
               checked={includeHistory}
               onCheckedChange={onIncludeHistory}
             />
+            {returning > 0 && (
+              <p className="mt-3 text-meta text-muted-foreground">
+                {one
+                  ? "This device was"
+                  : returning === review.devices.length
+                    ? "These devices were"
+                    : `${returning.toLocaleString()} of these devices were`}{" "}
+                in {target.name} before. {returning === 1 ? "It reconnects to the readings it" : "They reconnect to the readings they"}{" "}
+                recorded there, whether or not you include the readings from before this move.
+              </p>
+            )}
           </PanelContent>
         </Panel>
       )}

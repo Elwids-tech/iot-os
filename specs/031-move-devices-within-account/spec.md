@@ -142,6 +142,16 @@ What shapes the design:
   organization limit get **New organization…** in the target picker, become its
   Organization Admin, and continue the move.
 
+### Session 2026-11-12
+
+- Q: A device moves from A to B without its readings, then back to A. Does the device
+  in A see the readings it recorded in A before it left? → A: Yes, always. A successor's
+  history includes the readings of every earlier predecessor in its chain that is in the
+  successor's own organization, up to that predecessor's cutover, whatever the history
+  option says on the moves in between. They are the organization's own readings, so
+  they are labelled as the device's own, and stopping or leaving the account doesn't
+  end them (FR-053, ADR-040).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Move adapter-backed devices to a customer's organization (Priority: P1)
@@ -432,7 +442,8 @@ boundary, so it comes after the rest.
 
 **Independent Test**: move a device with history from A to B with the option on. B's
 chart for the device shows a continuous line across the cutover. Move another device
-with the option off. B sees nothing before its cutover.
+with the option off. B sees nothing before its cutover. Move that device back to A: A's
+chart for it goes back past both moves to the readings it recorded in A.
 
 **Acceptance Scenarios**:
 
@@ -449,7 +460,13 @@ with the option off. B sees nothing before its cutover.
    page, or either organization leaves the account, **Then** the target no longer sees
    any reading from before cutover.
 5. **Given** a move with the option off, **Then** the target sees no reading from before
-   cutover.
+   cutover, except those of scenario 6.
+6. **Given** a device that was in the target before, moved away and now moved back
+   (directly, or through other organizations), **Then** the review says it reconnects to
+   the readings it recorded there, and its history includes them up to the cutover it
+   left at, whatever the option was on each move. They are labelled as its own readings,
+   stay under the target's retention, and stopping or leaving the account doesn't end
+   them.
 
 ---
 
@@ -490,7 +507,13 @@ the card, and after confirming, the result matches a move made from the device l
 
 - A successor can be moved again: onward to a third organization of the account, or back
   to its source. Each move creates a new successor and a new link, and the history
-  option applies per link.
+  option applies per link: a successor reads only its own predecessor's readings from
+  another organization, never those of a predecessor further back.
+- A device moved back to an organization it was in reconnects to the readings it
+  recorded there, up to the cutover it left at (US6 scenario 6, FR-053). A→B→A: the
+  device in A reads A's readings, then B's if the move back shared them, then its own.
+  A→B→C→A: the device in A reads A's readings, then C's if the last move shared them,
+  never B's.
 - Moving a hosted device into its pipe owner makes it an ordinary device again.
 - A device can be part of only one move at a time. Two movers selecting the same device
   at once: the first to confirm wins, and the other is refused without changes.
@@ -762,6 +785,12 @@ the card, and after confirming, the result matches a move made from the device l
 - **FR-052**: The target MUST stop seeing readings from before cutover when a source
   member with `Device.move` stops it on the predecessor, or when either organization
   leaves the account.
+- **FR-053**: Every history view of a successor MUST include the readings of each earlier
+  predecessor in its chain of moves that is in the successor's own organization, up to
+  that predecessor's cutover, under the successor's organization and retention, labelled
+  as the device's own. This MUST NOT depend on the history option of any move in the
+  chain, and FR-052 doesn't end it. The review MUST say when a device it moves
+  reconnects this way.
 
 **Isolation and compatibility**
 
@@ -771,7 +800,8 @@ the card, and after confirming, the result matches a move made from the device l
   - after cutover, the source stores no reading for the device and can't read a moved
     direct device's credentials or settings;
   - readings from before cutover reach the target only with the option on, only for
-    the predecessor, and only within the account;
+    the predecessor, and only within the account; a predecessor further back is read
+    only by a successor in its own organization (FR-053);
   - organizations outside the account get not found for every part of a move.
 
   When spec 003's isolation check exists, these MUST be part of it.

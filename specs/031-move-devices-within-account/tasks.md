@@ -565,6 +565,16 @@ another (`OrganizationFactory::forBillingAccount`). Tests run on PostgreSQL/Time
 
   Done: also `docs/features/integrations.md` and `activity-log.md`. Rebuilt api, default-worker (it runs the cutover), runtime and portal, from a tree holding 031-5 too; quickstart 8 recorded in PR 031-9
 
+### Moving back (FR-053, ADR-040; after PR 031-9)
+
+A device moved A→B without its readings and back to A read only B's (empty) readings, never the readings it recorded in A.
+
+- [x] T107 [US6] ADR-040 amends ADR-039; spec (Clarifications 2026-11-12, US6 scenario 6, Moving again, FR-053, FR-060), research R18, plan, data model, contract and quickstart 8 step 4
+- [x] T108 [US6] `Moves/EarlierReadings::for` walks `device_links` back, composing the copies' parameter maps hop by hop, and returns the earlier parts oldest first: each predecessor in the successor's own organization (`self`, its organization and retention, no option), then the immediate predecessor when its link shares (`source`). `DeviceReadings` reads every part for history, records (cursor `earlier.<consumed>.<hops>.<runtime cursor>`), state history (contiguous ranges) and counter increase; `JoinedReadings` joins any number of parts in order
+- [x] T109 [US6] `MovePreview` marks each device that was in the target before (`returns`) and adds the summary sentence; portal `WhatComesAlong.tsx` says so under History, and **Confirm** shows the sentence; `packages/api-client`; OpenAPI export
+- [x] T110 [P] [US6] `HistoryAcrossMoveTest`: the round trip with history off and on for each move; A→B→D→A; each parameter mapped back through both copies; a counter across both moves; stopping and leaving the account end only the shared part; a records cursor across parts. `JoinedReadingsTest` for three parts. Portal e2e: the review of a device moved back
+- [x] T111 Docs: `docs/features/devices.md`, `docs/features/integrations.md`. Rebuild api and portal; run quickstart 8 step 4; leak scan; open the PR
+
 ---
 
 ## PR 031-10: US7, the assistant

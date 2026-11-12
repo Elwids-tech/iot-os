@@ -32,6 +32,8 @@ use Illuminate\Validation\ValidationException;
  * The dashboards and automations that use the devices are listed with a choice each
  * (CarriedItems); until PR 031-7 direct devices are blocked (research R22). Devices
  * behind a gateway move like adapter-fed ones: the gateway stays with its owner (R14).
+ * A device that was in the target before is marked as returning: its successor
+ * reconnects to the readings it recorded there, whatever the history option (ADR-040).
  */
 final class MovePreview
 {
@@ -172,6 +174,8 @@ final class MovePreview
                     'reports_through' => $pipe ? ['kind' => $pipe->kind, 'name' => $pipe->name, 'owner_organization_name' => $pipe->ownerOrganizationName, 'outcome' => 'stays']
                         : ($direct ? ['kind' => 'direct', 'name' => $gateway->name, 'owner_organization_name' => $source->name, 'outcome' => 'moves'] : null),
                     'arrives_active' => $wasActive && $canActivate,
+                    // Moved back, its successor reconnects to the readings recorded there (ADR-040).
+                    'returns' => EarlierReadings::returnsTo($device, $target),
                     'blockers' => $blockers,
                 ],
                 'was_active' => $wasActive,
@@ -201,6 +205,10 @@ final class MovePreview
         ];
         if ($review['history']['include']) {
             $review['summary'][] = $target->name.' can read the readings from before the move. They stay stored in '.$source->name.', for as long as '.$source->name.' keeps readings.';
+        }
+        if ($returning = count(array_filter($views, fn (array $view): bool => $view['returns']))) {
+            $review['summary'][] = $returning === 1 ? '1 device returns to '.$target->name.' and reconnects to the readings it recorded there before.'
+                : $returning.' devices return to '.$target->name.' and reconnect to the readings they recorded there before.';
         }
         // The hash also covers what the review does not show but the cutover copies.
         $state = $devices->map(fn (Device $device): array => [$device->deployment_generation, $device->last_applied_configuration_uuid, $device->draft_revision])->sortKeys()->all();

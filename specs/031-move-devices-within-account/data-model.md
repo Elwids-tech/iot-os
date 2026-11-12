@@ -83,8 +83,9 @@ An action needing a permission the mover lacks is not offered; the item falls ba
 | `history_stopped_by` | FK users nullable | |
 | `history_stopped_reason` | enum `stopped`, `left_account` nullable | FR-052 |
 
-A successor that moves again is the predecessor of a new link; links form a chain
-but history is read one link at a time (R18).
+A successor that moves again is the predecessor of a new link; links form a chain.
+History from another organization is read one link at a time; a successor reads the
+chain further back only for predecessors in its own organization (R18, ADR-040).
 
 ## Profile copy (new table `device_profile_copies`, PR 031-1)
 

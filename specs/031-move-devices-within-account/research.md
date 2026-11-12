@@ -558,9 +558,25 @@ a bucket that holds both is `source`. Predecessor records keep the source's
   predecessor by a source member with `Device.move`, sets `history_stopped_at`.
 - **Leaving the account.** Either organization leaving the account sets it too
   (`left_account`).
-- **No chains.** History never follows a chain of links: each link shares only its own
-  predecessor's readings, because the person who chose it held `Device.move` in those
-  two organizations only.
+- **No chains across organizations.** A link shares only its own predecessor's readings
+  from another organization, never those of a link before it, because the person who
+  chose it held `Device.move` in those two organizations only.
+- **The own organization's earlier readings (2026-11-12, ADR-040).** A device moved back
+  reconnects to what it recorded there. `EarlierReadings::for` walks `device_links` back
+  through `movedFrom`, mapping the parameter through each hop's
+  `device_profile_copies.parameter_map` in turn. Every predecessor in the successor's
+  own organization is an earlier part: read under the successor's organization and
+  retention, up to the cutover it left at, labelled `self`. No option, stop or account
+  change applies, since nothing crosses. The walk stops where a parameter doesn't map.
+  The parts are read oldest first and joined in that order: the own organization's
+  earlier predecessors, then the immediate predecessor's shared readings (`source`), then
+  the device's own. A→B→A reads A's, B's if the move back shared them, then its own;
+  A→B→C→A reads A's, C's if shared, never B's. Records page newest first through the same
+  parts, with the cursor `earlier.<consumed before the part>.<the part's hops>.<runtime
+  cursor>`; a cursor into a part whose sharing stopped goes on with the older parts.
+  State history reads each part from the cutover before it, so the ranges stay
+  contiguous and the durations add up to the whole range. The move review marks a
+  device that was in the target before (`returns`) and says it reconnects.
 
 **Rationale**: Laravel decides the crossing and the runtime only answers per-organization
 queries it already serves (constitution I and III), so nothing is copied and the only

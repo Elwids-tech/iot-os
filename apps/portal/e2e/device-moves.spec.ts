@@ -82,7 +82,8 @@ function itemsFor(body: Body) {
   })
 }
 
-function reviewFor(body: Body) {
+// `returning`: devices that were in Harbour Shop before, so they reconnect to the readings recorded there (ADR-040).
+function reviewFor(body: Body, returning: string[] = []) {
   const rows = body.device_uuids.map((id) => {
     const row = devices.find((d) => d.uuid === id)!
     const override = body.devices?.find((d) => d.uuid === id)
@@ -92,9 +93,11 @@ function reviewFor(body: Body) {
       successor: { name: row.name, code: override?.code ?? row.code, site_uuid: null },
       reports_through: { kind: "adapter", name: "Vendor trackers", owner_organization_name: "Integrator", outcome: "stays" },
       arrives_active: true,
+      returns: returning.includes(id),
       blockers,
     }
   })
+  const back = rows.filter((row) => row.returns).length
   const items = itemsFor(body)
   const archived = items.filter((item) => item.action === "archive")
   return {
@@ -111,6 +114,7 @@ function reviewFor(body: Body) {
       `${rows.length} devices keep reporting through the adapter Vendor trackers, which stays with Integrator.`,
       ...(archived.length ? [`${archived.length} automation is archived in Integrator.`] : []),
       ...(body.include_history ? ["Harbour Shop can read the readings from before the move. They stay stored in Integrator, for as long as Integrator keeps readings."] : []),
+      ...(back === 1 ? ["1 device returns to Harbour Shop and reconnects to the readings it recorded there before."] : []),
     ],
     archives: archived.map(({ kind, uuid, name }) => ({ kind, uuid, name })),
   }
@@ -144,7 +148,7 @@ function moveAt(stage: number, ids: string[]) {
   }
 }
 
-async function setup(page: Page, { owner = false, detail }: { owner?: boolean; detail?: Record<string, unknown> } = {}) {
+async function setup(page: Page, { owner = false, detail, returning = [] }: { owner?: boolean; detail?: Record<string, unknown>; returning?: string[] } = {}) {
   const state = { errors: [] as string[], previews: [] as Record<string, unknown>[], confirmed: null as null | Record<string, unknown>, polls: 0, createdOrganization: null as null | Record<string, unknown>, stopped: null as null | Record<string, unknown> }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
@@ -180,7 +184,7 @@ async function setup(page: Page, { owner = false, detail }: { owner?: boolean; d
     if (path.endsWith("/device-moves/preview")) {
       const body = request.postDataJSON()
       state.previews.push(body)
-      return json(reviewFor(body))
+      return json(reviewFor(body, returning))
     }
     if (path.endsWith("/device-moves") && request.method() === "POST") {
       state.confirmed = request.postDataJSON()
@@ -405,6 +409,26 @@ test("the mover includes the readings from before the move, off by default", asy
   await expect(dialog.getByText("Harbour Shop can read the readings from before the move.", { exact: false })).toBeVisible()
   await dialog.getByRole("button", { name: "Move device" }).click()
   await expect.poll(() => state.confirmed?.include_history).toBe(true)
+  expect(state.errors).toEqual([])
+})
+
+test("a device moved back reconnects to the readings it recorded there, whatever the option", async ({ page }) => {
+  const state = await setup(page, { returning: [uuid(2)] })
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move Tracker 42" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  await expect(dialog.getByRole("checkbox", { name: "Include readings from before the move" })).not.toBeChecked()
+  await expect(dialog.getByText("This device was in Harbour Shop before. It reconnects to the readings it recorded there, whether or not you include the readings from before this move.")).toBeVisible()
+  await axe(page)
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await expect(dialog.getByText("1 device returns to Harbour Shop and reconnects to the readings it recorded there before.")).toBeVisible()
+  await dialog.getByRole("button", { name: "Move device" }).click()
+  await expect.poll(() => state.confirmed?.include_history).toBe(false)
   expect(state.errors).toEqual([])
 })
 
