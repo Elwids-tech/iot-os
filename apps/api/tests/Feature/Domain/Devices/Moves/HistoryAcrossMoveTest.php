@@ -16,6 +16,7 @@ use App\Domain\Devices\Models\TelemetryRetentionSetting;
 use App\Domain\Devices\Services\Moves\MovePreview;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
+use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -38,6 +39,8 @@ final class HistoryAcrossMoveTest extends MoveTestCase
 
     /** Stored readings: organization, device, parameter, time, value. */
     private array $stored = [];
+
+    private ?User $dMember = null;
 
     protected function setUp(): void
     {
@@ -195,23 +198,90 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         $this->assertCount(1, $this->asked('/internal/measurements/history')->where('organization_uuid', $this->a->uuid));
     }
 
-    public function test_a_chain_of_moves_gives_each_successor_only_its_own_predecessors_readings(): void
+    public function test_a_shared_chain_brings_the_history_of_every_earlier_move(): void
     {
         $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
         $inB = $this->arrive($this->x, 20.0);
+        $this->assertContains('1 device also brings the readings from before its earlier moves, which stay stored where they were recorded.',
+            $this->review($this->b, $this->d, [$inB], ['include_history' => true])->json('summary'));
         $this->moved($this->b, $this->d, [$inB], ['include_history' => true]);
         $inD = $this->arrive($inB, 30.0, $this->t0->addHour());
         $this->runtimeQueries = [];
 
-        $series = $this->history($this->d, $inD);
-        $points = collect($series[0]['points'])->where('count', '>', 0);
-        $this->assertSame([20.0], $points->where('recorded_in', 'source')->pluck('value')->map(fn ($v) => (float) $v)->unique()->values()->all());
-        $this->assertSame([30.0], $points->where('recorded_in', 'self')->pluck('value')->map(fn ($v) => (float) $v)->unique()->values()->all());
-        $this->assertEqualsCanonicalizing([$this->b->uuid, $this->d->uuid], $this->asked('/internal/measurements/history')->pluck('organization_uuid')->all());
-        $this->assertNull(collect($this->runtimeQueries)->first(fn (array $request): bool => ($request[1]['organization_uuid'] ?? null) === $this->a->uuid));
-        $this->assertCount(6 + 6, $this->records($this->d, $inD, 50));
+        // D reads its own, then B's, then what B's history held from A: each under where it was recorded.
+        $values = fn (): array => array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $this->as($this->dOnly(), fn () => $this->records($this->d, $inD, 50)));
+        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['source', 20.0]), ...array_fill(0, 49, ['source', 10.0])], $values());
+        $fromA = $this->asked('/internal/measurements/records')->firstWhere('organization_uuid', $this->a->uuid);
+        $this->assertSame([$this->x->uuid, $this->parameter($this->x), (string) app(RetentionService::class)->effective($this->a)['days']], [$fromA['device_uuid'], $fromA['parameter_uuid'], $fromA['retention_days']]);
+        $this->assertTrue(CarbonImmutable::parse($fromA['to'])->equalTo($this->t0));
+        $series = $this->as($this->dOnly(), fn () => $this->history($this->d, $inD));
+        $this->assertCount(1, $series);
+        $this->assertSame(49 + 6 + 6, collect($series[0]['points'])->sum('count'));
+        $this->assertStringNotContainsString($this->x->uuid, json_encode($series));
+
+        // A stopping its link ends A's readings for every device after it; B's still reach D.
+        $this->as($this->aOnly, fn () => $this->postJson($this->in($this->a).'/devices/'.$this->x->uuid.'/link/history', ['enabled' => false])->assertOk());
+        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['source', 20.0])], $values());
+        $this->assertSame([20.0], collect($this->as($this->bOnly, fn () => $this->history($this->b, $inB))[0]['points'])->where('count', '>', 0)->pluck('value')->map(fn ($v) => (float) $v)->unique()->values()->all());
+    }
+
+    public function test_a_move_that_doesnt_share_ends_the_chain(): void
+    {
+        $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->assertNotContains('1 device also brings the readings from before its earlier moves, which stay stored where they were recorded.', $this->review($this->b, $this->d, [$inB])->json('summary'));
+        $this->moved($this->b, $this->d, [$inB]);
+        $inD = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $this->runtimeQueries = [];
+
+        $this->assertSame(array_fill(0, 6, ['self', 30.0]), array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $this->records($this->d, $inD, 50)));
+        $this->assertEqualsCanonicalizing([$this->d->uuid], $this->asked('/internal/measurements/records')->pluck('organization_uuid')->unique()->values()->all());
         // B still reads its archived device's history from before its first move.
         $this->assertContains(10.0, collect($this->history($this->b, $inB)[0]['points'])->where('count', '>', 0)->pluck('value')->map(fn ($v) => (float) $v)->unique()->all());
+    }
+
+    public function test_moving_on_with_the_option_after_a_round_trip_brings_the_whole_history(): void
+    {
+        // A to B without the readings, back to A with them, then to B again with them.
+        $this->moved($this->a, $this->b, [$this->x]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->moved($this->b, $this->a, [$inB], ['include_history' => true]);
+        $home = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $review = $this->review($this->a, $this->b, [$home], ['include_history' => true])->json();
+        $this->assertTrue($review['devices'][0]['returns']);
+        $this->assertContains('1 device also brings the readings from before its earlier moves, which stay stored where they were recorded.', $review['summary']);
+        $this->moved($this->a, $this->b, [$home], ['include_history' => true]);
+        $again = $this->arrive($home, 40.0, $this->t0->addHours(2));
+        $this->runtimeQueries = [];
+
+        // Its own, A's from the trip back, B's own from the first stay, then A's from before it all.
+        $records = $this->as($this->bOnly, fn () => $this->records($this->b, $again, 9));
+        $this->assertSame([...array_fill(0, 6, ['self', 40.0]), ...array_fill(0, 6, ['source', 30.0]), ...array_fill(0, 6, ['self', 20.0]), ...array_fill(0, 49, ['source', 10.0])],
+            array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $records));
+        $this->assertSame([$this->parameter($again)], array_values(array_unique(array_column($records, 'parameter_uuid'))));
+        $series = $this->as($this->bOnly, fn () => $this->history($this->b, $again));
+        $this->assertCount(1, $series);
+        $this->assertSame(49 + 6 + 6 + 6, collect($series[0]['points'])->sum('count'));
+        $first = collect($series[0]['points'])->where('count', '>', 0)->filter(fn (array $point): bool => CarbonImmutable::parse($point['at'])->lessThan($this->t0->subMinutes(20)));
+        $this->assertSame([49, ['source']], [$first->sum('count'), $first->pluck('recorded_in')->unique()->values()->all()]);
+        $this->assertEqualsCanonicalizing([$this->a->uuid, $this->b->uuid], $this->asked('/internal/measurements/history')->pluck('organization_uuid')->unique()->values()->all());
+    }
+
+    public function test_a_device_moved_back_reads_what_its_organization_could_read_before(): void
+    {
+        // A to B with the readings, on to D and back to B without them: B's device read A's before, and still does.
+        $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->moved($this->b, $this->d, [$inB]);
+        $inD = $this->arrive($inB, 25.0, $this->t0->addHour());
+        $this->moved($this->d, $this->b, [$inD]);
+        $back = $this->arrive($inD, 30.0, $this->t0->addHours(2));
+        $this->runtimeQueries = [];
+
+        $records = $this->as($this->bOnly, fn () => $this->records($this->b, $back, 50));
+        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['self', 20.0]), ...array_fill(0, 49, ['source', 10.0])],
+            array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $records));
+        $this->assertNull(collect($this->runtimeQueries)->first(fn (array $request): bool => ($request[1]['organization_uuid'] ?? null) === $this->d->uuid && ($request[1]['device_uuid'] ?? null) === $inD->uuid));
     }
 
     /** @return array<string, array{bool, bool}> whether the move away, then the move back, shares its readings */
@@ -262,7 +332,7 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         $this->assertSame($away, $this->as($this->bOnly, fn () => collect($this->history($this->b, $inB)[0]['points'])->contains('recorded_in', 'source')));
     }
 
-    public function test_a_chain_through_three_organizations_reconnects_only_to_its_own_organizations_readings(): void
+    public function test_a_chain_through_three_organizations_brings_every_part(): void
     {
         $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
         $inB = $this->arrive($this->x, 20.0);
@@ -274,18 +344,18 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         $home = $this->arrive($inD, 30.0, $this->t0->addHours(2));
         $this->runtimeQueries = [];
 
-        // A reads its own readings and D's, which the last move shared, never B's.
+        // Every move shared, so A reads D's, B's and its own from before, each where it was recorded.
         $records = $this->as($this->aOnly, fn () => $this->records($this->a, $home, 7));
-        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['source', 25.0]), ...array_fill(0, 49, ['self', 10.0])],
+        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['source', 25.0]), ...array_fill(0, 6, ['source', 20.0]), ...array_fill(0, 49, ['self', 10.0])],
             array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $records));
         $series = $this->as($this->aOnly, fn () => $this->history($this->a, $home));
-        $this->assertSame(0, collect($series[0]['points'])->where('count', '>', 0)->filter(fn (array $point): bool => CarbonImmutable::parse($point['at'])->between($this->t0, $this->t0->addMinutes(45)))->count());
-        $this->assertEqualsCanonicalizing([$this->a->uuid, $this->d->uuid], $this->asked('/internal/measurements/history')->pluck('organization_uuid')->unique()->values()->all());
-        $this->assertNull(collect($this->runtimeQueries)->first(fn (array $request): bool => ($request[1]['organization_uuid'] ?? null) === $this->b->uuid));
-        $this->assertSame([$this->parameter($this->x), $this->parameter($inD)], [$this->asked('/internal/measurements/history')->firstWhere('device_uuid', $this->x->uuid)['parameter_uuid'],
-            $this->asked('/internal/measurements/history')->firstWhere('device_uuid', $inD->uuid)['parameter_uuid']]);
-        // D, a step behind, still reads only B's.
-        $this->assertEqualsCanonicalizing([20.0, 25.0], array_values(array_unique(array_map(fn (array $record): float => (float) $record['value'], $this->records($this->d, $inD, 50)))));
+        $this->assertCount(1, $series);
+        $this->assertSame(49 + 6 + 6 + 6, collect($series[0]['points'])->sum('count'));
+        $this->assertEqualsCanonicalizing([$this->a->uuid, $this->b->uuid, $this->d->uuid], $this->asked('/internal/measurements/history')->pluck('organization_uuid')->unique()->values()->all());
+        $this->assertSame([$this->parameter($this->x), $this->parameter($inB), $this->parameter($inD)], [$this->asked('/internal/measurements/history')->firstWhere('device_uuid', $this->x->uuid)['parameter_uuid'],
+            $this->asked('/internal/measurements/history')->firstWhere('device_uuid', $inB->uuid)['parameter_uuid'], $this->asked('/internal/measurements/history')->firstWhere('device_uuid', $inD->uuid)['parameter_uuid']]);
+        // D, a step behind, reads B's and A's.
+        $this->assertEqualsCanonicalizing([10.0, 20.0, 25.0], array_values(array_unique(array_map(fn (array $record): float => (float) $record['value'], $this->records($this->d, $inD, 50)))));
     }
 
     public function test_each_parameter_maps_back_through_both_copies(): void
@@ -442,6 +512,12 @@ final class HistoryAcrossMoveTest extends MoveTestCase
             '/internal/measurements/increase' => $this->runtimeIncrease($query),
             default => null,
         };
+    }
+
+    /** A member of D only. */
+    private function dOnly(): User
+    {
+        return $this->dMember ??= $this->person('d-only', [$this->d]);
     }
 
     /** The successor of a device moved at `$at`, applied, with six readings in the hour after. */

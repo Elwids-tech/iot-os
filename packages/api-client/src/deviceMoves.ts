@@ -194,10 +194,11 @@ export type DeviceLink = {
 }
 
 /**
- * Where a history reading was recorded: `source` for a moved device's predecessor's
- * readings from before the move, read from the organization it moved from; `self`
- * otherwise, including the readings a device moved back recorded in its organization
- * before (ADR-040). A bucket that spans the move holds both and is `source`.
+ * Where a history reading was recorded: `source` for a moved device's readings from
+ * before the move that were recorded in another organization (its predecessor's, and
+ * what that predecessor's history held from earlier moves, ADR-041); `self` otherwise,
+ * including the readings a device moved back recorded in its organization before
+ * (ADR-040). A bucket that holds both is `source`.
  */
 export type RecordedIn = "self" | "source"
 
