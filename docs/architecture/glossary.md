@@ -227,7 +227,8 @@ adapter's edge, only a new non-historical reading counts.
 
 **Offline after.** How long a device may be silent, counted from receipt, before it
 is offline. Automatic unless set: three times the device's reporting interval (the
-median gap between its readings' observed times) plus its poll interval, at least 15
+median gap between its check-ins by observed time, readings sent within a few
+seconds counting once) plus its poll interval, at least 15
 minutes and at most 7 days. Distinct from a binding's freshness.
 
 **Alert delivery.** One message per alert, recipient, type (activated or cleared)

@@ -44,7 +44,7 @@ definitions and the table on start; gaps are seeded from `device_runtime.observa
 ### Subject state
 
 ```text
-waiting ──first packet──▶ learning ──third reading──▶ monitored ──condition true──▶ pending
+waiting ──first packet──▶ learning ──third check-in─▶ monitored ──condition true──▶ pending
    ▲                     (automatic                      ▲                              │ grace passes
    │                      only; deaths                   │ grace passes                 ▼
    │ monitoring (re)starts  still count)             recovering ◀──condition false── offline (episode open)
@@ -53,8 +53,9 @@ waiting ──first packet──▶ learning ──third reading──▶ monito
 ```
 
 - `learning` applies only while *Offline after* is automatic and the device has fewer
-  than three readings in its window (D16). A device whose *Offline after* is set, or
-  that already has three readings at start, goes from `waiting` to `monitored`.
+  than three check-ins in its window (D16: readings sent together count once). A
+  device whose *Offline after* is set, or that already has three check-ins at start,
+  goes from `waiting` to `monitored`.
   A *stays connected* device in `learning` still goes to `pending` on a death.
 - *Condition true* means: stays connected and a death certificate (own or the parent
   edge's, never an adapter's), or silence since the anchor ≥ offline after (set, or

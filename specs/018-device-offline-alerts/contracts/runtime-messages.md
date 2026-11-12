@@ -125,8 +125,10 @@ resynchronises applies any higher generation it finds there.
 ```
 
 `state` is `waiting`, `learning`, `monitored`, `pending`, `offline`, `recovering`,
-`interrupted` or `disabled`. `reporting_interval_seconds` is null until two gaps are
-known.
+`interrupted` or `disabled`. `readings_counted` is the number of check-ins in the
+window: readings sent together (less than 10 seconds apart, over less than 10 seconds)
+count once (D16, amended 2026-11-11). `reporting_interval_seconds` is null until two
+gaps between check-ins are known.
 
 ## `device.presence.v1` (changed behaviour, no schema change)
 

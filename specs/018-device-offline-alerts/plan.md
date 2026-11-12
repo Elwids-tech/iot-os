@@ -125,7 +125,7 @@ recorded it as a decision.
     reconnect."), not offline; its next NBIRTH ends the interruption (D3).
   - **Evaluation.** The maintenance tick calls `evaluate(now)`, which applies D3 to D5
     and D16 for each subject: the threshold in effect (set, or automatic from the
-    interval and poll interval), `learning` until three readings. It skips subjects on
+    interval and poll interval), `learning` until three check-ins. It skips subjects on
     a disconnected connection or a dead adapter edge and opens, clears or stops
     episodes.
   - **Interruptions.** `connectionPresence` (lost or restored), adapter NDEATH and
