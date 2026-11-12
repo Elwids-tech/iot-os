@@ -8,6 +8,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\BillingAccounts;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
+use App\Domain\DeviceProfiles\Models\DeviceProfileCopy;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Models\DeviceMove;
@@ -18,13 +19,16 @@ use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Activitylog\Models\Activity;
 
 /**
  * History across a move (spec 031 US6, research R18): with the option, the successor's
  * history includes its predecessor's readings from before the cutover, read from the
- * source under its retention and labelled as recorded there. The runtime is a small
- * in-memory store answering history and records the way the runtime does.
+ * source under its retention and labelled as recorded there. A device moved back
+ * reconnects to the readings it recorded in its organization before, whatever each move
+ * shared (ADR-040). The runtime is a small in-memory store answering history and records
+ * the way the runtime does.
  */
 final class HistoryAcrossMoveTest extends MoveTestCase
 {
@@ -51,6 +55,7 @@ final class HistoryAcrossMoveTest extends MoveTestCase
     {
         $review = $this->review($this->a, $this->b, [$this->x], ['include_history' => true])->assertOk()->json();
         $this->assertSame(['offered' => true, 'include' => true], $review['history']);
+        $this->assertFalse($review['devices'][0]['returns']);
         $this->assertContains('Harbour Shop can read the readings from before the move. They stay stored in Integrator, for as long as Integrator keeps readings.', $review['summary']);
         $move = $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
         $successor = $this->arrive($this->x, 20.0);
@@ -209,6 +214,194 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         $this->assertContains(10.0, collect($this->history($this->b, $inB)[0]['points'])->where('count', '>', 0)->pluck('value')->map(fn ($v) => (float) $v)->unique()->all());
     }
 
+    /** @return array<string, array{bool, bool}> whether the move away, then the move back, shares its readings */
+    public static function roundTrips(): array
+    {
+        return ['neither shares' => [false, false], 'only the move away shares' => [true, false], 'only the move back shares' => [false, true], 'both share' => [true, true]];
+    }
+
+    #[DataProvider('roundTrips')]
+    public function test_a_device_moved_back_reconnects_to_the_readings_it_recorded_there(bool $away, bool $back): void
+    {
+        $this->moved($this->a, $this->b, [$this->x], ['include_history' => $away]);
+        $inB = $this->arrive($this->x, 20.0);
+        $review = $this->review($this->b, $this->a, [$inB], ['include_history' => $back])->assertOk()->json();
+        $this->assertTrue($review['devices'][0]['returns']);
+        $this->assertContains('1 device returns to Integrator and reconnects to the readings it recorded there before.', $review['summary']);
+        $this->moved($this->b, $this->a, [$inB], ['include_history' => $back]);
+        $home = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $this->assertNotSame($this->parameter($this->x), $this->parameter($home));
+        $this->runtimeQueries = [];
+
+        $this->actingAs($this->aOnly, 'sanctum');
+        // Its readings from before the first move are its own; B's only when the move back shared them.
+        $records = $this->records($this->a, $home, 10);
+        $expected = [...array_fill(0, 6, ['self', 30.0]), ...($back ? array_fill(0, 6, ['source', 20.0]) : []), ...array_fill(0, 49, ['self', 10.0])];
+        $this->assertSame($expected, array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $records));
+        $this->assertSame([$this->parameter($home)], array_values(array_unique(array_column($records, 'parameter_uuid'))));
+        $this->assertSame(collect($records)->sortByDesc('received_at')->pluck('event_uuid')->all(), array_column($records, 'event_uuid'));
+        // Read under A, with A's retention and the first device's parameter, mapped back through both copies.
+        $first = $this->asked('/internal/measurements/records')->firstWhere('device_uuid', $this->x->uuid);
+        $this->assertSame([$this->a->uuid, $this->parameter($this->x), (string) app(RetentionService::class)->effective($this->a)['days']], [$first['organization_uuid'], $first['parameter_uuid'], $first['retention_days']]);
+        $this->assertTrue(CarbonImmutable::parse($first['to'])->equalTo($this->t0));
+        $this->assertSame($back, $this->asked('/internal/measurements/records')->contains('organization_uuid', $this->b->uuid));
+
+        // The chart runs on from the first device's readings, without a pause at either move.
+        $series = $this->history($this->a, $home);
+        $this->assertCount(1, $series);
+        $points = collect($series[0]['points'])->where('count', '>', 0);
+        // Buckets are about 18 minutes wide: those of the first device's readings end before the first move.
+        $earliest = $points->filter(fn (array $point): bool => CarbonImmutable::parse($point['at'])->lessThan($this->t0->subMinutes(20)));
+        $this->assertSame([49, 10.0, ['self']], [$earliest->sum('count'), (float) $earliest->avg('value'), $earliest->pluck('recorded_in')->unique()->values()->all()]);
+        $this->assertSame(49 + 6 + ($back ? 6 : 0), $points->sum('count'));
+        $this->assertSame($back, $points->contains('recorded_in', 'source'));
+        $gaps = collect($series[0]['points'])->where('count', 0);
+        $this->assertCount(1, $gaps);
+        $this->assertTrue(CarbonImmutable::parse($gaps->first()['at'])->lessThan($this->t0->subDay()));
+        // B still reads its archived device's history only as the move away shared it.
+        $this->assertSame($away, $this->as($this->bOnly, fn () => collect($this->history($this->b, $inB)[0]['points'])->contains('recorded_in', 'source')));
+    }
+
+    public function test_a_chain_through_three_organizations_reconnects_only_to_its_own_organizations_readings(): void
+    {
+        $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->assertFalse($this->review($this->b, $this->d, [$inB])->json('devices.0.returns'));
+        $this->moved($this->b, $this->d, [$inB], ['include_history' => true]);
+        $inD = $this->arrive($inB, 25.0, $this->t0->addHour());
+        $this->assertTrue($this->review($this->d, $this->a, [$inD])->json('devices.0.returns'));
+        $this->moved($this->d, $this->a, [$inD], ['include_history' => true]);
+        $home = $this->arrive($inD, 30.0, $this->t0->addHours(2));
+        $this->runtimeQueries = [];
+
+        // A reads its own readings and D's, which the last move shared, never B's.
+        $records = $this->as($this->aOnly, fn () => $this->records($this->a, $home, 7));
+        $this->assertSame([...array_fill(0, 6, ['self', 30.0]), ...array_fill(0, 6, ['source', 25.0]), ...array_fill(0, 49, ['self', 10.0])],
+            array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $records));
+        $series = $this->as($this->aOnly, fn () => $this->history($this->a, $home));
+        $this->assertSame(0, collect($series[0]['points'])->where('count', '>', 0)->filter(fn (array $point): bool => CarbonImmutable::parse($point['at'])->between($this->t0, $this->t0->addMinutes(45)))->count());
+        $this->assertEqualsCanonicalizing([$this->a->uuid, $this->d->uuid], $this->asked('/internal/measurements/history')->pluck('organization_uuid')->unique()->values()->all());
+        $this->assertNull(collect($this->runtimeQueries)->first(fn (array $request): bool => ($request[1]['organization_uuid'] ?? null) === $this->b->uuid));
+        $this->assertSame([$this->parameter($this->x), $this->parameter($inD)], [$this->asked('/internal/measurements/history')->firstWhere('device_uuid', $this->x->uuid)['parameter_uuid'],
+            $this->asked('/internal/measurements/history')->firstWhere('device_uuid', $inD->uuid)['parameter_uuid']]);
+        // D, a step behind, still reads only B's.
+        $this->assertEqualsCanonicalizing([20.0, 25.0], array_values(array_unique(array_map(fn (array $record): float => (float) $record['value'], $this->records($this->d, $inD, 50)))));
+    }
+
+    public function test_each_parameter_maps_back_through_both_copies(): void
+    {
+        foreach (range(30, 300, 30) as $minutes) {
+            $this->store($this->a, $this->x, $this->t0->subMinutes($minutes), 8000.0 + $minutes, 'total_volume');
+        }
+        $this->moved($this->a, $this->b, [$this->x]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->moved($this->b, $this->a, [$inB]);
+        $home = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $copies = DeviceProfileCopy::orderBy('id')->get();
+        $this->assertSame([$this->b->id, $this->a->id], $copies->pluck('target_organization_id')->all());
+        $this->assertNotSame($this->parameter($inB, 'total_volume'), $this->parameter($home, 'total_volume'));
+        $this->runtimeQueries = [];
+
+        $records = $this->as($this->aOnly, fn () => $this->records($this->a, $home, 50, 5000, 'total_volume'));
+        $this->assertSame(array_map(fn (int $minutes): float => 8000.0 + $minutes, range(30, 300, 30)), array_map(fn (array $record): float => (float) $record['value'], $records));
+        $this->assertSame(['self'], array_values(array_unique(array_column($records, 'recorded_in'))));
+        $this->assertSame([$this->parameter($home, 'total_volume')], array_values(array_unique(array_column($records, 'parameter_uuid'))));
+        $this->assertSame($this->parameter($this->x, 'total_volume'), $this->asked('/internal/measurements/records')->firstWhere('device_uuid', $this->x->uuid)['parameter_uuid']);
+        $this->assertSame([49 + 6], [collect($this->as($this->aOnly, fn () => $this->history($this->a, $home))[0]['points'])->sum('count')]);
+    }
+
+    public function test_a_counter_moved_back_adds_up_every_part_in_order(): void
+    {
+        foreach (range(30, 150, 30) as $minutes) {
+            $this->store($this->a, $this->x, $this->t0->subMinutes($minutes), 1.0, 'total_volume');
+        }
+        $this->moved($this->a, $this->b, [$this->x]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->store($this->b, $inB, $this->t0->addMinutes(30), 1.0, 'total_volume');
+        $this->moved($this->b, $this->a, [$inB], ['include_history' => true]);
+        $home = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $this->store($this->a, $home, $this->t0->addMinutes(90), 1.0, 'total_volume');
+        $this->runtimeQueries = [];
+
+        $points = $this->as($this->aOnly, fn () => $this->getJson($this->in($this->a).'/devices/'.$home->uuid.'/measurements/increase?'.http_build_query(['from' => $this->t0->subHours(3)->toJSON(), 'to' => now()->toJSON(),
+            'parameter_uuid' => $this->parameter($home, 'total_volume'), 'bucket' => '1h', 'timezone' => 'UTC']))->assertOk()->json('data.points'));
+        $this->assertSame([['09:00', 1.0, 'self'], ['10:00', 2.0, 'self'], ['11:00', 2.0, 'self'], ['12:00', 1.0, 'source'], ['13:00', 1.0, 'self']],
+            array_map(fn (array $point): array => [CarbonImmutable::parse($point['at'])->format('H:i'), (float) $point['increase'], $point['recorded_in']], $points));
+        $first = $this->asked('/internal/measurements/increase')->firstWhere('device_uuid', $this->x->uuid);
+        $this->assertSame([$this->a->uuid, $this->parameter($this->x, 'total_volume')], [$first['organization_uuid'], $first['parameter_uuid']]);
+        $this->assertTrue(CarbonImmutable::parse($first['to'])->equalTo($this->t0));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function endings(): array
+    {
+        return ['stopped' => ['stopped'], 'left the account' => ['left_account']];
+    }
+
+    #[DataProvider('endings')]
+    public function test_stopping_or_leaving_the_account_ends_only_what_the_move_back_shared(string $ending): void
+    {
+        $device = $this->profiled('Bench meter');
+        foreach ([60, 120] as $minutes) {
+            $this->store($this->a, $device, $this->t0->subMinutes($minutes), 5.0);
+        }
+        $this->moved($this->a, $this->b, [$device], ['include_history' => true]);
+        $inB = $this->successor($device);
+        $this->store($this->b, $inB, $this->t0->addMinutes(30), 6.0);
+        $this->travelTo($this->t0->addHour());
+        $this->moved($this->b, $this->a, [$inB], ['include_history' => true]);
+        $home = $this->successor($inB);
+        $this->store($this->a, $home, $this->t0->addMinutes(90), 7.0);
+        $this->travelTo($this->t0->addHours(2));
+        $values = fn (): array => array_map(fn (array $record): array => [$record['recorded_in'], (float) $record['value']], $this->as($this->aOnly, fn () => $this->records($this->a, $home, 10)));
+        $this->assertSame([['self', 7.0], ['source', 6.0], ['self', 5.0], ['self', 5.0]], $values());
+
+        if ($ending === 'stopped') {
+            $this->as($this->bOnly, fn () => $this->postJson($this->in($this->b).'/devices/'.$inB->uuid.'/link/history', ['enabled' => false])->assertOk());
+        } else {
+            app(BillingAccounts::class)->move($this->b->fresh(), BillingAccount::findOrFail($this->c->billing_account_id), $this->mover, confirmRetention: true);
+        }
+        $this->assertSame($ending, DeviceLink::where('predecessor_device_id', $inB->id)->value('history_stopped_reason'));
+        $this->assertSame([['self', 7.0], ['self', 5.0], ['self', 5.0]], $values());
+    }
+
+    public function test_a_records_cursor_crosses_every_part_and_pages_that_end_with_one(): void
+    {
+        $this->moved($this->a, $this->b, [$this->x]);
+        $inB = $this->arrive($this->x, 20.0);
+        $this->moved($this->b, $this->a, [$inB], ['include_history' => true]);
+        $home = $this->arrive($inB, 30.0, $this->t0->addHour());
+        $this->actingAs($this->aOnly, 'sanctum');
+
+        $all = array_column($this->records($this->a, $home, 50), 'event_uuid');
+        $this->assertCount(6 + 6 + 49, $all);
+        // Pages of six end exactly where each part does: the next page starts the next part.
+        $cursors = [];
+        $pages = [];
+        $cursor = null;
+        do {
+            $page = $this->recordsPage($this->a, $home, ['limit' => 5000, 'page_size' => 6, ...($cursor ? ['cursor' => $cursor] : [])]);
+            $pages[] = array_column($page['data'], 'event_uuid');
+            $cursor = $page['meta']['next_cursor'];
+            $cursors[] = $cursor;
+        } while ($cursor !== null);
+        $this->assertSame($all, array_merge(...$pages));
+        $this->assertSame(['earlier.6.1.', 'earlier.12.2.'], array_slice($cursors, 0, 2));
+        $this->assertSame([6, 6, 6], array_map('count', array_slice($pages, 0, 3)));
+        // Under a limit, the newest come first, over all three.
+        $limited = $this->records($this->a, $home, 5, 20);
+        $this->assertSame(array_slice($all, 0, 20), array_column($limited, 'event_uuid'));
+        $this->assertSame([6, 6, 8], [collect($limited)->where('recorded_in', 'self')->take(6)->count(), collect($limited)->where('recorded_in', 'source')->count(), collect($limited)->slice(12)->where('recorded_in', 'self')->count()]);
+
+        // Sharing stopped between two pages: the pages go on with its own organization's.
+        $page = $this->recordsPage($this->a, $home, ['limit' => 5000, 'page_size' => 8]);
+        $this->assertStringStartsWith('earlier.6.1.', $page['meta']['next_cursor']);
+        $this->as($this->bOnly, fn () => $this->postJson($this->in($this->b).'/devices/'.$inB->uuid.'/link/history', ['enabled' => false])->assertOk());
+        $next = $this->recordsPage($this->a, $home, ['limit' => 5000, 'page_size' => 8, 'cursor' => $page['meta']['next_cursor']]);
+        $this->assertSame(['self'], array_values(array_unique(array_column($next['data'], 'recorded_in'))));
+        $this->assertSame(array_slice($all, 12, 8), array_column($next['data'], 'event_uuid'));
+    }
+
     public function test_an_organization_outside_the_account_reaches_none_of_it(): void
     {
         $this->moved($this->a, $this->b, [$this->x], ['include_history' => true]);
@@ -246,6 +439,7 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         return match ($path) {
             '/internal/measurements/history' => $this->runtimeHistory($query),
             '/internal/measurements/records' => $this->runtimeRecords($query),
+            '/internal/measurements/increase' => $this->runtimeIncrease($query),
             default => null,
         };
     }
@@ -274,18 +468,18 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         return $device->fresh();
     }
 
-    /** The device's flow rate parameter. */
-    private function parameter(Device $device): string
+    /** The device's flow rate parameter, or another by key. */
+    private function parameter(Device $device, string $key = 'flow_rate'): string
     {
         $artifact = MovePreview::baseDraft($device->fresh())['artifact_uuid'];
         $definition = DeviceProfileArtifact::where('uuid', $artifact)->firstOrFail()->definition;
 
-        return collect($definition['parameters'])->firstWhere('key', 'flow_rate')['uuid'];
+        return collect($definition['parameters'])->firstWhere('key', $key)['uuid'];
     }
 
-    private function store(Organization $organization, Device $device, CarbonImmutable $at, float $value): void
+    private function store(Organization $organization, Device $device, CarbonImmutable $at, float $value, string $key = 'flow_rate'): void
     {
-        $this->stored[] = ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'parameter_uuid' => $this->parameter($device), 'at' => $at, 'value' => $value, 'event_uuid' => (string) Str::uuid()];
+        $this->stored[] = ['organization_uuid' => $organization->uuid, 'device_uuid' => $device->uuid, 'parameter_uuid' => $this->parameter($device, $key), 'at' => $at, 'value' => $value, 'event_uuid' => (string) Str::uuid()];
     }
 
     /** @return list<array<string, mixed>> */
@@ -296,12 +490,12 @@ final class HistoryAcrossMoveTest extends MoveTestCase
     }
 
     /** Every record of the range, page by page, as the CSV export reads them. */
-    private function records(Organization $organization, Device $device, int $pageSize, int $limit = 5000): array
+    private function records(Organization $organization, Device $device, int $pageSize, int $limit = 5000, string $key = 'flow_rate'): array
     {
         $records = [];
         $cursor = null;
         do {
-            $page = $this->recordsPage($organization, $device, ['limit' => $limit, 'page_size' => $pageSize, ...($cursor ? ['cursor' => $cursor] : [])]);
+            $page = $this->recordsPage($organization, $device, ['limit' => $limit, 'page_size' => $pageSize, ...($cursor ? ['cursor' => $cursor] : [])], $key);
             $this->assertSame(count($page['data']), $page['meta']['returned']);
             $records = [...$records, ...$page['data']];
             $cursor = $page['meta']['next_cursor'];
@@ -310,10 +504,10 @@ final class HistoryAcrossMoveTest extends MoveTestCase
         return $records;
     }
 
-    private function recordsPage(Organization $organization, Device $device, array $query): array
+    private function recordsPage(Organization $organization, Device $device, array $query, string $key = 'flow_rate'): array
     {
         return $this->getJson($this->in($organization).'/devices/'.$device->uuid.'/measurements/records?'.http_build_query(['from' => $this->t0->subDays(3)->toJSON(), 'to' => now()->toJSON(),
-            'parameter_uuid' => $this->parameter($device), ...$query]))->assertOk()->json();
+            'parameter_uuid' => $this->parameter($device, $key), ...$query]))->assertOk()->json();
     }
 
     /** @return Collection<int, array<string, mixed>> the queries of one runtime path */
@@ -350,6 +544,16 @@ final class HistoryAcrossMoveTest extends MoveTestCase
 
         return ['data' => $points === [] ? [] : [['configuration_uuid' => (string) Str::uuid(), 'unit' => 'L/min', 'data_type' => 'number', 'points' => $points]],
             'from' => $from->toJSON(), 'to' => $to->toJSON(), 'max_points' => $maxPoints];
+    }
+
+    /** Hourly buckets where every reading adds its value. */
+    private function runtimeIncrease(array $query): array
+    {
+        [$from, $to] = $this->runtimeWindow($query);
+        $points = $this->readingsFor($query)->groupBy(fn (array $reading): string => $reading['at']->startOfHour()->format('Y-m-d\TH:i:s\Z'))
+            ->map(fn (Collection $bucket, string $at): array => ['at' => $at, 'increase' => $bucket->sum('value'), 'samples' => $bucket->count(), 'resets' => 0, 'partial' => false])->values()->all();
+
+        return ['data' => ['from' => $from->toJSON(), 'to' => $to->toJSON(), 'bucket' => $query['bucket'], 'timezone' => $query['timezone'] ?? 'UTC', 'unit' => 'L', 'points' => $points]];
     }
 
     private function runtimeRecords(array $query): array

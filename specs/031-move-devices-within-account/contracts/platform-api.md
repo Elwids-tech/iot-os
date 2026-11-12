@@ -56,6 +56,7 @@ Response (`200`):
     "successor": { "name": "Shop tracker", "code": "trk-0042", "site_uuid": null },
     "reports_through": { "kind": "adapter", "name": "Vendor trackers", "owner_organization_name": "Integrator", "outcome": "stays" },
     "arrives_active": true,
+    "returns": false,
     "blockers": []
   }],
   "items": [{
@@ -104,6 +105,10 @@ Notes:
   doesn't offer falls back to the preselected action; one for an item not listed is
   ignored.
 - `history.offered` is false before PR 031-9.
+- `returns` is true when the device, or one before it, was in the target before: its
+  successor reconnects to the readings recorded there, whatever `include_history` says
+  (FR-053). The `summary` then adds "1 device returns to *target* and reconnects to the
+  readings it recorded there before." (or "*n* devices return… they…").
 - `archives` lists each item to be archived, so it can be confirmed on its own
   (FR-006).
 
@@ -310,6 +315,11 @@ is stopping. Organization deletion lists the same as the `hosted_devices` blocke
   `increase`, which also serve exports and dashboard panels, and applications'
   `telemetry/history` and `telemetry/records`) return earlier readings with
   `"recorded_in": "source"`. Every other reading carries `"recorded_in": "self"`.
+- The same reads of any successor also return the readings of each earlier predecessor
+  in its own organization, up to the cutover it left at, as `"recorded_in": "self"`
+  (FR-053), oldest first: those, then the shared predecessor's, then its own. Records
+  page newest first through them; a records cursor from before the move is
+  `earlier.<consumed>.<hops>.<runtime cursor>`.
 - `link.history` is `{included, stopped_at, stopped_reason}`, `stopped_reason` being
   `stopped` or `left_account`.
 - With `include_history: true` the review's `summary` adds "*Target* can read the

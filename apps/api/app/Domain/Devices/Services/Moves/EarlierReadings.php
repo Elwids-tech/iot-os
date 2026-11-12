@@ -7,49 +7,108 @@ namespace App\Domain\Devices\Services\Moves;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Models\DeviceProfileCopy;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Services\Pipes;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 
 /**
- * What a moved device reads of its predecessor (spec 031 US6, research R18): the
- * predecessor's readings under the source organization, with the source's retention,
- * up to the cutover, for the parameter it had before its profile was copied. Laravel
- * decides the crossing and asks the runtime for each organization separately; nothing
- * is copied (ADR-039).
+ * One earlier part of a moved device's history (spec 031 US6, research R18): a
+ * predecessor's readings up to the cutover it left at, for the parameter its profile had
+ * before the copies. A device has two kinds:
+ *
+ * - its own predecessor's, while the mover shared them: read under the source
+ *   organization and its retention, labelled `source`. Laravel decides that crossing and
+ *   asks the runtime for each organization separately; nothing is copied (ADR-039).
+ * - those of any earlier predecessor in its own organization, which a device moved back
+ *   recorded there before (ADR-040): read under the device's organization and retention,
+ *   labelled `self`, whatever the links in between share. That crosses nothing.
  */
 final class EarlierReadings
 {
+    /** Links walked back at most; a chain this long has nothing more to give. */
+    private const MAX_HOPS = 50;
+
     private function __construct(
         public readonly Organization $organization,
         public readonly Device $device,
         public readonly string $parameterUuid,
         public readonly CarbonImmutable $cutover,
         public readonly int $retentionDays,
+        /** `source` for the predecessor's shared readings, `self` for the device's own organization's. */
+        public readonly string $recordedIn,
+        /** How many links back the device is: 1 for the predecessor. Keys a records cursor. */
+        public readonly int $hops,
     ) {}
 
     /**
-     * The predecessor's side of a successor's parameter, or null. Only while the mover
-     * shared history, nobody stopped it, both organizations are in one billing account,
-     * and the parameter existed before the move. Only the device's own link counts:
-     * history never follows a chain of moves.
+     * The earlier parts of a device's history for one of its parameters, oldest first:
+     * its organization's earlier predecessors, then its predecessor's readings when its
+     * link shares them. The walk follows the links back while the parameter maps through
+     * each profile copy.
+     *
+     * @return list<self>
      */
-    public static function for(Device $device, string $parameterUuid): ?self
+    public static function for(Device $device, string $parameterUuid): array
     {
+        $parts = [];
+        $own = null;
+        $parameter = $parameterUuid;
+        // The organization of the device each link led to: a chain only continues through it.
+        $organizationId = $device->organization_id;
+        $seen = [$device->id => true];
         $link = $device->movedFrom;
-        if (! $link || ! $link->history_included || $link->history_stopped_at !== null || $link->target_organization_id !== $device->organization_id
-            || ! Pipes::sameAccount($link->source_organization_id, $link->target_organization_id)) {
-            return null;
-        }
-        $predecessor = Device::find($link->predecessor_device_id);
-        $source = Organization::find($link->source_organization_id);
-        $parameter = $predecessor ? self::parameter($predecessor, $link->target_organization_id, $parameterUuid) : null;
-        if (! $source || ! $parameter) {
-            return null;
+        for ($hops = 1; $link && $link->target_organization_id === $organizationId && $hops <= self::MAX_HOPS; $hops++) {
+            $predecessor = Device::find($link->predecessor_device_id);
+            $parameter = $predecessor && ! isset($seen[$predecessor->id]) ? self::parameter($predecessor, $link->target_organization_id, $parameter) : null;
+            if ($parameter === null) {
+                break;
+            }
+            $seen[$predecessor->id] = true;
+            if ($link->source_organization_id === $device->organization_id) {
+                $own ??= app(RetentionService::class)->effective($device->organization)['days'];
+                $parts[] = new self($device->organization, $predecessor, $parameter, $link->cutover_at, $own, JoinedReadings::SELF, $hops);
+            } elseif ($hops === 1 && self::shared($link) && ($source = Organization::find($link->source_organization_id))) {
+                $parts[] = new self($source, $predecessor, $parameter, $link->cutover_at, app(RetentionService::class)->effective($source)['days'], JoinedReadings::SOURCE, $hops);
+            }
+            $organizationId = $link->source_organization_id;
+            $link = $predecessor->movedFrom;
         }
 
-        return new self($source, $predecessor, $parameter, $link->cutover_at, app(RetentionService::class)->effective($source)['days']);
+        return array_reverse($parts);
+    }
+
+    /**
+     * Whether the device, or one before it, was in the organization: moved there, it
+     * reconnects to the readings recorded there (ADR-040). The move review says so.
+     */
+    public static function returnsTo(Device $device, Organization $organization): bool
+    {
+        $seen = [$device->id => true];
+        $link = $device->movedFrom;
+        for ($hops = 1; $link && $hops <= self::MAX_HOPS; $hops++) {
+            if ($link->source_organization_id === $organization->id) {
+                return true;
+            }
+            if (isset($seen[$link->predecessor_device_id])) {
+                return false;
+            }
+            $seen[$link->predecessor_device_id] = true;
+            $link = DeviceLink::where('successor_device_id', $link->predecessor_device_id)->first();
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a link shares its predecessor's readings: the mover chose it, nobody stopped
+     * it, and both organizations are still in one billing account.
+     */
+    private static function shared(DeviceLink $link): bool
+    {
+        return $link->history_included && $link->history_stopped_at === null
+            && Pipes::sameAccount($link->source_organization_id, $link->target_organization_id);
     }
 
     /**
@@ -74,8 +133,8 @@ final class EarlierReadings
     }
 
     /**
-     * The part of a requested range the predecessor answers: from the start of the range,
-     * or of the source's retention, to the cutover. Null when that is empty.
+     * The part of a requested range this predecessor answers: from the start of the
+     * range, or of its retention, to the cutover. Null when that is empty.
      *
      * @param  array{from: string, to: string}  $values
      * @return ?array{from: CarbonImmutable, to: CarbonImmutable}
@@ -91,7 +150,7 @@ final class EarlierReadings
 
     /**
      * The runtime query for the predecessor: the requested range ended at the cutover,
-     * under the source, its retention and the predecessor's parameter.
+     * under its organization, retention and parameter.
      *
      * @param  array<string, mixed>  $values  the successor's validated query
      * @return array<string, mixed>
@@ -104,17 +163,20 @@ final class EarlierReadings
     }
 
     /**
-     * One bucket width for both reads of an aggregate history, as the runtime would pick
-     * it for the joined range, so the two answers share bucket edges.
+     * One bucket width for every read of an aggregate history, as the runtime would pick
+     * it for the joined range, so the answers share bucket edges.
      *
+     * @param  list<self>  $parts
      * @param  array{from: string, to: string, max_points?: int}  $values
      */
-    public function bucketSeconds(array $values, int $ownRetentionDays): int
+    public static function bucketSeconds(array $parts, array $values, int $ownRetentionDays): int
     {
         $now = CarbonImmutable::now();
-        $earlier = $this->window($values);
         $from = CarbonImmutable::parse($values['from'])->max($now->subDays($ownRetentionDays));
-        $from = $earlier ? $from->min($earlier['from']) : $from;
+        foreach ($parts as $part) {
+            $window = $part->window($values);
+            $from = $window ? $from->min($window['from']) : $from;
+        }
         $to = CarbonImmutable::parse($values['to'])->min($now);
         $buckets = intdiv((int) ($values['max_points'] ?? 500), 2);
 

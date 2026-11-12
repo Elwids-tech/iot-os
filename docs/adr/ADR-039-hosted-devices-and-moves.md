@@ -1,6 +1,6 @@
 # ADR-039: Hosted Devices and Moves Within a Billing Account
 
-**Status:** Accepted 2026-11-11, built in [spec 031](../../specs/031-move-devices-within-account/spec.md) (moves of adapter-fed devices in PRs 031-1 and 031-2; gateway, direct-device, history and assistant parts follow in later PRs)
+**Status:** Accepted 2026-11-11, built in [spec 031](../../specs/031-move-devices-within-account/spec.md) (moves of adapter-fed devices in PRs 031-1 and 031-2; gateway, direct-device, history and assistant parts follow in later PRs); amended by [ADR-040](ADR-040-moved-back-devices-read-their-own-readings.md) (a device moved back reads its organization's earlier readings)
 **Date:** 2026-11-11
 **Amends:** [ADR-026](ADR-026-billing-accounts.md)
 **Relates to:** [ADR-010](ADR-010-per-tenant-adapter-runtimes.md),

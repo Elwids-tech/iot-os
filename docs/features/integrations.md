@@ -177,8 +177,9 @@ within the application's resolved grant; without `entities:read` it is 403.
   the organization with its readings shared ([moving devices](devices.md#measurements-and-history-across-a-move)),
   history also has the archived device's series from before the move, first, and
   records continue into its records under the same `limit`; those are `source`,
-  read from the organization the device moved from under its retention. Everything
-  else is `self`.
+  read from the organization the device moved from under its retention. A device
+  moved back also has the readings it recorded in this organization before, oldest
+  first and `self`. Everything else is `self`.
 - **Location bindings** lists every binding version the runtime applied
   successfully, superseded and stopped versions included, so an older event can be
   read through the binding it was recorded under. A listed version's workflow may no

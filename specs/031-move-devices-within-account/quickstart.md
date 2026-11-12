@@ -137,6 +137,10 @@ From A's adapter **Discovery**, activate a new serial into B. Expected:
    - earlier points are labelled as recorded in A.
 2. Stop it on A's archived device. B sees nothing before the cutover.
 3. Move another device without the option. B sees nothing before its cutover.
+4. Move that device back to A, with or without the option. The review says it
+   reconnects to the readings it recorded in A. A's chart for the new device is
+   continuous from its readings before the first move: B's (with the option) and its
+   own follow, and A's readings carry no "recorded in" label (FR-053).
 
 ## 9. The assistant (US7; PR 031-10)
 

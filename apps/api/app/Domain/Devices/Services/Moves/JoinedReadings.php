@@ -9,9 +9,11 @@ use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Joins a moved device's history with its predecessor's (spec 031 US6, research R18).
- * Every reading says where it was recorded: `source` for the predecessor's, `self` for
- * the device's own. These are pure functions of the two runtime answers.
+ * Joins a moved device's history with the earlier parts of it (spec 031 US6, research
+ * R18, ADR-040). Every reading says where it was recorded: `source` for the shared
+ * predecessor's, `self` for the device's own and its own organization's earlier
+ * predecessors'. These are pure functions of the runtime answers, each earlier part
+ * given oldest first as `{recorded_in, data}`.
  */
 final class JoinedReadings
 {
@@ -29,95 +31,102 @@ final class JoinedReadings
     }
 
     /**
-     * History series, the predecessor's first. With merged configurations, its series of
-     * a data type and unit joins the device's own of the same: buckets at one time
-     * recombine from their counts, and pauses are found again across the cutover.
+     * History series, the earliest part's first. With merged configurations, a part's
+     * series of a data type and unit joins the later ones' of the same: buckets at one
+     * time recombine from their counts, and pauses are found again across the cutovers.
      * Otherwise every configuration keeps its own series.
      *
-     * @param  list<array<string, mixed>>  $before
+     * @param  list<array{recorded_in: string, data: list<array<string, mixed>>}>  $earlier  oldest first
      * @param  list<array<string, mixed>>  $own
      * @return list<array<string, mixed>>
      */
-    public static function series(array $before, array $own, bool $merged = true, int $bucketSeconds = 1): array
+    public static function series(array $earlier, array $own, bool $merged = true, int $bucketSeconds = 1): array
     {
-        $before = array_map(fn (array $series): array => self::markSeries($series, self::SOURCE), $before);
-        $own = array_map(fn (array $series): array => self::markSeries($series, self::SELF), $own);
-        if (! $merged || $before === []) {
-            return [...$before, ...$own];
+        $parts = [...array_map(fn (array $part): array => array_map(fn (array $series): array => self::markSeries($series, $part['recorded_in']), $part['data']), $earlier),
+            array_map(fn (array $series): array => self::markSeries($series, self::SELF), $own)];
+        if (! $merged || array_merge(...array_slice($parts, 0, -1)) === []) {
+            return array_merge(...$parts);
         }
         $key = fn (array $series): string => $series['data_type'].':'.($series['unit'] ?? '');
         $joined = [];
-        foreach ($before as $series) {
-            $joined[$key($series)] = $series;
-        }
-        foreach ($own as $series) {
-            $joined[$key($series)] = isset($joined[$key($series)]) ? self::join($joined[$key($series)], $series, $bucketSeconds) : $series;
+        foreach ($parts as $part) {
+            foreach ($part as $series) {
+                $joined[$key($series)] = isset($joined[$key($series)]) ? self::join($joined[$key($series)], $series, $bucketSeconds) : $series;
+            }
         }
 
         return array_values($joined);
     }
 
     /**
-     * The predecessor's records as the device's own parameter, without the source's
+     * A predecessor's records as the device's own parameter, without the predecessor's
      * installation and adapter revision.
      *
      * @param  list<array<string, mixed>>  $records
      * @return list<array<string, mixed>>
      */
-    public static function earlierRecords(array $records, string $parameterUuid): array
+    public static function earlierRecords(array $records, string $parameterUuid, string $recordedIn = self::SOURCE): array
     {
-        return self::mark(array_map(fn (array $record): array => [...Arr::except($record, ['installation_uuid', 'adapter_revision_uuid']), 'parameter_uuid' => $parameterUuid], $records), self::SOURCE);
+        return self::mark(array_map(fn (array $record): array => [...Arr::except($record, ['installation_uuid', 'adapter_revision_uuid']), 'parameter_uuid' => $parameterUuid], $records), $recordedIn);
     }
 
     /**
-     * State history across the cutover: the predecessor's timeline up to it, then the
-     * device's own, with durations summed over both ranges.
+     * State history across the cutovers: each earlier part's timeline up to its cutover,
+     * then the device's own, with durations summed over every range.
      *
-     * @param  array<string, mixed>  $before
-     * @param  ?array<string, mixed>  $own  null when the range ends before the cutover
+     * @param  list<array{recorded_in: string, data: array<string, mixed>}>  $earlier  oldest first, ranges in order
+     * @param  ?array<string, mixed>  $own  null when the range ends before the last cutover
      * @return array<string, mixed>
      */
-    public static function stateHistory(array $before, ?array $own): array
+    public static function stateHistory(array $earlier, ?array $own): array
     {
-        $before = [...$before, 'timeline' => self::mark($before['timeline'] ?? [], self::SOURCE)];
-        if ($own === null) {
-            return $before;
+        $parts = [...array_map(fn (array $part): array => [...$part['data'], 'timeline' => self::mark($part['data']['timeline'] ?? [], $part['recorded_in'])], $earlier),
+            ...($own === null ? [] : [[...$own, 'timeline' => self::mark($own['timeline'] ?? [], self::SELF)]])];
+        if (count($parts) === 1) {
+            return $parts[0];
         }
-        $total = self::ms($before['to']) - self::ms($before['from']) + self::ms($own['to']) - self::ms($own['from']);
+        $total = array_sum(array_map(fn (array $part): int => self::ms($part['to']) - self::ms($part['from']), $parts));
         $durations = [];
-        foreach ([...$before['durations'] ?? [], ...$own['durations'] ?? []] as $duration) {
-            $key = json_encode([$duration['value'] ?? null, $duration['known'] ?? false, $duration['data_type'] ?? null]);
-            $sum = ($durations[$key]['duration_ms'] ?? 0) + $duration['duration_ms'];
-            $durations[$key] = [...$duration, 'duration_ms' => $sum, 'percentage' => $total > 0 ? $sum / $total * 100 : 0.0];
+        foreach ($parts as $part) {
+            foreach ($part['durations'] ?? [] as $duration) {
+                $key = json_encode([$duration['value'] ?? null, $duration['known'] ?? false, $duration['data_type'] ?? null]);
+                $sum = ($durations[$key]['duration_ms'] ?? 0) + $duration['duration_ms'];
+                $durations[$key] = [...$duration, 'duration_ms' => $sum, 'percentage' => $total > 0 ? $sum / $total * 100 : 0.0];
+            }
         }
         usort($durations, fn (array $a, array $b): int => $b['duration_ms'] <=> $a['duration_ms']);
 
-        return ['from' => $before['from'], 'to' => $own['to'], 'durations' => $durations,
-            'timeline' => [...$before['timeline'], ...self::mark($own['timeline'] ?? [], self::SELF)],
-            'sampled' => ($before['sampled'] ?? false) || ($own['sampled'] ?? false)];
+        return ['from' => $parts[0]['from'], 'to' => $parts[count($parts) - 1]['to'], 'durations' => $durations,
+            'timeline' => array_merge(...array_column($parts, 'timeline')),
+            'sampled' => in_array(true, array_map(fn (array $part): bool => (bool) ($part['sampled'] ?? false), $parts), true)];
     }
 
     /**
-     * Counter consumption across the cutover: the calendar buckets of both answers, summed
-     * where they meet, and partial again only at the joined range's ends.
+     * Counter consumption across the cutovers: the calendar buckets of every answer,
+     * summed where they meet, and partial again only at the joined range's ends.
      *
-     * @param  array<string, mixed>  $before
+     * @param  list<array{recorded_in: string, data: array<string, mixed>}>  $earlier  oldest first
      * @param  array<string, mixed>  $own
      * @return array<string, mixed>
      */
-    public static function increase(array $before, array $own): array
+    public static function increase(array $earlier, array $own): array
     {
-        if (($before['points'] ?? []) !== [] && ($own['points'] ?? []) !== [] && ($before['unit'] ?? null) !== ($own['unit'] ?? null)) {
+        $answers = [...$earlier, ['recorded_in' => self::SELF, 'data' => $own]];
+        $units = array_unique(array_map(fn (array $answer): string => json_encode($answer['data']['unit'] ?? null), array_filter($answers, fn (array $answer): bool => ($answer['data']['points'] ?? []) !== [])));
+        if (count($units) > 1) {
             throw ValidationException::withMessages(['runtime' => 'The counter’s unit changed in this range. Choose a range on one side of the change.']);
         }
-        $from = self::ms($before['from']) < self::ms($own['from']) ? $before['from'] : $own['from'];
+        $from = $own['from'];
         $buckets = [];
-        foreach ([...self::mark($before['points'] ?? [], self::SOURCE), ...self::mark($own['points'] ?? [], self::SELF)] as $point) {
-            $at = self::ms($point['at']);
-            $buckets[$at] = isset($buckets[$at]) ? [...$buckets[$at],
-                'increase' => $buckets[$at]['increase'] + $point['increase'], 'samples' => $buckets[$at]['samples'] + $point['samples'],
-                'resets' => $buckets[$at]['resets'] + $point['resets'], 'recorded_in' => self::SOURCE,
-            ] : $point;
+        foreach ($answers as $answer) {
+            $from = self::ms($answer['data']['from']) < self::ms($from) ? $answer['data']['from'] : $from;
+            foreach (self::mark($answer['data']['points'] ?? [], $answer['recorded_in']) as $point) {
+                $at = self::ms($point['at']);
+                $buckets[$at] = isset($buckets[$at]) ? [...$buckets[$at],
+                    'increase' => $buckets[$at]['increase'] + $point['increase'], 'samples' => $buckets[$at]['samples'] + $point['samples'],
+                    'resets' => $buckets[$at]['resets'] + $point['resets'], 'recorded_in' => self::either($buckets[$at], $point),
+                ] : $point;
+            }
         }
         ksort($buckets);
         $timezone = $own['timezone'] ?? 'UTC';
@@ -127,8 +136,12 @@ final class JoinedReadings
 
             return [...$point, 'partial' => $start->getTimestampMs() < self::ms($from) || $end->getTimestampMs() > self::ms($own['to'])];
         }, array_values($buckets));
+        $unit = $own['unit'] ?? null;
+        foreach (array_reverse($earlier) as $answer) {
+            $unit ??= $answer['data']['unit'] ?? null;
+        }
 
-        return [...$own, 'from' => $from, 'unit' => $own['unit'] ?? $before['unit'] ?? null, 'points' => $points];
+        return [...$own, 'from' => $from, 'unit' => $unit, 'points' => $points];
     }
 
     /**
@@ -189,7 +202,18 @@ final class JoinedReadings
         $max = array_filter([$a['max'] ?? null, $b['max'] ?? null], fn (mixed $v): bool => $v !== null);
 
         return ['at' => $b['at'], 'value' => $value, ...($min === [] ? [] : ['min' => min($min)]), ...($max === [] ? [] : ['max' => max($max)]), 'count' => $count,
-            'recorded_in' => in_array(self::SOURCE, [$a['recorded_in'] ?? null, $b['recorded_in'] ?? null], true) ? self::SOURCE : self::SELF];
+            'recorded_in' => self::either($a, $b)];
+    }
+
+    /**
+     * Where a bucket holding two readings was recorded: `source` when either was.
+     *
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private static function either(array $a, array $b): string
+    {
+        return in_array(self::SOURCE, [$a['recorded_in'] ?? null, $b['recorded_in'] ?? null], true) ? self::SOURCE : self::SELF;
     }
 
     /**

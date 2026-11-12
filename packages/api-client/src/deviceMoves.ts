@@ -97,6 +97,11 @@ export type DeviceMoveReview = {
     successor: { name: string; code: string; site_uuid: string | null }
     reports_through: DeviceMoveReportsThrough | null
     arrives_active: boolean
+    /**
+     * The device, or one before it, was in the target before: its successor reconnects to
+     * the readings recorded there, whatever `include_history` says (ADR-040).
+     */
+    returns: boolean
     /** Plain sentences, such as "Waiting for the runtime". */
     blockers: string[]
   }[]
@@ -191,7 +196,8 @@ export type DeviceLink = {
 /**
  * Where a history reading was recorded: `source` for a moved device's predecessor's
  * readings from before the move, read from the organization it moved from; `self`
- * otherwise. A bucket that spans the move holds both and is `source`.
+ * otherwise, including the readings a device moved back recorded in its organization
+ * before (ADR-040). A bucket that spans the move holds both and is `source`.
  */
 export type RecordedIn = "self" | "source"
 
