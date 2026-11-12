@@ -821,6 +821,14 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## UI
 
+- **React Flow turns a jittery click into a drag.** Its defaults drag a node after
+  1px and count a click only within 0px, so clicking a node in the automation
+  editor moved it by a pixel and showed **Unsaved changes**. The editor sets
+  `nodeDragThreshold` and `nodeClickDistance` to 4px; keep both if you touch the
+  canvas, or a drifting click neither selects nor stays still.
+- **An `AlertAction` button fits one short word.** The kit's `Alert` reserves
+  `pr-18` for it, so a longer label covers the description; put such a button in
+  the `AlertDescription` instead.
 - **Navigating right after a successful save can hit the unsaved-changes guard.**
   `useUnsaved` clears the dirty flag in an effect, so `navigate()` in the same
   handler that marks the form saved still sees it dirty and shows "Leave without

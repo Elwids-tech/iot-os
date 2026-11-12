@@ -47,6 +47,10 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
  * A moved dashboard keeps its row. A moved automation is recreated in the target and the
  * source's is turned off and archived as moved, with its run history: the runtime ties a
  * workflow's UUID to one organization, as it does a device's.
+ *
+ * Where automations are turned off, nobody can change or turn on a moved automation until
+ * they are turned on. The review says so, and a mover who may turn them on there (the
+ * settings toggle's `Workflow.activate`) can choose to at cutover (FR-039).
  */
 final class CarriedItems
 {
@@ -81,9 +85,10 @@ final class CarriedItems
      * @param  array<string, bool>  $arriving  whether each moving device arrives active, by UUID
      * @param  array<string, string>  $parameters  the moving devices' parameter UUIDs, each to itself
      * @param  list<array{kind: string, uuid: string, action: string}>  $overrides
-     * @return array{rows: list<array{model: Dashboard|Workflow, view: array<string, mixed>}>, state: array<string, mixed>}
+     * @param  bool  $turnOn  the request's `turn_on_automations`: turn automations on in the target at cutover
+     * @return array{rows: list<array{model: Dashboard|Workflow, view: array<string, mixed>}>, state: array<string, mixed>, automations: array{enabled: bool, offered: bool, turn_on: bool}}
      */
-    public function review(Organization $source, Organization $target, User $mover, Collection $moving, array $arriving, array $parameters, array $overrides): array
+    public function review(Organization $source, Organization $target, User $mover, Collection $moving, array $arriving, array $parameters, array $overrides, bool $turnOn = false): array
     {
         $uuids = $moving->keys()->all();
         $chosen = collect($overrides)->mapWithKeys(fn (array $override): array => [$override['kind'].':'.$override['uuid'] => $override['action']]);
@@ -93,13 +98,17 @@ final class CarriedItems
         $known = Device::where('organization_id', $source->id)->whereIn('uuid', array_values(array_unique($named)))->get(['id', 'uuid', 'name', 'lifecycle'])->keyBy('uuid');
         $sourceAutomations = $this->automations->capabilities($mover, $source);
         $targetAutomations = $this->automations->capabilities($mover, $target);
+        // Turning automations on in the target is the settings toggle, so it needs what that needs.
+        $settings = self::settings($target);
+        $turning = $turnOn && ! $settings['enabled'] && $targetAutomations['activate'];
         $can = [
             'create' => $this->dashboards->capabilities($mover, $target)['create'],
             'manage' => $targetAutomations['manage'],
             'activate' => $targetAutomations['activate'],
             'archive' => $sourceAutomations['manage'] && $sourceAutomations['activate'],
-            'enabled' => self::automationsOn($target),
+            'enabled' => ($settings['enabled'] || $turning) && ! $settings['stopped'],
         ];
+        $off = ! $settings['enabled'] && ! $turning;
         $members = $target->users()->pluck('users.id')->all();
 
         $rows = [];
@@ -113,7 +122,7 @@ final class CarriedItems
                 $references[$workflow->uuid] = $workflow->uuid;
             }
             $running = $workflow->desired_deployment_uuid !== null;
-            $off = $action === 'move' && $running ? $this->offReason($workflow, $target, $can, collect($devices)->filter(fn (string $uuid): bool => ! ($arriving[$uuid] ?? false))->map(fn (string $uuid) => $moving[$uuid]->name ?? null)->filter()->first()) : null;
+            $why = $action === 'move' && $running ? $this->offReason($workflow, $target, $can, collect($devices)->filter(fn (string $uuid): bool => ! ($arriving[$uuid] ?? false))->map(fn (string $uuid) => $moving[$uuid]->name ?? null)->filter()->first()) : null;
             $usedHere = collect($devices)->filter(fn (string $uuid): bool => $moving->has($uuid))->map(fn (string $uuid): string => $moving[$uuid]->name)->values()->all();
             $rows[] = ['model' => $workflow, 'view' => [
                 'kind' => 'automation', 'uuid' => $workflow->uuid, 'name' => $workflow->name,
@@ -121,9 +130,10 @@ final class CarriedItems
                 'omitted' => ['panels' => [], 'shares' => [], 'recipients' => $action === 'move' ? $this->lostRecipients($workflow, $target) : [], 'references' => []],
                 'other_devices' => $only ? null : self::others($others, $moving),
                 'running' => $running,
-                'arrives_running' => $action === 'move' ? $running && $off === null : null,
+                'arrives_running' => $action === 'move' ? $running && $why === null : null,
                 'outcome' => match ($action) {
-                    'move' => ! $running ? 'Moves to '.$target->name.', off as it is now.' : ($off ? 'Moves to '.$target->name.' and arrives off, because '.$off.'.' : 'Moves to '.$target->name.' and keeps running there once its devices are active.'),
+                    'move' => (! $running ? 'Moves to '.$target->name.', off as it is now.' : ($why ? 'Moves to '.$target->name.' and arrives off, because '.$why.'.' : 'Moves to '.$target->name.' and keeps running there once its devices are active.'))
+                        .($off ? ' Nobody can change or turn it on there until automations are turned on in '.$target->name.'.' : ''),
                     'archive' => ($running ? 'Turned off and archived in ' : 'Archived in ').$source->name.'.',
                     default => 'Stays in '.$source->name.($running ? ' and is turned off until ' : ', and can’t be turned on until ').self::names($usedHere).' '.(count($usedHere) === 1 ? 'is' : 'are').' removed from it.',
                 },
@@ -167,7 +177,11 @@ final class CarriedItems
             'automations' => $workflows->mapWithKeys(fn (Workflow $workflow): array => [$workflow->uuid => [$workflow->draft_revision, $workflow->deployment_generation, $workflow->notification_revision]])->sortKeys()->all(),
         ];
 
-        return ['rows' => [...$dashboardRows, ...$rows], 'state' => $state];
+        // Offered only while an automation moves into a target with automations off.
+        $moves = collect($rows)->contains(fn (array $row): bool => $row['view']['action'] === 'move');
+        $automations = ['enabled' => $settings['enabled'], 'offered' => $moves && ! $settings['enabled'] && $can['activate'], 'turn_on' => $moves && $turning];
+
+        return ['rows' => [...$dashboardRows, ...$rows], 'state' => $state, 'automations' => $automations];
     }
 
     /**
@@ -179,6 +193,9 @@ final class CarriedItems
      */
     public function refusal(DeviceMove $move, Organization $source, Organization $target, User $mover, array $uuids): ?string
     {
+        if ($move->turns_on_automations && ! $this->automations->capabilities($mover, $target)['activate']) {
+            return 'The person who moved the devices can no longer turn on automations in '.$target->name.'.';
+        }
         foreach ($move->items()->whereIn('action', ['move', 'copy', 'archive'])->get() as $item) {
             $model = $item->kind === 'dashboard' ? Dashboard::find($item->source_item_id) : Workflow::find($item->source_item_id);
             $named = $model === null ? [] : ($item->kind === 'dashboard' ? DashboardRewrite::devices($model->widgets ?? []) : WorkflowRewrite::devices($model->workflow ?? []));
@@ -207,13 +224,17 @@ final class CarriedItems
 
     /**
      * Applies the confirmed choices in the cutover's transaction, then turns off the
-     * automations kept in the source that still bind a moved device.
+     * automations kept in the source that still bind a moved device. Automations are
+     * turned on in the target first when the mover chose to, so those that move can start.
      *
      * @param  array<string, Device>  $successors  by predecessor UUID
      * @param  array<string, string>  $parameters  the profile copies' parameter maps, merged
      */
     public function apply(DeviceMove $move, Organization $source, Organization $target, User $mover, array $successors, array $parameters): void
     {
+        if ($move->turns_on_automations) {
+            $this->turnOnAutomations($move, $target, $mover);
+        }
         $devices = array_map(fn (Device $successor): string => $successor->uuid, $successors);
         $bindings = array_map(fn (Device $successor): array => [
             'device_uuid' => $successor->uuid,
@@ -412,6 +433,35 @@ final class CarriedItems
     private static function automationsOn(Organization $organization): bool
     {
         return DB::table('automation_settings')->where('organization_id', $organization->id)->where('enabled', true)->where('stopped', false)->exists();
+    }
+
+    /**
+     * Whether automations are turned on in the organization, and whether their actions are
+     * stopped. An organization without a settings row has them off.
+     *
+     * @return array{enabled: bool, stopped: bool}
+     */
+    public static function settings(Organization $organization): array
+    {
+        $settings = DB::table('automation_settings')->where('organization_id', $organization->id)->first();
+
+        return ['enabled' => (bool) ($settings->enabled ?? false), 'stopped' => (bool) ($settings->stopped ?? false)];
+    }
+
+    /**
+     * Turns automations on in the target, as the settings toggle does, unless they are on.
+     * Whether their actions are stopped stays as it is.
+     */
+    private function turnOnAutomations(DeviceMove $move, Organization $target, User $mover): void
+    {
+        DB::table('automation_settings')->insertOrIgnore(['organization_id' => $target->id]);
+        $query = DB::table('automation_settings')->where('organization_id', $target->id);
+        $settings = (clone $query)->lockForUpdate()->first();
+        if ($settings->enabled) {
+            return;
+        }
+        $query->update(['enabled' => true, 'revision' => $settings->revision + 1]);
+        ActivityLog::record('automation.settings_changed', $target, $mover, null, ['enabled' => true, 'stopped' => (bool) $settings->stopped, 'move_uuid' => $move->uuid]);
     }
 
     /**

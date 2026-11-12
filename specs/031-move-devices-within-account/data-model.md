@@ -17,6 +17,7 @@ piece (plan § Delivery).
 | `origin` | enum `devices`, `device`, `assistant` | Started from the device list, a device page, or an assistant card |
 | `device_move_proposal_id` | FK nullable | Set when `origin = assistant` (PR 031-10) |
 | `include_history` | bool, default false | FR-050 (honoured from PR 031-9; refused as true before) |
+| `turns_on_automations` | bool, default false | FR-039: the review's `automations.turn_on`. The cutover turns automations on in the target before the automations move (`automation_settings.enabled`, revision + 1, `automation.settings_changed` with `move_uuid`) |
 | `status` | enum `stopping`, `completed`, `failed` | See state machine |
 | `failure_reason` | string nullable | Plain sentence for **Done** |
 | `review` | jsonb | The confirmed review (devices, items, endings, profile copies), kept for **Done** and the activity log |

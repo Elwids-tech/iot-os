@@ -24,8 +24,10 @@ const NO_SITE = "__none"
  * the target, how it reports, what blocks it; each dashboard and automation that uses
  * them with its choice; what ends, which profile versions are copied, and whether the
  * target reads the readings from before the move. A device moved back reconnects to the
- * readings it recorded in the target before, whatever the option. Edits re-review; nothing
- * changes until Move.
+ * readings it recorded in the target before, whatever the option. Where automations are
+ * turned off in the target, an automation that moves can't be changed or turned on there;
+ * a mover who may turn them on can choose to (FR-039). Edits re-review; nothing changes
+ * until Move.
  */
 export function WhatComesAlong({
   source,
@@ -40,6 +42,8 @@ export function WhatComesAlong({
   onAdd,
   includeHistory,
   onIncludeHistory,
+  turnOnAutomations,
+  onTurnOnAutomations,
 }: {
   source: string
   target: MoveTarget
@@ -54,6 +58,8 @@ export function WhatComesAlong({
   onAdd: (uuids: string[]) => void
   includeHistory: boolean
   onIncludeHistory: (include: boolean) => void
+  turnOnAutomations: boolean
+  onTurnOnAutomations: (turnOn: boolean) => void
 }) {
   const sites = useQuery({ queryKey: ["sites", target.uuid], queryFn: () => api.sites(target.uuid) })
   const siteOptions = [
@@ -74,6 +80,9 @@ export function WhatComesAlong({
   const one = review.devices.length === 1
   const returning = review.devices.filter((device) => device.returns).length
   const ends = review.ends
+  // Automations that move where automations are off can't be changed or turned on there (FR-039).
+  const movingAutomations = review.items.filter((item) => item.kind === "automation" && item.action === "move").length
+  const automationsOff = movingAutomations > 0 && !review.automations.enabled
   return (
     <div className="flex min-w-0 flex-col gap-3" aria-busy={loading}>
       <RequestError error={error} />
@@ -176,6 +185,30 @@ export function WhatComesAlong({
           </PanelContent>
         )}
       </Panel>
+      {automationsOff && (
+        <Alert role="note" className="border-warning/40 bg-warning/5">
+          <TriangleAlertIcon className="text-warning" />
+          <AlertTitle>Automations are turned off in {target.name}</AlertTitle>
+          <AlertDescription className="text-foreground">
+            <p>
+              {movingAutomations === 1 ? "The automation that moves" : `The ${movingAutomations.toLocaleString()} automations that move`}{" "}
+              can’t be changed or turned on there until automations are turned on.
+              {!review.automations.offered &&
+                ` A member of ${target.name} who can activate automations turns them on from its Automations page.`}
+            </p>
+            {review.automations.offered && (
+              <CheckboxField
+                className="mt-2"
+                label={`Turn on automations in ${target.name}`}
+                description={`As Enable automation preview on its Automations page: members of ${target.name} can then build automations there, and those who can activate automations can turn them on.`}
+                checked={turnOnAutomations}
+                disabled={loading}
+                onCheckedChange={onTurnOnAutomations}
+              />
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       {review.history.offered && (
         <Panel>
           <PanelHeader>

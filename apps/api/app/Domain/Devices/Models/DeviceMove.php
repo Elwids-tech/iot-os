@@ -20,7 +20,7 @@ final class DeviceMove extends DeviceModel
 
     protected function casts(): array
     {
-        return ['include_history' => 'boolean', 'review' => 'array', 'confirmed_at' => 'immutable_datetime', 'cutover_at' => 'immutable_datetime', 'finished_at' => 'immutable_datetime'];
+        return ['include_history' => 'boolean', 'turns_on_automations' => 'boolean', 'review' => 'array', 'confirmed_at' => 'immutable_datetime', 'cutover_at' => 'immutable_datetime', 'finished_at' => 'immutable_datetime'];
     }
 
     public function source(): BelongsTo

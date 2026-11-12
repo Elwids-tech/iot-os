@@ -19165,6 +19165,10 @@
                     "type": "boolean",
                     "description": "Whether the target may read the predecessors' readings from before the cutover (US6)."
                   },
+                  "turn_on_automations": {
+                    "type": "boolean",
+                    "description": "Whether to turn automations on in the target, for an automation that moves there (FR-039)."
+                  },
                   "operation_uuid": {
                     "type": "string",
                     "format": "uuid"
@@ -19467,6 +19471,10 @@
                   "include_history": {
                     "type": "boolean",
                     "description": "Whether the target may read the predecessors' readings from before the cutover (US6)."
+                  },
+                  "turn_on_automations": {
+                    "type": "boolean",
+                    "description": "Whether to turn automations on in the target, for an automation that moves there (FR-039)."
                   }
                 },
                 "required": [
@@ -30629,6 +30637,7 @@
     "/v1/organizations/{organization}/workflows/dag/node-types": {
       "get": {
         "operationId": "dag.registry",
+        "summary": "The node catalog, readable while automations are turned off",
         "tags": [
           "Dag"
         ],
@@ -36264,6 +36273,7 @@
           "profile_copies",
           "pipe_owner_sees_raw_messages",
           "history",
+          "automations",
           "summary",
           "archives"
         ],
@@ -36469,6 +36479,29 @@
               "include": {
                 "type": "boolean",
                 "description": "The request's `include_history`. It is part of the hash, so a confirmation must ask for the same."
+              }
+            }
+          },
+          "automations": {
+            "type": "object",
+            "description": "Automations in the target (spec 031 FR-039). Where they are turned off, nobody can change or turn on an automation that moves there until they are turned on, and each moving automation's `outcome` and the `summary` say so. A mover who may turn them on there (`Workflow.activate`, as the settings toggle needs) can ask to with `turn_on_automations: true`; the cutover then turns them on before the automations move.",
+            "required": [
+              "enabled",
+              "offered",
+              "turn_on"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether automations are turned on in the target now."
+              },
+              "offered": {
+                "type": "boolean",
+                "description": "An automation moves, automations are off in the target, and the mover may turn them on there."
+              },
+              "turn_on": {
+                "type": "boolean",
+                "description": "The request's `turn_on_automations` when offered, else false. It is part of the hash, so a confirmation must ask for the same."
               }
             }
           },

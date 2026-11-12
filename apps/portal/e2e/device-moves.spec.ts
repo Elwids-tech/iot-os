@@ -55,7 +55,7 @@ const devices = [device(1, "Tracker 41"), device(2, "Tracker 42"), device(3, "Tr
 // use them only, Fleet and Fleet low flow also use Tracker 44.
 const shopBoard = uuid(301), fleetBoard = uuid(302), fleetFlow = uuid(303), shopFlow = uuid(304), copiedBoard = uuid(305), movedFlow = uuid(306)
 type ItemChoice = { kind: string; uuid: string; action: string }
-type Body = { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; items?: ItemChoice[]; include_history?: boolean }
+type Body = { device_uuids: string[]; devices?: { uuid: string; code?: string }[]; items?: ItemChoice[]; include_history?: boolean; turn_on_automations?: boolean }
 
 function itemsFor(body: Body) {
   if (!body.device_uuids.includes(uuid(1))) return []
@@ -83,7 +83,8 @@ function itemsFor(body: Body) {
 }
 
 // `returning`: devices that were in Harbour Shop before, so they reconnect to the readings recorded there (ADR-040).
-function reviewFor(body: Body, returning: string[] = []) {
+// `automationsOff`: automations are turned off in Harbour Shop, and the mover may turn them on (FR-039).
+function reviewFor(body: Body, returning: string[] = [], automationsOff = false) {
   const rows = body.device_uuids.map((id) => {
     const row = devices.find((d) => d.uuid === id)!
     const override = body.devices?.find((d) => d.uuid === id)
@@ -100,6 +101,8 @@ function reviewFor(body: Body, returning: string[] = []) {
   const back = rows.filter((row) => row.returns).length
   const items = itemsFor(body)
   const archived = items.filter((item) => item.action === "archive")
+  const moving = items.some((item) => item.kind === "automation" && item.action === "move")
+  const turnOn = automationsOff && moving && Boolean(body.turn_on_automations)
   return {
     preview_hash: (body.items ?? []).length || body.device_uuids.length > 2 ? "b".repeat(64) : "a".repeat(64),
     can_confirm: rows.every((r) => r.blockers.length === 0),
@@ -109,12 +112,14 @@ function reviewFor(body: Body, returning: string[] = []) {
     profile_copies: [{ profile: "GPS tracker", revision: 4, code: "gps-tracker", reused: false }],
     pipe_owner_sees_raw_messages: true,
     history: { offered: true, include: Boolean(body.include_history) },
+    automations: { enabled: !automationsOff, offered: automationsOff && moving, turn_on: turnOn },
     summary: [
       `${rows.length} devices move to Harbour Shop.`,
       `${rows.length} devices keep reporting through the adapter Vendor trackers, which stays with Integrator.`,
       ...(archived.length ? [`${archived.length} automation is archived in Integrator.`] : []),
       ...(body.include_history ? ["Harbour Shop can read the readings from before the move. They stay stored in Integrator, for as long as Integrator keeps readings."] : []),
       ...(back === 1 ? ["1 device returns to Harbour Shop and reconnects to the readings it recorded there before."] : []),
+      ...(turnOn ? ["Automations are turned on in Harbour Shop."] : []),
     ],
     archives: archived.map(({ kind, uuid, name }) => ({ kind, uuid, name })),
   }
@@ -148,7 +153,7 @@ function moveAt(stage: number, ids: string[]) {
   }
 }
 
-async function setup(page: Page, { owner = false, detail, returning = [] }: { owner?: boolean; detail?: Record<string, unknown>; returning?: string[] } = {}) {
+async function setup(page: Page, { owner = false, detail, returning = [], automationsOff = false }: { owner?: boolean; detail?: Record<string, unknown>; returning?: string[]; automationsOff?: boolean } = {}) {
   const state = { errors: [] as string[], previews: [] as Record<string, unknown>[], confirmed: null as null | Record<string, unknown>, polls: 0, createdOrganization: null as null | Record<string, unknown>, stopped: null as null | Record<string, unknown> }
   page.on("pageerror", (error) => state.errors.push(error.message))
   page.on("console", (message) => {
@@ -184,7 +189,7 @@ async function setup(page: Page, { owner = false, detail, returning = [] }: { ow
     if (path.endsWith("/device-moves/preview")) {
       const body = request.postDataJSON()
       state.previews.push(body)
-      return json(reviewFor(body, returning))
+      return json(reviewFor(body, returning, automationsOff))
     }
     if (path.endsWith("/device-moves") && request.method() === "POST") {
       state.confirmed = request.postDataJSON()
@@ -476,4 +481,105 @@ test("a moved device says its history includes the readings shared from before t
   const notice = page.getByRole("alert").filter({ hasText: "Moved from Integrator" })
   await expect(notice).toContainText("Its history includes that device’s readings from before the move, marked as recorded in Integrator")
   await expect(notice.getByRole("button", { name: "Stop sharing history" })).toHaveCount(0)
+})
+
+test("where automations are off in the target, the review says so and the mover may turn them on there", async ({ page }) => {
+  const state = await setup(page, { automationsOff: true })
+  await page.goto(`${base}/devices`)
+  await page.getByRole("checkbox", { name: "Select Tracker 41" }).check()
+  await page.getByRole("checkbox", { name: "Select Tracker 42" }).check()
+  await page.getByRole("button", { name: "Move to organization" }).click()
+  const dialog = page.getByRole("dialog", { name: "Move 2 devices" })
+  await dialog.getByRole("combobox", { name: "Organization" }).click()
+  await page.getByRole("option", { name: "Harbour Shop" }).click()
+  await dialog.getByRole("button", { name: "Next" }).click()
+
+  // Shop low flow moves; Fleet low flow stays, so one automation would land where it can't be changed.
+  const banner = dialog.getByRole("note").filter({ hasText: "Automations are turned off in Harbour Shop" })
+  await expect(banner).toContainText("The automation that moves can’t be changed or turned on there until automations are turned on.")
+  const option = banner.getByRole("checkbox", { name: "Turn on automations in Harbour Shop" })
+  await expect(option).not.toBeChecked()
+  await axe(page)
+  await fits(dialog)
+  await option.check()
+  await expect.poll(() => state.previews.at(-1)?.turn_on_automations).toBe(true)
+  await expect(option).toBeChecked()
+  await dialog.getByRole("button", { name: "Next" }).click()
+  await expect(dialog.getByText("Automations are turned on in Harbour Shop.")).toBeVisible()
+  await dialog.getByRole("button", { name: "Move 2 devices" }).click()
+  await expect.poll(() => state.confirmed?.turn_on_automations).toBe(true)
+  expect(state.errors).toEqual([])
+})
+
+test("a moved automation where automations are off shows its nodes, explains why it can't change, and turns them on", async ({ page }) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  let enabled = false
+  let turnedOn: Record<string, unknown> | null = null
+  const nodeType = (type: string, label: string, ports: { inputs?: Record<string, string>; outputs?: Record<string, string> }) => ({
+    type, label, inputs: ports.inputs ?? null, outputs: ports.outputs ?? null, config_schema: {}, stateful: false, permissions: null, simulation: true,
+  })
+  const workflow = {
+    uuid: movedFlow, name: "Shop low flow", draft_revision: 1, definition_hash: "h".repeat(64), layout_revision: 0,
+    workflow: {
+      schema_version: "automation-workflow.v2", bindings: [],
+      nodes: [{ id: "low", type: "compare.v1", config: { operator: "lt", value: 1 } }, { id: "alert", type: "action.alert.v1", config: { title: "Low flow" } }],
+      edges: [{ source: "low", source_port: "out", target: "alert", target_port: "in" }],
+    },
+    layout: { positions: { low: { x: 0, y: 0 }, alert: { x: 320, y: 0 } }, labels: { low: "Below 1" } },
+    deployment_generation: 0, deployment_status: "inactive", desired_deployment_uuid: null, applied_deployment_uuid: null, pending_operation_uuid: null,
+    active_revision: null, archived_at: null, archived_by: null, moved_to: null, moved_devices: [], deployment_diagnostic: null,
+  }
+  const context = {
+    uuid: shop, name: "Harbour Shop", slug: "harbour-shop",
+    capabilities: { manage_administration: false, devices: { view: true, manage: true, connections: true, activate: true, command: true, move: true },
+      automation: { view: true, manage: true, activate: true }, features: { device_adapters: true } },
+  }
+  await page.route("**/api/**", async (route) => {
+    const request = route.request(), path = new URL(request.url()).pathname
+    const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) })
+    if (path === "/api/v1/me")
+      return json({ data: { id: 1, name: "Mover", email: "mover@example.test", email_verified_at: "2026-01-01", capabilities: { platform_administration: false }, organizations: [context] } })
+    if (path.endsWith("/context")) return json({ data: context })
+    if (path.endsWith("/workflows/dag/settings")) {
+      if (request.method() === "PUT") {
+        turnedOn = request.postDataJSON()
+        enabled = true
+      }
+      return json({ data: { organization_id: 5, enabled, stopped: false, revision: enabled ? 1 : 0 } })
+    }
+    if (path.endsWith("/workflows/dag/node-types"))
+      return json({ data: [nodeType("compare.v1", "Compare", { inputs: { in: "number" }, outputs: { out: "boolean" } }), nodeType("action.alert.v1", "Alert", { inputs: { in: "boolean" } })] })
+    if (path.endsWith(`/workflows/${movedFlow}`)) return json({ data: workflow })
+    return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
+  })
+  await page.goto(`/organizations/${shop}/automation/${movedFlow}`)
+
+  // Its nodes show from the catalog; changing and turning it on wait for automations.
+  const banner = page.getByRole("alert").filter({ hasText: "Automations are turned off in this organization" })
+  await expect(banner).toContainText("You can look at this automation, but changing, simulating or turning it on waits until automations are turned on.")
+  const low = page.locator('.react-flow__node[data-id="low"]')
+  await expect(low).toContainText("Below 1")
+  await expect(page.getByText("The node catalog is unavailable right now", { exact: false })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled()
+  await expect(page.getByRole("button", { name: "Activate", exact: true })).toBeDisabled()
+  await expect(page.getByText("Unsaved changes")).toHaveCount(0)
+
+  // A click that drifts a pixel selects the node without moving it.
+  const box = (await low.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 2, box.y + box.height / 2 + 1)
+  await page.mouse.up()
+  await expect(page.getByRole("heading", { name: "Below 1" })).toBeVisible()
+  await expect(page.getByText("Unsaved changes")).toHaveCount(0)
+  // The banner only: the canvas's port handles and palette headings have axe findings of their own.
+  await page.waitForFunction(() => document.getAnimations().length === 0)
+  expect((await new AxeBuilder({ page }).include('[data-slot="alert"]').analyze()).violations).toEqual([])
+
+  await banner.getByRole("button", { name: "Turn on automations" }).click()
+  await expect.poll(() => turnedOn?.enabled).toBe(true)
+  await expect(banner).toBeHidden()
+  await expect(page.getByRole("button", { name: "Activate", exact: true })).toBeEnabled()
+  expect(errors).toEqual([])
 })

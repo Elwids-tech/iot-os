@@ -384,6 +384,26 @@ in place.)
   `device.applied.v1`), as the mover.
 - Otherwise it arrives off and **Done** lists it, with the reason.
 
+**Automations turned off in the target** (FR-039, added 2026-11-12 after a move put an
+automation in a customer organization that had never turned automations on: its editor
+reported the node catalog as unavailable, and nobody could save or activate it).
+- Every DAG write (`validate`, `store`, `update`, `simulate`, activation) needs
+  `automation_settings.enabled`, and ADR-011 keeps automations opt-in per organization.
+  A move doesn't change that. It says so in the review, and lets a mover who may turn
+  them on (`Workflow.activate`, the settings toggle's permission) do it as part of the
+  move. Refusing to move such automations was rejected: the spec already lets a target
+  without automations receive them, and keeping an automation in the source suspends it.
+- The choice is `turn_on_automations` on the review and confirmation, part of the hash,
+  stored as `device_moves.turns_on_automations`. The cutover turns automations on
+  before applying the items, so the start conditions above see them on, and re-checks
+  `Workflow.activate` like the other choices.
+- Reads don't need automations on. `GET dag/node-types` needed `enabled` until now,
+  which made the editor of a moved automation report the catalog as unavailable; it now
+  needs only `Workflow.view`, like the automation itself, and so do saved test
+  scenarios and their runs (`GET {w}/scenarios`, `GET {w}/scenarios/{s}/runs`). The editor reads the settings,
+  says automations are off and where they are turned on, offers **Turn on automations**
+  to `Workflow.activate`, and holds Save and Activate until then.
+
 **Keeping an automation.** On its own, the runtime suspends a workflow bound to a
 deactivated device only at its next evaluation (`binding_changed`, from
 `checkDAGBindings` in `runtime/storage/dag.go:47-60`), and a workflow that used only

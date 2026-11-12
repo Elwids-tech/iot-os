@@ -55,7 +55,7 @@ final class MoveView
             'cutover_at' => $move->cutover_at?->toJSON(),
             'waiting_for' => ['devices_stopping' => $move->status === 'stopping' ? $rows->where('state', 'stopping')->count() : 0],
             'devices' => $devices,
-            'items' => self::items($move, $inSource, $inTarget, $attention),
+            'items' => self::items($move, $target, $inSource, $inTarget, $attention),
             'needs_attention' => $attention,
             'failure_reason' => $move->failure_reason,
         ];
@@ -63,24 +63,28 @@ final class MoveView
 
     /**
      * The dashboards and automations the move listed. Moved automations that arrived off,
-     * or could not start, need someone in the target.
+     * or could not start, need someone in the target, and so does every moved automation
+     * while automations are turned off there (FR-039).
      *
      * @param  list<array<string, mixed>>  $attention
      * @return list<array<string, mixed>>
      */
-    private static function items(DeviceMove $move, bool $inSource, bool $inTarget, array &$attention): array
+    private static function items(DeviceMove $move, ?Organization $organization, bool $inSource, bool $inTarget, array &$attention): array
     {
         $items = $move->items()->get();
         $models = [
             'dashboard' => Dashboard::whereIn('id', $items->where('kind', 'dashboard')->flatMap(fn (DeviceMoveItem $item) => [$item->source_item_id, $item->target_item_id])->filter())->get()->keyBy('id'),
             'automation' => Workflow::whereIn('id', $items->where('kind', 'automation')->flatMap(fn (DeviceMoveItem $item) => [$item->source_item_id, $item->target_item_id])->filter())->get()->keyBy('id'),
         ];
+        $off = $inTarget && $organization && $items->contains(fn (DeviceMoveItem $item): bool => $item->kind === 'automation' && $item->action === 'move')
+            && ! CarriedItems::settings($organization)['enabled'];
 
-        return $items->map(function (DeviceMoveItem $item) use ($models, $inSource, $inTarget, &$attention): array {
+        return $items->map(function (DeviceMoveItem $item) use ($models, $organization, $off, $inSource, $inTarget, &$attention): array {
             $source = $models[$item->kind]->get($item->source_item_id);
             $target = $item->target_item_id ? $models[$item->kind]->get($item->target_item_id) : null;
-            if ($inTarget && $item->attention !== null && $target instanceof Workflow && $target->desired_deployment_uuid === null) {
-                $attention[] = ['kind' => 'automation', 'uuid' => $target->uuid, 'name' => $target->name, 'reason' => $item->attention];
+            if ($inTarget && $target instanceof Workflow && $target->desired_deployment_uuid === null && $item->action === 'move' && ($item->attention !== null || $off)) {
+                $attention[] = ['kind' => 'automation', 'uuid' => $target->uuid, 'name' => $target->name,
+                    'reason' => $item->attention ?? 'Turn on automations in '.$organization->name.' to change or run it.'];
             }
 
             return [

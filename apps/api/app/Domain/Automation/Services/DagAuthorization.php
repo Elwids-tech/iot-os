@@ -14,6 +14,9 @@ use Spatie\Permission\PermissionRegistrar;
 
 final class DagAuthorization
 {
+    /** The refusal while automations are turned off; the portal names the page that turns them on. */
+    public const OFF = 'Automations are turned off in this organization.';
+
     public function authorize(User $user, Organization $org, string $permission, ?Model $resource = null): void
     {
         if ($resource) {
@@ -62,8 +65,9 @@ final class DagAuthorization
         }
     }
 
+    /** Authoring, simulating and activating need automations turned on in the organization (ADR-011). */
     public function enabled(Organization $org): void
     {
-        abort_unless(DB::table('automation_settings')->where('organization_id', $org->id)->where('enabled', true)->exists(), 403, 'DAG automation is not enabled for this organization.');
+        abort_unless(DB::table('automation_settings')->where('organization_id', $org->id)->where('enabled', true)->exists(), 403, self::OFF);
     }
 }

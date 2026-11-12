@@ -381,6 +381,12 @@ is worked out again.
   active; it starts there once they are. Otherwise it arrives off, and **Done** lists
   it to turn on. The source's automation is turned off and archived as **Moved to
   *target***, with its run history.
+- **Automations turned off in the target**: a moved automation can't be changed or
+  turned on there until automations are turned on, and the review says so. When you
+  hold `Workflow.activate` there, **Turn on automations in *target*** (unticked) turns
+  them on as part of the move, as **Enable automation preview** on its **Automations**
+  page would. Otherwise **Done** lists the automation until someone turns them on; its
+  editor still shows its nodes ([automation](automation.md#turning-it-on)).
 - **A kept dashboard** doesn't change. Its panels keep showing the archived devices'
   history up to the move, marked **Moved to *target***, and it saves as before.
 - **A kept automation** that still uses a moved device is turned off and suspended,
