@@ -29,7 +29,15 @@ type Event = {
   details: { key: string; value: string }[]
 }
 
-const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+// The page's clock stops at a midday in UTC, so entries from 4 to 90 minutes ago always
+// fall under "Today". Against the real clock they fell under "Yesterday" just after midnight.
+const now = new Date("2026-11-12T12:00:00Z")
+const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
+
+test.use({ timezoneId: "UTC" })
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(now)
+})
 
 function events(): Event[] {
   return [

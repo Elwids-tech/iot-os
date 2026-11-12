@@ -679,6 +679,12 @@ Things that have cost time before. Add to this list when something surprises you
   `STUDIO_BASE_URL=http://127.0.0.1:4183`. Use a build, as CI does, not the Vite dev
   server: dev builds print ECharts warnings that the dashboard and adapter specs count
   as page errors. Leave out `studio.spec.ts`, which needs a live API.
+- **Day headings against the real clock fail just after midnight.** The admin
+  activity spec dated its entries 4 to 90 minutes before `Date.now()` and expected
+  "Today", so a release build that reached it at 00:02 UTC failed all three tries (the
+  timeline groups by the browser's local day). A spec that asserts a day or date label
+  pins the clock: entries relative to a fixed midday, `page.clock.setFixedTime` in a
+  `beforeEach`, and `test.use({ timezoneId: "UTC" })`, as `apps/admin/e2e/activity.spec.ts` does.
 - **`page.request` is not the signed-in browser to Sanctum.** It shares the
   context's cookies but sends no `Origin` or `Referer`, so the API treats it as a
   stateless client and answers 401, for an invoice PDF say. Click the link and wait
