@@ -101,7 +101,7 @@ While an offline alert is open for a device, the list and the device page show i
 The **Offline detection** panel’s state says how the device is being judged:
 
 - **Waiting for first report**: nothing has arrived since monitoring started, so it is never alerted.
-- **Learning how often it reports**: fewer than three readings so far; only a death certificate counts until the third.
+- **Learning how often it reports**: fewer than three reports so far (messages sent together, a few seconds apart, count as one); only a death certificate counts until the third.
 - **Monitored**, **Going offline** (within the 2-minute grace period), **Offline**, or **Coming back**.
 - **Offline since before monitoring started**: it was already silent when monitoring began; it is watched again from its next report.
 - **Adapter restarting**, **Adapter paused** or **Paused by the platform**: the platform cannot hear it for a reason of its own, so silence is not counted.

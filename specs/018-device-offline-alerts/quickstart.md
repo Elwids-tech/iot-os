@@ -65,7 +65,7 @@ rtk pnpm --filter @iot-os/portal lint
 | Adapter redeploy | Activate one more tracker through the adapter (or **Resume** it), which redeploys it | No alert opens or clears; the trackers show unknown ("Adapter restarting") for a few seconds, then online; their last-seen times do not move until new readings arrive |
 | Backlog after a gap | Restart the simulator with `--offline-max 1800` and wait for a tracker's coverage gap to end | A tracker whose gap is shorter than its *Offline after* raises nothing; one past it opens an alert that clears when its backlog arrives |
 | Soak (SC-011) | Add a second polling adapter with a 60-minute interval for another tracker account started with `--reading-every 3600 --upload-every 3600 --offline-max 0`, set the first simulator to `--reading-every 60`, and leave both for 24 hours | No episode opens |
-| Learning | Activate a device that has never reported, then let it send two readings | The device page says "learning how often it reports"; no silence alert until its third reading |
+| Learning | Activate a device that has never reported, then let it send two readings a minute apart | The device page says "learning how often it reports"; no silence alert until its third check-in (readings less than 10 seconds apart count once, D16) |
 | Runtime restart | `... restart runtime` (same compose prefix as above) with everything running | No alert opens or clears |
 | Broker restart | `... restart mqtt` | No alert; devices show unknown briefly, then online |
 | Death during a restart | Stop the runtime, power the box off, start the runtime | No alert until the box's *Offline after* (automatic, at least 15 minutes) plus 2 minutes after the runtime is back |

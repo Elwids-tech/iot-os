@@ -462,7 +462,7 @@ vendor device behind an adapter.
   from (**Automatic** for now), and the locked **Connects to report** style of an
   adapter device. The connection settings stay on the **Connectivity** tab.
 - **States.** **Waiting for first report** (nothing heard since monitoring started),
-  **Learning how often it reports** (fewer than three readings, so not judged by
+  **Learning how often it reports** (fewer than three check-ins, so not judged by
   silence yet), **Monitored**, **Going offline** (within the grace period),
   **Offline**, **Coming back**, **Paused by the platform**, **Adapter restarting** or
   **Adapter paused** (an interruption), and **Offline since before monitoring

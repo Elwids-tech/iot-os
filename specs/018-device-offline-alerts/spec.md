@@ -359,7 +359,10 @@ webhook carry the event.
 - **Never connected.** A device that has never been activated, or is active but has
   sent nothing since activation, raises no alert and shows "waiting for first report".
   Monitoring starts with its first packet. With an automatic *Offline after*, silence
-  is judged from its third reading ("learning how often it reports" until then).
+  is judged from its third check-in ("learning how often it reports" until then).
+- **Readings sent together.** A device that sends a few messages a second apart and
+  then nothing for two hours reports every two hours, not every second: readings less
+  than 10 seconds apart, over less than 10 seconds, are one check-in (FR-004).
 - **Reporting interval changes.** A device that starts reporting less often raises its
   automatic *Offline after* as the new gaps complete; a device that stops entirely
   does not, because a silence in progress is never part of the interval.
@@ -467,10 +470,13 @@ webhook carry the event.
   three times its reporting interval plus its poll interval (zero when not polled),
   rounded up to a minute, at least 15 minutes and at most 7 days, shown as "Automatic"
   with the intervals it came from. The reporting interval MUST be the median gap
-  between the device's recent readings, up to 7 days back; the automatic value follows
-  it as it changes, and a silence still in progress never counts towards it. Until a
-  device has sent three readings in that window, it MUST NOT be judged by silence; a
-  death certificate still counts for a *Stays connected* device.
+  between the device's recent check-ins, up to 7 days back; the automatic value
+  follows it as it changes, and a silence still in progress never counts towards it.
+  Readings sent together (less than 10 seconds apart, over less than 10 seconds) are
+  one check-in; every reading of a device that reports more often is one (amended
+  2026-11-11, research D16). Until a device has three check-ins in that window, it
+  MUST NOT be judged by silence; a death certificate still counts for a *Stays
+  connected* device.
 - **FR-004a**: The platform MUST show each monitored device's reporting interval and,
   for a device fed by a polling adapter, its poll interval. Where an *Offline after*
   set on a device or its profile is shorter than the device's reporting interval plus
@@ -644,7 +650,8 @@ webhook carry the event.
   severity; set on a device profile, overridable per device. Adapter devices always use
   *Connects to report*.
 - **Reporting interval**: per monitored device, the median gap between its recent
-  readings, up to 7 days back, measured by the platform; with the poll interval of its
+  check-ins (readings, with those sent together counted once), up to 7 days back,
+  measured by the platform; with the poll interval of its
   adapter, the basis for the automatic *Offline after* and the warning.
 - **Personal subscription**: a member, a device scope, recovery on or off, channel.
 - **Route**: an organization's scope, minimum severity, recipients or channel

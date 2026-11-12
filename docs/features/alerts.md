@@ -131,15 +131,21 @@ yet, so every device uses the **automatic** value:
 offline after = clamp(ceil_to_minute(3 × reporting interval + poll interval), 15 minutes, 7 days)
 ```
 
-- The **reporting interval** is the median gap between the observed times of the
-  device's recent readings: at most the last 64 gaps between distinct observed times,
-  none older than 7 days, ignoring gaps of zero or less. Observed time is used because
-  a polled device's readings arrive in bursts whose receipt gaps are near zero; a
-  constant clock offset cancels out in a gap.
+- The **reporting interval** is the median gap between the device's recent
+  **check-ins**, by observed time. The runtime keeps the last 65 distinct observed
+  times, none older than 7 days, ignoring gaps of zero or less. Readings less than 10
+  seconds apart form a run; a run spanning less than 10 seconds is one check-in (a
+  device that sends a few messages at once), and the gaps inside it are left out. A
+  longer run is a device reporting more often than every 10 seconds, and each of its
+  readings is a check-in; so is each reading of the oldest run when all 65 times are
+  kept, because it may have begun before them. A sensor sending two messages a second
+  apart every two hours therefore reports every two hours, not every second. Observed
+  time is used because a polled device's readings arrive in bursts whose receipt gaps
+  are near zero; a constant clock offset cancels out in a gap.
 - The **poll interval** is the running adapter revision's interval for a device fed by
   a [polling adapter](adapters.md#http-polling), zero otherwise. A healthy polled
   device can be silent for up to its interval plus one poll.
-- A device is **learning** until it has sent three readings in that window. While it
+- A device is **learning** until it has three check-ins in that window. While it
   learns it is not judged by silence; a death certificate still counts for a stays
   connected device. A silence in progress is never a gap, so a device that stops does
   not raise its own threshold; one that slows down raises it as the new gaps complete.

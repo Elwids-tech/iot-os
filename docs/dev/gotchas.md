@@ -654,6 +654,15 @@ Things that have cost time before. Add to this list when something surprises you
   `observed_at` with `now()` to judge silence alerts every polled device between runs,
   and measuring the interval by receipt makes a 2-minute reporter behind a 5-minute
   poll look like it reports every 5 minutes with bursts of zero.
+- **Observed time has bursts too.** A device that sends two or three messages a second
+  apart and then nothing for two hours has more one-second gaps than two-hour ones, so
+  a plain median of observed gaps said it reports every second; its automatic
+  *Offline after* fell to the 15-minute floor and an alert opened 17 minutes after
+  every burst. The interval is therefore a median of gaps between check-ins: readings
+  less than 10 seconds apart that span less than 10 seconds count once. Simply dropping
+  short gaps is the tempting fix and the wrong one: a device reporting every second then
+  takes its last outage as its interval. Longer runs count reading by reading, which
+  keeps fast reporters exact ([alerts](../features/alerts.md#offline-after)).
 - **After a runtime restart, "last heard" comes from stored readings.** The tracker keeps
   last-heard times in memory, so a restarted runtime knew none until each device's next
   packet: the device page read "not since monitoring started" and an episode opened in

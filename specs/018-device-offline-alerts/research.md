@@ -430,6 +430,32 @@ Clarified by the owner on 2026-10-30 (spec FR-004).
   interval on a schedule (telemetry evaluation in the control plane, and a lag); one
   automatic value per profile (one parked daily tracker would set every tracker's
   threshold); a fixed 15 minutes with a warning (rejected by the owner).
+- **Amended 2026-11-11, readings sent together:** the median is taken over gaps
+  between **check-ins**, and `learning` lasts until the third check-in. Readings less
+  than 10 seconds apart form a run. A run that spans less than 10 seconds is one
+  check-in (a device sending a few messages at once), and the gaps inside it are left
+  out; a longer run is a device reporting more often than every 10 seconds, and each
+  of its readings is a check-in. When all 65 observed times are kept, the oldest run
+  counts reading by reading, since it may have begun before them; without that, a
+  device sending more than 65 readings within 10 seconds would never finish learning.
+  The kept times, the seed and the threshold formula are unchanged;
+  `readings_counted` now counts check-ins.
+  - **Why:** on the pilot an adapter-fed sensor sends two messages about a second apart
+    every two hours. Half or more of its gaps were about a second, so the median was
+    one second, *Offline after* fell to the 15-minute floor, and an alert opened 17
+    minutes after every burst and cleared at the next one (10 in 7 days for one
+    device). Spec 018 only shows these alerts; sending them would have paged people.
+  - **Limit:** the 65 kept times are readings, not check-ins. Bursts of up to ten
+    readings always work; with some larger ones (11 or 13 readings, say) the oldest,
+    partial burst's gaps outnumber the gaps between bursts, and the interval falls
+    back to what the plain median gave.
+  - **Alternatives:** dropping every gap under 10 seconds (a fast reporter would take
+    the length of its last outage as its interval until 64 newer readings pushed it
+    out); keeping only a burst's first reading (a device reporting every second would
+    show an interval of about 10 seconds); a higher percentile than the median
+    (changes the threshold of every irregular reporter); keeping check-ins instead of
+    readings, so the 65 times cover more bursts (the seed reads readings, and fast
+    reporters would need their runs kept as well).
 
 ### D17. The bell is a channel of connectivity deliveries
 

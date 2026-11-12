@@ -37,6 +37,7 @@ const (
 	connectivityWindow   = 7 * 24 * time.Hour
 	automaticMinimum     = 15 * time.Minute
 	automaticMaximum     = 7 * 24 * time.Hour
+	burstWindow          = 10 * time.Second // readings sent together are one check-in (D16)
 	adapterRestarting    = "Adapter restarting; waiting for it to reconnect."
 	interruptConnection  = "connection"
 	interruptAdapter     = "adapter"
@@ -149,7 +150,7 @@ type deviceTrack struct {
 	anchor       time.Time
 	deadAt       time.Time // its own death certificate, until it is heard again
 	// times are the distinct observed times of its recent readings, oldest first:
-	// at most 65 (64 gaps), none older than 7 days (D16).
+	// at most 65, none older than 7 days (D16); checkInGaps reads them as check-ins.
 	times  []time.Time
 	seeded bool
 }
@@ -199,16 +200,39 @@ func (d *deviceTrack) window(now time.Time) []time.Time {
 	return d.times
 }
 
-// interval is the median gap between the device's recent observed times, once it has
-// three readings and its history is read.
-func (d *deviceTrack) interval(now time.Time) (time.Duration, bool) {
-	times := d.window(now)
-	if !d.seeded || len(times) < 3 {
-		return 0, false
+// checkInGaps are the gaps between check-ins among observed times, oldest first (D16).
+// Readings less than burstWindow apart form a run. A run that spans less than
+// burstWindow is one check-in, a device sending a few messages at once, and the gaps
+// inside it are left out; a longer run is a device reporting more often than that, and
+// each of its readings is a check-in. When all 65 times are kept, the oldest run counts
+// reading by reading too: it may have begun before them, and a device sending more than
+// 65 readings in burstWindow would otherwise never finish a check-in.
+func checkInGaps(times []time.Time) []time.Duration {
+	gaps := make([]time.Duration, 0, max(len(times)-1, 0))
+	for start := 0; start < len(times); {
+		end := start + 1
+		for end < len(times) && times[end].Sub(times[end-1]) < burstWindow {
+			end++
+		}
+		if times[end-1].Sub(times[start]) >= burstWindow || (start == 0 && len(times) == storage.SeedLimit) {
+			for i := start + 1; i < end; i++ {
+				gaps = append(gaps, times[i].Sub(times[i-1]))
+			}
+		}
+		if end < len(times) {
+			gaps = append(gaps, times[end].Sub(times[end-1]))
+		}
+		start = end
 	}
-	gaps := make([]time.Duration, 0, len(times)-1)
-	for i := 1; i < len(times); i++ {
-		gaps = append(gaps, times[i].Sub(times[i-1]))
+	return gaps
+}
+
+// interval is the median gap between the device's recent check-ins, once it has three
+// and its history is read.
+func (d *deviceTrack) interval(now time.Time) (time.Duration, bool) {
+	gaps := checkInGaps(d.window(now))
+	if !d.seeded || len(gaps) < 2 {
+		return 0, false
 	}
 	slices.Sort(gaps)
 	middle := len(gaps) / 2
@@ -216,6 +240,16 @@ func (d *deviceTrack) interval(now time.Time) (time.Duration, bool) {
 		return gaps[middle], true
 	}
 	return (gaps[middle-1] + gaps[middle]) / 2, true
+}
+
+// checkIns is how many check-ins the device's interval is learned from: its readings
+// with each burst counted once.
+func (d *deviceTrack) checkIns(now time.Time) int {
+	times := d.window(now)
+	if len(times) == 0 {
+		return 0
+	}
+	return len(checkInGaps(times)) + 1
 }
 
 func (d *deviceTrack) poll() time.Duration {
@@ -1195,7 +1229,7 @@ func (t *connectivityTracker) state(organization string, uuids []string, now tim
 		if d == nil || d.organization != organization || d.removed != "" {
 			continue
 		}
-		state := connectivityState{DeviceUUID: uuid, MonitoringSince: timePointer(d.monitoringSince), LastHeardAt: timePointer(d.lastHeard), LastObservedAt: timePointer(d.lastObserved), ReadingsCounted: len(d.window(now)), PollIntervalSeconds: d.settings.PollIntervalSeconds, OfflineAfterAutomatic: d.settings.OfflineAfterSeconds == nil}
+		state := connectivityState{DeviceUUID: uuid, MonitoringSince: timePointer(d.monitoringSince), LastHeardAt: timePointer(d.lastHeard), LastObservedAt: timePointer(d.lastObserved), ReadingsCounted: d.checkIns(now), PollIntervalSeconds: d.settings.PollIntervalSeconds, OfflineAfterAutomatic: d.settings.OfflineAfterSeconds == nil}
 		if d.heard {
 			state.AnchorAt = timePointer(d.silenceStart())
 		}

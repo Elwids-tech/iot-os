@@ -328,6 +328,127 @@ func TestReportingIntervalIsTheMedianOfRecentObservedGaps(t *testing.T) {
 	}
 }
 
+// A sensor that sends two or three messages about a second apart every two hours checks
+// in every two hours. Taking the median of every gap made its interval one second, so
+// an alert opened 17 minutes after each burst and cleared at the next.
+func TestReadingsSentTogetherAreOneCheckIn(t *testing.T) {
+	for _, c := range []struct {
+		name             string
+		burst            []time.Duration
+		bursts, checkIns int
+	}{
+		{"two a second apart", []time.Duration{0, time.Second}, 20, 20},
+		{"three within a second", []time.Duration{0, 400 * time.Millisecond, 1100 * time.Millisecond}, 20, 20},
+		// 65 readings are kept: 32 bursts and the last reading of the one before them...
+		{"two, more than are kept", []time.Duration{0, time.Second}, 50, 33},
+		// ...or 21 bursts and two readings of the one before, which may have had more.
+		{"three, more than are kept", []time.Duration{0, 400 * time.Millisecond, 1100 * time.Millisecond}, 50, 23},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := &deviceTrack{seeded: true}
+			span := c.burst[len(c.burst)-1]
+			var start time.Time
+			for i := range c.bursts {
+				start = trackerStart.Add(time.Duration(i) * 2 * time.Hour)
+				for _, offset := range c.burst {
+					d.observe(start.Add(offset))
+				}
+				// A burst is one check-in, so two bursts are still not enough to judge silence.
+				if _, ok := d.interval(start.Add(time.Minute)); ok != (i >= 2) {
+					t.Fatalf("after %d bursts known = %v", i+1, ok)
+				}
+			}
+			now := start.Add(time.Minute)
+			interval, ok := d.interval(now)
+			if want := 2*time.Hour - span; !ok || interval != want {
+				t.Fatalf("interval %s %v, want %s", interval, ok, want)
+			}
+			if threshold, _ := d.threshold(now); threshold != 6*time.Hour {
+				t.Fatalf("automatic Offline after %s, want 6h", threshold)
+			}
+			if got := d.checkIns(now); got != c.checkIns {
+				t.Fatalf("%d check-ins from %d bursts, want %d", got, c.bursts, c.checkIns)
+			}
+		})
+	}
+}
+
+// Readings less than ten seconds apart are one check-in only while they span less than
+// ten seconds: a device that reports more often keeps its own interval.
+func TestDevicesReportingMoreOftenThanABurstKeepTheirInterval(t *testing.T) {
+	steady := func(every time.Duration, count int) []time.Time {
+		times := []time.Time{}
+		for i := range count {
+			times = append(times, trackerStart.Add(time.Duration(i)*every))
+		}
+		return times
+	}
+	jittered := []time.Time{trackerStart}
+	for i := range 40 {
+		jittered = append(jittered, jittered[i].Add(10*time.Second+time.Duration(1-2*(i%2))*100*time.Millisecond))
+	}
+	outage := append(steady(time.Second, 40), steady(time.Second, 20)...)
+	for i := 40; i < len(outage); i++ {
+		outage[i] = outage[i].Add(2 * time.Hour)
+	}
+	for _, c := range []struct {
+		name  string
+		times []time.Time
+		want  time.Duration
+	}{
+		{"every second", steady(time.Second, 30), time.Second},
+		{"every 5 seconds", steady(5*time.Second, 30), 5 * time.Second},
+		{"every 10 seconds, give or take", jittered, 10*time.Second + 100*time.Millisecond},
+		{"every second around an outage", outage, time.Second},
+		{"ten a second, more than are kept", steady(100*time.Millisecond, 100), 100 * time.Millisecond},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := &deviceTrack{seeded: true}
+			for _, at := range c.times {
+				d.observe(at)
+			}
+			now := c.times[len(c.times)-1]
+			if interval, ok := d.interval(now); !ok || interval != c.want {
+				t.Fatalf("interval %s %v, want %s", interval, ok, c.want)
+			}
+		})
+	}
+	// Two readings a few seconds apart could be the start of either, so they wait for more.
+	d := &deviceTrack{seeded: true}
+	d.observe(trackerStart)
+	d.observe(trackerStart.Add(5 * time.Second))
+	if _, ok := d.interval(trackerStart.Add(5 * time.Second)); ok || d.checkIns(trackerStart) != 1 {
+		t.Fatalf("two readings 5 seconds apart: %d check-ins", d.checkIns(trackerStart))
+	}
+	d.observe(trackerStart.Add(10 * time.Second))
+	if interval, ok := d.interval(trackerStart.Add(10 * time.Second)); !ok || interval != 5*time.Second || d.checkIns(trackerStart) != 3 {
+		t.Fatalf("a third 5 seconds later: %s %v", interval, ok)
+	}
+}
+
+// An adapter-fed sensor sending two messages a second apart every two hours is never
+// offline between its bursts, and is once it stops for its full automatic threshold.
+func TestABurstReporterIsOfflineOnlyWhenItsBurstsStop(t *testing.T) {
+	f := newTrackerFixture(t)
+	sensor := f.device(f.adapterGroup(), "adapter-1", "BURST-1", settingsWith(styleConnectsReport, 0))
+	f.tr.adapterBorn(f.conn, f.adapterGroup(), "adapter-1", f.now)
+	for range 30 {
+		f.tr.readings(sensor, true, f.now, []time.Time{f.now})
+		f.run(time.Second, time.Second)
+		f.tr.readings(sensor, true, f.now, []time.Time{f.now})
+		f.run(2*time.Hour-time.Second, time.Minute)
+	}
+	f.expect()
+	state := f.state(sensor)
+	if state.State != "monitored" || state.ReportingIntervalSeconds == nil || *state.ReportingIntervalSeconds != 7199 || *state.OfflineAfterSeconds != 6*3600 || state.ReadingsCounted != 30 {
+		t.Fatalf("after 30 bursts %+v", state)
+	}
+	last := f.now.Add(-2*time.Hour + time.Second)
+	f.run(4*time.Hour+3*time.Minute, time.Minute)
+	f.expect("device opened missed_check_in")
+	at(t, f.last().OfflineSince, last.Add(6*time.Hour), "offline_since")
+}
+
 func TestASilenceInProgressNeverBecomesAGap(t *testing.T) {
 	f := newTrackerFixture(t)
 	meter := f.device(f.direct, "edge-1", "meter", settingsWith(styleStaysConnected, 0))
