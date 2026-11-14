@@ -281,19 +281,21 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 		err := tx.Commit(ctx)
 		return PersistOutcome{Stored: err == nil}, err
 	}
-	var readings int64
+	// One round trip for the whole message: the statements still run in order inside
+	// the transaction, so a reading sees the rows of the readings before it.
+	batch := &pgx.Batch{}
+	counted := make([]bool, 0, len(t.Readings)*2)
 	for _, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
 			return PersistOutcome{}, e
 		}
-		var tag pgconn.CommandTag
 		if reading.Quality == "good" {
 			// Devices re-send buffered samples after reconnecting, under a new
 			// telemetry UUID. A source-timestamped sample with the same observed
 			// time and value is the same measurement. Source clocks are at most
 			// five minutes ahead of receipt, which bounds the chunk scan.
-			tag, e = tx.Exec(ctx, `INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
+			batch.Queue(`INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
    SELECT $1,$2,$3,$4,$5,$6,$7,$8
    WHERE NOT $9::boolean OR NOT EXISTS (
      SELECT 1 FROM device_runtime.observations o
@@ -301,22 +303,33 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
        AND o.received_at>=$7::timestamptz-interval '5 minutes' AND o.reading->'value'=$8::jsonb->'value')
    ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw, reading.TimestampSource == "source")
 		} else {
-			tag, e = tx.Exec(ctx, `INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
+			batch.Queue(`INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		}
-		if e != nil {
-			return PersistOutcome{}, e
-		}
-		readings += tag.RowsAffected()
+		counted = append(counted, true)
 		if reading.Historical {
 			continue
 		}
-		_, e = tx.Exec(ctx, `INSERT INTO device_runtime.latest(organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6)
+		batch.Queue(`INSERT INTO device_runtime.latest(organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6)
    ON CONFLICT(device_uuid,configuration_uuid,parameter_uuid) DO UPDATE SET received_at=excluded.received_at,
    reading=CASE WHEN excluded.reading->>'quality'='good' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
    WHERE device_runtime.latest.received_at<excluded.received_at`, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
+		counted = append(counted, false)
+	}
+	// Only observation and diagnostic rows are data points; latest values are not.
+	var readings int64
+	results := tx.SendBatch(ctx, batch)
+	for _, count := range counted {
+		tag, e := results.Exec()
 		if e != nil {
+			_ = results.Close()
 			return PersistOutcome{}, e
 		}
+		if count {
+			readings += tag.RowsAffected()
+		}
+	}
+	if e = results.Close(); e != nil {
+		return PersistOutcome{}, e
 	}
 	if readings > 0 {
 		if _, e = tx.Exec(ctx, `INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES($1,date_trunc('hour',now(),'UTC'),$2)
