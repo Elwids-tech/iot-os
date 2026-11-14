@@ -32,6 +32,7 @@ func TestLedgersArePrunedOutsideTheRedeliveryWindow(t *testing.T) {
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.outbox WHERE uuid IN ($1,$2,$3)`, expired, recent, pending)
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.rule_inputs WHERE event_uuid IN ($1,$2)`, expiredInput, recentInput)
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1`, org)
+		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_events WHERE organization_uuid=$1`, org)
 	})
 	must := func(err error) {
 		t.Helper()

@@ -2,45 +2,33 @@ package storage
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 )
 
-// CommittedEvents returns complete committed packets so location parameters are
-// always paired by event rather than joined as independent measurement series.
+// CommittedEvents returns a device's stored events in a range, oldest first, each
+// with all its readings so location parameters are always paired by event rather
+// than joined as independent measurement series. sampled says the range held more
+// than limit events and only the newest are returned.
 func (s *Store) CommittedEvents(ctx context.Context, org, device string, from, to time.Time, limit int) ([]devices.CommittedTelemetry, bool, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT sequence,event FROM device_runtime.telemetry_outbox
-	 WHERE organization_uuid=$1 AND event->>'device_uuid'=$2 AND created_at >= $3 AND created_at <= $4
-	 ORDER BY sequence DESC LIMIT $5`, org, device, from, to, limit+1)
+	rows, err := s.Pool.Query(ctx, `SELECT `+eventColumns+` FROM device_runtime.telemetry_events
+	 WHERE organization_uuid=$1 AND device_uuid=$2 AND received_at >= $3 AND received_at <= $4
+	 ORDER BY received_at DESC, sequence DESC LIMIT $5`, org, device, from, to, limit+1)
 	if err != nil {
 		return nil, false, err
 	}
-	defer rows.Close()
-	events := make([]devices.CommittedTelemetry, 0, limit+1)
-	for rows.Next() {
-		var sequence int64
-		var raw []byte
-		if err = rows.Scan(&sequence, &raw); err != nil {
-			return nil, false, err
-		}
-		var event devices.CommittedTelemetry
-		if err = Decode(raw, &event); err != nil {
-			return nil, false, err
-		}
-		event.Sequence = strconv.FormatInt(sequence, 10)
-		events = append(events, event)
-	}
-	if err = rows.Err(); err != nil {
+	stored, err := scanEvents(rows)
+	if err != nil {
 		return nil, false, err
 	}
-	sampled := len(events) > limit
+	sampled := len(stored) > limit
 	if sampled {
-		events = events[:limit]
+		stored = stored[:limit]
 	}
-	for left, right := 0, len(events)-1; left < right; left, right = left+1, right-1 {
-		events[left], events[right] = events[right], events[left]
+	for left, right := 0, len(stored)-1; left < right; left, right = left+1, right-1 {
+		stored[left], stored[right] = stored[right], stored[left]
 	}
-	return events, sampled, nil
+	events, err := s.rebuild(ctx, org, device, stored)
+	return events, sampled, err
 }

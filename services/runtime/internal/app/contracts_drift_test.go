@@ -255,6 +255,7 @@ func purgeDevice(t *testing.T, store *storage.Store, device string) {
 	for _, statement := range []string{
 		"DELETE FROM device_runtime.commands WHERE device_uuid=$1",
 		"DELETE FROM device_runtime.telemetry_outbox WHERE event->>'device_uuid'=$1",
+		"DELETE FROM device_runtime.telemetry_events WHERE device_uuid=$1",
 		"DELETE FROM device_runtime.observations WHERE device_uuid=$1",
 		"DELETE FROM device_runtime.diagnostics WHERE device_uuid=$1",
 		"DELETE FROM device_runtime.latest WHERE device_uuid=$1",

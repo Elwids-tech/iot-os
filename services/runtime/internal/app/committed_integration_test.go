@@ -63,7 +63,7 @@ func TestCommittedPublicationRecovery(t *testing.T) {
 	must(nc.Flush())
 	org := storage.UUID()
 	defer func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
+		for _, table := range []string{"telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
 			_, e := store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", org)
 			must(e)
 		}

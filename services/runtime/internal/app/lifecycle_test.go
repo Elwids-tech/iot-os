@@ -36,7 +36,7 @@ func lifecycleFixture(t *testing.T) (*Application, devices.Definition) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "telemetry_outbox", "devices"} {
+		for _, table := range []string{"observations", "diagnostics", "latest", "commands", "telemetry_events", "telemetry_outbox", "devices"} {
 			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", d.OrganizationUUID)
 		}
 		_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1", d.OrganizationUUID)

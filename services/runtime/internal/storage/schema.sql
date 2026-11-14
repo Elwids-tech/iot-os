@@ -107,6 +107,33 @@ CREATE INDEX IF NOT EXISTS telemetry_outbox_device_latest ON device_runtime.tele
 -- sequence across devices (spec 030, research R3).
 CREATE INDEX IF NOT EXISTS telemetry_outbox_org_sequence ON device_runtime.telemetry_outbox(organization_uuid, sequence);
 
+-- One slim row per stored message, kept for the measurement retention (ADR-042).
+-- The outbox above holds a message's full event only for its queue and ledger
+-- window; this row keeps the event's identity, order and generation, and readers
+-- rebuild its readings from observations and diagnostics. resent lists the readings
+-- the storing transaction skipped because an earlier message already stored them:
+-- [{"parameter_uuid": …, "observed_at": …}], NULL when there were none.
+CREATE TABLE IF NOT EXISTS device_runtime.telemetry_events (
+ sequence bigint PRIMARY KEY,
+ telemetry_uuid uuid NOT NULL UNIQUE,
+ organization_uuid uuid NOT NULL,
+ device_uuid uuid NOT NULL,
+ configuration_uuid uuid NOT NULL,
+ generation bigint NOT NULL,
+ received_at timestamptz NOT NULL,
+ resent jsonb
+);
+CREATE INDEX IF NOT EXISTS telemetry_events_device ON device_runtime.telemetry_events(organization_uuid, device_uuid, received_at DESC, sequence DESC);
+-- Events stored before this table existed come from their outbox rows, once: only
+-- sequences above the newest event row are copied, so later startups read nothing.
+INSERT INTO device_runtime.telemetry_events(sequence,telemetry_uuid,organization_uuid,device_uuid,configuration_uuid,generation,received_at)
+ SELECT o.sequence, o.telemetry_uuid, o.organization_uuid, (o.event->>'device_uuid')::uuid, (o.event->>'configuration_uuid')::uuid,
+  (o.event->>'generation')::bigint, COALESCE((o.event->'readings'->0->>'received_at')::timestamptz, o.created_at)
+ FROM device_runtime.telemetry_outbox o
+ WHERE o.sequence > COALESCE((SELECT max(sequence) FROM device_runtime.telemetry_events), 0)
+  AND o.event->>'device_uuid' IS NOT NULL AND o.event->>'configuration_uuid' IS NOT NULL AND o.event->>'generation' IS NOT NULL
+ ON CONFLICT DO NOTHING;
+
 -- V2 DAG state is isolated from the original geofence evaluator.
 CREATE TABLE IF NOT EXISTS device_runtime.dag_executions (
  operation_uuid uuid PRIMARY KEY, workflow_uuid uuid NOT NULL, organization_uuid uuid NOT NULL,

@@ -50,12 +50,18 @@ func ProjectCommitted(t Telemetry) CommittedTelemetry {
 		Readings: make([]CommittedReading, 0, len(t.Readings)),
 	}
 	for _, r := range t.Readings {
-		event.Readings = append(event.Readings, CommittedReading{
-			InstallationUUID: r.InstallationUUID, AdapterRevisionUUID: r.AdapterRevisionUUID, ManufacturerSerial: r.ManufacturerSerial,
-			ParameterUUID: r.ParameterUUID, Key: r.Key, DataType: r.DataType, Unit: r.Unit,
-			Value: r.Value, Quality: r.Quality, Diagnostic: r.Diagnostic,
-			ObservedAt: r.ObservedAt, ReceivedAt: r.ReceivedAt, Historical: r.Historical, TimestampSource: r.TimestampSource,
-		})
+		event.Readings = append(event.Readings, ProjectReading(r))
 	}
 	return event
+}
+
+// ProjectReading is a reading as a committed event carries it. Stored readings go
+// through it too, when an event is rebuilt from them (ADR-042).
+func ProjectReading(r Reading) CommittedReading {
+	return CommittedReading{
+		InstallationUUID: r.InstallationUUID, AdapterRevisionUUID: r.AdapterRevisionUUID, ManufacturerSerial: r.ManufacturerSerial,
+		ParameterUUID: r.ParameterUUID, Key: r.Key, DataType: r.DataType, Unit: r.Unit,
+		Value: r.Value, Quality: r.Quality, Diagnostic: r.Diagnostic,
+		ObservedAt: r.ObservedAt, ReceivedAt: r.ReceivedAt, Historical: r.Historical, TimestampSource: r.TimestampSource,
+	}
 }

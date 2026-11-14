@@ -1,6 +1,6 @@
 # ADR-042: Store Telemetry Once
 
-**Status:** Accepted 2026-11-14; not built yet
+**Status:** Accepted 2026-11-14, built
 **Date:** 2026-11-14
 **Relates to:** [ADR-014](ADR-014-control-plane-data-plane-http-integration.md), [ADR-036](ADR-036-runtime-counts-data-points.md), [spec 030](../../specs/030-plant-following-applications/spec.md) (telemetry stream)
 

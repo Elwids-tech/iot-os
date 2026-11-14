@@ -71,7 +71,7 @@ func TestRuleConsumerPersistsBeforeAckAndResumes(t *testing.T) {
 		cleanup := context.Background()
 		_, err = store.Pool.Exec(cleanup, `DELETE FROM device_runtime.rule_transitions WHERE operation_uuid=$1`, d.VersionUUID)
 		must(err)
-		for _, table := range []string{"rule_executions", "rule_heads", "telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
+		for _, table := range []string{"rule_executions", "rule_heads", "telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
 			_, err = store.Pool.Exec(cleanup, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", d.Binding.OrganizationUUID)
 			must(err)
 		}

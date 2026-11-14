@@ -4,48 +4,165 @@ import (
 	"context"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"sort"
 	"strconv"
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 )
 
-// Read one persisted event by tenant/device identity. The outbox is not exposed
-// as a public stream; retention still bounds reads even while rows are retained.
-func (s *Store) CommittedEvent(ctx context.Context, org, device, id string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
-	var raw []byte
-	var sequence int64
-	err := s.Pool.QueryRow(ctx, `SELECT sequence,event FROM device_runtime.telemetry_outbox
-	 WHERE telemetry_uuid=$1 AND organization_uuid=$2 AND event->>'device_uuid'=$3
-	 AND created_at >= $4 AND created_at <= $5`, id, org, device, cutoff, until).Scan(&sequence, &raw)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var event devices.CommittedTelemetry
-	if err = Decode(raw, &event); err != nil {
-		return nil, err
-	}
-	event.Sequence = strconv.FormatInt(sequence, 10)
-	return &event, nil
+// resentReading names a reading the storing transaction skipped because an earlier
+// message already stored the same sample.
+type resentReading struct {
+	ParameterUUID string    `json:"parameter_uuid"`
+	ObservedAt    time.Time `json:"observed_at"`
 }
 
-// Latest persisted device event, including incomplete/invalid fixes. Never
-// search backwards for a good point and conceal a newer unknown location.
-func (s *Store) LatestCommittedEvent(ctx context.Context, org, device string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
-	var id string
-	err := s.Pool.QueryRow(ctx, `SELECT telemetry_uuid::text FROM device_runtime.telemetry_outbox
-	 WHERE organization_uuid=$1 AND event->>'device_uuid'=$2 AND created_at >= $3 AND created_at <= $4
-	 ORDER BY sequence DESC LIMIT 1`, org, device, cutoff, until).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+const eventColumns = `sequence,telemetry_uuid::text,organization_uuid::text,device_uuid::text,configuration_uuid::text,generation,received_at,resent`
+
+type storedEvent struct {
+	event    devices.CommittedTelemetry
+	received time.Time
+	resent   []resentReading
+}
+
+func scanEvents(rows pgx.Rows) ([]storedEvent, error) {
+	defer rows.Close()
+	result := []storedEvent{}
+	for rows.Next() {
+		var sequence int64
+		var resent []byte
+		row := storedEvent{event: devices.CommittedTelemetry{SchemaVersion: devices.CommittedTelemetryVersion, Readings: []devices.CommittedReading{}}}
+		e := &row.event
+		if err := rows.Scan(&sequence, &e.EventID, &e.OrganizationUUID, &e.DeviceUUID, &e.ConfigurationUUID, &e.Generation, &row.received, &resent); err != nil {
+			return nil, err
+		}
+		row.received = row.received.UTC()
+		e.TelemetryID = e.EventID
+		e.Sequence = strconv.FormatInt(sequence, 10)
+		if resent != nil {
+			if err := Decode(resent, &row.resent); err != nil {
+				return nil, err
+			}
+		}
+		result = append(result, row)
 	}
+	return result, rows.Err()
+}
+
+// rebuild fills one device's events with their readings (ADR-042). A reading is
+// stored once, in observations or diagnostics, under its message's UUID; a re-sent
+// sample is read from the earlier row that holds it. An event whose readings have
+// all expired is left out.
+func (s *Store) rebuild(ctx context.Context, org, device string, events []storedEvent) ([]devices.CommittedTelemetry, error) {
+	if len(events) == 0 {
+		return []devices.CommittedTelemetry{}, nil
+	}
+	ids := make([]string, len(events))
+	index := make(map[string]int, len(events))
+	from, to := events[0].received, events[0].received
+	for i, event := range events {
+		ids[i] = event.event.EventID
+		index[event.event.EventID] = i
+		if event.received.Before(from) {
+			from = event.received
+		}
+		if event.received.After(to) {
+			to = event.received
+		}
+	}
+	// The received-time bounds let TimescaleDB skip every chunk outside the events.
+	rows, err := s.Pool.Query(ctx, `SELECT event_uuid::text,reading FROM device_runtime.observations
+	 WHERE organization_uuid=$1 AND device_uuid=$2 AND event_uuid=ANY($3::uuid[]) AND received_at>=$4 AND received_at<=$5
+	 UNION ALL
+	 SELECT event_uuid::text,reading FROM device_runtime.diagnostics
+	 WHERE organization_uuid=$1 AND device_uuid=$2 AND event_uuid=ANY($3::uuid[])`, org, device, ids, from, to)
 	if err != nil {
 		return nil, err
 	}
-	return s.CommittedEvent(ctx, org, device, id, cutoff, until)
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var raw []byte
+		var reading devices.Reading
+		if err = rows.Scan(&id, &raw); err != nil {
+			return nil, err
+		}
+		if err = Decode(raw, &reading); err != nil {
+			return nil, err
+		}
+		event := &events[index[id]].event
+		event.Readings = append(event.Readings, devices.ProjectReading(reading))
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	result := make([]devices.CommittedTelemetry, 0, len(events))
+	for i := range events {
+		event := &events[i].event
+		for _, skipped := range events[i].resent {
+			var raw []byte
+			var reading devices.Reading
+			// The storing transaction skipped it for matching this row: same parameter,
+			// observed time and value.
+			err = s.Pool.QueryRow(ctx, `SELECT reading FROM device_runtime.observations
+			 WHERE organization_uuid=$1 AND device_uuid=$2 AND parameter_uuid=$3 AND observed_at=$4
+			 ORDER BY received_at LIMIT 1`, org, device, skipped.ParameterUUID, skipped.ObservedAt).Scan(&raw)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if err = Decode(raw, &reading); err != nil {
+				return nil, err
+			}
+			// The event carried the sample as this message delivered it.
+			reading.ReceivedAt = events[i].received
+			event.Readings = append(event.Readings, devices.ProjectReading(reading))
+		}
+		if len(event.Readings) == 0 {
+			continue
+		}
+		sort.Slice(event.Readings, func(a, b int) bool { return event.Readings[a].ParameterUUID < event.Readings[b].ParameterUUID })
+		result = append(result, *event)
+	}
+	return result, nil
+}
+
+// Read one stored event by tenant/device identity. Retention bounds the read.
+func (s *Store) CommittedEvent(ctx context.Context, org, device, id string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT `+eventColumns+` FROM device_runtime.telemetry_events
+	 WHERE telemetry_uuid=$1 AND organization_uuid=$2 AND device_uuid=$3 AND received_at >= $4 AND received_at <= $5`, id, org, device, cutoff, until)
+	if err != nil {
+		return nil, err
+	}
+	return s.one(ctx, org, device, rows)
+}
+
+// Latest stored device event, including incomplete/invalid fixes. Never
+// search backwards for a good point and conceal a newer unknown location.
+func (s *Store) LatestCommittedEvent(ctx context.Context, org, device string, cutoff, until time.Time) (*devices.CommittedTelemetry, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT `+eventColumns+` FROM device_runtime.telemetry_events
+	 WHERE organization_uuid=$1 AND device_uuid=$2 AND received_at >= $3 AND received_at <= $4
+	 ORDER BY received_at DESC, sequence DESC LIMIT 1`, org, device, cutoff, until)
+	if err != nil {
+		return nil, err
+	}
+	return s.one(ctx, org, device, rows)
+}
+
+func (s *Store) one(ctx context.Context, org, device string, rows pgx.Rows) (*devices.CommittedTelemetry, error) {
+	events, err := scanEvents(rows)
+	if err != nil {
+		return nil, err
+	}
+	rebuilt, err := s.rebuild(ctx, org, device, events)
+	if err != nil || len(rebuilt) == 0 {
+		return nil, err
+	}
+	return &rebuilt[0], nil
 }
 
 func (s *Store) CommittedPending(ctx context.Context) ([]devices.CommittedTelemetry, error) {
