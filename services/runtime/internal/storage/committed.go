@@ -12,10 +12,13 @@ import (
 )
 
 // resentReading names a reading the storing transaction skipped because an earlier
-// message already stored the same sample.
+// message already stored the same sample, with what this message said of it that
+// the earlier row cannot: when it arrived and whether it was sent as history.
 type resentReading struct {
 	ParameterUUID string    `json:"parameter_uuid"`
 	ObservedAt    time.Time `json:"observed_at"`
+	ReceivedAt    time.Time `json:"received_at"`
+	Historical    bool      `json:"historical"`
 }
 
 const eventColumns = `sequence,telemetry_uuid::text,organization_uuid::text,device_uuid::text,configuration_uuid::text,generation,received_at,resent`
@@ -72,6 +75,9 @@ func (s *Store) rebuild(ctx context.Context, org, device string, events []stored
 		}
 	}
 	// The received-time bounds let TimescaleDB skip every chunk outside the events.
+	// They are a microsecond wide of the events: an event row copied from the outbox
+	// at upgrade has its time rounded to the microsecond, the readings' truncated.
+	from, to = from.Add(-time.Microsecond), to.Add(time.Microsecond)
 	rows, err := s.Pool.Query(ctx, `SELECT event_uuid::text,reading FROM device_runtime.observations
 	 WHERE organization_uuid=$1 AND device_uuid=$2 AND event_uuid=ANY($3::uuid[]) AND received_at>=$4 AND received_at<=$5
 	 UNION ALL
@@ -119,7 +125,7 @@ func (s *Store) rebuild(ctx context.Context, org, device string, events []stored
 				return nil, err
 			}
 			// The event carried the sample as this message delivered it.
-			reading.ReceivedAt = events[i].received
+			reading.ReceivedAt, reading.Historical = skipped.ReceivedAt, skipped.Historical
 			event.Readings = append(event.Readings, devices.ProjectReading(reading))
 		}
 		if len(event.Readings) == 0 {

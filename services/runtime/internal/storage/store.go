@@ -354,7 +354,7 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 		}
 		readings += tag.RowsAffected()
 		if tag.RowsAffected() == 0 {
-			resent = append(resent, resentReading{ParameterUUID: t.Readings[i].ParameterUUID, ObservedAt: t.Readings[i].ObservedAt})
+			resent = append(resent, resentReading{ParameterUUID: t.Readings[i].ParameterUUID, ObservedAt: t.Readings[i].ObservedAt, ReceivedAt: t.Readings[i].ReceivedAt, Historical: t.Readings[i].Historical})
 		}
 	}
 	if e = results.Close(); e != nil {

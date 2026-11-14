@@ -56,7 +56,9 @@ func TestStoredEventsAreRebuiltFromTheirReadings(t *testing.T) {
 	}
 	latitude, longitude, battery := UUID(), UUID(), UUID()
 	unit := "deg"
-	received := time.Now().UTC().Add(-10 * time.Minute).Truncate(time.Microsecond)
+	// Nanoseconds that round up to the next microsecond: the database keeps
+	// microseconds, and a published event keeps the nanoseconds.
+	received := time.Now().UTC().Add(-10 * time.Minute).Truncate(time.Second).Add(123456789 * time.Nanosecond)
 	observed := received.Add(-2 * time.Second)
 	reading := func(parameter, key string, value any, quality string) devices.Reading {
 		return devices.Reading{ParameterUUID: parameter, Key: key, Label: key, DataType: "number", Unit: &unit, Value: value,
@@ -84,6 +86,7 @@ func TestStoredEventsAreRebuiltFromTheirReadings(t *testing.T) {
 	resent.Readings = []devices.Reading{reading(latitude, "lat", 6.9, "good"), reading(longitude, "lon", 79.8, "good")}
 	for i := range resent.Readings {
 		resent.Readings[i].ReceivedAt = received.Add(time.Minute)
+		resent.Readings[i].Historical = true // sent again as buffered history
 	}
 	outcome, err := store.PersistResultCounted(ctx, resent)
 	if err != nil || !outcome.Stored || outcome.Readings != 0 {
@@ -136,7 +139,8 @@ func TestOutboxEventsFromBeforeEventRowsAreBackfilled(t *testing.T) {
 	if err := store.Apply(ctx, definition, 1, "device.applied.v1"); err != nil {
 		t.Fatal(err)
 	}
-	received := time.Now().UTC().Add(-time.Minute).Truncate(time.Microsecond)
+	// The outbox event holds nanoseconds; the copy must land on the reading's row.
+	received := time.Now().UTC().Add(-time.Minute).Truncate(time.Second).Add(987654999 * time.Nanosecond)
 	packet := devices.Telemetry{UUID: UUID(), Generation: 1, Definition: definition, SessionID: "upgrade", Readings: []devices.Reading{
 		{ParameterUUID: UUID(), Key: "level", DataType: "number", Value: 4, Quality: "good", ObservedAt: received, ReceivedAt: received},
 	}}
