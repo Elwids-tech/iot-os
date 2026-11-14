@@ -135,6 +135,13 @@ Settings dispatch independently: not atomic, no ordering guarantee.
 pending; the runtime acknowledges asynchronously. Retries must reuse the complete
 original request.
 
+A refused activation leaves the earlier execution running: the runtime stops it only
+when the new one starts. Laravel then makes that deployment the desired one again, so
+its alerts, events and commands keep acting, the automation reads **applied** (or
+**suspended**), and the editor shows why the activation was refused. With nothing
+running before, the automation reads **failed** and runs nothing. Intents still
+`accepted` when the activation was requested were cancelled then and are not retried.
+
 Activation needs **one command grant per command setting**: node, binding, exact
 value, cooldown, maximum per minute and an optional expiry (`expires_at`, under one
 year; `null` for none). Grants approve exact values, not ranges, and need
@@ -226,8 +233,9 @@ Command outcomes: accepted, dispatched, observed at target, failed, expired,
 uncertain. **Uncertain or timed-out delivery stops further automated commands to
 that parameter** until someone reconciles it (`POST
 workflows/dag/commands/{command}/reconcile`) with a note and a fresh observation at
-the target. Disabling, replacing or stopping cancels pending intents; after the
-dispatch boundary a command may already have reached the device.
+the target. Disabling, replacing or stopping cancels pending intents, and so does
+requesting an activation until the runtime answers; after the dispatch boundary a
+command may already have reached the device.
 
 ### Archiving
 

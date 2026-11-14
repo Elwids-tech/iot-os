@@ -177,6 +177,54 @@ final class DagTest extends TestCase
         $this->assertDatabaseHas('automation_actions', ['id' => $intent['id'], 'status' => 'cancelled']);
     }
 
+    /**
+     * The runtime refuses an activation without touching the execution already running
+     * (storage/dag.go disables it only when the new one starts), so that execution's
+     * intents must still act. They used to be cancelled as "execution replaced" until
+     * someone activated successfully or disabled the automation.
+     */
+    public function test_a_refused_activation_keeps_the_running_execution_acting(): void
+    {
+        $w = $this->draft();
+        $base = $this->url.'/'.$w['uuid'];
+        $workflow = Workflow::where('uuid', $w['uuid'])->firstOrFail();
+        $grant = ['node_id' => 'command', 'binding' => 'sensor', 'value' => 0, 'cooldown_seconds' => 60, 'max_per_minute' => 1, 'expires_at' => null];
+        $outcome = fn (string $operation, int $generation, string $status) => app(WorkflowDeploymentService::class)->event('workflow.deployment.v1', ['rule_uuid' => $workflow->uuid, 'organization_uuid' => $this->org->uuid, 'operation_uuid' => $operation, 'generation' => $generation, 'target' => 'active', 'status' => $status, 'diagnostic' => $status === 'failed' ? 'binding_changed: sensor' : null]);
+        $activate = function (int $expected) use ($base, $grant) {
+            $operation = (string) Str::uuid();
+            $this->postJson($base.'/deployments', ['operation_uuid' => $operation, 'target_state' => 'active', 'draft_revision' => 1, 'expected_generation' => $expected, 'command_grants' => [$grant]])->assertStatus(202);
+
+            return $operation;
+        };
+        // Refused with nothing running: nothing runs.
+        $outcome($activate(0), 1, 'failed');
+        $this->assertSame([null, null, 'failed'], [$workflow->fresh()->applied_deployment_uuid, $workflow->fresh()->desired_deployment_uuid, $workflow->fresh()->deployment_status]);
+        $running = $activate(1);
+        $outcome($running, 2, 'succeeded');
+        $refused = $activate(2);
+        $outcome($refused, 3, 'failed');
+
+        $workflow->refresh();
+        $this->assertSame([$running, $running, null, 'applied'], [$workflow->applied_deployment_uuid, $workflow->desired_deployment_uuid, $workflow->pending_operation_uuid, $workflow->deployment_status]);
+        $this->assertSame('failed', Deployment::where('uuid', $refused)->value('status'));
+        $this->assertNull(Deployment::where('uuid', $running)->value('stopped_reason'));
+        // The editor still shows why the activation was refused, and the directory names it as the latest issue.
+        $this->getJson($base)->assertOk()->assertJsonPath('data.active_revision', 1)->assertJsonPath('data.deployment_status', 'applied');
+        $this->assertNotNull($this->getJson($base)->json('data.deployment_diagnostic'));
+        $this->assertSame('failed', collect($this->getJson($this->url.'/dag')->assertOk()->json('data'))->firstWhere('uuid', $w['uuid'])['last_deployment']['status']);
+
+        $intent = ['id' => hash('sha256', 'after-refusal'), 'operation_uuid' => $running, 'organization_uuid' => $this->org->uuid, 'workflow_uuid' => $workflow->uuid, 'node_id' => 'command', 'kind' => 'action.command.v1', 'config' => $w['workflow']['nodes'][2]['config'], 'expires_at' => now()->addSeconds(30)->toIso8601String(), 'occurred_at' => now()->toIso8601String(), 'trigger' => 'episode:1', 'correlation_key' => 'default'];
+        $actions = app(DagActions::class);
+        DB::transaction(fn () => $actions->accept($intent));
+        $actions->tick($intent['id']);
+        $this->assertDatabaseHas('automation_actions', ['id' => $intent['id'], 'status' => 'accepted']);
+        $this->assertTrue($actions->authorizeDispatch($intent['id'], DB::table('device_commands')->latest('id')->value('uuid')));
+
+        // Disabling still stops it.
+        $this->postJson($base.'/deployments', ['operation_uuid' => (string) Str::uuid(), 'target_state' => 'inactive', 'draft_revision' => 1, 'expected_generation' => 3])->assertStatus(202);
+        $this->assertNull($workflow->fresh()->desired_deployment_uuid);
+    }
+
     public function test_timeline_uses_deployed_snapshot_and_exact_intent_evidence(): void
     {
         $w = $this->draft();
