@@ -47,7 +47,7 @@ final class WorkflowDeploymentService
                 $hash = $compiled['definition_hash'];
             }
             $deployment = Deployment::create(['uuid' => $input['operation_uuid'], 'automation_workflow_id' => $workflow->id, 'generation' => $workflow->deployment_generation + 1, 'draft_revision' => $workflow->draft_revision, 'target' => $input['target_state'], 'definition' => $definition, 'definition_hash' => $hash, 'status' => 'pending', 'created_by' => $actor, 'created_at' => now()]);
-            $workflow->update(['deployment_generation' => $deployment->generation, 'deployment_status' => 'pending', 'pending_operation_uuid' => $deployment->uuid, 'desired_deployment_uuid' => $deployment->target === 'active' ? $deployment->uuid : null]);
+            $workflow->deploymentRequested($deployment);
             DeviceAudit::enqueue('workflow.deploy.v1', ['operation_uuid' => $deployment->uuid, 'rule_uuid' => $workflow->uuid, 'organization_uuid' => Organization::findOrFail($workflow->organization_id)->uuid, 'generation' => $deployment->generation, 'target' => $deployment->target, 'definition' => $definition]);
             DeviceAudit::record('workflow.deployment_requested', $workflow->organization_id, $actor, $workflow->uuid, ['operation_uuid' => $deployment->uuid, 'generation' => $deployment->generation, 'target' => $deployment->target]);
 
@@ -90,9 +90,7 @@ final class WorkflowDeploymentService
         }
         if ($type === 'workflow.suspended.v1') {
             $deployment->update(['stopped_reason' => DagDiagnostic::stoppedReason((string) ($payload['reason'] ?? ''))]);
-            if ($workflow->applied_deployment_uuid === $deployment->uuid && $workflow->pending_operation_uuid === null) {
-                $workflow->update(['deployment_status' => 'suspended']);
-            }
+            $workflow->executionSuspended($deployment);
 
             return;
         }
@@ -106,17 +104,9 @@ final class WorkflowDeploymentService
             return;
         }
         if ($deployment->status === 'failed') {
-            // The runtime refuses without stopping the execution already running, so that one stays desired and keeps acting.
-            $applied = $workflow->applied_deployment_uuid ? Deployment::where('uuid', $workflow->applied_deployment_uuid)->first() : null;
-            $workflow->update(['pending_operation_uuid' => null, 'desired_deployment_uuid' => $applied?->uuid,
-                'deployment_status' => $applied ? ($applied->stopped_reason ? 'suspended' : 'applied') : 'failed']);
+            $workflow->deploymentRefused();
         } else {
-            // A deactivation names why it stopped the automation when a device move did (spec 031).
-            $why = $deployment->target === 'inactive' ? $deployment->stopped_reason : null;
-            if ($workflow->applied_deployment_uuid) {
-                Deployment::where('uuid', $workflow->applied_deployment_uuid)->whereNull('stopped_reason')->update(['stopped_reason' => $why ?? ($deployment->target === 'active' ? 'superseded' : 'disabled')]);
-            }
-            $workflow->update(['pending_operation_uuid' => null, 'applied_deployment_uuid' => $deployment->target === 'active' ? $deployment->uuid : null, 'deployment_status' => $deployment->target === 'inactive' ? ($why === Deployment::STOPPED_DEVICE_MOVED ? 'suspended' : 'inactive') : ($deployment->stopped_reason ? 'suspended' : 'applied')]);
+            $workflow->deploymentSucceeded($deployment);
         }
         DeviceAudit::record('workflow.deployment_'.$deployment->status, $org->id, null, $workflow->uuid, ['operation_uuid' => $deployment->uuid]);
     }

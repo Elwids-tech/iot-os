@@ -70,7 +70,7 @@ final class DagDeployment
                 abort_if(count($grants) > 0, 422, 'Disable does not accept command grants.');
             }
             $d = Deployment::create(['uuid' => $input['operation_uuid'], 'automation_workflow_id' => $w->id, 'generation' => $w->deployment_generation + 1, 'draft_revision' => $w->draft_revision, 'target' => $input['target_state'], 'definition' => $definition, 'definition_hash' => $hash, 'command_grants' => $grants, 'status' => 'pending', 'stopped_reason' => $input['target_state'] === 'inactive' ? $reason : null, 'created_by' => $actor->id, 'created_at' => now()]);
-            $w->update(['deployment_generation' => $d->generation, 'deployment_status' => 'pending', 'pending_operation_uuid' => $d->uuid, 'desired_deployment_uuid' => $d->target === 'active' ? $d->uuid : null]);
+            $w->deploymentRequested($d);
             DB::table('automation_actions')->whereIn('automation_deployment_id', Deployment::where('automation_workflow_id', $w->id)->select('id'))->where('status', 'accepted')->update(['status' => 'cancelled', 'diagnostic' => 'Deployment replaced or disabled.', 'updated_at' => now()]);
             DeviceAudit::enqueue('workflow.deploy.v2', ['operation_uuid' => $d->uuid, 'rule_uuid' => $w->uuid, 'organization_uuid' => $org->uuid, 'generation' => $d->generation, 'target' => $d->target, 'definition' => $definition]);
             DeviceAudit::record('workflow.deployment_requested', $org->id, $actor->id, $w->uuid, ['operation_uuid' => $d->uuid, 'command_grants' => $grants]);
