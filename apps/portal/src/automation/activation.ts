@@ -1,7 +1,10 @@
 type Revision = { draft_revision: number; pending_operation_uuid?: string | null; archived_at?: string | null }
 type Live = Revision & { deployment_status?: string; desired_deployment_uuid?: string | null; active_revision?: number | null }
 
-/** Running, or being applied; a failed activation runs nothing and needs activating again. */
+/**
+ * Running, or being applied. A refused activation leaves the earlier execution running (its
+ * deployment is desired again); with none running, it runs nothing and needs activating again.
+ */
 export const isRunning = (live?: Live): live is Live => Boolean(live?.desired_deployment_uuid) && live?.deployment_status !== "failed"
 
 /** Activation saves pending edits first and reviews the saved values. A tab-local simulation is optional. */

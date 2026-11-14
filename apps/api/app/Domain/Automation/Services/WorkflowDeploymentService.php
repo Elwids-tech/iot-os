@@ -106,7 +106,10 @@ final class WorkflowDeploymentService
             return;
         }
         if ($deployment->status === 'failed') {
-            $workflow->update(['pending_operation_uuid' => null, 'deployment_status' => 'failed']);
+            // The runtime refuses without stopping the execution already running, so that one stays desired and keeps acting.
+            $applied = $workflow->applied_deployment_uuid ? Deployment::where('uuid', $workflow->applied_deployment_uuid)->first() : null;
+            $workflow->update(['pending_operation_uuid' => null, 'desired_deployment_uuid' => $applied?->uuid,
+                'deployment_status' => $applied ? ($applied->stopped_reason ? 'suspended' : 'applied') : 'failed']);
         } else {
             // A deactivation names why it stopped the automation when a device move did (spec 031).
             $why = $deployment->target === 'inactive' ? $deployment->stopped_reason : null;
