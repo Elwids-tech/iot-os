@@ -273,13 +273,14 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 	if e != nil {
 		return PersistOutcome{}, e
 	}
-	inserted, e := tx.Exec(ctx, "INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event) VALUES($1,$2,$3) ON CONFLICT(telemetry_uuid) DO NOTHING", t.UUID, t.Definition.OrganizationUUID, committed)
-	if e != nil {
-		return PersistOutcome{}, e
-	}
-	if inserted.RowsAffected() == 0 {
+	var sequence int64
+	e = tx.QueryRow(ctx, "INSERT INTO device_runtime.telemetry_outbox(telemetry_uuid,organization_uuid,event) VALUES($1,$2,$3) ON CONFLICT(telemetry_uuid) DO NOTHING RETURNING sequence", t.UUID, t.Definition.OrganizationUUID, committed).Scan(&sequence)
+	if errors.Is(e, pgx.ErrNoRows) {
 		err := tx.Commit(ctx)
 		return PersistOutcome{Stored: err == nil}, err
+	}
+	if e != nil {
+		return PersistOutcome{}, e
 	}
 	// One round trip for the whole message: the statements still run in order inside
 	// the transaction, so a reading sees the rows of the readings before it.
@@ -292,8 +293,10 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 	if checks {
 		batch.Queue(`SET LOCAL plan_cache_mode = force_custom_plan`)
 	}
-	counted := make([]bool, 0, len(t.Readings)*2)
-	for _, reading := range t.Readings {
+	// For each queued statement, the reading whose row it inserts, or -1 for a
+	// latest-value upsert, which is not a data point.
+	inserts := make([]int, 0, len(t.Readings)*2)
+	for i, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
 			return PersistOutcome{}, e
@@ -318,7 +321,7 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 		} else {
 			batch.Queue(`INSERT INTO device_runtime.diagnostics(event_uuid,organization_uuid,device_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		}
-		counted = append(counted, true)
+		inserts = append(inserts, i)
 		if reading.Historical {
 			continue
 		}
@@ -326,10 +329,13 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
    ON CONFLICT(device_uuid,configuration_uuid,parameter_uuid) DO UPDATE SET received_at=excluded.received_at,
    reading=CASE WHEN excluded.reading->>'quality'='good' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
    WHERE device_runtime.latest.received_at<excluded.received_at`, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
-		counted = append(counted, false)
+		inserts = append(inserts, -1)
 	}
 	// Only observation and diagnostic rows are data points; latest values are not.
+	// A reading whose row was not inserted is a re-sent sample: an earlier message
+	// already stored it, and the event row says where to find it.
 	var readings int64
+	resent := []resentReading{}
 	results := tx.SendBatch(ctx, batch)
 	if checks {
 		if _, e = results.Exec(); e != nil {
@@ -337,24 +343,40 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 			return PersistOutcome{}, e
 		}
 	}
-	for _, count := range counted {
+	for _, i := range inserts {
 		tag, e := results.Exec()
 		if e != nil {
 			_ = results.Close()
 			return PersistOutcome{}, e
 		}
-		if count {
-			readings += tag.RowsAffected()
+		if i < 0 {
+			continue
+		}
+		readings += tag.RowsAffected()
+		if tag.RowsAffected() == 0 {
+			resent = append(resent, resentReading{ParameterUUID: t.Readings[i].ParameterUUID, ObservedAt: t.Readings[i].ObservedAt})
 		}
 	}
 	if e = results.Close(); e != nil {
 		return PersistOutcome{}, e
 	}
-	if readings > 0 {
-		if _, e = tx.Exec(ctx, `INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES($1,date_trunc('hour',now(),'UTC'),$2)
-   ON CONFLICT (organization_uuid,hour) DO UPDATE SET count=device_runtime.usage_data_points.count+EXCLUDED.count`, t.Definition.OrganizationUUID, readings); e != nil {
+	// The outbox row is pruned after its ledger window; this slim row keeps the
+	// event for the retention, and readers rebuild its readings (ADR-042).
+	var skipped any
+	if len(resent) > 0 {
+		if skipped, e = json.Marshal(resent); e != nil {
 			return PersistOutcome{}, e
 		}
+	}
+	batch = &pgx.Batch{}
+	batch.Queue(`INSERT INTO device_runtime.telemetry_events(sequence,telemetry_uuid,organization_uuid,device_uuid,configuration_uuid,generation,received_at,resent) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (telemetry_uuid) DO NOTHING`,
+		sequence, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, t.Generation, t.Readings[0].ReceivedAt, skipped)
+	if readings > 0 {
+		batch.Queue(`INSERT INTO device_runtime.usage_data_points(organization_uuid,hour,count) VALUES($1,date_trunc('hour',now(),'UTC'),$2)
+   ON CONFLICT (organization_uuid,hour) DO UPDATE SET count=device_runtime.usage_data_points.count+EXCLUDED.count`, t.Definition.OrganizationUUID, readings)
+	}
+	if e = tx.SendBatch(ctx, batch).Close(); e != nil {
+		return PersistOutcome{}, e
 	}
 	err := tx.Commit(ctx)
 	return PersistOutcome{Stored: err == nil, Readings: readings}, err
@@ -1037,7 +1059,7 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 		return total, e
 	}
 	var remaining bool
-	for _, table := range []string{"diagnostics", "dag_evaluations"} {
+	for _, table := range []string{"diagnostics", "dag_evaluations", "telemetry_events"} {
 		for batch := 0; batch < batches; batch++ {
 			tag, e := s.Pool.Exec(ctx, `DELETE FROM device_runtime.`+table+` WHERE (tableoid,ctid) IN (SELECT tableoid,ctid FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2 LIMIT $3)`, org, cutoff, batchSize)
 			if e != nil {
@@ -1049,14 +1071,11 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 			}
 		}
 	}
-	// Published committed events carry full readings and back the location map
-	// and the integration API, so they follow the tenant's measurement retention.
-	// They are also the ingestion deduplication ledger, so never prune inside the
-	// window in which the telemetry stream can still redeliver a message.
-	committedCutoff := cutoff
-	if ledger := time.Now().UTC().Add(-ledgerRetention); ledger.Before(committedCutoff) {
-		committedCutoff = ledger
-	}
+	// A published committed event is the publish queue's record and the ingestion
+	// deduplication ledger, nothing more: it goes after the ledger window, which
+	// outlasts the time the telemetry stream can redeliver a message. The event row
+	// and the stored readings keep the event for the retention (ADR-042).
+	committedCutoff := time.Now().UTC().Add(-ledgerRetention)
 	for batch := 0; batch < batches; batch++ {
 		tag, e := s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_outbox WHERE sequence IN (SELECT sequence FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1 AND created_at<$2 AND published_at IS NOT NULL LIMIT $3)`, org, committedCutoff, batchSize)
 		if e != nil {
@@ -1067,7 +1086,7 @@ func (s *Store) cleanup(ctx context.Context, org string, cutoff time.Time, batch
 			break
 		}
 	}
-	for _, table := range []string{"observations", "diagnostics", "dag_evaluations"} {
+	for _, table := range []string{"observations", "diagnostics", "dag_evaluations", "telemetry_events"} {
 		var pending bool
 		if e := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM device_runtime.`+table+` WHERE organization_uuid=$1 AND received_at<$2)`, org, cutoff).Scan(&pending); e != nil {
 			return total, e

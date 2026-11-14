@@ -222,7 +222,11 @@ for trusted services (it mixes organizations), not a tenant API.
   `adapter_revision_uuid` and `manufacturer_serial`.
 - Written to `device_runtime.telemetry_outbox` in the same transaction as the
   readings; rejected configurations, empty packets and rolled-back writes publish
-  nothing. A relay publishes up to 100 rows at a time with the event ID as
+  nothing. The outbox row is the publish queue and the deduplication ledger and is
+  deleted eight days after it is published. The same transaction writes a slim row
+  to `device_runtime.telemetry_events`, kept for the measurement retention: location
+  reads rebuild an event from it and the stored readings
+  ([ADR-042](../adr/ADR-042-store-telemetry-once.md)). A relay publishes up to 100 rows at a time with the event ID as
   `Nats-Msg-Id`, retrying with backoff up to 30 s.
 - Per-device order follows acceptance order (single runtime, per-device lock).
   Deduplicate by `event_id`; a crash between broker acceptance and marking the row
@@ -234,7 +238,7 @@ for trusted services (it mixes organizations), not a tenant API.
   and carries the outbox `sequence` as its position. The runtime publishes each event
   to its in-process broadcaster after the relay has published and acknowledged it, and
   a resumed stream is caught up from `telemetry_outbox` by organization, device and
-  sequence (index `telemetry_outbox_org_sequence`), so the outbox's retention is the
+  sequence (index `telemetry_outbox_org_sequence`), so the outbox's retention, eight days, is the
   stream's resume window. No JetStream consumer is created per stream.
 - Backlog: `GET /internal/telemetry/committed-status` (runtime bearer token)
   returns `pending`, `oldest_age_seconds` and `publication_failures_since_start`.

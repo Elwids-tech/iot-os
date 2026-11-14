@@ -26,7 +26,7 @@ func historyStore(t *testing.T) (*Store, context.Context, string) {
 	}
 	organization := UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices", "usage_data_points"} {
+		for _, table := range []string{"telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices", "usage_data_points"} {
 			_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", organization)
 		}
 		_, _ = store.Pool.Exec(ctx, "DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1", organization)
@@ -63,11 +63,12 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 		}
 	}
 
-	latest, err := store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	// Events are bounded by when the runtime received them, an hour ago here.
+	latest, err := store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-2*time.Hour), time.Now().Add(time.Minute))
 	if err != nil || latest == nil || latest.EventID != events[len(events)-1] {
 		t.Fatal("latest committed identity lost", err)
 	}
-	foreignLatest, err := store.LatestCommittedEvent(ctx, UUID(), definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	foreignLatest, err := store.LatestCommittedEvent(ctx, UUID(), definition.DeviceUUID, time.Now().Add(-2*time.Hour), time.Now().Add(time.Minute))
 	if err != nil || foreignLatest != nil {
 		t.Fatal("latest crossed tenant", err)
 	}
@@ -77,7 +78,7 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 	if err := store.Persist(ctx, invalid); err != nil {
 		t.Fatal(err)
 	}
-	latest, err = store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	latest, err = store.LatestCommittedEvent(ctx, organization, definition.DeviceUUID, time.Now().Add(-2*time.Hour), time.Now().Add(time.Minute))
 	if err != nil || latest == nil || latest.EventID != invalidID {
 		t.Fatal("invalid newest event was hidden", err)
 	}
@@ -92,12 +93,12 @@ func TestHistoryRecordsUsesStableLimitedKeysetPagination(t *testing.T) {
 	if first.Records[0].TimestampSource != "source" || !first.Records[0].Historical {
 		t.Fatal("raw provenance lost")
 	}
-	committed, err := store.CommittedEvent(ctx, organization, definition.DeviceUUID, events[0], time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+	committed, err := store.CommittedEvent(ctx, organization, definition.DeviceUUID, events[0], time.Now().Add(-2*time.Hour), time.Now().Add(time.Minute))
 	if err != nil || committed == nil || committed.Sequence == "" || committed.Readings[0].ParameterUUID != parameter {
 		t.Fatalf("stored event unavailable: %v %v", committed, err)
 	}
 	for _, scope := range [][2]string{{UUID(), definition.DeviceUUID}, {organization, UUID()}} {
-		hidden, err := store.CommittedEvent(ctx, scope[0], scope[1], events[0], time.Now().Add(-time.Hour), time.Now().Add(time.Minute))
+		hidden, err := store.CommittedEvent(ctx, scope[0], scope[1], events[0], time.Now().Add(-2*time.Hour), time.Now().Add(time.Minute))
 		if err != nil || hidden != nil {
 			t.Fatal("stored event crossed scope", err)
 		}

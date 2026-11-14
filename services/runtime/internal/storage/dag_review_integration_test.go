@@ -123,6 +123,7 @@ func TestRefusedActivationKeepsRunningAutomationsBound(t *testing.T) {
 			_, _ = s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1", org)
 		}
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_outbox WHERE organization_uuid=$1`, org)
+		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.telemetry_events WHERE organization_uuid=$1`, org)
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM device_runtime.outbox WHERE event->'payload'->>'organization_uuid'=$1`, org)
 	}()
 	profile, _ := json.Marshal(devices.Profile{Parameters: []devices.Parameter{{UUID: param, DataType: "number", ReportsState: true}}})

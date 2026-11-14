@@ -35,7 +35,7 @@ func TestCommittedAfterFloorAndHead(t *testing.T) {
 	}
 	org, other, empty := UUID(), UUID(), UUID()
 	defer func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
+		for _, table := range []string{"telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "devices"} {
 			_, err := s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid IN ($1,$2)", org, other)
 			must(err)
 		}

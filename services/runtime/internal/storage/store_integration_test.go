@@ -28,7 +28,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	t.Cleanup(s.Pool.Close)
 	org, other := UUID(), UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
 			if _, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1 OR organization_uuid=$2", org, other); e != nil {
 				t.Error(e)
 			}
@@ -97,14 +97,19 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	must(s.Persist(ctx, older))
 	_, e = s.Pool.Exec(ctx, "SELECT compress_chunk(c, if_not_compressed => true) FROM show_chunks('device_runtime.observations', older_than => INTERVAL '90 days') c")
 	must(e)
+	// One batch of one row: one day-chunk of observations and one event row.
 	partial, partialErr := s.cleanup(ctx, org, now.Add(-90*24*time.Hour), 1, 1)
-	if partial != 1 || !errors.Is(partialErr, ErrCleanupIncomplete) {
+	if partial != 2 || !errors.Is(partialErr, ErrCleanupIncomplete) {
 		t.Fatalf("expected resumable cleanup backlog, got %d / %v", partial, partialErr)
 	}
 	deleted, e := s.Cleanup(ctx, org, now.Add(-90*24*time.Hour))
 	must(e)
-	if deleted != 1 {
+	if deleted != 2 {
 		t.Fatalf("wrong cleanup count: %d", deleted)
+	}
+	must(s.Pool.QueryRow(ctx, "SELECT count(*) FROM device_runtime.telemetry_events WHERE organization_uuid=$1 AND received_at<$2", org, now.Add(-90*24*time.Hour)).Scan(&count))
+	if count != 0 {
+		t.Fatal("expired event rows survived cleanup")
 	}
 	must(s.Pool.QueryRow(ctx, "SELECT count(*) FROM device_runtime.observations WHERE organization_uuid=$1", other).Scan(&count))
 	if count != 1 {
@@ -182,7 +187,7 @@ func TestLatestBatchPrefersAppliedConfigurationsWithinTheOrganization(t *testing
 	t.Cleanup(s.Pool.Close)
 	org, other := UUID(), UUID()
 	t.Cleanup(func() {
-		for _, table := range []string{"telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
+		for _, table := range []string{"telemetry_events", "telemetry_outbox", "observations", "diagnostics", "latest", "commands", "devices"} {
 			if _, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime."+table+" WHERE organization_uuid=$1 OR organization_uuid=$2", org, other); e != nil {
 				t.Error(e)
 			}
