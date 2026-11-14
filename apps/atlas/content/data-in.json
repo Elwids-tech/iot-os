@@ -1,0 +1,41 @@
+{
+  "id": "data-in",
+  "title": "Getting data in",
+  "kind": "containers",
+  "summary": "Everything the runtime ingests arrives at the platform broker as Sparkplug B. Devices that speak it connect directly. Anything else goes through the organization's adapter runtime, where a decoder turns the vendor's payload into profile metrics and a platform-owned publisher announces them as Sparkplug B.",
+  "docs": ["docs/features/adapters.md", "docs/features/embedded-sdk.md", "docs/adr/ADR-010-per-tenant-adapter-runtimes.md"],
+  "boxes": [
+    { "id": "native", "label": "Sparkplug B devices", "sub": "Gateways and direct devices", "tone": "external", "at": [0, 0], "detail": "Hardware that already publishes Sparkplug B connects to the platform broker over TLS with credentials confined to its organization's group. Nothing translates its messages.", "docs": ["docs/reference/sparkplug.md", "docs/features/devices.md"] },
+    { "id": "firmware", "label": "Firmware on the SDK", "sub": "C99 library, Sparkplug edge node", "tone": "system", "at": [1, 0], "opens": "embedded-sdk" },
+    { "id": "vendormqtt", "label": "Vendor MQTT devices", "sub": "Their own topics and payloads", "tone": "external", "at": [2, 0], "detail": "Two source types. With `platform` the hardware publishes to the tenant's ingress broker, using a credential that may only publish to the adapter's topic filters. With `vendor` the adapter subscribes to the manufacturer's broker, which must be publicly reachable.", "code": ["apps/api/app/Domain/DeviceAdapters/Enums/AdapterSourceType.php", "apps/api/app/Domain/DeviceAdapters/Services/SourceSettings.php"] },
+    { "id": "vendorpush", "label": "Vendor cloud webhooks", "sub": "HTTPS POST to an ingest URL", "tone": "external", "at": [3, 0], "detail": "A vendor cloud that pushes data posts to the adapter's ingest URL, `/w/<ingest id>`. Source type `webhook`.", "code": ["apps/api/app/Domain/DeviceAdapters/Services/WebhookRoutes.php"] },
+    { "id": "receiver", "label": "Webhook receiver", "sub": "Checks, then hands off", "tone": "system", "at": [3, 1], "opens": "http-sources" },
+    { "id": "vendorapi", "label": "Vendor HTTP API", "sub": "Polled on a schedule", "tone": "external", "at": [4, 1], "detail": "A vendor cloud that must be asked. Source type `poll`: the adapter runtime sends the request the settings describe, every 60 seconds to 24 hours, and keeps a cursor. The same child diagram as webhooks shows how.", "code": ["services/adapters/lib/poll.cjs", "apps/api/app/Domain/DeviceAdapters/Services/PollingService.php"] },
+    { "id": "tenant", "label": "Tenant adapter runtime", "sub": "Ingress broker + Node-RED", "tone": "system", "at": [2.5, 2.2], "opens": "adapter-runtime" },
+    { "id": "deploy", "label": "Adapter revisions", "sub": "Draft, test, deploy, activate", "tone": "system", "at": [4, 2.2], "opens": "adapter-deploy" },
+    { "id": "broker", "label": "Platform MQTT broker", "sub": "Sparkplug B only", "tone": "store", "at": [0.5, 2.2], "detail": "Every path ends here. Each adapter is one Sparkplug edge node, `adapter-<adapter uuid>`, in the organization's group `adapters-<organization uuid>`, with its own broker credentials.", "code": ["apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php"], "docs": ["docs/ops/broker.md"] },
+    { "id": "ingest", "label": "Runtime: telemetry ingest", "sub": "Session, mapping, storage", "tone": "system", "at": [0.5, 3.2], "opens": "telemetry-ingest" }
+  ],
+  "edges": [
+    { "id": "native-broker", "from": "native", "to": "broker", "label": "Sparkplug B" },
+    { "id": "firmware-broker", "from": "firmware", "to": "broker", "label": "Sparkplug B" },
+    { "id": "vendormqtt-tenant", "from": "vendormqtt", "to": "tenant", "label": "vendor payloads" },
+    { "id": "vendorpush-receiver", "from": "vendorpush", "to": "receiver", "label": "POST" },
+    { "id": "receiver-tenant", "from": "receiver", "to": "tenant", "label": "MQTT 5, QoS 1" },
+    { "id": "tenant-vendorapi", "from": "tenant", "to": "vendorapi", "label": "polls" },
+    { "id": "deploy-tenant", "from": "deploy", "to": "tenant", "label": "deploys a revision" },
+    { "id": "tenant-broker", "from": "tenant", "to": "broker", "label": "Sparkplug B, one edge node per adapter" },
+    { "id": "broker-ingest", "from": "broker", "to": "ingest" }
+  ],
+  "steps": [
+    { "edge": "native-broker", "text": "A Sparkplug B gateway or device publishes births and data straight to the platform broker." },
+    { "edge": "firmware-broker", "text": "Firmware built on the embedded SDK is such a device: the SDK runs the Sparkplug session so the firmware only writes values." },
+    { "edge": "vendormqtt-tenant", "text": "A device with its own MQTT payloads publishes to the tenant's ingress broker, or the adapter subscribes to the vendor's broker." },
+    { "edge": "vendorpush-receiver", "text": "A vendor cloud posts a webhook. The receiver checks its size, secret and rate limits; a delivery that fails is refused and never reaches a decoder." },
+    { "edge": "receiver-tenant", "text": "An accepted delivery is published to the adapter's topic on the tenant's ingress broker, so it joins the same path as MQTT input." },
+    { "edge": "tenant-vendorapi", "text": "For a polling source the adapter runtime asks the vendor's API itself and feeds each record to the decoder." },
+    { "edge": "deploy-tenant", "text": "What runs in the tenant runtime is a tested adapter revision that the API deployed through adapter-manager. Nobody edits flows by hand." },
+    { "edge": "tenant-broker", "text": "The decoder's output is republished as Sparkplug B by a publisher the platform owns. Each physical source becomes a device under the adapter's edge node." },
+    { "edge": "broker-ingest", "text": "From the broker on, the runtime treats all of it alike. Open telemetry ingest to follow a packet to storage." }
+  ]
+}

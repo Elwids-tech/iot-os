@@ -1,0 +1,50 @@
+{
+  "id": "telemetry-ingest",
+  "title": "Telemetry ingest",
+  "kind": "flow",
+  "summary": "How one Sparkplug packet becomes stored readings. The top row shows what happens when a packet or a birth does not fit. The second row runs inside the MQTT callback and the third is the durable part.",
+  "docs": ["docs/features/devices.md", "docs/reference/events.md"],
+  "boxes": [
+    { "id": "mqtt", "label": "MQTT message", "sub": "spBv1.0/<group>/DDATA/…", "tone": "external", "at": [0, 1], "detail": "The runtime subscribes to NBIRTH, NDATA, NDEATH, DBIRTH, DDATA and DDEATH for each connection's group, with ordered delivery.", "code": ["services/runtime/internal/app/application.go"] },
+    { "id": "packet", "label": "packet()", "sub": "Topic and group check", "tone": "system", "at": [1, 1], "detail": "Parses the topic and drops anything outside the connection's group. Any packet marks its source as heard for offline detection, before validation. A running capture records the raw sample here.", "code": ["services/runtime/internal/app/application.go", "services/runtime/internal/app/connectivity.go", "services/runtime/internal/telemetry/capture.go"] },
+    { "id": "engine", "label": "Sparkplug engine", "sub": "Session, sequence, aliases", "tone": "system", "at": [2, 1], "opens": "sparkplug-session" },
+    { "id": "match", "label": "Match devices", "sub": "Active definitions for the source", "tone": "system", "at": [3, 1], "detail": "Finds active device definitions bound to this connection, edge node and device ID. A birth is also reported to Laravel as a discovery event; it never creates a trusted device. Each device is handled under its own lock and skipped if its configuration or generation changed meanwhile.", "code": ["services/runtime/internal/app/application.go"] },
+    { "id": "compat", "label": "Compatibility check", "sub": "Current birth vs applied config", "tone": "system", "at": [4, 1], "detail": "Previews the source's current birth metrics against the applied configuration. A birth that matches again clears an earlier review.", "code": ["services/runtime/internal/devices/profile.go"], "docs": ["docs/adr/ADR-025-review-follows-current-birth.md"] },
+    { "id": "map", "label": "Map to readings", "sub": "Convert, validate, calculate", "tone": "system", "at": [4, 2], "detail": "For each mapped metric: pick the observed time (source or receipt), apply the ingress conversion, validate against the parameter, then run profile calculations. A reading that fails is kept with a quality other than good.", "code": ["services/runtime/internal/devices/profile.go", "services/runtime/internal/devices/conversion.go", "services/runtime/internal/devices/expression.go"], "docs": ["docs/features/device-profiles.md"] },
+    { "id": "handoff", "label": "Durable handoff", "sub": "iot.telemetry.device", "tone": "system", "at": [3, 2], "detail": "Publishes the readings with the applied generation and session to the IOT_DEVICE_TELEMETRY stream, deduplicated by message ID. If the publish fails the device's presence becomes unknown, because a data gap may exist.", "code": ["services/runtime/internal/app/application.go", "contracts/devices/v1/telemetry.schema.json"] },
+    { "id": "consumer", "label": "devices-storage", "sub": "Generation fence", "tone": "system", "at": [2, 2], "detail": "One message in flight, explicit acknowledgement. A message for a configuration or generation that is no longer applied is discarded, not stored.", "code": ["services/runtime/internal/app/control.go"] },
+    { "id": "persist", "label": "One transaction", "sub": "Observations, latest, outbox", "tone": "store", "at": [1, 2], "detail": "Good readings become observations; others become diagnostics and keep the last valid value visible. The same transaction writes latest values, the committed-telemetry outbox row and the hour's data point usage. A redelivered message and a re-sent buffered sample add nothing.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/schema.sql"], "docs": ["docs/adr/ADR-036-runtime-counts-data-points.md"] },
+    { "id": "relay", "label": "Committed relay", "sub": "IOT_COMMITTED_TELEMETRY", "tone": "system", "at": [0, 2], "detail": "Publishes outbox rows in order and acknowledges each before the next. On failure it backs off up to 30 seconds and retries the same event.", "code": ["services/runtime/internal/app/committed.go"] },
+    { "id": "consumers", "label": "Automations, app streams", "tone": "system", "at": [0, 3], "detail": "The automation evaluator and the integration API's telemetry stream read only committed telemetry. The portal does not stream; it polls.", "code": ["services/runtime/internal/app/rule_consumer.go", "services/runtime/internal/app/stream.go"] },
+    { "id": "rebirth", "label": "Rebirth request", "sub": "NCMD, at most 1 per 30 s per edge node", "tone": "system", "at": [2, 0], "detail": "A rejected packet marks presence unknown for what it broke and asks the edge node for fresh births. Requests inside the 30-second window are queued. Duplicates are dropped silently.", "code": ["services/runtime/internal/app/application.go"], "docs": ["docs/reference/sparkplug.md"] },
+    { "id": "review", "label": "Review required", "sub": "Readings not mapped", "tone": "system", "at": [4, 0], "detail": "The source's birth no longer fits the applied configuration. The device stays online with a diagnostic, its readings stop, and a person reviews and activates a configuration.", "code": ["services/runtime/internal/app/application.go", "services/runtime/internal/storage/store.go"] }
+  ],
+  "edges": [
+    { "id": "mqtt-packet", "from": "mqtt", "to": "packet" },
+    { "id": "packet-engine", "from": "packet", "to": "engine" },
+    { "id": "engine-match", "from": "engine", "to": "match", "label": "accepted" },
+    { "id": "match-compat", "from": "match", "to": "compat", "label": "per device" },
+    { "id": "compat-map", "from": "compat", "to": "map", "label": "fits" },
+    { "id": "map-handoff", "from": "map", "to": "handoff", "label": "readings" },
+    { "id": "handoff-consumer", "from": "handoff", "to": "consumer", "label": "JetStream" },
+    { "id": "consumer-persist", "from": "consumer", "to": "persist", "label": "applied" },
+    { "id": "persist-relay", "from": "persist", "to": "relay", "label": "outbox" },
+    { "id": "relay-consumers", "from": "relay", "to": "consumers" },
+    { "id": "engine-rebirth", "from": "engine", "to": "rebirth", "label": "rejected", "dashed": true },
+    { "id": "compat-review", "from": "compat", "to": "review", "label": "metrics changed", "dashed": true }
+  ],
+  "steps": [
+    { "edge": "mqtt-packet", "text": "A device publishes DDATA. The broker delivers it to the runtime's subscription for that connection's group." },
+    { "edge": "packet-engine", "text": "The topic is parsed and the group checked. The source is marked as heard, then the packet goes to the Sparkplug engine." },
+    { "edge": "engine-rebirth", "text": "If there is no session, a sequence gap, an unknown alias or a changed datatype, the packet is rejected and the runtime asks the edge node for a rebirth." },
+    { "edge": "engine-match", "text": "An accepted packet comes back with its session and decoded metrics. The runtime finds the active devices bound to this source." },
+    { "edge": "match-compat", "text": "For each device, the source's current birth is checked against the applied configuration." },
+    { "edge": "compat-review", "text": "If the birth no longer fits, the device is marked review required and nothing is mapped." },
+    { "edge": "compat-map", "text": "Otherwise metrics become readings: conversion, validation, then calculations. Invalid readings keep the last valid value visible but marked." },
+    { "edge": "map-handoff", "text": "The readings are published to JetStream with the applied generation. From here the MQTT callback is done." },
+    { "edge": "handoff-consumer", "text": "The storage consumer takes one message at a time and discards any whose configuration is no longer applied." },
+    { "edge": "consumer-persist", "text": "One transaction writes observations or diagnostics, latest values, the outbox row and usage." },
+    { "edge": "persist-relay", "text": "The relay publishes the outbox row to the committed stream." },
+    { "edge": "relay-consumers", "text": "Automations and integration applications' streams see the reading only now, after it is stored." }
+  ]
+}

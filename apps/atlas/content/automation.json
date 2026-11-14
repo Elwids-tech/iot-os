@@ -1,0 +1,48 @@
+{
+  "id": "automation",
+  "title": "Automation",
+  "kind": "containers",
+  "summary": "From committed telemetry to an action. People author workflows in the portal, Laravel keeps drafts and immutable deployments, and the Go runtime evaluates them on stored readings. The runtime only asks for an action; Laravel decides again before anything happens. There are two engines: DAG automations (workflow v2) and the fixed geofence rule (v1).",
+  "docs": ["docs/features/automation.md", "docs/adr/ADR-011-dag-automation-in-go.md", "docs/reference/events.md"],
+  "boxes": [
+    { "id": "editor", "label": "Workflow editor", "sub": "Portal, @iot-os/workflow-editor", "tone": "system", "at": [0, 0], "detail": "A React Flow canvas for v2 graphs: bindings, nodes and edges. The node catalogue comes from the runtime's registry and can be read while automations are turned off in the organization; saving, simulating and activating cannot. Node positions and names are saved as a layout with its own revision, so moving a node never changes the definition.", "code": ["packages/workflow-editor/src/index.tsx", "apps/portal/src/automation/Automation.tsx", "apps/api/app/Domain/Automation/Services/DagAuthorization.php"] },
+    { "id": "authoring", "label": "Drafts and deployments", "sub": "Laravel Domain/Automation", "tone": "system", "at": [1, 0], "opens": "dag-deploy" },
+    { "id": "compile", "label": "Compile and simulate", "sub": "Runtime internal HTTP", "tone": "system", "at": [2.5, 0], "detail": "Laravel never judges a graph itself. The runtime compiles it with the same compiler it executes with and returns the canonical definition and its hash, or diagnostics. Simulation steps a compiled plan through up to 1,000 synthetic steps and reports the intents it would have produced; nothing is stored or sent.", "code": ["services/runtime/internal/app/dag.go", "services/runtime/internal/dag/compiler.go", "services/runtime/internal/app/workflows.go"], "docs": ["docs/adr/ADR-011-dag-automation-in-go.md"] },
+    { "id": "committed", "label": "Committed telemetry", "sub": "IOT_COMMITTED_TELEMETRY", "tone": "store", "at": [4, 0], "detail": "The stream of readings that are already stored. Automations read nothing else, so an action can never be caused by a reading that was later lost.", "code": ["services/runtime/internal/app/committed.go"] },
+    { "id": "geofences", "label": "Geofence rules", "sub": "v1, made by Locations → Geofences", "tone": "system", "at": [0, 1], "opens": "geofence-rules" },
+    { "id": "outbox", "label": "Device outbox", "sub": "workflow.deploy.v1 and v2", "tone": "store", "at": [1, 1], "detail": "A deployment request is a row in Laravel's outbox, written in the same transaction as the deployment record. The runtime claims rows under a 30-second lease, publishes each to iot.control.<type> and then acknowledges it.", "code": ["apps/api/app/Domain/Devices/Services/DeviceAudit.php", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "services/runtime/internal/app/control.go"] },
+    { "id": "control", "label": "Control consumer", "sub": "devices-control", "tone": "system", "at": [2.5, 1], "detail": "Applies workflow.deploy.v1 as a geofence rule execution and workflow.deploy.v2 as a DAG execution. Each workflow has a generation: an older or repeated request changes nothing, and the outcome is written as a workflow.deployment.v1 event in the same transaction as the execution.", "code": ["services/runtime/internal/app/application.go", "services/runtime/internal/storage/dag.go", "services/runtime/internal/storage/rules.go"] },
+    { "id": "evaluator", "label": "Automation evaluator", "sub": "workflow-evaluator-v1", "tone": "system", "at": [4, 1], "opens": "dag-evaluation" },
+    { "id": "inbox", "label": "Runtime event inbox", "sub": "Laravel, POST events/batch", "tone": "system", "at": [2.5, 2], "detail": "Runtime events arrive in ordered batches and each is applied once, by its event UUID. workflow.* events update the deployment and workflow, or become geofence transitions; automation.intent.v1 is checked against the deployment's definition and stored as an action. Nothing with a side effect happens here.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "apps/api/app/Domain/Automation/Services/WorkflowDeploymentService.php", "services/runtime/internal/app/inbox.go"], "docs": ["docs/adr/ADR-031-batched-runtime-events.md", "docs/reference/events.md"] },
+    { "id": "worker", "label": "Automation worker", "sub": "automation:work", "tone": "system", "at": [1, 2], "opens": "action-intents" },
+    { "id": "effects", "label": "Alert, event or command", "tone": "system", "at": [0, 2], "detail": "An alert action opens or clears the workflow's alert episode, an event action journals automation.triggered.v1 for integrations, and a command action goes through the same command pipeline as a command sent by a person.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Devices/Services/DeviceCommandService.php"], "docs": ["docs/features/alerts.md"] }
+  ],
+  "edges": [
+    { "id": "editor-authoring", "from": "editor", "to": "authoring", "label": "save,\nactivate" },
+    { "id": "authoring-compile", "from": "authoring", "to": "compile", "label": "compile, simulate" },
+    { "id": "authoring-outbox", "from": "authoring", "to": "outbox", "label": "deployment" },
+    { "id": "geofences-outbox", "from": "geofences", "to": "outbox", "label": "deploy v1" },
+    { "id": "outbox-control", "from": "outbox", "to": "control", "label": "claimed, iot.control.>" },
+    { "id": "control-evaluator", "from": "control", "to": "evaluator", "label": "starts an execution" },
+    { "id": "committed-evaluator", "from": "committed", "to": "evaluator", "label": "one message\nat a time" },
+    { "id": "control-inbox", "from": "control", "to": "inbox", "label": "deployment\noutcome" },
+    { "id": "evaluator-inbox", "from": "evaluator", "to": "inbox", "label": "transitions,\nintents" },
+    { "id": "inbox-worker", "from": "inbox", "to": "worker", "label": "stored actions" },
+    { "id": "worker-effects", "from": "worker", "to": "effects", "label": "re-checked" }
+  ],
+  "steps": [
+    { "edge": "editor-authoring", "text": "A person edits a graph in the portal and saves it. Laravel keeps the draft with a revision number." },
+    { "edge": "authoring-compile", "text": "Every save and every activation is compiled by the runtime, so the draft, the simulation and the running execution all use one compiler." },
+    { "edge": "authoring-outbox", "text": "Activating creates an immutable deployment, a snapshot of the compiled definition, and queues workflow.deploy.v2 in the outbox." },
+    { "edge": "geofences-outbox", "text": "Saving a geofence does the same for each assigned device with the fixed v1 chain, as workflow.deploy.v1." },
+    { "edge": "outbox-control", "text": "The runtime claims the row and publishes it to its control stream. The control consumer applies it, fenced by the workflow's generation." },
+    { "edge": "control-evaluator", "text": "A successful activation stops the earlier execution of that workflow and stores a new one with its initial state." },
+    { "edge": "control-inbox", "text": "Succeeded or failed, the outcome goes back to Laravel as workflow.deployment.v1, which marks the workflow applied or failed." },
+    { "edge": "committed-evaluator", "text": "From then on every committed reading from a bound device is evaluated, one message at a time." },
+    { "edge": "evaluator-inbox", "text": "Geofence transitions, DAG action intents and suspensions leave the runtime as events. An intent is a request, not an action." },
+    { "edge": "inbox-worker", "text": "Laravel stores each intent as an action. The automation worker picks it up within about a second." },
+    { "edge": "worker-effects", "text": "The worker checks again that the deployment is still current and allowed, then raises the alert, journals the event or sends the command." },
+    { "box": "authoring", "text": "A device move to another organization can carry an automation along: the target gets a copy with a new UUID, rewritten onto the new devices and not deployed, and the source's is turned off and archived. One left behind is turned off and shows as suspended." },
+    { "box": "evaluator", "text": "If the evaluator loses its place in the stream it pauses automation only; devices, history and commands keep working. Open it to see how." }
+  ]
+}

@@ -80,6 +80,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 | [`apps/portal`](../apps/portal) | Tenant React app (Vite) |
 | [`apps/admin`](../apps/admin) | Platform administration React app |
 | [`apps/storybook`](../apps/storybook) | Design-system gallery |
+| [`apps/atlas`](../apps/atlas/README.md) | Interactive architecture map: zoomable diagrams with walkthroughs (prototype) |
 | [`apps/vertical-demo`](../apps/vertical-demo/README.md) | Sample external app built only on the integration SDK |
 | [`apps/docs`](../apps/docs) | The platform's public landing page and developer docs: Astro and Starlight, published to GitHub Pages ([docs site](dev/docs-site.md)) |
 | [`services/runtime`](../services/runtime) | Go data plane (`cmd/runtime`), plus `cmd/broker-admin` and `cmd/committed-consumer` |

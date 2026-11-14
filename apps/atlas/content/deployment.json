@@ -1,0 +1,36 @@
+{
+  "id": "deployment",
+  "title": "Running it",
+  "kind": "containers",
+  "summary": "One repository runs in three shapes, all on Docker Compose. Developers build the local stack from source. A release runs digest-pinned images on one host, and an overlay moves the database to a second host. None of the shapes is highly available.",
+  "docs": ["docs/dev/local-setup.md", "docs/ops/release.md", "docs/adr/ADR-006-deployment-profiles.md"],
+  "boxes": [
+    { "id": "repo", "label": "Monorepo", "sub": "Apps, services, packages, contracts", "tone": "system", "at": [0, 0.2], "opens": "repo-map" },
+    { "id": "dev", "label": "Local development stack", "sub": "Compose, built from source", "tone": "system", "at": [2, 0.2], "opens": "dev-stack" },
+    { "id": "sims", "label": "Simulators", "sub": "Python, no hardware needed", "tone": "external", "at": [4, 0.2], "detail": "Scripts that publish Sparkplug B or vendor payloads through the real broker, so the whole pipeline runs without hardware. A passing simulator run is not hardware verification.", "code": ["tooling/simulators/sparkplug_simulator.py", "tooling/simulators"], "docs": ["docs/dev/simulators-and-fixtures.md"] },
+    { "id": "release", "label": "Release", "sub": "Images, manifest, manage.py", "tone": "system", "at": [0, 1.8], "opens": "release" },
+    { "id": "single", "label": "Single-node release", "sub": "One host, Docker Compose", "tone": "system", "at": [2, 1.2], "detail": "Everything on one host: Caddy, the API as php-fpm behind nginx, portal, admin, five workers and the scheduler, the runtime, TimescaleDB, NATS, Mosquitto with broker-admin, and the monitoring stack. Application images come from the manifest by digest and state lives in one directory on the host. It is recoverable from a checkpoint, not highly available.", "code": ["deploy/release/compose.yml", "deploy/release/environment.example", "deploy/ansible/host.yml"], "docs": ["docs/ops/release.md", "docs/adr/ADR-006-deployment-profiles.md"] },
+    { "id": "clients", "label": "Browsers and devices", "sub": "The only public ports", "tone": "external", "at": [4, 1.2], "detail": "Caddy publishes 80 and 443 and the broker publishes 8883. The host playbook opens exactly those three ports and allows SSH only on the VPN interface.", "code": ["deploy/release/Caddyfile", "deploy/ansible/host.yml"] },
+    { "id": "two", "label": "Two-server shape", "sub": "Same release, database elsewhere", "tone": "system", "at": [2, 2.4], "detail": "When DATABASE_HOST is not the bundled service, manage.py adds an overlay that leaves the local TimescaleDB out and gives it a database client container for psql and pg_dump. The address must be a private IPv4 address routed through the WireGuard tunnel, or validation fails. Restore refuses this shape: a checkpoint is restored on an isolated single node first.", "code": ["deploy/release/compose.external-db.yml", "tooling/release/manage.py", "tooling/release/verify_external_database.py"], "docs": ["docs/ops/release.md"] },
+    { "id": "dbhost", "label": "Database host", "sub": "TimescaleDB + node exporter", "tone": "store", "at": [4, 2.4], "detail": "The second server runs its own small Compose file: TimescaleDB listening only on its private tunnel address, with the same rendered role script as the app host, and a node exporter that the app host's Prometheus scrapes with a database role label.", "code": ["deploy/release/compose.database.yml", "deploy/release/init-db.sql"] }
+  ],
+  "edges": [
+    { "id": "repo-dev", "from": "repo", "to": "dev", "label": "./taskw devices:up" },
+    { "id": "sims-dev", "from": "sims", "to": "dev", "label": "MQTT over TLS, 8883" },
+    { "id": "repo-release", "from": "repo", "to": "release", "label": "v* tag" },
+    { "id": "release-single", "from": "release", "to": "single", "label": "manage.py deploy" },
+    { "id": "clients-single", "from": "clients", "to": "single", "label": "80, 443, 8883" },
+    { "id": "single-two", "from": "single", "to": "two", "label": "DATABASE_HOST set" },
+    { "id": "two-dbhost", "from": "two", "to": "dbhost", "label": "5432 over a private tunnel" }
+  ],
+  "steps": [
+    { "box": "repo", "text": "Every shape starts from the same repository: apps, services, shared packages and contracts. Open it to see what depends on what." },
+    { "edge": "repo-dev", "text": "Locally, Compose builds each service from source with no bind mounts, so you rebuild a service to see a change." },
+    { "edge": "sims-dev", "text": "Simulators stand in for devices and publish through the local broker over TLS, the same path hardware takes." },
+    { "edge": "repo-release", "text": "A v* tag runs the release workflow: checks, eight images pushed by digest, and a manifest that names them." },
+    { "edge": "release-single", "text": "On the host, manage.py deploys exactly the images in the manifest. Open Release to follow the steps." },
+    { "edge": "clients-single", "text": "Only Caddy (80, 443) and the broker (8883) face the internet. Everything else stays on the private Compose network." },
+    { "edge": "single-two", "text": "Setting DATABASE_HOST to a private address turns the same release into the two-server shape; nothing else changes." },
+    { "edge": "two-dbhost", "text": "The API, workers and runtime then reach TimescaleDB on the second host through the tunnel. If the address is public or not routed through it, the deploy is refused." }
+  ]
+}

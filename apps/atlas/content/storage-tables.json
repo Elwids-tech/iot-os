@@ -1,0 +1,49 @@
+{
+  "id": "storage-tables",
+  "title": "What a reading becomes",
+  "kind": "flow",
+  "summary": "One telemetry message is stored in one transaction. A good reading becomes a row in observations, any other reading a row in diagnostics, and latest keeps one current row per parameter. The top row decides whether anything is stored at all; the rows below are the tables.",
+  "docs": ["docs/features/devices.md", "docs/reference/events.md"],
+  "boxes": [
+    { "id": "reading", "label": "Mapped reading", "sub": "Value, quality, two timestamps", "tone": "system", "at": [0, 0.3], "detail": "received_at is when the runtime got the packet. observed_at is the source's own timestamp when it sent one. timestamp_source says which was used: receipt, source, corrected_future (a source clock more than five minutes ahead is replaced by receipt time) or derived for a calculated reading. Quality is good or invalid.", "code": ["services/runtime/internal/devices/profile.go", "services/runtime/internal/devices/types.go"] },
+    { "id": "fence", "label": "Generation fence", "sub": "Is this configuration still applied?", "tone": "system", "at": [1, 0.3], "detail": "The transaction first locks the device's row for share and checks the message's organization, configuration and applied generation against it. No match, or no readings, commits nothing.", "code": ["services/runtime/internal/storage/store.go"], "docs": ["docs/adr/ADR-027-adapter-fed-activation-and-applied-generation.md"] },
+    { "id": "ledger", "label": "Message ledger", "sub": "telemetry_outbox, unique telemetry_uuid", "tone": "store", "at": [2, 0.3], "detail": "The committed event is inserted with ON CONFLICT DO NOTHING. If the row already exists, this message was stored before and the transaction ends. Published rows are kept at least eight days, longer than the seven days JetStream can redeliver.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/schema.sql"] },
+    { "id": "each", "label": "For each reading", "sub": "Split by quality", "tone": "system", "at": [3, 0.3], "detail": "The whole reading is stored as JSON beside the columns used to find it. Every row actually inserted is counted, whichever table it went to.", "code": ["services/runtime/internal/storage/store.go"] },
+    { "id": "match", "label": "Re-sent sample check", "sub": "Source-timestamped readings only", "tone": "system", "at": [4, 0.3], "detail": "A device that reconnects re-sends buffered samples under a new message ID, so the ledger cannot catch them. A source-timestamped reading is skipped when the parameter already has an observation with the same observed time and value. Readings stamped at receipt are never compared.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/reporting_integration_test.go"] },
+    { "id": "nothing", "label": "Nothing stored", "sub": "A deliberate no-op", "tone": "system", "at": [1, 1.6], "detail": "A stale generation and a duplicate delivery both return without an error, so the message is not retried. Callers must not read success as stored.", "code": ["services/runtime/internal/storage/store.go"] },
+    { "id": "usage", "label": "usage_data_points", "sub": "Rows inserted, per UTC hour", "tone": "store", "at": [2, 1.6], "detail": "The count of inserted observation and diagnostic rows is added to the organization's bucket for the current UTC hour, in the same transaction. A duplicate message or a skipped sample adds nothing.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/usage.go"], "docs": ["docs/adr/ADR-036-runtime-counts-data-points.md"] },
+    { "id": "diagnostics", "label": "diagnostics", "sub": "Readings that are not good", "tone": "store", "at": [3, 1.6], "detail": "One row per message and parameter, with a null value and the reason. Rows expire with the organization's retention. No query endpoint reads this table today; the diagnostic people see comes from latest.", "code": ["services/runtime/internal/storage/schema.sql", "services/runtime/internal/storage/store.go"] },
+    { "id": "observations", "label": "observations", "sub": "Hypertable, one-day chunks by receipt", "tone": "store", "at": [4, 1.6], "detail": "Good readings only. The primary key is message, parameter and received_at, so the same message cannot insert twice. Chunks follow receipt time, which keeps inserts in the newest chunk. Raw records are read in receipt order; charts, state timelines and counter increases use the observed-time index.", "code": ["services/runtime/internal/storage/schema.sql", "services/runtime/internal/storage/store.go"] },
+    { "id": "latest", "label": "latest", "sub": "One row per parameter", "tone": "store", "at": [3, 2.9], "detail": "Keyed by device, configuration and parameter, and replaced only by a reading received later. A good reading replaces the row. Any other reading keeps the stored value and observed time, takes the new quality and diagnostic, and records last_valid_received_at. Historical readings never touch it.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/schema.sql"] },
+    { "id": "compressed", "label": "Compressed chunks", "sub": "After two days", "tone": "store", "at": [4, 2.9], "detail": "A TimescaleDB policy compresses observation chunks older than two days, segmented by organization, device and parameter and ordered by observed time, newest first. The schema notes about 1 KB a reading before and about 55 bytes after. A backlog older than two days inserts into compressed chunks, which is slower.", "code": ["services/runtime/internal/storage/schema.sql", "services/runtime/internal/storage/compression_integration_test.go"] }
+  ],
+  "edges": [
+    { "id": "reading-fence", "from": "reading", "to": "fence", "label": "message" },
+    { "id": "fence-ledger", "from": "fence", "to": "ledger", "label": "applied" },
+    { "id": "ledger-each", "from": "ledger", "to": "each", "label": "new" },
+    { "id": "each-match", "from": "each", "to": "match", "label": "good" },
+    { "id": "fence-nothing", "from": "fence", "to": "nothing", "label": "not applied", "dashed": true },
+    { "id": "ledger-nothing", "from": "ledger", "to": "nothing", "label": "seen before", "dashed": true },
+    { "id": "repeat", "from": "match", "to": "match", "label": "same time and value: skipped", "dashed": true },
+    { "id": "match-observations", "from": "match", "to": "observations", "label": "insert" },
+    { "id": "each-diagnostics", "from": "each", "to": "diagnostics", "label": "not good" },
+    { "id": "each-usage", "from": "each", "to": "usage", "label": "rows inserted" },
+    { "id": "observations-latest", "from": "observations", "to": "latest", "label": "replaces" },
+    { "id": "diagnostics-latest", "from": "diagnostics", "to": "latest", "label": "value kept" },
+    { "id": "observations-compressed", "from": "observations", "to": "compressed", "label": "policy" }
+  ],
+  "steps": [
+    { "edge": "reading-fence", "text": "A message carries readings with a quality, the time the source measured them and the time the runtime received them. Storing starts by checking the device still runs that configuration and generation." },
+    { "edge": "fence-nothing", "text": "If the configuration was replaced or the device deactivated meanwhile, the transaction commits nothing." },
+    { "edge": "ledger-nothing", "text": "Otherwise the message ID goes into the ledger. A redelivered message is already there, so it also ends here." },
+    { "edge": "ledger-each", "text": "A new message continues: each reading is stored by its quality." },
+    { "edge": "each-match", "text": "A good reading with a source timestamp is first compared with what is stored for the same parameter, observed time and value." },
+    { "edge": "repeat", "text": "A sample the device re-sent after reconnecting matches, and is not stored or counted again." },
+    { "edge": "match-observations", "text": "Everything else becomes a row in observations, in the one-day chunk for its receipt time." },
+    { "edge": "each-diagnostics", "text": "A reading that failed conversion or validation goes to diagnostics with the reason instead." },
+    { "edge": "observations-latest", "text": "A good live reading replaces the parameter's latest row. A historical reading is history only and leaves latest alone." },
+    { "edge": "diagnostics-latest", "text": "A failed reading marks the latest row with its quality and diagnostic but keeps the last valid value and when it was received." },
+    { "edge": "each-usage", "text": "The rows inserted are added to the organization's usage bucket for the hour, before the transaction commits." },
+    { "edge": "observations-compressed", "text": "Two days later TimescaleDB compresses the chunk. Reads and retention deletes still work on it." }
+  ]
+}

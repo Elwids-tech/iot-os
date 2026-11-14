@@ -1,0 +1,46 @@
+{
+  "id": "command-lifecycle",
+  "title": "Command lifecycle",
+  "kind": "state",
+  "summary": "A command sets one writable parameter of an active device. It is checked twice against the live session, sent once as a Sparkplug NCMD or DCMD, and completes only when the device later reports the requested value. The broker's acknowledgement never completes a command, and a command whose delivery is unknown is never sent again.",
+  "docs": ["docs/features/devices.md", "docs/reference/events.md"],
+  "rows": 3.5,
+  "boxes": [
+    { "id": "prepared", "label": "prepared", "sub": "Checked, waiting to be confirmed", "tone": "state", "at": [0, 0], "detail": "Laravel checks that the device is active, the named configuration is the applied one, the parameter reports state, accepts commands and has a command metric, and the value is valid. The runtime's command check must pass too. One outstanding command per parameter; the idempotency key returns the same command on a repeat. It can be confirmed for five minutes. Controls prepare and confirm in one request.", "code": ["apps/api/app/Domain/Devices/Services/DeviceCommandService.php", "apps/api/app/Domain/Devices/Http/Controllers/CommandController.php"], "docs": ["docs/features/devices.md"] },
+    { "id": "pending", "label": "pending", "sub": "Confirmed, 30 s deadline", "tone": "state", "at": [1.5, 0], "detail": "Only the person who prepared the command can confirm it. Confirmation repeats the command check, sets the deadline to 30 seconds (or an automation's earlier deadline) and writes device.command.v1 to the outbox in the same transaction, with the generation and the session ID the check returned.", "code": ["apps/api/app/Domain/Devices/Services/DeviceCommandService.php", "contracts/devices/v1/command.schema.json"] },
+    { "id": "dispatching", "label": "dispatching", "sub": "Runtime claim, shown as pending", "tone": "state", "at": [3, 0], "detail": "The runtime inserts the command into device_runtime.commands before doing anything else. A redelivered message finds the row and is not dispatched again. Under the device's lock it then checks the generation, the deadline, the command check, the session and the broker connection, and for an automation asks Laravel whether the action is still authorized.", "code": ["services/runtime/internal/app/commands.go", "services/runtime/internal/storage/store.go"] },
+    { "id": "failed", "label": "failed", "sub": "Refused, nothing was sent", "tone": "state", "at": [4, 0], "detail": "The command check failed at dispatch, the source's session changed after confirmation, the device already reached the target, or the broker connection is down. Commands are not queued for an offline device.", "code": ["services/runtime/internal/app/commands.go"] },
+    { "id": "already", "label": "already_at_target", "sub": "Nothing sent", "tone": "state", "at": [0, 1.5], "detail": "At confirmation the runtime holds a fresh, valid live value for the parameter that equals the target, so no message is written. Fresh means within the parameter's stale_after_seconds, or 30 seconds.", "code": ["services/runtime/internal/app/commands.go", "apps/api/app/Domain/Devices/Services/DeviceCommandService.php"] },
+    { "id": "cancelled", "label": "cancelled", "sub": "Never left the platform", "tone": "state", "at": [1, 1.5], "detail": "A prepared command the person cancelled, that was not confirmed within five minutes, or that a deactivation overtook. The runtime also cancels a command at dispatch when its generation is no longer the device's, or an automation's authorization was revoked.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/CommandController.php", "apps/api/app/Domain/Devices/Services/DeviceCommandService.php", "services/runtime/internal/app/commands.go"] },
+    { "id": "uncertain", "label": "uncertain", "sub": "May have reached the device", "tone": "state", "at": [2, 1.5], "detail": "Nobody can say whether the device received it: the publish did not complete within five seconds, the runtime restarted after claiming it, the device was deactivated while it was outstanding, or Laravel heard nothing by ten seconds after the deadline. Sending it again could act twice on real equipment, so it is never replayed; a person looks at the device and decides.", "code": ["services/runtime/internal/app/commands.go", "services/runtime/internal/storage/store.go", "apps/api/app/Domain/Devices/Services/DeviceCommandService.php"], "docs": ["docs/features/devices.md"] },
+    { "id": "sent", "label": "sent", "sub": "Published, not yet confirmed", "tone": "state", "at": [3, 1.5], "detail": "The NCMD (for an edge node's own metric) or DCMD was handed to the broker at QoS 0, carrying the metric's name and never an alias. The runtime keeps the command in memory and watches the readings its storage consumer handles for the answer. Of the statuses the runtime reports, sent is the only one that is not final.", "code": ["services/runtime/internal/app/commands.go", "services/runtime/internal/sparkplug/session.go"], "docs": ["docs/reference/sparkplug.md"] },
+    { "id": "observed", "label": "observed", "sub": "Device reported the target", "tone": "state", "at": [3, 3], "detail": "A reading that reached the storage consumer for the same parameter, in the same session and configuration, with good quality, not historical, received after the send and before the deadline, equals the target. Float targets are compared as 32-bit floats.", "code": ["services/runtime/internal/app/commands.go", "services/runtime/internal/app/control.go"] },
+    { "id": "timed-out", "label": "timed_out", "sub": "No matching reading in time", "tone": "state", "at": [4, 3], "detail": "The command was sent and the deadline passed without a matching live reading; the device may still have acted on it. A command that had already expired when the runtime came to dispatch it is also timed out, without being sent.", "code": ["services/runtime/internal/app/commands.go"] }
+  ],
+  "edges": [
+    { "id": "confirm", "from": "prepared", "to": "pending", "label": "confirm: second\ncommand check" },
+    { "id": "at-target", "from": "prepared", "to": "already", "label": "confirm: value\nalready there" },
+    { "id": "cancel", "from": "prepared", "to": "cancelled", "label": "cancel, or\n5 min pass", "dashed": true },
+    { "id": "claim", "from": "pending", "to": "dispatching", "label": "device.command.v1" },
+    { "id": "silence", "from": "pending", "to": "uncertain", "label": "no outcome 10 s\nafter deadline", "dashed": true },
+    { "id": "refuse", "from": "dispatching", "to": "failed", "label": "refused", "dashed": true },
+    { "id": "publish", "from": "dispatching", "to": "sent", "label": "NCMD / DCMD\npublished" },
+    { "id": "unknown", "from": "dispatching", "to": "uncertain", "label": "publish outcome\nunknown", "dashed": true },
+    { "id": "lost", "from": "sent", "to": "uncertain", "label": "restart,\ndeactivate", "dashed": true },
+    { "id": "observe", "from": "sent", "to": "observed", "label": "matching live reading" },
+    { "id": "timeout", "from": "sent", "to": "timed-out", "label": "deadline", "labelAt": 0.72, "dashed": true }
+  ],
+  "steps": [
+    { "box": "prepared", "text": "A person, or an automation acting under its grant, asks for a value. Laravel and the runtime both check that the device can take it right now." },
+    { "edge": "at-target", "text": "If the device already reports the requested value, confirmation ends the command there and nothing is sent." },
+    { "edge": "confirm", "text": "Confirmation repeats the check, starts a 30-second deadline and writes device.command.v1 to the outbox." },
+    { "edge": "claim", "text": "The runtime records the command before acting on it, so a message delivered twice is dispatched once." },
+    { "edge": "refuse", "text": "If the session changed, the configuration is no longer applied or the broker is down, the command fails and nothing is sent." },
+    { "edge": "publish", "text": "Otherwise it is published once as an NCMD or DCMD on the source's topic. The broker accepting it proves nothing about the device." },
+    { "edge": "observe", "text": "Only a later live reading with the requested value, in the same session and before the deadline, completes the command." },
+    { "edge": "timeout", "text": "If no such reading arrives in time the command is timed out." },
+    { "edge": "unknown", "text": "If the publish itself did not finish, the outcome is uncertain. The runtime never publishes a command a second time." },
+    { "edge": "lost", "text": "A runtime restart or a deactivation with a command outstanding also ends it as uncertain, for the same reason." },
+    { "edge": "silence", "text": "If the runtime's outcome does not reach Laravel within ten seconds after the deadline, Laravel marks the command uncertain itself." }
+  ]
+}

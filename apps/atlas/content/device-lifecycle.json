@@ -1,0 +1,45 @@
+{
+  "id": "device-lifecycle",
+  "title": "Device lifecycle",
+  "kind": "state",
+  "summary": "A device row has a lifecycle (registered, active, deactivated, archived) and a deployment_status (idle, pending, applied, failed, inactive). Laravel only moves a device to pending; the lifecycle changes when the runtime's answer for the same generation arrives. Review required is a separate flag the runtime keeps on an active device.",
+  "docs": ["docs/features/devices.md", "docs/adr/ADR-025-review-follows-current-birth.md", "docs/adr/ADR-027-adapter-fed-activation-and-applied-generation.md"],
+  "rows": 3.5,
+  "boxes": [
+    { "id": "registered", "label": "registered", "sub": "deployment_status idle", "tone": "state", "at": [0, 0], "detail": "A new device row: a name and an editable draft (profile revision, source, mappings), nothing desired and nothing applied. Every draft change carries draft_revision, and a stale one is answered 409.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/DeviceController.php", "apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php", "apps/api/database/migrations/2026_09_06_000000_create_devices_domain.php"], "docs": ["docs/features/devices.md"] },
+    { "id": "activating", "label": "Activation pending", "sub": "deployment_status pending", "tone": "state", "at": [2, 0], "detail": "The desired pointer names a snapshot, the generation went up by one and an operation (configure, rollback or resume) waits for the runtime. The lifecycle keeps its old value. No other activation, deactivation or archive is accepted until the answer arrives.", "code": ["apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php", "apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php", "apps/api/app/Domain/Devices/Models/DeviceOperation.php"] },
+    { "id": "active", "label": "active", "sub": "deployment_status applied", "tone": "state", "at": [4, 0], "detail": "The runtime confirmed the snapshot. applied_configuration_uuid, last_applied_configuration_uuid and applied_generation name what is running; readings are mapped and commands are allowed.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "apps/api/app/Domain/Devices/Models/Device.php"] },
+    { "id": "failed", "label": "Activation refused", "sub": "deployment_status failed", "tone": "state", "at": [1, 1.5], "detail": "The runtime refused the request and its diagnostic is shown. The lifecycle and the applied pointer do not move: a device that was active keeps running its previous configuration, and one that was never active stays registered or deactivated.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "services/runtime/internal/storage/store.go"], "docs": ["docs/adr/ADR-027-adapter-fed-activation-and-applied-generation.md"] },
+    { "id": "review", "label": "Review required", "sub": "Runtime flag, device stays active", "tone": "state", "at": [3, 1.5], "detail": "The source's birth no longer fits the applied configuration: a mapped metric is missing or changed datatype. The runtime stops mapping readings, refuses commands and stops automations bound to the device. Laravel's lifecycle does not change; the device shows a diagnostic. A new activation also clears the flag.", "code": ["services/runtime/internal/app/application.go", "services/runtime/internal/storage/store.go", "services/runtime/internal/devices/types.go"], "docs": ["docs/adr/ADR-025-review-follows-current-birth.md"] },
+    { "id": "deactivating", "label": "Deactivation pending", "sub": "deployment_status pending", "tone": "state", "at": [4, 3], "detail": "The desired pointer is empty and the generation went up by one. The device is still applied in the runtime until it handles device.deactivate.v1. New commands are refused because the deployment is pending.", "code": ["apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php", "apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php"] },
+    { "id": "deactivated", "label": "deactivated", "sub": "deployment_status inactive", "tone": "state", "at": [2, 3], "detail": "The runtime dropped the definition and stopped mapping and dispatch. The applied pointer is empty, presence is offline, unsent commands are cancelled and possibly sent ones are uncertain. last_applied_configuration_uuid is kept for a later resume.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "services/runtime/internal/app/application.go"], "docs": ["docs/features/devices.md"] },
+    { "id": "archived", "label": "archived", "sub": "Read-only, source released", "tone": "state", "at": [0, 3], "detail": "Allowed only when nothing is desired, nothing is applied and no deployment is pending. The source reservation is released and history is kept. An archived device takes no further changes and is left out of the runtime's state snapshot.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/DeviceController.php", "apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php"] }
+  ],
+  "edges": [
+    { "id": "activate", "from": "registered", "to": "activating", "label": "activate" },
+    { "id": "applied", "from": "activating", "to": "active", "label": "device.applied.v1" },
+    { "id": "reconfigure", "from": "active", "to": "activating", "label": "activate or roll back" },
+    { "id": "refused", "from": "activating", "to": "failed", "label": "device.failed.v1" },
+    { "id": "retry", "from": "failed", "to": "activating", "label": "activate again" },
+    { "id": "birth-changed", "from": "active", "to": "review", "label": "birth no longer fits" },
+    { "id": "birth-fits", "from": "review", "to": "active", "label": "matching birth" },
+    { "id": "deactivate", "from": "active", "to": "deactivating", "label": "deactivate" },
+    { "id": "deactivated", "from": "deactivating", "to": "deactivated", "label": "device.deactivated.v1" },
+    { "id": "resume", "from": "deactivated", "to": "activating", "label": "resume: last applied\nconfiguration" },
+    { "id": "archive", "from": "deactivated", "to": "archived", "label": "archive" },
+    { "id": "archive-registered", "from": "registered", "to": "archived", "label": "archive" }
+  ],
+  "steps": [
+    { "box": "registered", "text": "A registered device has a draft and nothing running. Saving the draft never touches the runtime." },
+    { "edge": "activate", "text": "Activation stores a snapshot of the draft, raises the generation and leaves the device pending. The lifecycle is still registered." },
+    { "edge": "applied", "text": "device.applied.v1 for that generation and operation makes the device active and moves the applied pointer." },
+    { "edge": "refused", "text": "device.failed.v1 leaves the lifecycle and the applied pointer where they were and shows the runtime's diagnostic." },
+    { "edge": "reconfigure", "text": "A new revision or a rollback of an active device goes through pending again. Until the answer comes, the previous configuration keeps running." },
+    { "edge": "birth-changed", "text": "If the source announces metrics that no longer fit, the runtime sets review required: readings stop, commands are refused." },
+    { "edge": "birth-fits", "text": "The next birth that fits the applied configuration clears the flag; so does a new activation." },
+    { "edge": "deactivate", "text": "Deactivation empties the desired pointer and raises the generation. It needs the runtime's confirmation, like activation." },
+    { "edge": "deactivated", "text": "device.deactivated.v1 makes the device deactivated. Commands that were never sent are cancelled; ones that may have been sent become uncertain." },
+    { "edge": "resume", "text": "Reactivation sends the last applied snapshot again under a new generation. Draft edits are not applied." },
+    { "edge": "archive", "text": "A deactivated device can be archived. Its history stays and its source is free for another device." }
+  ]
+}

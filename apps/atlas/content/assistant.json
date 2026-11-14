@@ -1,0 +1,52 @@
+{
+  "id": "assistant",
+  "title": "The in-product assistant",
+  "kind": "flow",
+  "summary": "How one message to the assistant becomes an answer and, sometimes, a change. The reply is produced by a queue worker with the AI provider an administrator chose. Its tools run as the person who asked, and anything it wants to change is a proposal that person reviews on a card.",
+  "docs": ["docs/features/assistant.md"],
+  "boxes": [
+    { "id": "setting", "label": "Provider setting", "sub": "Admin: provider, model, key, limits", "tone": "store", "at": [2, 0], "detail": "A super administrator picks OpenAI or Anthropic, a model, an API key and the daily and per-run allowances in the admin app. Saved settings win over the server environment. Keys are stored encrypted and never returned. The setting is read on every run, so a change applies to the next reply.", "code": ["apps/api/app/Domain/Assistant/Services/AssistantProvider.php", "apps/api/app/Domain/Assistant/Services/AssistantSettings.php", "apps/api/config/assistant.php"], "docs": ["docs/features/assistant.md"] },
+    { "id": "person", "label": "Person", "sub": "Assistant panel in the portal", "tone": "person", "at": [0, 1], "detail": "A conversation belongs to one person in one organization and has one scope: a device profile, device onboarding, an automation draft, or help. The panel reads the conversation's events, each time after the last one it has, for text and cards.", "code": ["apps/portal/src/assistant/AssistantPanel.tsx", "apps/api/app/Domain/Assistant/Enums/AssistantScope.php"] },
+    { "id": "accept", "label": "Message accepted", "sub": "Access, allowance, queued run", "tone": "system", "at": [1, 1], "detail": "The controller checks the person's access to the conversation's scope, then reserves the run allowance against the day's. No configured key answers 503; a spent daily allowance answers 429. A conversation has one active run at a time, and a repeated request ID returns the same run.", "code": ["apps/api/app/Domain/Assistant/Http/Controllers/AssistantController.php", "apps/api/app/Domain/Assistant/Services/AssistantAccess.php", "apps/api/app/Domain/Assistant/Services/AssistantBudget.php"] },
+    { "id": "job", "label": "RunAssistant job", "sub": "assistant queue, one try, 120 s", "tone": "system", "at": [2, 1], "detail": "Runs in the assistant worker. It checks access again, resolves the provider and model once, streams the reply into the conversation's events and stops when the run is cancelled. A reply that costs more than its reserved allowance fails with a clear message; what was already saved is kept.", "code": ["apps/api/app/Domain/Assistant/Jobs/RunAssistant.php", "apps/api/app/Domain/Assistant/Services/AssistantEvents.php", "deploy/compose/compose.app.yml"] },
+    { "id": "agent", "label": "Scoped agent", "sub": "Profile, onboarding, automation, help", "tone": "system", "at": [3, 1], "detail": "One agent class for each scope, each with its own instructions and tool set. The help agent has no tools: it answers from guide excerpts. Uploaded files, device names and tool results are passed as untrusted data, never as instructions.", "code": ["apps/api/app/Domain/Assistant/Agents/ProfileAssistant.php", "apps/api/app/Domain/Assistant/Agents/WorkflowAssistant.php", "apps/api/app/Domain/Assistant/Agents/HelpAgent.php"] },
+    { "id": "llm", "label": "AI provider", "sub": "OpenAI or Anthropic", "tone": "external", "at": [4, 1], "detail": "Reached through Laravel AI with the resolved key. Each provider receives only its own request options. Provider error messages have every key removed before they are logged or shown.", "code": ["apps/api/app/Domain/Assistant/Services/AssistantProvider.php"] },
+    { "id": "tools", "label": "Tools", "sub": "As the person, in one organization", "tone": "system", "at": [3, 2], "detail": "Every tool call first checks that the run is still running and that the person may still use the conversation. Lookups such as finding devices, profiles and geofences call the portal's own controllers and authorizers. The onboarding tools can also fetch from a polled source and test a decoder, with the person's device permissions.", "code": ["apps/api/app/Domain/Assistant/Tools/ProfileAssistantTools.php", "apps/api/app/Domain/Assistant/Tools/WorkflowAssistantTools.php", "apps/api/app/Domain/Assistant/Tools/OnboardingTools.php"] },
+    { "id": "never", "label": "Never an assistant action", "sub": "Publish, activate, deploy, command", "tone": "state", "at": [4, 2], "detail": "No tool publishes a profile, saves or activates an automation, deploys an adapter, activates a device, sends a command, or reads a credential or secret. The assistant points to the page where the person does it, and may not claim that it happened.", "code": ["apps/api/app/Domain/Assistant/Agents/OnboardingAssistant.php", "apps/api/app/Domain/Assistant/Agents/WorkflowAssistant.php"], "docs": ["docs/features/assistant.md"] },
+    { "id": "proposal", "label": "Proposal", "sub": "pending, with a content hash", "tone": "store", "at": [2, 2], "detail": "A preview tool validates the change with the domain's own validator or compiler and stores it with its diagnostics, its evidence and a hash of its content. A newer proposal supersedes a pending one. For profile sections the agent then asks for approval, which pauses the run as awaiting approval.", "code": ["apps/api/app/Domain/Assistant/Services/ProfileProposalService.php", "apps/api/app/Domain/Assistant/Services/WorkflowProposalService.php", "apps/api/app/Domain/Assistant/Tools/ApplyProfileSection.php"] },
+    { "id": "card", "label": "Review card", "sub": "Approve or dismiss this exact content", "tone": "system", "at": [1, 2], "detail": "The person decides on a card that shows the change. The decision carries the content hash, so approving a proposal that changed since answers 409. Saying yes in the chat approves nothing. An automation proposal cannot be approved here at all: it is loaded into the editor's draft, which the person saves and activates separately.", "code": ["apps/portal/src/assistant/ProposalReview.tsx", "apps/api/app/Domain/Assistant/Http/Controllers/AssistantController.php"] },
+    { "id": "apply", "label": "Apply", "sub": "Draft saved under the person's name", "tone": "system", "at": [1, 3], "detail": "An approved profile section is written through the profile authoring service after the person's create or update permission is checked again, and the change is audited with its hash. An approved onboarding card creates or changes an adapter draft through the adapter service with the person's device permissions. A proposal with a blocking diagnostic cannot be applied.", "code": ["apps/api/app/Domain/Assistant/Services/ProfileProposalService.php", "apps/api/app/Domain/Assistant/Services/OnboardingProposals.php"] },
+    { "id": "domain", "label": "Domain services", "sub": "The ones the portal calls", "tone": "system", "at": [3, 3], "detail": "Profile authoring and validation, the automation compiler, the adapter service, and the device and automation authorizers. The assistant has no separate way to write.", "code": ["apps/api/app/Domain/DeviceProfiles/Services/DeviceProfileAuthoring.php", "apps/api/app/Domain/Automation/Services/DagAuthoring.php", "apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php"] }
+  ],
+  "edges": [
+    { "id": "person-accept", "from": "person", "to": "accept", "label": "message" },
+    { "id": "accept-job", "from": "accept", "to": "job", "label": "queued run" },
+    { "id": "setting-job", "from": "setting", "to": "job", "label": "read each run" },
+    { "id": "job-agent", "from": "job", "to": "agent", "label": "by scope" },
+    { "id": "agent-llm", "from": "agent", "to": "llm", "label": "prompt" },
+    { "id": "llm-agent", "from": "llm", "to": "agent", "label": "tool calls" },
+    { "id": "agent-tools", "from": "agent", "to": "tools", "label": "runs" },
+    { "id": "tools-domain", "from": "tools", "to": "domain", "label": "authorized reads" },
+    { "id": "tools-never", "from": "tools", "to": "never", "label": "no tool", "dashed": true },
+    { "id": "tools-proposal", "from": "tools", "to": "proposal", "label": "preview" },
+    { "id": "proposal-card", "from": "proposal", "to": "card", "label": "shown" },
+    { "id": "person-card", "from": "person", "to": "card", "label": "reviews" },
+    { "id": "card-apply", "from": "card", "to": "apply", "label": "approve" },
+    { "id": "card-accept", "from": "card", "to": "accept", "label": "decision starts\nthe next run", "dashed": true },
+    { "id": "apply-domain", "from": "apply", "to": "domain", "label": "same services, same permissions" }
+  ],
+  "steps": [
+    { "edge": "person-accept", "text": "The person sends a message. The API checks their access to the conversation and reserves the run's allowance, or answers 503 or 429." },
+    { "edge": "accept-job", "text": "The run is queued for the assistant worker, so the request returns at once and the panel follows the conversation's events." },
+    { "edge": "setting-job", "text": "The job reads the provider, model and key an administrator saved, falling back to the server environment." },
+    { "edge": "job-agent", "text": "It builds the agent for the conversation's scope, with that scope's instructions and tools." },
+    { "edge": "agent-llm", "text": "The prompt and the bounded history go to the provider." },
+    { "edge": "llm-agent", "text": "The model answers with text, or asks for a tool." },
+    { "edge": "agent-tools", "text": "The tool runs in the worker as the person who asked, inside the conversation's organization." },
+    { "edge": "tools-domain", "text": "Lookups go through the portal's own queries and authorizers, so the assistant cannot see more than the person can." },
+    { "edge": "tools-proposal", "text": "To change something, the agent can only preview it: the change is validated and stored as a pending proposal." },
+    { "edge": "proposal-card", "text": "The proposal appears as a review card. For a profile section the run pauses until the person decides." },
+    { "edge": "card-apply", "text": "Approving sends the proposal's content hash. The server applies exactly that content, as the person, through the usual authoring service." },
+    { "edge": "tools-never", "text": "Publishing, activating, deploying and device commands are not tools. A person does them on the page built for it." }
+  ]
+}

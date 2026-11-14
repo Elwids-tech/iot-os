@@ -1,0 +1,50 @@
+{
+  "id": "activation",
+  "title": "Activation and commands",
+  "kind": "containers",
+  "summary": "Laravel records what should run (desired state); the Go runtime decides what does run (applied state) and reports back. Intent travels as rows in Laravel's device_outbox, which the runtime claims over internal HTTP and applies one at a time. Every message carries the device's generation, so late or repeated work is dropped on both sides.",
+  "docs": ["docs/adr/ADR-014-control-plane-data-plane-http-integration.md", "docs/reference/events.md", "docs/features/devices.md"],
+  "boxes": [
+    { "id": "services", "label": "Device services", "sub": "Laravel: records intent", "tone": "system", "at": [0, 0], "detail": "Activation, deactivation and command confirmation each run in one database transaction under a lock on the device row. They change the desired state, raise deployment_generation by one for a configuration change, and write the outbox row in the same commit. Laravel never calls the runtime to apply anything.", "code": ["apps/api/app/Domain/Devices/Services/DeviceConfigurationService.php", "apps/api/app/Domain/Devices/Services/DeviceLifecycleService.php", "apps/api/app/Domain/Devices/Services/DeviceCommandService.php"], "docs": ["docs/features/devices.md"] },
+    { "id": "outbox", "label": "device_outbox", "sub": "Laravel's control messages", "tone": "store", "at": [1, 0], "detail": "One row per message: device.activate.v1, device.deactivate.v1, device.command.v1 and the workflow deployments. A row is claimed with a lease token for 30 seconds, up to 100 rows a call, and is marked published only by an acknowledgement that carries the current token. An expired lease puts the row back in the next claim.", "code": ["apps/api/app/Domain/Devices/Services/DeviceAudit.php", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "contracts/devices/v1/activation.schema.json"], "docs": ["docs/reference/events.md"] },
+    { "id": "relay", "label": "Runtime relay", "sub": "Claims every second", "tone": "system", "at": [2, 0], "detail": "One loop in the runtime. It POSTs outbox/claim with a bearer token, publishes each row to JetStream with the row's UUID as the message ID, then acknowledges the row. A publish that fails stops the batch and leaves the rest for the next claim. The same loop publishes the runtime's own outbox in the other direction.", "code": ["services/runtime/internal/app/control.go", "apps/api/app/Domain/Devices/Http/Middleware/AuthenticateDeviceRuntime.php", "apps/api/app/Domain/Devices/routes/api.php"], "docs": ["docs/adr/ADR-014-control-plane-data-plane-http-integration.md"] },
+    { "id": "control", "label": "IOT_DEVICE_CONTROL", "sub": "iot.control.<type>", "tone": "store", "at": [3, 0], "detail": "A file-backed JetStream stream that keeps messages for seven days and refuses new ones when it is full, so work then waits in device_outbox. The message ID makes a row published twice appear once.", "code": ["services/runtime/internal/app/control.go"], "docs": ["docs/reference/events.md"] },
+    { "id": "consumer", "label": "devices-control", "sub": "Applies, fenced by generation", "tone": "system", "at": [4, 0], "opens": "activation-flow" },
+    { "id": "commands", "label": "Command dispatch", "sub": "NCMD / DCMD, never resent", "tone": "system", "at": [3, 1], "opens": "command-lifecycle" },
+    { "id": "state", "label": "device_runtime", "sub": "Applied state and its outbox", "tone": "store", "at": [4, 1], "detail": "The runtime's own schema. device_runtime.devices holds each device's generation, applied definition, applied_generation and last outcome. A change there and its event row in device_runtime.outbox commit together, so the runtime never applies something it cannot report.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/schema.sql"] },
+    { "id": "events", "label": "IOT_DEVICE_EVENTS", "sub": "iot.runtime.<type>", "tone": "store", "at": [3, 2], "detail": "Runtime events on their way to Laravel: device.applied.v1, device.failed.v1, device.deactivated.v1, command.status.v1 and the presence, discovery and automation events.", "code": ["services/runtime/internal/app/control.go", "services/runtime/internal/app/inbox.go"], "docs": ["docs/reference/events.md"] },
+    { "id": "inbox", "label": "Event inbox", "sub": "devices-control-inbox", "tone": "system", "at": [2, 2], "detail": "Takes up to 200 unacknowledged events from the stream and posts them in stream order, at most 100 events or 1 MiB a batch. A batch Laravel cannot take yet is retried in place, so no later event overtakes it. An event Laravel will never accept is dead-lettered on its own.", "code": ["services/runtime/internal/app/inbox.go", "services/runtime/internal/app/deadletter.go"], "docs": ["docs/adr/ADR-031-batched-runtime-events.md"] },
+    { "id": "receiver", "label": "Event receiver", "sub": "Laravel: POST events/batch", "tone": "system", "at": [1, 2], "detail": "Applies a batch in one transaction, each event in its own savepoint. The event UUID goes into device_inbox first, so a repeat is answered as a duplicate. An outcome is applied only when its generation, operation and configuration match the device's pending operation; anything else is answered as stale and changes nothing.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php"], "docs": ["docs/adr/ADR-031-batched-runtime-events.md"] },
+    { "id": "pointers", "label": "Device row", "sub": "Desired and applied pointers", "tone": "store", "at": [0, 1], "opens": "device-lifecycle" },
+    { "id": "snapshots", "label": "Configuration snapshots", "sub": "Immutable, one per activation", "tone": "store", "at": [0, 2], "opens": "profiles-and-configs" }
+  ],
+  "edges": [
+    { "id": "services-pointers", "from": "services", "to": "pointers", "label": "desired,\ngeneration + 1" },
+    { "id": "services-outbox", "from": "services", "to": "outbox", "label": "same\ncommit" },
+    { "id": "outbox-relay", "from": "outbox", "to": "relay", "label": "claim,\n30 s lease" },
+    { "id": "relay-control", "from": "relay", "to": "control", "label": "publish" },
+    { "id": "control-consumer", "from": "control", "to": "consumer", "label": "one at\na time" },
+    { "id": "consumer-state", "from": "consumer", "to": "state", "label": "apply" },
+    { "id": "consumer-commands", "from": "consumer", "to": "commands", "label": "commands" },
+    { "id": "commands-state", "from": "commands", "to": "state", "label": "status" },
+    { "id": "state-events", "from": "state", "to": "events", "label": "outbox relay" },
+    { "id": "events-inbox", "from": "events", "to": "inbox", "label": "up to 200\nin flight" },
+    { "id": "inbox-receiver", "from": "inbox", "to": "receiver", "label": "batches\nof 100" },
+    { "id": "receiver-pointers", "from": "receiver", "to": "pointers", "label": "applied" },
+    { "id": "pointers-snapshots", "from": "pointers", "to": "snapshots", "label": "by UUID" }
+  ],
+  "steps": [
+    { "edge": "services-pointers", "text": "A person activates a configuration. Laravel points the device's desired pointer at a new snapshot, marks the deployment pending and raises the generation by one." },
+    { "edge": "services-outbox", "text": "The same transaction writes a device.activate.v1 row. If the commit fails there is no message; if it succeeds the message cannot be lost." },
+    { "edge": "outbox-relay", "text": "The runtime asks for work every second. Laravel leases it up to 100 rows for 30 seconds each." },
+    { "edge": "relay-control", "text": "Each row is published to JetStream and then acknowledged with its lease token. A row whose lease ran out is claimed again; the message ID stops it appearing twice." },
+    { "edge": "control-consumer", "text": "The control consumer handles one message at a time. A failure is retried with a growing delay; a message that can never be read is dead-lettered." },
+    { "edge": "consumer-state", "text": "It applies the configuration only if the generation is newer than the last one it handled, and writes the new state and a device.applied.v1 or device.failed.v1 event in one transaction." },
+    { "edge": "state-events", "text": "The relay publishes the event from the runtime's outbox to the events stream." },
+    { "edge": "inbox-receiver", "text": "The inbox posts events to Laravel in ordered batches and retries a batch in place until Laravel takes it." },
+    { "edge": "receiver-pointers", "text": "Laravel moves the applied pointer only when the event matches the device's current generation and pending operation. An older event is answered as stale." },
+    { "edge": "consumer-commands", "text": "A confirmed command takes the same road as device.command.v1 and is dispatched once, as an NCMD or DCMD." },
+    { "edge": "commands-state", "text": "Each command outcome is stored with a command.status.v1 event and travels back the same way." },
+    { "box": "consumer", "text": "Open the control consumer to follow one activation step by step, including the wait for a birth and a stale generation." }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "sparkplug-session",
+  "title": "Sparkplug session",
+  "kind": "state",
+  "summary": "The engine keeps one session per edge node on a connection, and inside it one metric registry per device ID. Data is accepted only inside a session that began with a birth. The top row is the edge node; the right side is each device behind it.",
+  "docs": ["docs/reference/sparkplug.md", "docs/adr/ADR-005-sparkplug-b-boundary.md"],
+  "rows": 2.6,
+  "boxes": [
+    { "id": "waiting", "label": "Waiting for birth", "sub": "No session, or session closed", "tone": "state", "at": [0, 0.2], "detail": "The engine has no online session for this edge node. Every data packet is refused with \"a fresh birth certificate is required\".", "code": ["services/runtime/internal/sparkplug/session.go"] },
+    { "id": "online", "label": "Session online", "sub": "Tracks bdSeq and seq", "tone": "state", "at": [2, 0.2], "detail": "NBIRTH must carry seq 0 and a bdSeq metric (Int64, 0 to 255). The session remembers bdSeq, the last sequence number and a hash of the birth. An identical NBIRTH while online is a duplicate and is ignored, as is a packet that repeats the last sequence number.", "code": ["services/runtime/internal/sparkplug/session.go", "services/runtime/internal/sparkplug/session_test.go"] },
+    { "id": "rebirth", "label": "Runtime asks for rebirth", "sub": "NCMD Node Control/Rebirth", "tone": "system", "at": [0, 1.6], "detail": "Sent at most once per 30 seconds per edge node; requests inside that window are queued. On reconnecting to the broker the runtime asks every edge node with active devices.", "code": ["services/runtime/internal/app/application.go"] },
+    { "id": "unannounced", "label": "Device not announced", "sub": "No DBIRTH in this session", "tone": "state", "at": [2, 1.6], "detail": "The edge node is online but has not sent a DBIRTH for this device ID in the current session. The edge node's own metrics use an empty device ID and are registered by the NBIRTH itself.", "code": ["services/runtime/internal/sparkplug/session.go"] },
+    { "id": "registered", "label": "Device registered", "sub": "Metrics, datatypes, aliases", "tone": "state", "at": [4, 1.6], "detail": "DBIRTH lists every metric with a unique name, its datatype and optionally a unique alias. Later data may use the alias alone; the engine resolves it and checks the datatype against the birth.", "code": ["services/runtime/internal/sparkplug/session.go", "contracts/sparkplug/fixtures"] },
+    { "id": "dead", "label": "Device offline", "sub": "After DDEATH", "tone": "state", "at": [4, 0.2], "detail": "The device's registry is closed and its presence is offline. The edge node's session stays online.", "code": ["services/runtime/internal/sparkplug/session.go"] }
+  ],
+  "edges": [
+    { "id": "birth", "from": "waiting", "to": "online", "label": "NBIRTH: seq 0 + bdSeq" },
+    { "id": "close", "from": "online", "to": "waiting", "label": "sequence gap, unknown alias or metric,\ndatatype change, NDEATH, broker lost" },
+    { "id": "data", "from": "online", "to": "online", "label": "NDATA / DDATA: seq = last + 1 (mod 256)" },
+    { "id": "refused", "from": "waiting", "to": "rebirth", "label": "data refused" },
+    { "id": "ncmd", "from": "rebirth", "to": "waiting", "label": "NCMD sent" },
+    { "id": "per-device", "from": "online", "to": "unannounced", "label": "each device ID", "dashed": true },
+    { "id": "dbirth", "from": "unannounced", "to": "registered", "label": "DBIRTH" },
+    { "id": "early", "from": "unannounced", "to": "rebirth", "label": "DDATA before DBIRTH" },
+    { "id": "ddata", "from": "registered", "to": "registered", "label": "DDATA", "bend": -1 },
+    { "id": "ddeath", "from": "registered", "to": "dead", "label": "DDEATH" },
+    { "id": "dbirth-again", "from": "dead", "to": "registered", "label": "DBIRTH" }
+  ],
+  "steps": [
+    { "edge": "refused", "text": "Data from an edge node with no session is refused. The runtime does not guess: it asks for the births again." },
+    { "edge": "ncmd", "text": "The rebirth request is an NCMD, rate limited to one per 30 seconds per edge node." },
+    { "edge": "birth", "text": "NBIRTH with seq 0 and a bdSeq metric starts a session and registers the edge node's own metrics." },
+    { "edge": "dbirth", "text": "Each device behind the edge node announces itself with a DBIRTH: metric names, datatypes and aliases." },
+    { "edge": "ddata", "text": "DDATA is accepted while its metrics resolve through the birth with the same datatypes." },
+    { "edge": "data", "text": "Every NDATA and DDATA must carry the next sequence number, wrapping at 256. A repeat of the last number is dropped as a duplicate." },
+    { "edge": "ddeath", "text": "DDEATH closes one device. Its presence becomes offline; the session stays online." },
+    { "edge": "close", "text": "A gap, an unknown alias, a changed datatype, an NDEATH that matches bdSeq, or a lost broker connection closes the session. NDEATH means offline; the others mean unknown until the next birth." }
+  ]
+}

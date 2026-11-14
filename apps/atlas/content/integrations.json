@@ -1,0 +1,51 @@
+{
+  "id": "integrations",
+  "title": "Integrations, AI agents and the assistant",
+  "kind": "containers",
+  "summary": "Three ways in for software that is not the portal. An external application holds a machine token and reads through the integration API, the event feed and webhooks. A person's AI agent connects over MCP with that person's permissions. The in-product assistant drafts changes that a person reviews. None of them can send a device command.",
+  "docs": ["docs/features/integrations.md", "docs/features/agents.md", "docs/features/assistant.md"],
+  "boxes": [
+    { "id": "extapp", "label": "External application", "sub": "A backend outside the platform", "tone": "external", "at": [1, 0], "detail": "Someone else's server-side software. It keeps the application token in its own secret store and never sends it to a browser. The sample application shows the shape: a server-rendered page that imports only the SDK and the shared UI kit.", "code": ["apps/vertical-demo/src/server.tsx", "apps/vertical-demo/src/adapter.mjs"], "docs": ["apps/vertical-demo/README.md"] },
+    { "id": "sdk", "label": "Integration SDK", "sub": "packages/integration-sdk", "tone": "system", "at": [2, 0], "detail": "A server-only TypeScript client for the integration API: devices, sites, alerts, telemetry, geofences, the event feed, the telemetry stream and verifyWebhook. It validates every response at runtime, refuses redirects and allows plain HTTP only on loopback.", "code": ["packages/integration-sdk/src/index.ts", "packages/integration-sdk/examples/project.mjs"], "docs": ["packages/integration-sdk/README.md"] },
+    { "id": "receiver", "label": "Webhook receiver", "sub": "HTTPS endpoint of the application", "tone": "external", "at": [0, 0], "detail": "One endpoint per application, on a host the operator has approved. It must verify the signature and deduplicate deliveries before it answers 2xx.", "code": ["apps/api/app/Domain/Integrations/Services/WebhookDestination.php", "apps/api/config/webhooks.php"] },
+    { "id": "agent", "label": "AI agent", "sub": "A person's MCP client", "tone": "external", "at": [3, 0], "detail": "Any Model Context Protocol client a person connects to one organization. It registers itself as an OAuth client; its name is its own claim.", "docs": ["docs/features/agents.md", "docs/adr/ADR-018-agent-access-oauth.md"] },
+    { "id": "person", "label": "Person", "sub": "Signed in to the portal", "tone": "person", "at": [4, 0], "detail": "Managers create applications under Connect → Integrations. Anyone approves their own agent on the /connect page. The assistant is a panel in the portal.", "code": ["apps/portal/src/integrations/Integrations.tsx", "apps/portal/src/agents/ConnectPage.tsx", "apps/portal/src/assistant/AssistantPanel.tsx"] },
+    { "id": "applications", "label": "Integration applications", "sub": "Abilities, a grant, one token", "tone": "system", "at": [1, 1], "detail": "An application belongs to one organization (at most 50). It has abilities with no wildcards, and a grant that is either 1 to 100 named devices or 1 to 50 sites, never both. It holds one token, valid 1 to 90 days, whose abilities are a subset. Changing the grant deletes the token, rejects old event cursors and disables the webhook.", "code": ["apps/api/app/Domain/Integrations/Http/ApplicationController.php", "apps/api/app/Domain/Integrations/Models/IntegrationApplication.php", "apps/api/app/Domain/Integrations/routes.php"], "docs": ["docs/features/integrations.md"] },
+    { "id": "api", "label": "Integration API", "sub": "/api/integration/v1", "tone": "system", "at": [2, 1], "opens": "integration-request" },
+    { "id": "worker", "label": "Webhooks worker", "sub": "integrations:webhooks-work", "tone": "system", "at": [0, 1], "opens": "webhook-delivery" },
+    { "id": "mcp", "label": "MCP server", "sub": "/mcp, off by default", "tone": "system", "at": [3, 1], "opens": "agent-access" },
+    { "id": "assistant", "label": "Assistant", "sub": "Drafts for a person to review", "tone": "system", "at": [4, 1], "opens": "assistant" },
+    { "id": "journal", "label": "Event journal", "sub": "integration_events, per organization", "tone": "store", "at": [1, 2], "detail": "An ordered list of integration-event.v1 envelopes for each organization: alert, geofence and automation events. A writer locks the organization's stream row until it commits, so readers see positions in commit order with no gaps. The feed and the webhooks both read it and both filter by the application's granted devices.", "code": ["apps/api/app/Domain/Integrations/Services/EventJournal.php", "apps/api/app/Domain/Integrations/Http/EventController.php"], "docs": ["docs/reference/events.md"] },
+    { "id": "domain", "label": "Domain services", "sub": "Devices, alerts, geofences, runtime", "tone": "system", "at": [3, 2], "detail": "All three ways in end at the code the portal uses. The integration API scopes its queries by the application's grant and reads telemetry from the runtime over internal HTTP. Agent tools and assistant tools call the portal's queries and authorizers as the person.", "code": ["apps/api/app/Domain/Integrations/Services/ApplicationGrant.php", "apps/api/app/Domain/Devices/Services/RuntimeClient.php", "apps/api/app/Domain/Devices/Services/DeviceAuthorization.php"] }
+  ],
+  "edges": [
+    { "id": "extapp-sdk", "from": "extapp", "to": "sdk", "label": "imports" },
+    { "id": "sdk-api", "from": "sdk", "to": "api", "label": "bearer token" },
+    { "id": "applications-api", "from": "applications", "to": "api", "label": "token,\ngrant" },
+    { "id": "applications-worker", "from": "applications", "to": "worker", "label": "one\nwebhook" },
+    { "id": "api-domain", "from": "api", "to": "domain", "label": "granted devices", "labelAt": 0.4 },
+    { "id": "domain-journal", "from": "domain", "to": "journal", "label": "appends in the source transaction" },
+    { "id": "api-journal", "from": "api", "to": "journal", "label": "event feed" },
+    { "id": "worker-journal", "from": "worker", "to": "journal", "label": "scans" },
+    { "id": "worker-receiver", "from": "worker", "to": "receiver", "label": "signed POST" },
+    { "id": "agent-mcp", "from": "agent", "to": "mcp", "label": "OAuth token" },
+    { "id": "person-mcp", "from": "person", "to": "mcp", "label": "approves the\nconnection" },
+    { "id": "person-assistant", "from": "person", "to": "assistant", "label": "asks" },
+    { "id": "mcp-domain", "from": "mcp", "to": "domain", "label": "read tools" },
+    { "id": "assistant-domain", "from": "assistant", "to": "domain", "label": "tools,\nproposals", "labelAt": 0.4 }
+  ],
+  "steps": [
+    { "edge": "applications-api", "text": "A manager creates an application in the portal: its abilities, a device list or a site scope, and one token shown once." },
+    { "edge": "extapp-sdk", "text": "The external application's backend uses the SDK. The sample application in apps/vertical-demo imports nothing else from the platform." },
+    { "edge": "sdk-api", "text": "Every request carries the application token. Cookies and people's tokens are ignored on these routes." },
+    { "edge": "api-domain", "text": "The API reads through the domain, limited on every request to the devices the application is granted at that moment." },
+    { "edge": "domain-journal", "text": "When an alert, a geofence or an automation event changes, the same transaction appends an event to the organization's journal." },
+    { "edge": "api-journal", "text": "The application can page through the journal with an encrypted cursor. A changed grant invalidates the cursor." },
+    { "edge": "worker-journal", "text": "A separate worker scans the journal for each enabled webhook, so alert evaluation never waits for a receiver." },
+    { "edge": "worker-receiver", "text": "It posts each event to the application's endpoint with an HMAC signature and retries with backoff." },
+    { "edge": "agent-mcp", "text": "An AI agent connects to /mcp with an OAuth token. Agent access is off for the deployment and for every organization until switched on." },
+    { "edge": "person-mcp", "text": "The person approves the connection in the portal and picks one organization. The agent then sees only what that person may see." },
+    { "edge": "person-assistant", "text": "The assistant answers inside the portal with the AI provider an administrator chose." },
+    { "edge": "assistant-domain", "text": "Its tools run under the person's permissions and its changes are proposals. Publishing, activating and sending commands stay with people." }
+  ]
+}

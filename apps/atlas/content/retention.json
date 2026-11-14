@@ -1,0 +1,49 @@
+{
+  "id": "retention",
+  "title": "Retention",
+  "kind": "flow",
+  "summary": "How long readings are kept, and what removes them. Laravel decides the number of days for each organization; the runtime asks for it when it cleans up, once a day, and deletes by receipt time. The top half is the decision, the bottom half the deletion.",
+  "docs": ["docs/features/devices.md", "docs/features/billing.md"],
+  "boxes": [
+    { "id": "admin", "label": "Platform administrator", "sub": "Admin app", "tone": "person", "at": [0, 0.55], "detail": "Settings → Retention needs PlatformAdministration.manage-retention. Plans, account overrides and moving an organization between billing accounts are changed elsewhere in the admin app. Organizations cannot set their own retention in the portal.", "code": ["apps/admin/src/pages/RetentionPage.tsx", "apps/api/app/Domain/Devices/routes/api.php"] },
+    { "id": "service", "label": "RetentionService", "sub": "Platform default or an override", "tone": "system", "at": [1, 0], "detail": "PUT …/settings/telemetry-retention takes 1 to 36500 days, or null to clear, with the revision the page loaded. A stale revision is a 409. A shorter period needs confirmed_reduction, and a confirmed shorter override removes any grace still running for that organization.", "code": ["apps/api/app/Domain/Devices/Services/RetentionService.php", "apps/api/app/Domain/Devices/Http/Controllers/RetentionController.php"] },
+    { "id": "settings", "label": "Retention settings", "sub": "telemetry_retention_settings", "tone": "store", "at": [2, 0], "detail": "One row for the platform and one per organization that has an override, each with a revision. In Laravel's public schema.", "code": ["apps/api/app/Domain/Devices/Models/TelemetryRetentionSetting.php", "apps/api/database/migrations/2026_09_06_000000_create_devices_domain.php"] },
+    { "id": "guard", "label": "RetentionGuard", "sub": "Wraps billing changes", "tone": "system", "at": [1, 1.1], "detail": "Compares each affected organization's effective retention before and after a plan change or edit, an account override, a trial or an organization move, in one transaction. If any gets shorter the API answers 409 with the organizations and the date deletion would start, and changes nothing until confirmed. Lengthening applies at once.", "code": ["apps/api/app/Domain/Devices/Services/RetentionGuard.php"], "docs": ["docs/features/billing.md"] },
+    { "id": "floors", "label": "Retention floors", "sub": "Previous days, for 30 days", "tone": "store", "at": [2, 1.1], "detail": "A confirmed shortening stores the previous period with an end date billing.retention_grace_days ahead, 30 by default. The account's owners are emailed then, and again seven days before the floor ends by a command scheduled daily at 08:00.", "code": ["apps/api/database/migrations/2026_11_08_200000_create_retention_floors.php", "apps/api/app/Domain/Billing/Console/RetentionWarnings.php", "apps/api/config/billing.php"] },
+    { "id": "effective", "label": "Effective retention", "sub": "Override, account, platform, 400", "tone": "system", "at": [3, 0.55], "detail": "The organization's override, else its billing account's retention allowance, else the saved platform default, else devices.default_retention_days (400). Cleanup uses that number raised to the longest floor still running.", "code": ["apps/api/app/Domain/Devices/Services/RetentionService.php", "apps/api/config/devices.php"] },
+    { "id": "state", "label": "Runtime state", "sub": "GET /internal/devices/state", "tone": "system", "at": [4, 0.55], "detail": "The same answer that lists connections and devices lists cleanup days for every organization. The runtime authenticates with its token and fetches it itself; nothing is pushed.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "services/runtime/internal/devices/types.go"] },
+    { "id": "cleanup", "label": "Daily cleanup", "sub": "Maintenance loop", "tone": "system", "at": [4, 2.2], "detail": "Runs on the first maintenance tick after start and then every 24 hours. If any part fails or is left unfinished it runs again a minute later. Each organization's pass has two minutes, and a retention below one day stops the run.", "code": ["services/runtime/internal/app/application.go"] },
+    { "id": "tables", "label": "Expired rows", "sub": "Older than the cutoff, by receipt", "tone": "store", "at": [2.5, 2.2], "detail": "Per organization: observations one day-chunk per statement, up to 50 a pass, by a predicate that also works on compressed chunks; diagnostics and DAG evaluations in batches of 10,000; published telemetry_outbox rows, but never younger than eight days because they are the redelivery ledger. latest is never deleted.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/schema.sql"] },
+    { "id": "reads", "label": "Measurement reads", "sub": "Clamped to the effective days", "tone": "system", "at": [1, 2.2], "detail": "Laravel sends retention_days with every range read and the runtime moves the start of the range up to that cutoff. Reads use the effective days, not the floor: during a billing grace the older rows still exist but are no longer returned. A moved device's readings from before its move are clamped to the retention of the organization that recorded them.", "code": ["apps/api/app/Domain/Devices/Services/DeviceReadings.php", "apps/api/app/Domain/Devices/Services/Moves/EarlierReadings.php", "services/runtime/internal/app/http.go"] },
+    { "id": "activity", "label": "Cleanup result", "sub": "retention.cleanup.v1", "tone": "system", "at": [2.5, 3.2], "detail": "After each organization the runtime emits completed, pending (rows remain) or failed, with the rows deleted. Laravel records it in the activity log, and Settings → Retention shows the last cleanup and how many organizations' last pass failed.", "code": ["services/runtime/internal/app/application.go", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "apps/api/app/Domain/Devices/Services/RetentionService.php"], "docs": ["docs/reference/events.md"] },
+    { "id": "ledgers", "label": "Ledgers and counters", "sub": "Fixed ages, not per organization", "tone": "store", "at": [4, 3.2], "detail": "The same run removes published lifecycle events and consumed-input markers older than eight days, usage buckets older than 40 days, and connectivity rows of subjects no longer monitored that have no open episode.", "code": ["services/runtime/internal/storage/store.go", "services/runtime/internal/storage/usage.go", "services/runtime/internal/storage/connectivity.go"] }
+  ],
+  "edges": [
+    { "id": "admin-service", "from": "admin", "to": "service", "label": "Settings →\nRetention" },
+    { "id": "admin-guard", "from": "admin", "to": "guard", "label": "plan, override,\nmove" },
+    { "id": "service-settings", "from": "service", "to": "settings", "label": "save" },
+    { "id": "guard-floors", "from": "guard", "to": "floors", "label": "confirmed" },
+    { "id": "settings-effective", "from": "settings", "to": "effective" },
+    { "id": "floors-effective", "from": "floors", "to": "effective", "label": "holds cleanup\nback" },
+    { "id": "effective-state", "from": "effective", "to": "state", "label": "days" },
+    { "id": "state-cleanup", "from": "state", "to": "cleanup", "label": "at start, then daily" },
+    { "id": "cleanup-tables", "from": "cleanup", "to": "tables", "label": "bounded deletes" },
+    { "id": "cleanup-ledgers", "from": "cleanup", "to": "ledgers", "label": "prune" },
+    { "id": "cleanup-activity", "from": "cleanup", "to": "activity", "label": "completed, pending or failed" },
+    { "id": "reads-tables", "from": "reads", "to": "tables", "label": "from ≥ cutoff" }
+  ],
+  "steps": [
+    { "edge": "admin-service", "text": "A platform administrator sets the platform default or one organization's override. A shorter period must be confirmed, because cleanup deletes for good." },
+    { "edge": "service-settings", "text": "The setting is saved with a new revision and audited. A settings.retention.changed.v1 message is queued too, but the runtime ignores it: retention is read from state." },
+    { "edge": "admin-guard", "text": "Retention can also follow the billing account's plan. A billing change that would shorten it is refused with a 409 until it is confirmed." },
+    { "edge": "guard-floors", "text": "Once confirmed, a floor keeps the previous period for 30 days and the account's owners are emailed." },
+    { "edge": "settings-effective", "text": "The effective days are the organization's override, else its billing account's allowance, else the platform default, else 400." },
+    { "edge": "floors-effective", "text": "For cleanup that number is raised to any floor still running, so a billing change deletes nothing during its grace." },
+    { "edge": "effective-state", "text": "Laravel publishes the cleanup days for every organization in the state the runtime fetches." },
+    { "edge": "state-cleanup", "text": "The runtime fetches that state when a cleanup is due: shortly after it starts, then every 24 hours." },
+    { "edge": "cleanup-tables", "text": "For each organization it deletes readings received before the cutoff in bounded batches, one day-chunk of observations at a time." },
+    { "edge": "cleanup-ledgers", "text": "The same run prunes what has a fixed age: ledgers after eight days and usage buckets after 40." },
+    { "edge": "cleanup-activity", "text": "Each organization's result is reported. If rows remain or a pass failed, the whole cleanup runs again a minute later." },
+    { "edge": "reads-tables", "text": "Reads do not wait for cleanup: every range query is clamped to the organization's effective days, so expired data is never returned." }
+  ]
+}

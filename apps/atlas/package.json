@@ -1,0 +1,28 @@
+{
+  "name": "@iot-os/atlas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5180 --strictPort",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit",
+    "check": "node scripts/check-atlas.mjs",
+    "lint": "tsc --noEmit && node ../../packages/ui/scripts/check-ui.mjs src && node scripts/check-atlas.mjs"
+  },
+  "dependencies": {
+    "@iot-os/ui": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7"
+  }
+}

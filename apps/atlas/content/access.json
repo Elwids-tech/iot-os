@@ -1,0 +1,51 @@
+{
+  "id": "access",
+  "title": "Access and tenancy",
+  "kind": "containers",
+  "summary": "An organization is the tenant. People reach it through a membership and the roles they hold there; devices reach it through broker credentials confined to one Sparkplug group. The top two rows are the people side, the bottom row is the device side, and both end at the same organization.",
+  "docs": ["docs/features/access.md", "docs/adr/ADR-008-laravel-sanctum-authentication.md"],
+  "boxes": [
+    { "id": "people", "label": "People", "sub": "One account, many organizations", "tone": "person", "at": [0, 0], "detail": "A user has an integer id, one password and any number of organization memberships. Nothing a person may do comes from the account itself: it comes from roles held in an organization, or from platform access.", "code": ["apps/api/app/Domain/Shared/Models/User.php"], "docs": ["docs/adr/ADR-013-integer-user-ids.md"] },
+    { "id": "signin", "label": "Sign-in and session", "sub": "Sanctum session cookie", "tone": "system", "at": [1, 0], "opens": "sign-in" },
+    { "id": "authz", "label": "An authorized request", "sub": "Membership, permission, scope", "tone": "system", "at": [2, 0], "opens": "authorization" },
+    { "id": "roles", "label": "Roles and permissions", "sub": "spatie/laravel-permission, per org", "tone": "system", "at": [3, 0], "detail": "Permissions are enums in each domain. Roles are rows that belong to one organization, and a role assignment carries that organization's id, so the same person can be Organization Admin in one organization and Member in another. Every organization starts with Organization Admin, Moderator and Member and can add custom roles.", "code": ["apps/api/app/Domain/Authorization/Enums/OrganizationRoleName.php", "apps/api/app/Domain/Authorization/Models/Role.php", "apps/api/config/permission.php"], "docs": ["docs/features/access.md"] },
+    { "id": "ceiling", "label": "Permission ceiling", "sub": "What an organization may grant", "tone": "system", "at": [4, 0], "detail": "The tenant permissions an organization's roles may hold: all of them by default, or an allow-list. Narrowing it strips the dropped permissions from every role in the same transaction, and Organization Admin always holds exactly the ceiling. Nobody can grant a permission they do not hold themselves.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationPermissionCeiling.php", "apps/api/app/Domain/Administration/Services/OrganizationGrants.php"], "docs": ["specs/005-admin-organization-roles/spec.md"] },
+    { "id": "activity", "label": "Activity log", "sub": "Who changed what", "tone": "system", "at": [1, 1], "opens": "activity-log" },
+    { "id": "org", "label": "Organization", "sub": "The tenant boundary", "tone": "system", "at": [2, 1], "detail": "Routes name the organization by UUID, tables carry its organization_id, and the runtime stamps its organization_uuid on every stored row. A device, dashboard, automation or profile belongs to exactly one organization.", "code": ["apps/api/app/Domain/Shared/Models/Organization.php", "apps/api/app/Domain/Authorization/Http/Middleware/ResolveOrganizationContext.php"], "docs": ["specs/003-tenant-scoping/spec.md"] },
+    { "id": "billing", "label": "Billing account", "sub": "Groups organizations, grants nothing", "tone": "system", "at": [3, 1], "detail": "Every organization belongs to one billing account, the payer of record. Owning an account gives no access to its organizations. An owner can create organizations under it up to its limit and becomes Organization Admin of each as an ordinary member.", "code": ["apps/api/app/Domain/Billing/Models/BillingAccount.php", "apps/api/app/Domain/Billing/Services/OwnerOrganizations.php"], "docs": ["docs/adr/ADR-026-billing-accounts.md"] },
+    { "id": "platform", "label": "Platform administration", "sub": "Admin app", "tone": "person", "at": [4, 1], "detail": "Two levels. A super administrator (users.is_super_admin) passes every check in every organization. A platform administrator holds the platform-administrator role: organizations, ceilings, billing accounts, and the members and roles of any organization, but not an organization's devices or data unless they are a member of it.", "code": ["apps/api/app/Domain/Authorization/Services/PlatformAuthorization.php", "apps/api/app/Domain/Authorization/Permissions/PlatformAdministrationPermission.php", "apps/api/app/Providers/AppServiceProvider.php"], "docs": ["specs/007-super-administrators/spec.md", "specs/008-platform-administrators/spec.md"] },
+    { "id": "ingress", "label": "Tenant ingress broker", "sub": "One adapter runtime per tenant", "tone": "store", "at": [1, 2], "detail": "Vendor devices that speak their own payloads connect to a broker that exists for one organization only: its own port, its own certificate authority, default-deny ACLs. The tenant's Node-RED runtime decodes the messages and republishes them to the platform broker as group adapters-<organization uuid>.", "code": ["services/adapters/manager.cjs", "apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php"], "docs": ["docs/adr/ADR-010-per-tenant-adapter-runtimes.md"] },
+    { "id": "broker", "label": "Broker credentials, ACLs", "sub": "Confined to one Sparkplug group", "tone": "store", "at": [2, 2], "opens": "tenant-isolation" },
+    { "id": "runtime", "label": "Runtime", "sub": "organization_uuid on every row", "tone": "system", "at": [3, 2], "detail": "The runtime never reads tenancy from a payload. Laravel gives it each broker connection with its organization and group; a packet outside that group is dropped, and readings are stored under the organization of the device definition Laravel activated. Every internal query names an organization_uuid.", "code": ["services/runtime/internal/devices/types.go", "services/runtime/internal/app/application.go", "services/runtime/internal/storage/store.go"] },
+    { "id": "moves", "label": "Device moves", "sub": "Between organizations of one account", "tone": "system", "at": [4, 2], "opens": "device-moves" }
+  ],
+  "edges": [
+    { "id": "people-signin", "from": "people", "to": "signin", "label": "sign in" },
+    { "id": "signin-authz", "from": "signin", "to": "authz", "label": "session" },
+    { "id": "authz-roles", "from": "authz", "to": "roles", "label": "checks" },
+    { "id": "ceiling-roles", "from": "ceiling", "to": "roles", "label": "limits" },
+    { "id": "authz-org", "from": "authz", "to": "org", "label": "scoped queries" },
+    { "id": "authz-activity", "from": "authz", "to": "activity", "label": "changes" },
+    { "id": "billing-org", "from": "billing", "to": "org", "label": "groups" },
+    { "id": "platform-ceiling", "from": "platform", "to": "ceiling", "label": "sets" },
+    { "id": "platform-billing", "from": "platform", "to": "billing", "label": "manages" },
+    { "id": "ingress-broker", "from": "ingress", "to": "broker", "label": "Sparkplug B" },
+    { "id": "broker-runtime", "from": "broker", "to": "runtime", "label": "one group" },
+    { "id": "runtime-org", "from": "runtime", "to": "org", "label": "organization_uuid" },
+    { "id": "billing-moves", "from": "billing", "to": "moves", "label": "within one account" }
+  ],
+  "steps": [
+    { "edge": "people-signin", "text": "A person signs in once. The browser holds a session cookie, never a token." },
+    { "edge": "signin-authz", "text": "Every request names an organization in its path. The session says who is asking; the path says where." },
+    { "edge": "authz-roles", "text": "The API checks that the person is a member, then that a role they hold in that organization carries the permission." },
+    { "edge": "ceiling-roles", "text": "A role can only hold permissions inside the organization's ceiling, so a check on the role is also a check on the ceiling." },
+    { "edge": "platform-ceiling", "text": "Platform administrators set each organization's ceiling and manage its members and roles. Only super administrators pass every check." },
+    { "edge": "authz-org", "text": "Queries then filter by that organization. A resource of another organization answers 404, not 403." },
+    { "edge": "authz-activity", "text": "Changes are recorded in the activity log with the person and the organization." },
+    { "edge": "broker-runtime", "text": "On the device side the credential is the identity. A gateway may publish only as its own edge node in its organization's group." },
+    { "edge": "ingress-broker", "text": "Vendor devices never share a broker with another tenant. Their adapter republishes into the organization's own adapter group." },
+    { "edge": "runtime-org", "text": "The runtime stores readings under the organization of the activated device and answers queries one organization at a time." },
+    { "edge": "billing-org", "text": "A billing account groups organizations for payment and gives nobody access to them." },
+    { "edge": "billing-moves", "text": "The one crossing: a device can move to another organization of the same billing account, by someone who may move devices in both." }
+  ]
+}

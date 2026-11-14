@@ -1,0 +1,50 @@
+{
+  "id": "integration-request",
+  "title": "One integration API request",
+  "kind": "flow",
+  "summary": "What happens to a request such as GET /api/integration/v1/organizations/{organization}/devices. The second row is one middleware, AuthenticateApplication, in the order it checks. The top row is every refusal. The third row is the read and its response.",
+  "docs": ["docs/features/integrations.md", "docs/reference/api.md"],
+  "boxes": [
+    { "id": "request", "label": "Application request", "sub": "Authorization: Bearer <token>", "tone": "external", "at": [0, 1], "detail": "The route group first limits each source address to 240 requests a minute. Each route then names the one ability it needs, for example devices:read or telemetry:read.", "code": ["apps/api/app/Domain/Integrations/routes.php"] },
+    { "id": "token", "label": "Token check", "sub": "Hashed lookup, not revoked or expired", "tone": "system", "at": [1, 1], "detail": "The bearer token is looked up by hash in Sanctum's token table. Its owner must be an integration application that is not revoked, and the token must have an expiry in the future. A portal cookie or a person's token is not accepted: the application model cannot authenticate portal routes, and these routes accept nothing else.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php", "apps/api/app/Domain/Integrations/Models/IntegrationApplication.php"], "docs": ["docs/adr/ADR-008-laravel-sanctum-authentication.md"] },
+    { "id": "org", "label": "Organization check", "sub": "Path organization = the application's", "tone": "system", "at": [2, 1], "detail": "The organization in the path must be the one the application belongs to. Another organization answers 404, the same as one that does not exist.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php"] },
+    { "id": "ability", "label": "Ability check", "sub": "On the application and on the token", "tone": "system", "at": [3, 1], "detail": "The route's ability must be granted to the application and carried by the token. Three abilities need a second one: events:read needs alerts:read or geofences:read, geofences:activate needs geofences:manage, and telemetry:stream needs telemetry:read.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php", "apps/api/app/Domain/Integrations/Http/ApplicationController.php"] },
+    { "id": "limit", "label": "Application limit", "sub": "60 requests a minute", "tone": "system", "at": [4, 1], "detail": "Counted per application, on top of the per-address limit. The public contract states the same number, read from the same constant. Open telemetry streams are limited separately: 2 per application and 10 per organization.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php", "apps/api/app/Support/Contract/SecurityTransformer.php", "apps/api/app/Domain/Integrations/Services/StreamSessions.php"] },
+    { "id": "refused", "label": "Refused", "sub": "401, 404 or 403", "tone": "system", "at": [2, 0], "detail": "401 for a missing, unknown, expired or revoked credential. 404 for another organization. 403 for a missing ability. Nothing is read before these checks pass.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php"] },
+    { "id": "limited", "label": "Rate limited", "sub": "429 with Retry-After", "tone": "system", "at": [4, 0], "detail": "The response says how many seconds to wait. The SDK does not retry on its own; the caller decides.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php", "packages/integration-sdk/src/index.ts"] },
+    { "id": "grant", "label": "Resolve the grant", "sub": "A device list, or a scope of sites", "tone": "system", "at": [4, 2], "detail": "The only place a device is judged granted. A list names devices. A site scope covers the devices that are at those sites right now, so a device added to a granted site is covered at the next request and a device with no site never is. The set is computed for each request and never stored.", "code": ["apps/api/app/Domain/Integrations/Services/ApplicationGrant.php", "apps/api/app/Domain/Integrations/Services/ApplicationGrants.php"], "docs": ["docs/adr/ADR-032-applications-follow-a-plant.md"] },
+    { "id": "read", "label": "Scoped read", "sub": "Query filtered by the granted set", "tone": "system", "at": [3, 2], "detail": "Each controller starts from the grant's device query. Device, site and alert reads use Laravel's tables. A device outside the grant answers 404. Geofence writes are the only writes, and only for geofences whose devices are all granted.", "code": ["apps/api/app/Domain/Integrations/Http/ReadController.php", "apps/api/app/Domain/Integrations/Http/TelemetryController.php", "apps/api/app/Domain/Integrations/Http/GeospatialController.php"] },
+    { "id": "runtime", "label": "Runtime", "sub": "Latest, history, records, stream", "tone": "system", "at": [3, 3], "detail": "Telemetry lives in the Go runtime. Laravel authorizes, then asks it over internal HTTP with the organization's retention. Records and history go through the same DeviceReadings service as the portal, so a moved device's readings continue into its predecessor's when they were shared. When the runtime is down the answer is 503, never an empty result. The live stream is relayed from the runtime as server-sent events and re-checks the grant and the token every 30 seconds.", "code": ["apps/api/app/Domain/Devices/Services/RuntimeClient.php", "apps/api/app/Domain/Integrations/Services/StreamRelay.php", "apps/api/app/Domain/Integrations/Http/TelemetryStreamController.php"] },
+    { "id": "response", "label": "Response", "sub": "JSON, Cache-Control: no-store", "tone": "system", "at": [2, 2], "detail": "The middleware sets no-store on every authenticated response and records when the token was last used. Lists return data with page metadata; telemetry bodies carry a schema_version such as telemetry-latest-batch.v1.", "code": ["apps/api/app/Domain/Integrations/Http/AuthenticateApplication.php", "apps/api/app/Domain/Integrations/Http/ReadController.php"] },
+    { "id": "contract", "label": "Public API contract", "sub": "contracts/openapi/openapi.json", "tone": "store", "at": [1, 2], "detail": "One OpenAPI document generated from the Laravel code by contract:export and never edited by hand. It lists every operation with its ability, limits, bodies and errors. CI fails when the committed document differs from a fresh export.", "code": ["contracts/openapi/openapi.json", "apps/api/app/Support/Contract/ContractExporter.php", "contracts/openapi/supplements/integration.yaml"], "docs": ["docs/adr/ADR-016-public-api-contract.md"] }
+  ],
+  "edges": [
+    { "id": "request-token", "from": "request", "to": "token", "label": "under 240\na minute" },
+    { "id": "token-org", "from": "token", "to": "org", "label": "valid" },
+    { "id": "org-ability", "from": "org", "to": "ability", "label": "same" },
+    { "id": "ability-limit", "from": "ability", "to": "limit", "label": "granted" },
+    { "id": "token-refused", "from": "token", "to": "refused", "label": "401", "dashed": true },
+    { "id": "org-refused", "from": "org", "to": "refused", "label": "404", "dashed": true },
+    { "id": "ability-refused", "from": "ability", "to": "refused", "label": "403", "dashed": true },
+    { "id": "limit-limited", "from": "limit", "to": "limited", "label": "over the limit", "dashed": true },
+    { "id": "limit-grant", "from": "limit", "to": "grant", "label": "passed" },
+    { "id": "grant-read", "from": "grant", "to": "read", "label": "device set" },
+    { "id": "read-runtime", "from": "read", "to": "runtime", "label": "telemetry" },
+    { "id": "read-response", "from": "read", "to": "response", "label": "data" },
+    { "id": "response-contract", "from": "response", "to": "contract", "label": "matches" }
+  ],
+  "steps": [
+    { "edge": "request-token", "text": "The request arrives with a bearer token. The route group has already counted it against 240 a minute for its source address." },
+    { "edge": "token-refused", "text": "A token that is unknown, expired, or whose application is revoked gets 401. So does a portal cookie." },
+    { "edge": "token-org", "text": "A valid token names its application, and the application names its organization." },
+    { "edge": "org-refused", "text": "If the path names another organization the answer is 404. Tenant identity never comes from the request." },
+    { "edge": "org-ability", "text": "The route's ability is checked on the application and on the token, because a token may carry fewer abilities than its application." },
+    { "edge": "ability-refused", "text": "A missing ability, or a missing companion ability such as telemetry:read for the stream, gets 403." },
+    { "edge": "limit-limited", "text": "More than 60 requests a minute from one application gets 429 with Retry-After." },
+    { "edge": "limit-grant", "text": "Only now is the grant resolved: the named devices, or the devices at the granted sites at this moment." },
+    { "edge": "grant-read", "text": "The controller's query starts from that device set, so an ungranted device looks the same as a missing one." },
+    { "edge": "read-runtime", "text": "Telemetry reads go on to the runtime over internal HTTP. If it is unavailable the application gets 503, not empty data." },
+    { "edge": "read-response", "text": "The response goes back as JSON with Cache-Control: no-store." },
+    { "edge": "response-contract", "text": "Its shape is the one in the public contract, which is generated from this code and checked in CI." }
+  ]
+}

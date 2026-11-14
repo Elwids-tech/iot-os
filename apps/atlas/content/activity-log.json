@@ -1,0 +1,41 @@
+{
+  "id": "activity-log",
+  "title": "Activity log",
+  "kind": "flow",
+  "summary": "The platform's one audit trail: who changed what, in which organization, and when. Code records an event explicitly, inside the transaction of the change it describes. Platform administrators read what people did as a timeline in the admin app. Sign-ins and reads are not recorded.",
+  "docs": ["docs/features/activity-log.md", "docs/adr/ADR-028-activity-log.md"],
+  "boxes": [
+    { "id": "change", "label": "A change", "sub": "Service or controller, in a transaction", "tone": "system", "at": [0, 1], "detail": "The code that makes a change also records it, in the same database transaction, so a change that rolls back leaves no event. Nothing is recorded automatically from model events.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationRoleManager.php", "apps/api/app/Domain/Devices/Services/Moves/MoveCutover.php"] },
+    { "id": "changes", "label": "ActivityChanges", "sub": "Old and new values of an edit", "tone": "system", "at": [1, 1], "detail": "Compares before and after and keeps only the fields that differ. Fields named like secrets (password, token, secret, api_key, private_key, credentials) are dropped at any depth. Large documents are listed as changed instead of diffed.", "code": ["apps/api/app/Domain/Audit/Services/ActivityChanges.php"] },
+    { "id": "record", "label": "ActivityLog::record", "sub": "Action, organization, actor, subject", "tone": "system", "at": [2, 1], "detail": "Takes an action code such as organization.role.updated, the organization whose data changed (none at platform level), the actor and the subject. The actor is always passed in, never taken from the signed-in user. The subject's UUID and name are stored on the event so it stays readable after the subject is gone.", "code": ["apps/api/app/Domain/Audit/Services/ActivityLog.php", "apps/api/app/Domain/Audit/Models/Activity.php"] },
+    { "id": "table", "label": "activity_log", "sub": "spatie/laravel-activitylog table", "tone": "store", "at": [3, 1], "detail": "The package's table with columns of our own: organization_id, subject_uuid and subject_name. The actor is a user's integer id. Nothing prunes it; a retention period for the audit is a separate decision.", "code": ["apps/api/config/activitylog.php", "apps/api/app/Domain/Audit/Models/Activity.php"], "docs": ["docs/adr/ADR-013-integer-user-ids.md"] },
+    { "id": "feed", "label": "ActivityFeed", "sub": "GET admin/activity", "tone": "system", "at": [4, 1], "detail": "What people did, newest first, 50 events a page, filtered by person, organization or both. System events are left out. It needs PlatformAdministration.manage-organizations.", "code": ["apps/api/app/Domain/Audit/Services/ActivityFeed.php", "apps/api/app/Domain/Audit/Http/Controllers/PlatformActivityController.php", "apps/api/app/Domain/Audit/routes/api.php"] },
+    { "id": "page", "label": "Activity page", "sub": "Admin app", "tone": "person", "at": [4, 2], "detail": "A timeline with a heading per day: the person, the action in words, the subject, the organization or Platform, the time and what changed.", "code": ["apps/admin/src/pages/ActivityPage.tsx", "packages/ui/src/components/activity-timeline.tsx"] },
+    { "id": "catalogue", "label": "ActivityCatalogue", "sub": "Words for action codes", "tone": "system", "at": [3, 2], "detail": "Maps each action code to a phrase and a subject kind, as in \"updated role\". A code without an entry shows a readable form of the code, so a new action appears before it has words of its own.", "code": ["apps/api/app/Domain/Audit/Services/ActivityCatalogue.php", "apps/api/app/Domain/Audit/Services/ActivityEntry.php"] },
+    { "id": "system", "label": "System event", "sub": "No actor: runtime callbacks, jobs", "tone": "system", "at": [1, 0], "detail": "Work nobody clicked for is recorded with no actor, for example a failed device move resuming its devices or the runtime reporting an applied configuration.", "code": ["apps/api/app/Domain/Devices/Services/Moves/MoveFailure.php", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php"] },
+    { "id": "legacy", "label": "DeviceAudit::record", "sub": "Older callers, same table", "tone": "system", "at": [2, 0], "detail": "The earlier audit helper still works and forwards to ActivityLog::record with the subject's UUID. New code calls ActivityLog directly.", "code": ["apps/api/app/Domain/Devices/Services/DeviceAudit.php"] },
+    { "id": "lost", "label": "No event", "sub": "The change rolled back", "tone": "system", "at": [2, 2], "detail": "The event is a row in the same transaction as the change. If the change fails, both disappear, so the log never claims something that did not happen.", "code": ["apps/api/app/Domain/Audit/Services/ActivityLog.php"] }
+  ],
+  "edges": [
+    { "id": "change-changes", "from": "change", "to": "changes", "label": "old, new" },
+    { "id": "changes-record", "from": "changes", "to": "record", "label": "changes" },
+    { "id": "record-table", "from": "record", "to": "table", "label": "one row" },
+    { "id": "table-feed", "from": "table", "to": "feed", "label": "50 a page" },
+    { "id": "feed-page", "from": "feed", "to": "page", "label": "manage-organizations" },
+    { "id": "catalogue-feed", "from": "catalogue", "to": "feed", "label": "words" },
+    { "id": "system-record", "from": "system", "to": "record", "label": "no actor" },
+    { "id": "legacy-record", "from": "legacy", "to": "record", "label": "forwards" },
+    { "id": "record-lost", "from": "record", "to": "lost", "label": "rollback", "dashed": true }
+  ],
+  "steps": [
+    { "edge": "change-changes", "text": "A service changes something, say a role's permissions. For an edit it compares the values before and after." },
+    { "edge": "changes-record", "text": "It records the action with the organization, the person who did it, the subject and the changes. Secret-looking fields are dropped." },
+    { "edge": "record-table", "text": "The event is one row in activity_log, written in the same transaction as the change." },
+    { "edge": "record-lost", "text": "If the transaction rolls back, the event goes with it." },
+    { "edge": "system-record", "text": "Runtime callbacks and jobs record events with no actor. They are stored but not shown in the timeline." },
+    { "edge": "legacy-record", "text": "Older code records through DeviceAudit, which writes to the same table." },
+    { "edge": "table-feed", "text": "The admin API pages through what people did, newest first, optionally for one person or one organization." },
+    { "edge": "catalogue-feed", "text": "Each action code is turned into words, and the subject is named even if it has since been deleted." },
+    { "edge": "feed-page", "text": "Platform administrators who manage organizations read it as a timeline in the admin app." }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "alert-delivery",
+  "title": "Alert delivery",
+  "kind": "flow",
+  "summary": "How a change to an automation alert reaches a person. The top row runs inside the transaction that records the alert; the right column is the alerts-worker sending email; the middle column is the bell, which needs no worker. Offline alerts never enter this flow.",
+  "docs": ["docs/features/alerts.md", "specs/022-alert-bell/spec.md"],
+  "boxes": [
+    { "id": "change", "label": "Episode transition", "sub": "AlertProjector, automation alerts", "tone": "system", "at": [0, 0], "detail": "Runs for a first-time activated or cleared transition. An activation counts once against the billing account's alert allowance; past the allowance it is recorded as overage and the alert and its email go out as usual. Nothing in the code limits or throttles alerts.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Billing/Services/Usage.php"], "docs": ["docs/features/billing.md"] },
+    { "id": "gate", "label": "Notification settings", "sub": "Per workflow, email off by default", "tone": "system", "at": [1, 0], "detail": "Nothing is sent unless the workflow's notification_settings are enabled; a clear is sent only with notify_on_clear; an execution with a stop reason sends nothing. A late activation of an episode that already cleared, or a clear with no activation, notifies nobody. The settings hold at most 20 recipients, each a verified member who can view devices.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Http/Controllers/NotificationSettingsController.php", "apps/portal/src/alerts/NotificationSettings.tsx"] },
+    { "id": "fanout", "label": "Delivery per recipient", "sub": "automation_alert_deliveries", "tone": "store", "at": [2, 0], "detail": "firstOrCreate on alert, recipient, transition type and channel, backed by a unique index. Email is the only channel value. Only a newly created row dispatches a job and writes a bell notification, so nothing is sent twice.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Models/AlertDelivery.php"] },
+    { "id": "queue", "label": "jobs table", "sub": "Connection alerts, queue alerts", "tone": "store", "at": [3, 0], "detail": "The alerts connection uses the database driver with after_commit off, so the job row is inserted inside the projecting transaction. The job exists exactly when the alert and its delivery do.", "code": ["apps/api/config/queue.php", "apps/api/app/Domain/Automation/Services/AlertProjector.php"] },
+    { "id": "worker", "label": "alerts-worker", "sub": "queue:work alerts, timeout 30 s", "tone": "system", "at": [4, 0], "detail": "A separate container that runs only this queue. A DeliverAlertEmail job has no fixed number of tries: it may be retried until 24 hours after it was dispatched.", "code": ["deploy/compose/compose.app.yml", "apps/api/app/Domain/Automation/Jobs/DeliverAlertEmail.php"] },
+    { "id": "recheck", "label": "Recheck before sending", "sub": "Under a lock on the delivery row", "tone": "system", "at": [4, 1], "detail": "Skips a delivery that is already sent, cancelled or failed, or whose retry_generation has moved on. Then, in order: the recipient is still a verified member who can view devices; their email preferences allow workflow mail at this level; the workflow still lists them; the execution has not stopped or been replaced; an activation has not already cleared. While the deployment is still pending the job is released for 30 seconds.", "code": ["apps/api/app/Domain/Automation/Jobs/DeliverAlertEmail.php", "apps/api/app/Domain/Notifications/Services/Preferences.php"] },
+    { "id": "cancelled", "label": "Cancelled", "sub": "Reason kept on the delivery", "tone": "system", "at": [3, 1], "detail": "The delivery ends as cancelled with a diagnostic, for example \"Recipient email preferences are disabled.\" or \"Condition cleared before activation email was sent.\" A cancelled delivery cannot be retried.", "code": ["apps/api/app/Domain/Automation/Jobs/DeliverAlertEmail.php"] },
+    { "id": "send", "label": "Send AlertEmail", "sub": "Plain text, stable Message-ID", "tone": "system", "at": [4, 2], "detail": "The subject is \"IoT alert active:\" or \"IoT alert cleared:\" with the automation and device. The body gives the time in UTC, the organization and the device, and links to the alert, the automation and Settings → Notifications in the portal. The Message-ID is the delivery UUID, so a retry is the same message. sent means the SMTP server accepted it.", "code": ["apps/api/app/Domain/Automation/Mail/AlertEmail.php", "apps/api/resources/views/automation/alert-email.blade.php"] },
+    { "id": "retry", "label": "Retry or fail", "sub": "Backoff 10 s, 30 s, 2 min, 10 min", "tone": "system", "at": [3, 2], "detail": "A transport error records the attempt and throws, so the queue retries with backoff. After five attempts in a cycle the delivery is failed, as is one whose 24 hours run out. A manager can retry a failed delivery from the alert: same UUID and Message-ID, a new cycle of five, fenced by retry_generation (a stale request gets 409). A crash after the server accepted the message can send a duplicate.", "code": ["apps/api/app/Domain/Automation/Jobs/DeliverAlertEmail.php", "apps/api/app/Domain/Automation/Http/Controllers/AlertController.php"] },
+    { "id": "bellnote", "label": "Bell notification", "sub": "notifications table, type alert", "tone": "store", "at": [2, 1], "detail": "AlertTransitionNotification uses Laravel's database channel only and is not queued: it is written in the projecting transaction, whatever the person's email preferences. Its id is a UUIDv7, so ids sort by time. Rows are deleted after 90 days, read or not.", "code": ["apps/api/app/Domain/Automation/Notifications/AlertTransitionNotification.php", "apps/api/app/Domain/Automation/Console/PruneAlertNotifications.php"] },
+    { "id": "bell", "label": "Bell in the portal", "sub": "Polls every 15 s, 60 s when hidden", "tone": "system", "at": [2, 2], "detail": "Polls alert-notifications/summary for unread and newest_unread_activation_id; an activation newer than the page has seen plays one chime. Unread means read_at is null. Selecting an item, opening the alert, or Mark all read sets it; Mark all read stops at the newest item listed, so a later arrival stays unread. Someone who is not a member with device view gets an empty list.", "code": ["apps/portal/src/alerts/bell/AlertBellProvider.tsx", "apps/portal/src/alerts/bell/model.ts", "apps/api/app/Domain/Automation/Services/AlertInbox.php"] },
+    { "id": "person", "label": "Recipient", "sub": "Opens the alert, acknowledges", "tone": "person", "at": [3, 3], "detail": "Neither the email nor the bell acknowledges anything. The recipient opens the alert in the portal and acknowledges it there, which needs device management permission. Opening it marks that alert's bell notifications read." }
+  ],
+  "edges": [
+    { "id": "change-gate", "from": "change", "to": "gate" },
+    { "id": "gate-fanout", "from": "gate", "to": "fanout", "label": "enabled" },
+    { "id": "fanout-queue", "from": "fanout", "to": "queue", "label": "new row" },
+    { "id": "queue-worker", "from": "queue", "to": "worker", "label": "reserved" },
+    { "id": "worker-recheck", "from": "worker", "to": "recheck", "label": "handle()" },
+    { "id": "recheck-cancelled", "from": "recheck", "to": "cancelled", "label": "refused", "dashed": true },
+    { "id": "recheck-send", "from": "recheck", "to": "send", "label": "allowed" },
+    { "id": "send-retry", "from": "send", "to": "retry", "label": "SMTP error", "dashed": true },
+    { "id": "retry-recheck", "from": "retry", "to": "recheck", "label": "after backoff", "dashed": true },
+    { "id": "send-person", "from": "send", "to": "person", "label": "email" },
+    { "id": "fanout-bellnote", "from": "fanout", "to": "bellnote", "label": "same transaction" },
+    { "id": "bellnote-bell", "from": "bellnote", "to": "bell", "label": "summary poll" },
+    { "id": "bell-person", "from": "bell", "to": "person", "label": "count, list, chime" }
+  ],
+  "steps": [
+    { "edge": "change-gate", "text": "AlertProjector has just recorded an activation or a clear. It reads the workflow's notification settings." },
+    { "edge": "gate-fanout", "text": "If email is enabled for the workflow, it creates one delivery row per recipient. An existing row means this transition was already handled." },
+    { "edge": "fanout-queue", "text": "Each new row dispatches DeliverAlertEmail on the alerts connection, inside the same database transaction." },
+    { "edge": "fanout-bellnote", "text": "Each new row also writes that person's bell notification, directly and whatever their email preferences." },
+    { "edge": "queue-worker", "text": "After the commit, the alerts-worker reserves the job." },
+    { "edge": "worker-recheck", "text": "The job locks the delivery and checks again that this person should still get this email." },
+    { "edge": "recheck-cancelled", "text": "Lost access, switched-off preferences, a removed subscription, a stopped execution or an alert that already cleared cancels the delivery with its reason." },
+    { "edge": "recheck-send", "text": "Otherwise it counts the attempt and sends the plain-text email with links to the alert and the automation." },
+    { "edge": "send-retry", "text": "If the mail transport fails, the attempt is recorded and the job is retried after 10 s, 30 s, 2 min, then 10 min." },
+    { "edge": "retry-recheck", "text": "Every retry runs the checks again. The fifth failure marks the delivery failed, and a manager can start a new cycle from the alert." },
+    { "edge": "send-person", "text": "Once the SMTP server accepts the message the delivery is sent. That is acceptance, not proof anyone read it." },
+    { "edge": "bellnote-bell", "text": "Meanwhile the portal polls the summary every 15 seconds, or every 60 in a hidden tab." },
+    { "edge": "bell-person", "text": "The bell shows the unread count and chimes once for a new activation. Opening the alert marks it read." }
+  ]
+}
