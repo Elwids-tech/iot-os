@@ -67,10 +67,9 @@ storage and evaluation stages ([events reference](../reference/events.md#nats-je
 
 ## Differences from the planned definition-activation contract
 
-- There is no `definition.activated.v1` envelope on the wire.
-  [`PublishDeviceProfile`](../../apps/api/app/Domain/DeviceProfiles/Actions/PublishDeviceProfile.php)
-  still writes rows shaped like it to `device_profile_activation_outbox`, but
-  nothing consumes them.
+- There is no `definition.activated.v1` envelope on the wire. Publishing a profile
+  once wrote rows shaped like it to `device_profile_activation_outbox`; nothing
+  consumed them, and the table has been dropped.
 - There is no artifact URI or object-store fetch; payloads are inline.
 - Activation is acknowledged per device or per workflow deployment through runtime
   events, not per definition.

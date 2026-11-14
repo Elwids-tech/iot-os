@@ -45,7 +45,7 @@ check_configured_port() {
 
   if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port_value" -sTCP:LISTEN >/dev/null 2>&1; then
     # Docker publishes through its own proxy; any other listener (a native
-    # Postgres or Redis) prevents the stack from binding the port on localhost.
+    # Postgres) prevents the stack from binding the port on localhost.
     native=$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR > 1 && $1 !~ /^(com\.docke|docker-pr|vpnkit|Docker)/ { print $1 }' | sort -u | tr '\n' ' ')
     if [ -n "$native" ]; then
       fail "$port_name port $port_value is used outside Docker by: $native- choose another port in .env"
@@ -94,10 +94,8 @@ if [ -f "$repository_root/.env" ]; then
   set +a
 
   check_configured_port "PostgreSQL" "$IOT_POSTGRES_PORT" timescaledb
-  check_configured_port "Redis" "$IOT_REDIS_PORT" redis
   check_configured_port "NATS client" "$IOT_NATS_CLIENT_PORT" nats
   check_configured_port "NATS monitor" "$IOT_NATS_MONITOR_PORT" nats
-  check_configured_port "Node-RED" "$IOT_NODE_RED_PORT" node-red
 else
   fail ".env is missing; run ./tooling/bootstrap"
 fi

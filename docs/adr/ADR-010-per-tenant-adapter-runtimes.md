@@ -73,6 +73,3 @@ Every tenant gets its own adapter runtime pair, created and managed by
   reach internal services at the network level. Follow-up: a dedicated adapter
   network that can reach only the platform broker.
 - Downlink (vendor command encoding) is not implemented; adapters are uplink only.
-- The stock Node-RED service in the development stack
-  ([`compose.dev.yml`](../../deploy/compose/compose.dev.yml)) is unrelated to
-  adapter execution and is not an isolation boundary.

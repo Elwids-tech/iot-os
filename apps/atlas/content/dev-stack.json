@@ -15,8 +15,7 @@
     { "id": "runtime", "label": "Runtime", "sub": "compose.devices.yml · 8081 inside", "tone": "system", "at": [2, 2], "detail": "The Go data plane. It publishes no host port: the API reaches it at http://runtime:8081 with a shared token, and it calls back to the API's internal device endpoints. Without the devices overlay there is no runtime, so stack:up alone is for UI and API work.", "code": ["deploy/compose/compose.devices.yml", "deploy/docker/runtime/Dockerfile"] },
     { "id": "mail", "label": "Mailpit", "sub": "compose.dev.yml · UI 8025", "tone": "store", "at": [4, 2], "detail": "Captures every email the API and workers send to mailpit:1025 on the internal network. A captured message proves the mail was generated and handed over, not that it would be delivered.", "code": ["deploy/compose/compose.dev.yml"], "docs": ["deploy/compose/README.md"] },
     { "id": "sims", "label": "Simulators", "sub": "tooling/simulators, run on the host", "tone": "external", "at": [0, 3], "detail": "sparkplug_simulator.py publishes an energy meter and an RGB light (and many water meters with --meters) with credentials that php artisan devices:prepare-simulator writes. Vendor simulators publish native payloads for the adapter overlay. Run one publisher per gateway identity.", "code": ["tooling/simulators/sparkplug_simulator.py", "tooling/simulators/vendor_water_meter.py", "apps/api/app/Console/Commands/PrepareDeviceSimulator.php"], "docs": ["docs/dev/simulators-and-fixtures.md"] },
-    { "id": "nats", "label": "NATS JetStream", "sub": "compose.dev.yml · 4222, 8222", "tone": "store", "at": [2, 3], "detail": "Only the runtime uses it. Alone, compose.dev.yml publishes the client port 4222 and the monitor port 8222 on localhost. The devices overlay removes both host ports and replaces the command with a config file that bounds the store.", "code": ["deploy/compose/compose.dev.yml", "deploy/compose/compose.devices.yml", "deploy/compose/nats.devices.conf"] },
-    { "id": "unused", "label": "Redis and Node-RED", "sub": "Started but unused · 16379, 1880", "tone": "store", "at": [4, 3], "detail": "compose.dev.yml starts both and deps:smoke checks them, but no application service is configured to use them: sessions and cache are files and queues use the database. Tenant adapter runtimes are separate containers started by adapter-manager, not this stock Node-RED.", "code": ["deploy/compose/compose.dev.yml", "deploy/compose/compose.app.yml"], "docs": ["docs/dev/local-setup.md"] }
+    { "id": "nats", "label": "NATS JetStream", "sub": "compose.dev.yml · 4222, 8222", "tone": "store", "at": [2, 3], "detail": "Only the runtime uses it. Alone, compose.dev.yml publishes the client port 4222 and the monitor port 8222 on localhost. The devices overlay removes both host ports and replaces the command with a config file that bounds the store.", "code": ["deploy/compose/compose.dev.yml", "deploy/compose/compose.devices.yml", "deploy/compose/nats.devices.conf"] }
   ],
   "edges": [
     { "id": "dev-web", "from": "dev", "to": "web", "label": "localhost:5173, :5174" },
@@ -34,7 +33,7 @@
   ],
   "steps": [
     { "box": "dev", "text": "./tooling/bootstrap prepares Task and .env. From there every stack is a ./taskw command that layers Compose files." },
-    { "box": "db", "text": "./taskw deps:up starts compose.dev.yml alone: TimescaleDB, Redis, NATS, Node-RED and Mailpit, for running the API natively." },
+    { "box": "db", "text": "./taskw deps:up starts compose.dev.yml alone: TimescaleDB, NATS and Mailpit, for running the API natively." },
     { "box": "api", "text": "./taskw stack:up adds compose.app.yml: the API, five workers, the scheduler, portal and admin, all built from source. There is no Go runtime yet." },
     { "box": "mqtt", "text": "./taskw devices:setup writes a local CA, a broker certificate and private tokens into a Git-ignored directory. Existing secrets are kept on reruns." },
     { "box": "runtime", "text": "./taskw devices:up adds compose.devices.yml: Mosquitto over TLS, broker-admin and the runtime. This is the full platform." },
@@ -42,7 +41,6 @@
     { "edge": "sims-mqtt", "text": "A simulator on the host connects to the published MQTTS port with prepared credentials and publishes Sparkplug B." },
     { "edge": "mqtt-runtime", "text": "The runtime receives it from the broker inside the Compose network and stores readings in its own schema." },
     { "edge": "dev-web", "text": "The portal and admin are static builds. Use one hostname, localhost or 127.0.0.1, so the session cookie is shared with the API." },
-    { "box": "unused", "text": "Redis and the stock Node-RED start with the stack, but nothing uses them." },
     { "box": "overlays", "text": "Monitoring, device adapters, the disposable test environment and the webhook sink are separate overlays. If you forget one when rebuilding a service, that service loses the overlay's settings." }
   ]
 }

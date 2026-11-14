@@ -14,10 +14,8 @@ Grouped by area. Links point at the decision or doc that explains the item.
   `GET /internal/devices/state` poll with per-organization or change-based
   reconciliation, and raise the control-claim throughput
   ([ADR-014](adr/ADR-014-control-plane-data-plane-http-integration.md)).
-- **Unused activation records.** `device_profile_activation_outbox` is written on
-  every publish and never read; remove it or give it a consumer. Profile
-  `TransportBinding` records feed only the device mapping suggestions, not the
-  runtime.
+- **Profile transport bindings.** Profile `TransportBinding` records feed only the
+  device mapping suggestions, not the runtime.
 - **Retention for journals.** Coordinated retention for the integration event journal
   (with a retention floor and 410 contract), webhook deliveries, alert comments,
   deliveries and attempts, the runtime's `rule_transitions` and `dag_intents`, and
@@ -51,8 +49,6 @@ Grouped by area. Links point at the decision or doc that explains the item.
   commit together with it.
 - **Typed runtime events.** Give the internal runtime events JSON Schemas in
   `contracts/` and validate them on both sides instead of untyped maps.
-- **Unused infrastructure.** Redis and the stock Node-RED service run in the
-  development stack but nothing uses them; remove them or adopt them deliberately.
 
 ### Control plane
 

@@ -117,9 +117,6 @@ flowchart TB
 | Database | TimescaleDB 2.29 on PostgreSQL 17 | Laravel owns the `public` schema; Go owns `device_runtime` (telemetry, latest state, outboxes, rule and DAG state) |
 | NATS | JetStream | Four streams, created and consumed only by the runtime ([events](../reference/events.md#nats-jetstream)) |
 
-The local development stack also starts Redis and a stock Node-RED; the
-application does not use them ([local setup](../dev/local-setup.md)).
-
 ## Key flows
 
 ### Telemetry: device to chart
@@ -219,6 +216,6 @@ described more than exists. Not built:
   [agents](../features/agents.md)), the `platformctl` installer (release
   uses `manage.py`), Helm/Kubernetes, ClickHouse, Airflow, Neo4j, an edge
   runtime, high availability or more than one runtime instance.
-- Redis and object storage are in the development stack but unused.
+- Redis and object storage. Sessions, cache and queues use the database or files.
 
 Future options are in the [roadmap](../roadmap.md).
