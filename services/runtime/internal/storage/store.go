@@ -284,13 +284,26 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 	// One round trip for the whole message: the statements still run in order inside
 	// the transaction, so a reading sees the rows of the readings before it.
 	batch := &pgx.Batch{}
+	// The re-sent sample check reads observations from a time on. Planned with that
+	// time, it touches the chunks that can hold a match; as a cached generic plan it
+	// set up every chunk the retention keeps, on every reading: 1.6 ms a reading with
+	// a year of daily chunks.
+	checks := slices.ContainsFunc(t.Readings, func(r devices.Reading) bool { return r.Quality == "good" && r.TimestampSource == "source" })
+	if checks {
+		batch.Queue(`SET LOCAL plan_cache_mode = force_custom_plan`)
+	}
 	counted := make([]bool, 0, len(t.Readings)*2)
 	for _, reading := range t.Readings {
 		raw, e := json.Marshal(reading)
 		if e != nil {
 			return PersistOutcome{}, e
 		}
-		if reading.Quality == "good" {
+		if reading.Quality == "good" && reading.TimestampSource != "source" {
+			// Stamped at receipt: it cannot repeat an earlier sample, so there is nothing
+			// to look for.
+			batch.Queue(`INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw)
+		} else if reading.Quality == "good" {
 			// Devices re-send buffered samples after reconnecting, under a new
 			// telemetry UUID. A source-timestamped sample with the same observed
 			// time and value is the same measurement. Source clocks are at most
@@ -318,6 +331,12 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 	// Only observation and diagnostic rows are data points; latest values are not.
 	var readings int64
 	results := tx.SendBatch(ctx, batch)
+	if checks {
+		if _, e = results.Exec(); e != nil {
+			_ = results.Close()
+			return PersistOutcome{}, e
+		}
+	}
 	for _, count := range counted {
 		tag, e := results.Exec()
 		if e != nil {
