@@ -58,29 +58,32 @@ message's full event only while it is a queue and a ledger: eight days.**
 
 1. **A slim event row for the long term.** The storage transaction also inserts one
    row per stored message into a new table, `device_runtime.telemetry_events`:
-   sequence, telemetry UUID, organization, device, configuration, generation and
-   received time. It has no readings. It is kept for the organization's measurement
+   sequence, telemetry UUID, organization, device, configuration, generation,
+   received time, and the readings the transaction skipped as re-sent samples, if
+   any. It holds no reading values. It is kept for the organization's measurement
    retention and is what gives an old event its identity, order and generation.
    The row takes the same sequence as the outbox row, so positions mean the same in
    both.
 2. **The outbox is pruned at the ledger window.** A published outbox row is deleted
-   eight days after it was created, or at the organization's retention when that is
-   shorter. Eight days stays longer than the seven days JetStream can redeliver a
-   message, so the ledger still makes every redelivery a no-op.
+   eight days after it was created, whatever the organization's retention. Eight
+   days stays longer than the seven days JetStream can redeliver a message, so the
+   ledger still makes every redelivery a no-op. (Before this decision a shorter
+   retention also kept the row eight days, for the same reason.)
 3. **Location readers rebuild events.** Location by event, the location map and the
    workflow location overview read `telemetry_events` for the events, then the
    readings of the binding's parameters from `observations` and `diagnostics` by
    event UUID and received time. They never read the outbox. There is one read path
    for a recent event and an old one.
-4. **An event row is written only for a message that stored something.** A message
-   whose readings were all skipped as re-sent samples stores no row in
-   `observations`, so it has nothing to rebuild and gets no event row. Today such a
-   message appears in the location trail as a repeat of a point already there; after
-   this it does not appear.
+4. **A re-sent sample is read from the row that already holds it.** When a device
+   reconnects and sends a buffered sample again, the storing transaction skips it
+   because an earlier message stored the same parameter, observed time and value.
+   The event row names what was skipped, and a reader takes that reading from the
+   earlier row. A rebuilt event is therefore the event that was published, and
+   location trails and latest positions do not change.
 5. **The relay and the telemetry stream are unchanged.** The relay publishes from
    the outbox as now. The stream's catch-up already documents a retention of eight
-   days, or the organization's retention when shorter, and answers an older position
-   with `reset`; the outbox now actually holds that window and no more.
+   days and answers an older position with `reset`; the outbox now holds that window
+   and no more.
 6. **Automations are unchanged.** The evaluator reads the committed stream, which
    still carries every reading of a message, including a re-sent sample.
 
@@ -90,6 +93,8 @@ A schema step at runtime startup, in this order:
 
 1. Create `telemetry_events` and fill it from the existing outbox rows (the event
    JSON has every column it needs). Devices keep their trails across the upgrade.
+   Only sequences above the newest event row are copied, so later startups copy
+   nothing.
 2. From then on the cleanup loop prunes outbox rows past the window, in its usual
    batches. Nothing is deleted at startup.
 
@@ -103,30 +108,33 @@ events older than the window are then missing from location trails.
 
 **Easier**
 
-- Long-term storage for a data point drops from about 270 bytes to about 55, plus
-  about 130 bytes per message for its event row: roughly 70 to 90 bytes a point for
-  messages of four to ten readings. Plans can include several times more data points
-  or retention on the same disk.
+- Long-term storage for a message's event drops from about 2.3 KB to about 300
+  bytes (measured: 2,347 and 301 bytes an event with indexes, on a year of
+  one-minute messages of five readings). Its readings are unchanged at about 55
+  bytes each once compressed. For that device a data point goes from about 525 bytes
+  to about 115. Plans can include several times more data points or retention on the
+  same disk.
 - The outbox stays small and bounded by throughput, not by retention, so its indexes
   and the stream's floor and head queries stay fast.
 - `diagnostics` gains a reader. Today nothing reads it but cleanup.
 
 **Harder**
 
-- A location trail costs two queries (events, then readings) where it cost one. Both
-  are indexed by organization, device and time; a trail over compressed chunks
-  decompresses the binding's parameters for the range. This needs measuring against a
-  year of data before it ships.
-- A rebuilt event has only the readings that were stored. The one visible difference
-  is point 4.
-- The storage transaction gains one small insert per message. With the inserts sent
-  as one batch it adds no round trip.
+- A location trail costs two queries (events, then readings) where it cost one.
+  Measured on the same year of data, a week-long trail 200 days back took 160 to
+  210 ms from the outbox, which it scanned by sequence, and takes about 3 ms from
+  the event rows and compressed readings.
+- A rebuilt event lists its readings in parameter order, not the order the message
+  carried them. Nothing depends on that order.
+- The storage transaction gains one small insert per message. It travels with the
+  usage update, so it adds no round trip, and the transaction is no slower.
+- The event row could be smaller still as a compressed hypertable. Not needed yet.
 
 **Follow-up**
 
 - [`docs/features/integrations.md`](../features/integrations.md) describes the
-  stream's retention as the outbox's eight days. Today the code keeps outbox rows for
-  the full measurement retention, so `reset` fires later than documented. This
-  decision makes the code match the document.
+  stream's retention as the outbox's eight days. Before this decision the code kept
+  outbox rows for the full measurement retention, so `reset` fired later than
+  documented. This decision makes the code match the document.
 - The atlas diagrams for the storage tables, retention and the query path change
   with the implementation, not with this record.
