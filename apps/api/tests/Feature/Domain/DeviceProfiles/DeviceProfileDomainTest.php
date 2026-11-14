@@ -84,7 +84,6 @@ final class DeviceProfileDomainTest extends TestCase
 
         $this->assertSame(DeviceProfileArtifactStatus::ACTIVE, $first->status);
         $this->assertSame(DeviceProfileStatus::PUBLISHED, $profile->fresh()->status);
-        $this->assertDatabaseCount('device_profile_activation_outbox', 1);
         $this->assertSame(
             ['definition_hash' => $first->definition_hash, 'revision' => 1],
             Cache::get(app(ProfileArtifactCache::class)->activeKey($profile->uuid)),
@@ -108,7 +107,6 @@ final class DeviceProfileDomainTest extends TestCase
             'revision' => 2,
             'status' => DeviceProfileArtifactStatus::ACTIVE->value,
         ]);
-        $this->assertDatabaseCount('device_profile_activation_outbox', 2);
     }
 
     public function test_same_stable_parameter_uuid_can_be_mapped_by_http_and_sparkplug_without_changing_profile_contract(): void

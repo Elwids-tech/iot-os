@@ -67,7 +67,6 @@ final class SchneiderThreePhaseEnergyMeterSeederTest extends TestCase
         $this->assertCount(31, $compiled->definition['parameters']);
         $this->assertCount(3, $compiled->definition['calculations']);
         $this->assertDatabaseCount('device_profile_artifacts', 0);
-        $this->assertDatabaseCount('device_profile_activation_outbox', 0);
         $this->assertDatabaseCount('transport_bindings', 0);
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('organizations', 2);

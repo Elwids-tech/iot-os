@@ -8,7 +8,6 @@ use App\Domain\DeviceProfiles\Enums\DeviceProfileArtifactStatus;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 final class DeviceProfileArtifact extends Model
@@ -44,10 +43,5 @@ final class DeviceProfileArtifact extends Model
     public function compiledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'compiled_by');
-    }
-
-    public function activationEvents(): HasMany
-    {
-        return $this->hasMany(DeviceProfileActivationOutbox::class, 'device_profile_artifact_id');
     }
 }

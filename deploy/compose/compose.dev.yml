@@ -1,9 +1,8 @@
 name: ${IOT_COMPOSE_PROJECT_NAME:-iot-os-dev}
 
-# Infrastructure ports listen on localhost only. Databases, NATS, Redis and the
-# Node-RED editor have development credentials or none, so they must not be
-# reachable from the LAN. Set IOT_DEV_BIND_ADDRESS=0.0.0.0 to expose
-# them deliberately. Device-facing MQTTS (compose.devices.yml) stays public so
+# Infrastructure ports listen on localhost only. The database and NATS have
+# development credentials or none, so they must not be reachable from the LAN.
+# Set IOT_DEV_BIND_ADDRESS=0.0.0.0 to expose them deliberately. Device-facing MQTTS (compose.devices.yml) stays public so
 # hardware on the LAN can connect. A localhost port cannot be shared with a
 # native service, so pick free IOT_*_PORT values (./taskw doctor checks them).
 
@@ -28,22 +27,6 @@ services:
     networks:
       - internal
 
-  redis:
-    image: ${IOT_REDIS_IMAGE}
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_REDIS_PORT}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-    networks:
-      - internal
-
   nats:
     image: ${IOT_NATS_IMAGE}
     command: ["--jetstream", "--store_dir=/data", "--http_port=8222"]
@@ -61,31 +44,6 @@ services:
     networks:
       - internal
 
-  node-red:
-    image: ${IOT_NODE_RED_IMAGE}
-    environment:
-      NODE_RED_CREDENTIAL_SECRET: ${IOT_NODE_RED_CREDENTIAL_SECRET}
-      TZ: UTC
-    ports:
-      - "${IOT_DEV_BIND_ADDRESS:-127.0.0.1}:${IOT_NODE_RED_PORT}:1880"
-    volumes:
-      - node-red-data:/data
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:1880').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-    restart: unless-stopped
-    networks:
-      - adapter
-      - internal
-
   mailpit:
     image: ${IOT_MAILPIT_IMAGE:-axllent/mailpit:v1.27.7}
     environment:
@@ -100,12 +58,9 @@ services:
 
 networks:
   device:
-  adapter:
   internal:
 
 volumes:
   timescaledb-data:
-  redis-data:
   nats-data:
-  node-red-data:
   mailpit-data:

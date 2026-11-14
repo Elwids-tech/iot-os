@@ -9,7 +9,6 @@ use App\Domain\DeviceProfiles\Enums\DeviceProfileArtifactStatus;
 use App\Domain\DeviceProfiles\Enums\DeviceProfileStatus;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
-use App\Domain\DeviceProfiles\Models\DeviceProfileActivationOutbox;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Services\ProfileArtifactCache;
 use App\Domain\DeviceProfiles\Services\PublishedParameters;
@@ -63,20 +62,6 @@ final class PublishDeviceProfile
             ])->save();
 
             ActivityLog::record('device_profile.published', $locked->organization_id, $actor, $locked, ['revision' => $nextRevision]);
-
-            DeviceProfileActivationOutbox::query()->create([
-                'device_profile_artifact_id' => $artifact->getKey(),
-                'event_type' => 'definition.activated.v1',
-                'payload' => [
-                    'activated_at' => now()->toIso8601String(),
-                    'artifact_hash' => 'sha256:'.$compiled->hash,
-                    'definition_id' => $locked->uuid,
-                    'definition_type' => 'device_profile',
-                    'event_version' => 'definition.activated.v1',
-                    'organization_id' => $locked->organization?->uuid,
-                    'version_id' => $artifact->uuid,
-                ],
-            ]);
 
             return $artifact->load('profile');
         });
