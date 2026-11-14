@@ -1,0 +1,51 @@
+{
+  "id": "alerts",
+  "title": "Alerts and notifications",
+  "kind": "containers",
+  "summary": "An alert is an episode: it opens, is acknowledged by a person, and ends when the runtime says so. The runtime decides; Laravel records each transition once and tells people. Automation alerts reach email and the bell; offline alerts are only shown, and service monitoring only writes to the event log.",
+  "docs": ["docs/features/alerts.md", "docs/reference/events.md"],
+  "boxes": [
+    { "id": "geofence", "label": "Geofence rule", "sub": "workflow.transition.v1", "tone": "system", "at": [0, 0], "detail": "The runtime's rule evaluator activates an episode once a device has been outside its geofence for the rule's time and minimum number of samples, and clears it on the first fix inside. The transition's id is a hash of the definition, the episode number and the type, so the same transition always has the same id.", "code": ["services/runtime/internal/rules/evaluator.go", "services/runtime/internal/storage/rules.go"], "docs": ["docs/features/automation.md"] },
+    { "id": "dag", "label": "DAG alert action", "sub": "automation.intent.v1", "tone": "system", "at": [1, 0], "detail": "An automation may contain at most one alert action. When its condition turns true the runtime numbers a new episode and emits an activated intent; when it turns false, a cleared one. A condition that has not changed emits nothing.", "code": ["services/runtime/internal/dag/evaluator.go", "services/runtime/internal/dag/compiler.go", "services/runtime/internal/storage/dag.go"], "docs": ["docs/features/automation.md"] },
+    { "id": "offline", "label": "Offline detection", "sub": "device.connectivity.v1", "tone": "system", "at": [2, 0], "opens": "offline-detection" },
+    { "id": "monitoring", "label": "Service monitoring", "sub": "Alertmanager, host watchdog", "tone": "external", "at": [4, 0], "detail": "Alertmanager and the independent watchdog post to internal endpoints with an ingest token. They never become alert episodes: each one writes an event-log entry and can queue an email to the operator, who must be a super administrator.", "code": ["apps/api/app/Domain/Notifications/Http/Controllers/MonitoringIngestController.php", "apps/api/app/Domain/Notifications/routes.php"] },
+    { "id": "autoworker", "label": "automation-worker", "sub": "Re-authorizes DAG intents", "tone": "system", "at": [0, 1], "detail": "The inbox only stores a DAG intent in automation_actions. The worker picks it up about a second later and checks that automations are enabled, the execution is still the applied one, the intent has not expired and the approving user may still activate. Only then does it project the alert.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Automation/Console/AutomationWorker.php"] },
+    { "id": "inbox", "label": "Runtime inbox", "sub": "POST events/batch, device_inbox", "tone": "system", "at": [1, 1], "detail": "The runtime posts its outbox to Laravel in batches. Laravel inserts each event's UUID into device_inbox, ignores one it already has, and applies the event in the same transaction, so a redelivered event cannot raise a second alert.", "code": ["apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php", "services/runtime/internal/app/inbox.go"], "docs": ["docs/adr/ADR-031-batched-runtime-events.md"] },
+    { "id": "eventlog", "label": "Event log", "sub": "notification_events", "tone": "store", "at": [3, 1], "detail": "One entry per transition, from four sources: workflow, connectivity, service and watchdog. A firing entry is active until a resolved entry with the same incident key arrives, and a late firing entry cannot reopen it. A repeat of the same event only raises its occurrence count.", "code": ["apps/api/app/Domain/Notifications/Services/EventRecorder.php", "apps/api/app/Domain/Notifications/Models/NotificationEvent.php", "apps/portal/src/alerts/EventLog.tsx"] },
+    { "id": "episodes", "label": "Alert episodes", "sub": "automation_alerts", "tone": "store", "at": [1, 2], "opens": "alert-episode" },
+    { "id": "worker", "label": "alerts-worker", "sub": "Email jobs, queue alerts", "tone": "system", "at": [3, 2], "opens": "alert-delivery" },
+    { "id": "journal", "label": "Integration event journal", "sub": "integration_events", "tone": "store", "at": [0, 3], "detail": "alert.activated.v1, alert.cleared.v1 and alert.acknowledged.v1, for automation alerts only and once each per alert. Events are numbered per organization under a row lock, in the transaction that changed the alert. The integration API's event feed and the webhook worker read from here.", "code": ["apps/api/app/Domain/Integrations/Services/EventJournal.php", "apps/api/app/Domain/Integrations/Services/AlertSnapshot.php", "apps/api/app/Domain/Integrations/Services/WebhookDispatch.php"], "docs": ["docs/features/integrations.md"] },
+    { "id": "bell", "label": "In-app bell", "sub": "notifications, type alert", "tone": "store", "at": [2, 3], "detail": "One Laravel database notification per recipient and transition, written with the email delivery row and whatever the person's email preferences. The portal polls a summary for the unread count. Email and this bell are the only two channels in the code.", "code": ["apps/api/app/Domain/Automation/Notifications/AlertTransitionNotification.php", "apps/api/app/Domain/Automation/Services/AlertInbox.php", "packages/ui/src/components/notification-bell.tsx"], "docs": ["specs/022-alert-bell/spec.md"] },
+    { "id": "person", "label": "Recipient", "sub": "Member who can view devices", "tone": "person", "at": [4, 3], "detail": "Chosen per workflow in Settings → Notifications: at most 20 verified members who can view devices. Email is off until someone turns it on for the workflow." }
+  ],
+  "edges": [
+    { "id": "geofence-inbox", "from": "geofence", "to": "inbox" },
+    { "id": "dag-inbox", "from": "dag", "to": "inbox" },
+    { "id": "offline-inbox", "from": "offline", "to": "inbox" },
+    { "id": "inbox-autoworker", "from": "inbox", "to": "autoworker", "label": "DAG intent" },
+    { "id": "autoworker-episodes", "from": "autoworker", "to": "episodes", "label": "alert action" },
+    { "id": "inbox-episodes", "from": "inbox", "to": "episodes", "label": "projectors" },
+    { "id": "episodes-eventlog", "from": "episodes", "to": "eventlog", "label": "every transition" },
+    { "id": "monitoring-eventlog", "from": "monitoring", "to": "eventlog", "label": "service events" },
+    { "id": "episodes-journal", "from": "episodes", "to": "journal", "label": "alert.*.v1" },
+    { "id": "episodes-worker", "from": "episodes", "to": "worker", "label": "deliveries and jobs, automation alerts only" },
+    { "id": "eventlog-worker", "from": "eventlog", "to": "worker", "label": "operator email" },
+    { "id": "episodes-bell", "from": "episodes", "to": "bell", "label": "per recipient" },
+    { "id": "worker-person", "from": "worker", "to": "person", "label": "email" },
+    { "id": "bell-person", "from": "bell", "to": "person", "label": "polled by the portal" }
+  ],
+  "steps": [
+    { "edge": "geofence-inbox", "text": "A geofence rule activates or clears in the runtime. The transition reaches Laravel through the runtime inbox, which drops any event it has already seen." },
+    { "edge": "inbox-episodes", "text": "For a geofence transition or an offline episode, a projector finds or creates the alert in the inbox transaction." },
+    { "edge": "inbox-autoworker", "text": "A DAG alert action is different: the inbox only stores the intent, and the automation-worker takes it from there." },
+    { "edge": "autoworker-episodes", "text": "The worker checks that the automation is still allowed to act, then projects the alert the same way." },
+    { "edge": "episodes-eventlog", "text": "Every transition, automation or offline, adds an event-log entry and an audit record in the same transaction." },
+    { "edge": "episodes-journal", "text": "An automation alert also writes an alert.*.v1 integration event for external applications. An offline alert does not." },
+    { "edge": "episodes-worker", "text": "If the workflow has email turned on, one delivery per recipient and its queued job are inserted in that same transaction." },
+    { "edge": "episodes-bell", "text": "Each new delivery also writes a bell notification for that person, without a queue." },
+    { "edge": "worker-person", "text": "The alerts-worker rechecks access and preferences, then sends the email." },
+    { "edge": "bell-person", "text": "The portal polls the bell's summary, so the unread count appears within seconds." },
+    { "edge": "monitoring-eventlog", "text": "Service monitoring alerts and watchdog failures never become episodes. They are event-log entries only." },
+    { "edge": "eventlog-worker", "text": "A service event can email the operator, through the same alerts queue." }
+  ]
+}

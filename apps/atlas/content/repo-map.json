@@ -1,0 +1,41 @@
+{
+  "id": "repo-map",
+  "title": "Repository map",
+  "kind": "containers",
+  "summary": "One monorepo holds the PHP control plane, the Go data plane, the Node adapter services, the React apps and the device firmware. They share no generated code across languages: each one reads the same files in contracts/ and tests against the same fixtures.",
+  "docs": ["docs/README.md", "contracts/README.md", "docs/architecture/overview.md"],
+  "boxes": [
+    { "id": "api", "label": "apps/api", "sub": "Laravel API and workers (PHP)", "tone": "system", "at": [0, 0], "detail": "The control plane. Code is grouped by domain under app/Domain, each with its own routes, models and services. The same image runs the API, every queue worker and the scheduler.", "code": ["apps/api/app/Domain", "apps/api/config/devices.php", "deploy/docker/api/Dockerfile"] },
+    { "id": "ops", "label": "deploy/ and tooling/", "sub": "Compose, Dockerfiles, release, checks", "tone": "system", "at": [2, 0], "detail": "deploy/ holds the development and release Compose files, the Dockerfiles and the host playbook. tooling/ holds bootstrap, the release tool, simulators and the verification scripts that drive a running stack. ./taskw is the entry point to both.", "code": ["deploy/compose", "deploy/docker", "tooling/release/manage.py", "tooling/verify-devices-contracts.py"], "docs": ["tooling/README.md", "docs/dev/testing.md"] },
+    { "id": "runtime", "label": "services/runtime", "sub": "Go data plane", "tone": "system", "at": [4, 0], "detail": "One Go module with three commands: runtime, broker-admin and committed-consumer. The single image carries all three, plus a copy of contracts/ for its contract registry.", "code": ["services/runtime/cmd", "services/runtime/internal", "deploy/docker/runtime/Dockerfile"] },
+    { "id": "firmware", "label": "firmware/", "sub": "Embedded SDK and starters (C)", "tone": "system", "at": [0, 1.5], "detail": "The device SDK with its ports (ESP-IDF, FreeRTOS, MCUXpresso, POSIX) and the starter kits. The API image packages both, so the API can hand a device its starter kit. The SDK's tests replay the shared Sparkplug fixtures.", "code": ["firmware/sdk", "firmware/starters", "apps/api/config/firmware.php"], "docs": ["docs/features/embedded-sdk.md"] },
+    { "id": "contracts", "label": "contracts/", "sub": "Schemas, fixtures, Sparkplug proto", "tone": "store", "at": [2, 1.5], "detail": "JSON Schemas with golden fixtures, the pinned Sparkplug protobuf, the unit catalogue and the exported OpenAPI description. There is no generated contracts package: PHP, Go, TypeScript, Python and C tests read these files directly, so a change that breaks one language fails that language's suite.", "code": ["contracts/devices", "contracts/internal", "contracts/sparkplug/sparkplug_b.proto", "contracts/openapi/openapi.json"], "docs": ["contracts/README.md"] },
+    { "id": "adapters", "label": "services/adapters", "sub": "Node: manager, receiver, tenant", "tone": "system", "at": [4, 1.5], "detail": "One Dockerfile with three targets: the adapter manager that starts tenant runtimes, the public webhook receiver, and the tenant runtime image with the platform's Node-RED nodes.", "code": ["services/adapters/manager.cjs", "services/adapters/receiver.cjs", "services/adapters/Dockerfile"], "docs": ["docs/features/adapters.md"] },
+    { "id": "web", "label": "apps/portal, apps/admin", "sub": "React apps (TypeScript)", "tone": "system", "at": [0, 3], "detail": "The tenant portal and the platform admin app. Both depend on the workspace packages rather than on each other; the portal also uses charts and the workflow editor.", "code": ["apps/portal/package.json", "apps/admin/package.json"] },
+    { "id": "packages", "label": "packages/", "sub": "ui, charts, api-client, auth, more", "tone": "system", "at": [2, 3], "detail": "Shared TypeScript: the design-system kit (ui), chart builders (charts), the typed API client, shared account screens (auth), the automation editor (workflow-editor) and the SDK for external applications (integration-sdk). A change here means rebuilding both web apps.", "code": ["packages/ui", "packages/charts", "packages/api-client", "packages/integration-sdk"], "docs": ["docs/dev/design-system.md"] },
+    { "id": "sites", "label": "Other apps", "sub": "docs, storybook, atlas, vertical-demo", "tone": "system", "at": [4, 3], "detail": "The public landing page and developer docs, the component gallery, this atlas, and a demo application built on the integration SDK. All use the ui kit.", "code": ["apps/docs", "apps/storybook", "apps/atlas", "apps/vertical-demo"] }
+  ],
+  "edges": [
+    { "id": "api-contracts", "from": "api", "to": "contracts", "label": "PHP reads" },
+    { "id": "runtime-contracts", "from": "runtime", "to": "contracts", "label": "Go reads" },
+    { "id": "adapters-contracts", "from": "adapters", "to": "contracts", "label": "adapter schemas in tests" },
+    { "id": "firmware-contracts", "from": "firmware", "to": "contracts", "label": "Sparkplug fixtures" },
+    { "id": "packages-contracts", "from": "packages", "to": "contracts", "label": "TypeScript tests read fixtures" },
+    { "id": "ops-contracts", "from": "ops", "to": "contracts", "label": "verify, generate" },
+    { "id": "ops-api", "from": "ops", "to": "api", "label": "builds image" },
+    { "id": "ops-runtime", "from": "ops", "to": "runtime", "label": "builds image" },
+    { "id": "api-firmware", "from": "api", "to": "firmware", "label": "packaged in the API image" },
+    { "id": "web-packages", "from": "web", "to": "packages", "label": "workspace:*" },
+    { "id": "sites-packages", "from": "sites", "to": "packages", "label": "ui kit" }
+  ],
+  "steps": [
+    { "box": "contracts", "text": "Start in the middle. contracts/ is plain files: schemas, fixtures that must validate against them, and the Sparkplug protobuf." },
+    { "edge": "api-contracts", "text": "Laravel reads them from the checkout locally and from a copy inside its image, and exports the OpenAPI description back into contracts/." },
+    { "edge": "runtime-contracts", "text": "The Go runtime carries its own copy and its tests fail when its messages drift from the schemas." },
+    { "edge": "packages-contracts", "text": "TypeScript tests read the same fixtures, for example the panel suggestions that the portal and Laravel must rank identically." },
+    { "edge": "firmware-contracts", "text": "The embedded SDK replays the Sparkplug fixtures, so device code and the runtime decoder agree on the bytes." },
+    { "edge": "ops-contracts", "text": "A Python checker validates every fixture against its schema, and a script generates the simulators' Sparkplug bindings from the proto." },
+    { "edge": "web-packages", "text": "The web apps share code only through workspace packages. A change in packages/ means rebuilding both the portal and admin." },
+    { "edge": "ops-api", "text": "Dockerfiles in deploy/ build each app and service from the repository root, which is why an image can include contracts/ and firmware/." }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "platform",
+  "title": "How it works",
+  "kind": "containers",
+  "summary": "The platform in one picture. The top row is the journey of a reading; the middle row is what people do with it; the bottom row is what everything stands on. Open any box to go deeper.",
+  "docs": ["docs/architecture/overview.md", "docs/README.md"],
+  "boxes": [
+    { "id": "data-in", "label": "Getting data in", "sub": "Sparkplug B, adapters, firmware", "tone": "system", "at": [0, 0], "opens": "data-in" },
+    { "id": "storage", "label": "Storing and reading", "sub": "Observations, latest, queries", "tone": "system", "at": [2, 0], "opens": "storage" },
+    { "id": "automation", "label": "Automation", "sub": "DAGs and geofence rules", "tone": "system", "at": [4, 0], "opens": "automation" },
+    { "id": "activation", "label": "Activation and commands", "sub": "Intent to running config", "tone": "system", "at": [0, 1.1], "opens": "activation" },
+    { "id": "dashboards", "label": "Dashboards", "sub": "Panels and charts", "tone": "system", "at": [2, 1.1], "opens": "dashboards" },
+    { "id": "alerts", "label": "Alerts", "sub": "Episodes and notifications", "tone": "system", "at": [4, 1.1], "opens": "alerts" },
+    { "id": "access", "label": "Access and tenancy", "sub": "Organizations, roles, isolation", "tone": "system", "at": [0, 2.2], "opens": "access" },
+    { "id": "billing", "label": "Billing", "sub": "Plans, usage, invoices", "tone": "system", "at": [1, 2.2], "opens": "billing" },
+    { "id": "containers", "label": "The parts", "sub": "Containers and the runtime", "tone": "system", "at": [2, 2.2], "opens": "containers" },
+    { "id": "deployment", "label": "Running it", "sub": "Local stack and releases", "tone": "system", "at": [3, 2.2], "opens": "deployment" },
+    { "id": "integrations", "label": "Integrations and AI", "sub": "API, webhooks, agents, assistant", "tone": "system", "at": [4, 2.2], "opens": "integrations" }
+  ],
+  "edges": [
+    { "id": "in-storage", "from": "data-in", "to": "storage", "label": "readings" },
+    { "id": "storage-automation", "from": "storage", "to": "automation", "label": "committed telemetry" },
+    { "id": "activation-in", "from": "activation", "to": "data-in", "label": "configurations" },
+    { "id": "storage-dashboards", "from": "storage", "to": "dashboards", "label": "queries" },
+    { "id": "automation-alerts", "from": "automation", "to": "alerts", "label": "transitions, intents" },
+    { "id": "alerts-integrations", "from": "alerts", "to": "integrations", "label": "events" },
+    { "id": "storage-billing", "from": "storage", "to": "billing", "label": "usage", "bend": -70 }
+  ],
+  "steps": [
+    { "edge": "activation-in", "text": "Nothing is ingested until a person activates a device configuration. Laravel records the intent; the Go runtime applies it and reports back." },
+    { "edge": "in-storage", "text": "Devices publish Sparkplug B, directly or through an adapter. The runtime turns metrics into readings and stores them." },
+    { "edge": "storage-dashboards", "text": "Dashboards and tables read latest values and history through the API." },
+    { "edge": "storage-automation", "text": "Automations evaluate readings only after they are stored." },
+    { "edge": "automation-alerts", "text": "Rules and DAGs produce transitions and action intents. Laravel authorizes them and raises alerts." },
+    { "edge": "alerts-integrations", "text": "Alerts and other events are journaled for external applications and delivered as signed webhooks." },
+    { "edge": "storage-billing", "text": "Stored readings are counted as data points for the billing account." },
+    { "box": "containers", "text": "Open The parts to see the processes that do all this." }
+  ]
+}

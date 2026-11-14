@@ -1,0 +1,34 @@
+{
+  "id": "system",
+  "title": "IoT OS",
+  "kind": "context",
+  "summary": "A multi-tenant industrial IoT platform. Organizations register devices, receive their telemetry over Sparkplug B, store and chart it, send confirmed commands, automate on live data, raise alerts and expose data to external applications.",
+  "docs": ["docs/architecture/overview.md", "docs/architecture/glossary.md"],
+  "rows": 4,
+  "boxes": [
+    { "id": "users", "label": "Tenant users", "sub": "Browser", "tone": "person", "at": [0, 0.5], "detail": "People in an organization. They use the portal for devices, profiles, dashboards, automations, alerts and integrations." },
+    { "id": "admins", "label": "Platform administrators", "sub": "Browser", "tone": "person", "at": [0, 1.5], "detail": "The platform team. They use the admin app for organizations, users, roles, permission ceilings and retention." },
+    { "id": "apps", "label": "External applications", "sub": "Integration API, webhooks", "tone": "external", "at": [0, 2.5], "detail": "Customer and partner systems. They call the integration API with a bearer token and receive signed webhooks.", "docs": ["docs/features/integrations.md"] },
+    { "id": "iot", "label": "IoT OS", "sub": "Open to see how it works", "tone": "system", "at": [2, 1.5], "opens": "platform" },
+    { "id": "devices", "label": "Sparkplug B devices", "sub": "Devices and gateways", "tone": "external", "at": [4, 0], "detail": "Native sources. They connect to the platform broker over TLS and publish Sparkplug B births, data and deaths.", "docs": ["docs/reference/sparkplug.md"] },
+    { "id": "vendor", "label": "Vendor MQTT devices", "sub": "Native payloads", "tone": "external", "at": [4, 1], "detail": "Devices that speak their own JSON. A per-tenant adapter runtime decodes it and republishes it as Sparkplug B.", "docs": ["docs/features/adapters.md"] },
+    { "id": "smtp", "label": "SMTP provider", "tone": "external", "at": [4, 2], "detail": "Delivers alert, invitation and password reset email." },
+    { "id": "ai", "label": "AI provider", "sub": "Optional", "tone": "external", "at": [4, 3], "detail": "OpenAI or Anthropic, chosen by a platform administrator. Assistant tools run under the user's permissions and writes become proposals a person reviews.", "docs": ["docs/features/assistant.md"] }
+  ],
+  "edges": [
+    { "id": "e-users", "from": "users", "to": "iot", "label": "HTTPS" },
+    { "id": "e-admins", "from": "admins", "to": "iot", "label": "HTTPS" },
+    { "id": "e-apps", "from": "apps", "to": "iot", "label": "HTTPS, bearer token" },
+    { "id": "e-devices", "from": "devices", "to": "iot", "label": "MQTT over TLS" },
+    { "id": "e-vendor", "from": "vendor", "to": "iot", "label": "MQTT over TLS" },
+    { "id": "e-smtp", "from": "iot", "to": "smtp", "label": "email" },
+    { "id": "e-ai", "from": "iot", "to": "ai", "label": "assistant requests" }
+  ],
+  "steps": [
+    { "edge": "e-devices", "text": "Devices and gateways publish Sparkplug B over MQTT with TLS. This is the only protocol the data plane ingests." },
+    { "edge": "e-vendor", "text": "Vendor devices publish their own payloads. An adapter translates them to Sparkplug B, so from there they are ordinary sources." },
+    { "edge": "e-users", "text": "People only ever talk to the Laravel API. No client reaches the database, NATS, the broker or the runtime directly." },
+    { "edge": "e-apps", "text": "External applications use the integration API and receive signed webhooks." },
+    { "box": "iot", "text": "Open IoT OS to see what runs inside it." }
+  ]
+}

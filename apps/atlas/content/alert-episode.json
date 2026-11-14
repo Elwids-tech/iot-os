@@ -1,0 +1,38 @@
+{
+  "id": "alert-episode",
+  "title": "Alert episode",
+  "kind": "state",
+  "summary": "One row in automation_alerts is one episode. There is no status column: the condition is active while cleared_at is null and cleared afterwards, and a stopped_reason marks an episode that ended without recovering. Acknowledgement is a separate fact that changes neither.",
+  "docs": ["docs/features/alerts.md", "docs/reference/events.md"],
+  "rows": 3,
+  "boxes": [
+    { "id": "none", "label": "No alert", "sub": "Nothing recorded for this key", "tone": "state", "at": [0, 0.3], "detail": "An automation alert is keyed by its deployment and episode number (a unique index on automation_deployment_id and episode). An offline alert is keyed by episode_key, the subject key and episode number joined by #, such as device:<uuid>#3 or gateway:<connection>/<edge>#3. A gateway episode for another organization's hosted devices adds @<organization uuid> to the subject key. The runtime numbers episodes from 1.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Services/ConnectivityProjector.php", "apps/api/database/migrations/2026_10_31_010000_generalise_automation_alerts.php"] },
+    { "id": "active", "label": "Active", "sub": "activated_at set, cleared_at null", "tone": "state", "at": [2, 0.3], "detail": "Opening sets activation_transition_id and activated_at. An offline alert also keeps its cause, offline_since, last_seen_at and the threshold it used. When a workflow's execution is stopped its alert stays active and shows execution_stopped_reason: nothing invents a clear.", "code": ["apps/api/app/Domain/Automation/Models/Alert.php", "apps/api/app/Domain/Automation/Services/AlertQuery.php"] },
+    { "id": "cleared", "label": "Cleared", "sub": "cleared_at set, no stopped_reason", "tone": "state", "at": [4, 0.3], "detail": "The runtime reported the condition over: clear_transition_id and cleared_at are set and the condition reads cleared. Only a transition from the runtime clears an episode. An acknowledgement made earlier or later stays as it is.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Services/ConnectivityProjector.php"] },
+    { "id": "stopped", "label": "Stopped", "sub": "cleared_at and stopped_reason set", "tone": "state", "at": [4, 1.8], "detail": "The episode ended without recovering. The runtime stops an offline episode when its device is deactivated or no longer monitored (device_deactivated, definition_removed, monitoring_disabled). Laravel ends the open alerts of a device that moves to another organization with device_moved, and ignores the runtime's later transitions for them. A gateway alert ends this way only when every device it lists moved.", "code": ["apps/api/app/Domain/Automation/Models/Alert.php", "apps/api/app/Domain/Devices/Services/Moves/MoveCutover.php", "services/runtime/internal/app/connectivity.go"] },
+    { "id": "projectors", "label": "Two projectors", "sub": "AlertProjector, ConnectivityProjector", "tone": "system", "at": [0, 1.8], "detail": "AlertProjector handles automation alerts (geofence transitions and DAG alert actions) and ConnectivityProjector handles offline episodes. Both lock the alert row and return early when that kind of transition is already recorded on it, so a replay changes nothing and notifies nobody.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php", "apps/api/app/Domain/Automation/Services/ConnectivityProjector.php"] },
+    { "id": "records", "label": "Records per transition", "sub": "Event log, audit, alert.*.v1", "tone": "store", "at": [2, 1.8], "detail": "A first-time transition writes a notification_events entry (firing when the episode opens, resolved when it ends; the event key is the alert UUID and the transition), an audit record named alert.<transition>, and for automation alerts an alert.*.v1 integration event. An automation activation also counts one alert against the billing account's allowance. Acknowledging writes alert.acknowledged.v1 and an audit record.", "code": ["apps/api/app/Domain/Notifications/Services/EventRecorder.php", "apps/api/app/Domain/Integrations/Services/EventJournal.php", "apps/api/app/Domain/Automation/Http/Controllers/AlertController.php"], "docs": ["docs/features/billing.md"] }
+  ],
+  "edges": [
+    { "id": "key", "from": "projectors", "to": "none", "label": "find by key" },
+    { "id": "open", "from": "none", "to": "active", "label": "activated (automation), opened (offline)" },
+    { "id": "ack", "from": "active", "to": "active", "label": "acknowledge: first actor and time" },
+    { "id": "clear", "from": "active", "to": "cleared", "label": "cleared" },
+    { "id": "stop", "from": "active", "to": "stopped", "label": "stopped, or device moved" },
+    { "id": "early", "from": "none", "to": "cleared", "label": "clear arrives first: history only", "bend": -150, "dashed": true },
+    { "id": "late", "from": "cleared", "to": "cleared", "label": "late activation: time filled, nobody told" },
+    { "id": "writes", "from": "projectors", "to": "records", "label": "each first-time transition" },
+    { "id": "replay", "from": "projectors", "to": "projectors", "label": "transition already recorded: ignored", "bend": -1 }
+  ],
+  "steps": [
+    { "edge": "key", "text": "A transition arrives from the runtime. The projector looks the alert up by its key: deployment and episode for an automation, episode_key for an offline subject." },
+    { "edge": "open", "text": "The first activated or opened transition creates the row and stamps activation_transition_id and activated_at. The condition is active." },
+    { "edge": "writes", "text": "In the same transaction it writes the event-log entry, the audit record and, for an automation alert, the integration event and the allowance count." },
+    { "edge": "replay", "text": "If the same transition comes again, its column is already set and the projector returns. No second alert, entry or email." },
+    { "edge": "ack", "text": "A person with device management acknowledges. acknowledged_by and acknowledged_at are set once; the condition stays active and notifications are not stopped." },
+    { "edge": "clear", "text": "The runtime reports the condition over. clear_transition_id and cleared_at are set, and the event-log entry for the episode is resolved." },
+    { "edge": "stop", "text": "An offline episode whose device is deactivated or removed is stopped with a reason, not cleared. A device moved to another organization ends its open alerts with device_moved, except a gateway alert that still lists a device staying behind." },
+    { "edge": "early", "text": "If a clear arrives before its activation, the row is created already cleared. It is history: nothing is shown as active." },
+    { "edge": "late", "text": "When that activation turns up later it only fills in the time. The episode is not reopened and nobody is notified." }
+  ]
+}

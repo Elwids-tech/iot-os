@@ -1,0 +1,50 @@
+{
+  "id": "billing",
+  "title": "Billing",
+  "kind": "containers",
+  "summary": "A billing account pays for one or more organizations. Its plan gives it allowances and prices, Laravel counts what it uses each UTC month, and a monthly invoice charges the base price and what went past the allowances. There is no single billing switch: an account with no plan keeps the deployment defaults and is never invoiced, and card payments are on only while both Stripe secrets are set.",
+  "docs": ["docs/features/billing.md", "docs/adr/ADR-035-plans-and-allowances.md", "docs/adr/ADR-026-billing-accounts.md"],
+  "boxes": [
+    { "id": "admin", "label": "Platform administrator", "sub": "Admin app", "tone": "person", "at": [0, 0], "detail": "Creates plans, assigns them, overrides allowances and prices, starts trials, reviews and issues invoices and records payments made another way. Every billing route under admin/ needs the manage-organizations permission.", "code": ["apps/admin/src/pages/PlansPage.tsx", "apps/admin/src/pages/BillingAccountPage.tsx", "apps/admin/src/pages/InvoicesPage.tsx", "apps/api/app/Domain/Billing/routes/api.php"] },
+    { "id": "plans", "label": "Plans", "sub": "Allowances and prices", "tone": "system", "at": [1, 0], "detail": "A plan is a named set of allowances (alerts, sms, devices, data_points, retention_days, organizations) and three prices: a monthly base, one per alert of overage and one per block of data points. A kind the plan leaves out falls back to the default in config/billing.php. Price changes apply from the first day of the next UTC month.", "code": ["apps/api/app/Domain/Billing/Services/Plans.php", "apps/api/app/Domain/Billing/Services/Prices.php", "apps/api/app/Domain/Billing/Enums/AllowanceKind.php", "apps/api/config/billing.php"], "docs": ["docs/adr/ADR-035-plans-and-allowances.md"] },
+    { "id": "account", "label": "Billing account", "sub": "Payer of record, with owners", "tone": "system", "at": [2, 0], "detail": "Has at most one open plan assignment, of kind paid, trial or trial_unpaid. Each allowance resolves as the account's override, else its plan's value, else the deployment default. The account is also the Stripe customer and keeps only the card's brand, last four digits and expiry.", "code": ["apps/api/app/Domain/Billing/Models/BillingAccount.php", "apps/api/app/Domain/Billing/Services/Allowances.php", "apps/api/app/Domain/Billing/Services/PlanAssignments.php"], "docs": ["docs/adr/ADR-026-billing-accounts.md", "docs/features/access.md"] },
+    { "id": "orgs", "label": "Organizations", "sub": "Share the account's allowances", "tone": "system", "at": [3, 0], "detail": "Every organization belongs to one billing account, and the assignment history says which account it was on at any hour. The account groups organizations for billing only and grants no access to them. Each organization's share of the usage is kept under the name it had.", "code": ["apps/api/app/Domain/Billing/Services/BillingAccounts.php", "apps/api/app/Domain/Billing/Models/BillingAccountAssignment.php", "apps/api/app/Domain/Billing/Services/OwnerOrganizations.php"], "docs": ["docs/adr/ADR-026-billing-accounts.md"] },
+    { "id": "runtime", "label": "Runtime", "sub": "Counts stored readings", "tone": "system", "at": [4, 0], "detail": "Telemetry never reaches Laravel, so the Go runtime counts the readings it stores, per organization and UTC hour, and reports the counts as usage.data_points.v1 events about once a minute.", "code": ["services/runtime/internal/storage/usage.go", "services/runtime/internal/app/application.go"], "docs": ["docs/adr/ADR-036-runtime-counts-data-points.md"] },
+    { "id": "trials", "label": "Trials", "sub": "A trial plan assignment", "tone": "system", "at": [1, 1], "detail": "A trial is a plan assignment of kind trial, with an end or none: the plan's allowances and warnings apply, and its days and overage are invoiced at 0. billing:end-trials runs hourly; an ended trial becomes paid when a card is saved, otherwise trial_unpaid, which stays on the plan uncharged until a card is saved or an administrator converts it.", "code": ["apps/api/app/Domain/Billing/Services/Trials.php", "apps/api/app/Domain/Billing/Console/EndTrials.php", "apps/api/app/Domain/Billing/Enums/PlanAssignmentKind.php"], "docs": ["docs/features/billing.md"] },
+    { "id": "limits", "label": "Limits and warnings", "sub": "What stops and what never does", "tone": "system", "at": [2, 1], "opens": "limits" },
+    { "id": "usage", "label": "Usage", "sub": "Per account and UTC month", "tone": "system", "at": [4, 1], "opens": "usage-counting" },
+    { "id": "owner", "label": "Account owner", "sub": "Portal, Billing accounts page", "tone": "person", "at": [0, 2], "detail": "Sees the plan, allowances, usage with each organization's share, prices and issued invoices of the accounts they own; a draft answers 404. With card payments on they save a card and pay invoices on Stripe's pages.", "code": ["apps/portal/src/billing/BillingAccountsPage.tsx", "apps/portal/src/billing/PaymentMethodPanel.tsx", "apps/api/app/Domain/Billing/Http/Controllers/OwnedBillingAccountController.php"] },
+    { "id": "stripe", "label": "Stripe", "sub": "Through Laravel Cashier", "tone": "external", "at": [2, 2], "detail": "The billing account is Cashier's customer model; Cashier's subscriptions and routes are not used. Cards are saved and invoices paid on Stripe Checkout pages, so card numbers never reach the platform, and issued invoices are charged off-session. Stripe's signed events arrive at POST /api/stripe/webhook.", "code": ["apps/api/app/Domain/Billing/BillingServiceProvider.php", "apps/api/app/Domain/Billing/Services/Payments.php", "apps/api/app/Domain/Billing/Http/Controllers/StripeWebhookController.php"], "docs": ["docs/adr/ADR-037-invoices-and-card-payments.md", "docs/ops/billing-payments.md"] },
+    { "id": "invoices", "label": "Invoices and payments", "sub": "One per account and UTC month", "tone": "system", "at": [4, 2], "opens": "invoice-lifecycle" },
+    { "id": "switch", "label": "Card payments switch", "sub": "Both Stripe secrets set", "tone": "system", "at": [2, 3], "detail": "Payments::enabled() is true only when the Stripe secret and the webhook secret are both configured. While it is false every payment route and the webhook answer 404, no card is charged, and administrators record payments by hand. Invoices are still drafted and issued.", "code": ["apps/api/app/Domain/Billing/Services/Payments.php", "apps/api/app/Domain/Billing/Http/Controllers/OwnedPaymentController.php", "apps/api/config/cashier.php"], "docs": ["docs/ops/billing-payments.md"] }
+  ],
+  "edges": [
+    { "id": "admin-plans", "from": "admin", "to": "plans", "label": "creates" },
+    { "id": "plans-account", "from": "plans", "to": "account", "label": "assigned" },
+    { "id": "trials-account", "from": "trials", "to": "account", "label": "trial" },
+    { "id": "account-orgs", "from": "account", "to": "orgs", "label": "pays for" },
+    { "id": "account-limits", "from": "account", "to": "limits", "label": "allowances" },
+    { "id": "orgs-usage", "from": "orgs", "to": "usage", "label": "alerts,\ndevices" },
+    { "id": "runtime-usage", "from": "runtime", "to": "usage", "label": "data points" },
+    { "id": "usage-limits", "from": "usage", "to": "limits", "label": "counts" },
+    { "id": "usage-invoices", "from": "usage", "to": "invoices", "label": "overage" },
+    { "id": "invoices-stripe", "from": "invoices", "to": "stripe", "label": "charge the saved card" },
+    { "id": "stripe-invoices", "from": "stripe", "to": "invoices", "label": "signed events" },
+    { "id": "owner-stripe", "from": "owner", "to": "stripe", "label": "saves a card, pays" },
+    { "id": "switch-stripe", "from": "switch", "to": "stripe", "label": "on or off", "dashed": true }
+  ],
+  "steps": [
+    { "edge": "admin-plans", "text": "A platform administrator creates a plan: an allowance per kind, or none for the deployment default, and its prices." },
+    { "edge": "plans-account", "text": "Assigning the plan closes the account's open assignment and opens the next at the same instant, so the history says which plan applied at any moment." },
+    { "edge": "trials-account", "text": "A trial is the same assignment with kind trial. When it ends the account stays on the plan: paid with a saved card, trial_unpaid without one." },
+    { "edge": "account-orgs", "text": "The account's organizations share its allowances. Without a plan they keep the defaults: unlimited alerts, devices and data points, one organization, the platform's retention." },
+    { "edge": "runtime-usage", "text": "The runtime reports how many readings it stored per organization and hour, and Laravel adds the increase to the account that organization was on at that hour." },
+    { "edge": "orgs-usage", "text": "Laravel itself counts each alert activation and keeps the number of devices holding a place." },
+    { "edge": "usage-limits", "text": "Each count is compared with the allowance: owners are warned at 80% and when it is used up. Alerts and readings never stop; device activations are refused at the limit." },
+    { "edge": "usage-invoices", "text": "After a month ends and its usage is final, a draft invoice prices the paid days and the overage. An administrator issues it." },
+    { "edge": "owner-stripe", "text": "An owner saves a card on a Stripe Checkout page, or pays one invoice there." },
+    { "edge": "invoices-stripe", "text": "Issuing charges the saved card off-session, and again on the due date and seven days after if the invoice is still unpaid." },
+    { "edge": "stripe-invoices", "text": "Stripe's signed events settle the payment. A failed payment marks the invoice failed and the account past due after the due date; nothing is restricted." },
+    { "edge": "switch-stripe", "text": "Without both Stripe secrets all of this is off: payment routes answer 404 and administrators record payments by hand." }
+  ]
+}

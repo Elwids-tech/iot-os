@@ -1,0 +1,48 @@
+{
+  "id": "sign-in",
+  "title": "Sign-in and session",
+  "kind": "flow",
+  "summary": "The portal and admin sign in with Laravel Sanctum's stateful session: a cookie and a CSRF token, no bearer token in the browser. The server keeps no current organization. The browser picks one and names it in every request path, and the API checks membership each time. The top row is the ways in other than a password.",
+  "docs": ["docs/features/access.md", "docs/adr/ADR-008-laravel-sanctum-authentication.md"],
+  "boxes": [
+    { "id": "browser", "label": "Portal or admin", "sub": "Browser", "tone": "person", "at": [0, 1], "detail": "Both apps use the same API client. It sends cookies with every request and copies the XSRF-TOKEN cookie into the X-XSRF-TOKEN header.", "code": ["packages/api-client/src/index.ts", "apps/portal/src/App.tsx"] },
+    { "id": "login", "label": "POST auth/login", "sub": "SessionController::store", "tone": "system", "at": [1, 1], "detail": "The client first fetches /sanctum/csrf-cookie, then posts the email and password. The web guard checks them and the session id is regenerated. Limits: 5 tries a minute per email and address, 30 a minute per address, and none per account alone, which would let anyone lock a user out.", "code": ["apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php", "apps/api/app/Domain/Authentication/routes/api.php", "apps/api/app/Providers/AppServiceProvider.php"] },
+    { "id": "session", "label": "Session", "sub": "HTTP-only cookie, database rows", "tone": "store", "at": [2, 1], "detail": "The session lives in the database by default and the cookie is HTTP-only. The API runs Sanctum's stateful middleware, so auth:sanctum finds the user from the session for requests from the allowed frontend origins. Signing out invalidates the session and its CSRF token.", "code": ["apps/api/bootstrap/app.php", "apps/api/config/sanctum.php", "apps/api/config/session.php"] },
+    { "id": "me", "label": "GET me", "sub": "User, capabilities, organizations", "tone": "system", "at": [3, 1], "detail": "Returns the user's integer id, their organizations and platform capabilities such as manage_organizations. A super administrator gets every organization. The apps use this to decide what to show; the API enforces the same rules on its own.", "code": ["apps/api/app/Domain/Authentication/Http/Resources/AuthenticatedUserResource.php"], "docs": ["docs/adr/ADR-013-integer-user-ids.md"] },
+    { "id": "choose", "label": "Choose an organization", "sub": "In the browser, not the session", "tone": "system", "at": [4, 1], "detail": "The portal opens the organization the person used last, remembered in local storage per user, or the only one they have. Otherwise it shows a chooser. Switching is a navigation to /organizations/<uuid>/…; nothing is saved on the server.", "code": ["apps/portal/src/App.tsx"] },
+    { "id": "resolve", "label": "ResolveOrganizationContext", "sub": "Organization from the route", "tone": "system", "at": [4, 2], "detail": "Runs on organization routes after auth:sanctum. It takes the organization bound from the UUID in the path, requires a membership or a super administrator, and sets that organization as the team for role lookups until the request ends.", "code": ["apps/api/app/Domain/Authorization/Http/Middleware/ResolveOrganizationContext.php"] },
+    { "id": "check", "label": "Permission check", "sub": "Role in this organization", "tone": "system", "at": [3, 2], "opens": "authorization" },
+    { "id": "outside", "label": "404 or 403", "sub": "Unknown organization, or not a member", "tone": "system", "at": [4, 3], "detail": "An unknown or deleted organization answers 404. A real organization the person does not belong to answers 403, and the portal shows \"Workspace unavailable\" with the organizations they do have.", "code": ["apps/api/app/Domain/Authorization/Http/Middleware/ResolveOrganizationContext.php", "apps/portal/src/App.tsx"] },
+    { "id": "refused", "label": "Refused", "sub": "422 wrong password, 429 too many tries", "tone": "system", "at": [2, 0], "detail": "A wrong email or password answers 422 with the same message for both. Past the limit the answer is 429 with the seconds to wait.", "code": ["apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php", "apps/api/app/Providers/AppServiceProvider.php"] },
+    { "id": "forgot", "label": "Forgot password", "sub": "POST auth/forgot-password", "tone": "system", "at": [0, 0], "detail": "Always answers with the same message, whether or not the account exists. Limits: 10 a minute per address and 5 an hour per email. The emailed link carries the token in the URL fragment, so it stays out of server logs.", "code": ["apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php", "apps/api/app/Domain/Authentication/Notifications/PasswordResetNotification.php", "packages/auth/src/PasswordRecoveryPage.tsx"] },
+    { "id": "reset", "label": "Reset password", "sub": "POST auth/reset-password", "tone": "system", "at": [1, 0], "detail": "Consumes the token under a lock, so it works once. The new password needs 12 to 256 characters. The reset deletes the person's database sessions, signs this browser out and revokes their AI agent connections.", "code": ["apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php", "apps/api/app/Domain/Authentication/Http/Requests/ResetPasswordRequest.php"] },
+    { "id": "invite", "label": "Accept an invitation", "sub": "POST invitations/{token}/accept", "tone": "system", "at": [3, 0], "detail": "A public route. A new person chooses a name and password and the account is created as verified. An existing account must already be signed in with the invited email. Acceptance adds the membership and the invitation's roles, then signs the person in. Invitations last seven days and only a hash of the token is stored.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationInvitationManager.php", "apps/api/app/Domain/Administration/Http/Controllers/PublicOrganizationInvitationController.php", "packages/auth/src/AcceptInvitationPage.tsx"] }
+  ],
+  "edges": [
+    { "id": "browser-login", "from": "browser", "to": "login", "label": "CSRF cookie\nthen login" },
+    { "id": "login-session", "from": "login", "to": "session", "label": "regenerate" },
+    { "id": "session-me", "from": "session", "to": "me", "label": "cookie" },
+    { "id": "me-choose", "from": "me", "to": "choose", "label": "list" },
+    { "id": "choose-resolve", "from": "choose", "to": "resolve", "label": "UUID in the path" },
+    { "id": "resolve-check", "from": "resolve", "to": "check", "label": "member" },
+    { "id": "resolve-outside", "from": "resolve", "to": "outside", "label": "not a member", "dashed": true },
+    { "id": "login-refused", "from": "login", "to": "refused", "label": "wrong password,\ntoo many tries", "dashed": true },
+    { "id": "browser-forgot", "from": "browser", "to": "forgot", "label": "forgot password" },
+    { "id": "forgot-reset", "from": "forgot", "to": "reset", "label": "emailed\nlink" },
+    { "id": "reset-login", "from": "reset", "to": "login", "label": "sign in again" },
+    { "id": "invite-session", "from": "invite", "to": "session", "label": "signed in" }
+  ],
+  "steps": [
+    { "edge": "browser-login", "text": "The app fetches the CSRF cookie, then posts the email and password with the token in a header." },
+    { "edge": "login-refused", "text": "A wrong password answers 422. More than five tries a minute for one email from one address answers 429." },
+    { "edge": "login-session", "text": "On success the session id is regenerated. From here the cookie is the only credential the browser holds." },
+    { "edge": "session-me", "text": "The app asks who it is. The answer lists the person's organizations and what they may do at platform level." },
+    { "edge": "me-choose", "text": "The portal opens the last organization this person used, or their only one, or asks. The choice lives in the browser." },
+    { "edge": "choose-resolve", "text": "Each request carries the organization's UUID in its path. The middleware resolves it and looks for a membership." },
+    { "edge": "resolve-outside", "text": "No membership, no entry: 403, or 404 when the organization does not exist. Only a super administrator gets in without one." },
+    { "edge": "resolve-check", "text": "For a member, role lookups are now tied to this organization and the request goes on to its permission check." },
+    { "edge": "invite-session", "text": "An invitation is the other way in. Accepting it creates the account if needed, adds the membership and roles, and signs the person in." },
+    { "edge": "forgot-reset", "text": "A forgotten password is reset through an emailed link that works once and expires after an hour." },
+    { "edge": "reset-login", "text": "The reset ends every session the person had, so they sign in again with the new password." }
+  ]
+}

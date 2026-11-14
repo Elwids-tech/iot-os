@@ -1,0 +1,51 @@
+{
+  "id": "http-sources",
+  "title": "HTTP sources",
+  "kind": "flow",
+  "summary": "Two ways a vendor cloud feeds an adapter over HTTP. A webhook (top) is pushed to the public receiver, which authenticates it and hands it to the tenant's ingress broker. A polling source (bottom) runs inside the tenant runtime and asks the vendor's API on a schedule. Both end as decoder inputs, so the decoder and publisher are the same as for MQTT.",
+  "docs": ["docs/features/adapters.md", "docs/adr/ADR-022-webhook-receiver.md", "docs/adr/ADR-023-protocol-connectors.md"],
+  "boxes": [
+    { "id": "vendor", "label": "Vendor cloud", "sub": "Pushes deliveries", "tone": "external", "at": [0, 0], "detail": "Posts to the adapter's ingest URL, the public address plus `/w/<ingest id>`. The ingest ID is 32 random characters and is not a secret; the delivery still has to authenticate.", "code": ["apps/api/app/Domain/DeviceAdapters/Services/WebhookRoutes.php"] },
+    { "id": "receiver", "label": "Webhook receiver", "sub": "POST /w/<ingest id>, body ≤ 1 MiB", "tone": "system", "at": [1, 0], "detail": "A small public HTTP service with no database and no Docker access. It finds the adapter in a routing file that adapter-manager writes whenever Laravel changes a route or secret, and rereads every second. Bodies over 1 MiB, also after decompression, are refused. Deliveries never pass through Laravel.", "code": ["services/adapters/receiver.cjs", "apps/api/app/Domain/DeviceAdapters/Jobs/SyncWebhookRoute.php", "services/adapters/manager.cjs"], "docs": ["docs/adr/ADR-022-webhook-receiver.md"] },
+    { "id": "auth", "label": "Authenticate", "sub": "HMAC, header token or URL token", "tone": "system", "at": [2, 0], "detail": "Three modes: an HMAC-SHA256 signature of the body (optionally with a timestamp header, accepted within 5 minutes), a token in a header, or a token as the next URL segment. Up to two secrets are active so one can be rotated. Comparisons are constant-time, and an address with more than 30 failures in a minute is refused for 5 minutes.", "code": ["services/adapters/lib/webhook.cjs", "apps/api/app/Domain/DeviceAdapters/Services/SourceSettings.php"] },
+    { "id": "refused", "label": "Refused", "sub": "401, 413, 429 or 503", "tone": "state", "at": [2, 1], "detail": "Every authentication failure answers 401 without saying why. Rate limits answer 429: 10 a second per adapter with a burst of 100, and 50 a second per organization. A paused adapter or an unavailable broker answers 503 with Retry-After. The reason goes to the adapter's Activity in the receiver's next report.", "code": ["services/adapters/receiver.cjs", "apps/api/app/Domain/DeviceAdapters/Services/AdapterReports.php"] },
+    { "id": "sampling", "label": "Kept as a sample", "sub": "No webhook revision deployed", "tone": "state", "at": [3, 1], "detail": "Before a webhook revision is deployed the route is in `sampling`: an authenticated delivery is answered 202 and its first 64 KiB go to Laravel as a sample that can become a decoder fixture. Nothing is decoded or published.", "code": ["services/adapters/receiver.cjs", "apps/api/app/Domain/DeviceAdapters/Services/WebhookRoutes.php"] },
+    { "id": "ingress", "label": "Tenant ingress broker", "sub": "iot-os/webhook/<adapter uuid>", "tone": "store", "at": [4, 0], "detail": "The receiver publishes the body with MQTT 5 at QoS 1 as `webhook-<adapter uuid>`, an identity that can only publish to this topic. Path, query, content type, safe headers and a delivery ID travel as user properties. The 202 is sent only after the broker acknowledged.", "code": ["services/adapters/receiver.cjs", "services/adapters/manager.cjs"] },
+    { "id": "wsource", "label": "Webhook source node", "sub": "Persistent MQTT 5 session", "tone": "system", "at": [4, 1], "detail": "The adapter's source node in webhook mode. It subscribes with a session that survives restarts, rebuilds the request from the user properties as the input's `http` field, and keeps a retained online/offline status the receiver follows. While it is offline the receiver accepts at most 500 deliveries or 32 MiB.", "code": ["services/adapters/nodes/adapter.js", "services/adapters/receiver.cjs"] },
+    { "id": "vapi", "label": "Vendor HTTP API", "sub": "Answers with JSON", "tone": "external", "at": [0, 2], "detail": "Must be HTTPS and resolve only to public addresses; redirects are checked the same way and credentials are not sent to another host. A response is limited to 8 MiB, 30 seconds and 5,000 records.", "code": ["services/adapters/lib/poll.cjs", "services/adapters/lib/broker.cjs"] },
+    { "id": "fetch", "label": "Polling source node", "sub": "Fetch a page, split into records", "tone": "system", "at": [1, 2], "detail": "The source node in poll mode. On each run it builds a GET or POST from the saved settings, filling placeholders such as `{cursor}` and `{window_start}`, and places the credential as a header, query parameter, bearer token or basic auth. A JSON Pointer says where the records are. One tenant runtime sends at most 60 requests a minute.", "code": ["services/adapters/nodes/adapter.js", "services/adapters/lib/poll.cjs", "apps/api/app/Domain/DeviceAdapters/Services/SourceSettings.php"], "docs": ["docs/adr/ADR-023-protocol-connectors.md"] },
+    { "id": "decoder", "label": "Decoder and publisher", "sub": "Same as MQTT input", "tone": "system", "at": [4, 2], "opens": "adapter-runtime" },
+    { "id": "cursor", "label": "Commit the cursor", "sub": "After the page is settled", "tone": "system", "at": [2.5, 3], "detail": "The cursor (a timestamp, a token or a time window) is written to the runtime's data volume only when every record of the page was published, found duplicate or recorded as failed. A run takes up to 20 pages by default, then reports itself to Laravel as a poll run.", "code": ["services/adapters/nodes/adapter.js", "apps/api/app/Domain/DeviceAdapters/Services/PollingService.php"] },
+    { "id": "pollfail", "label": "Retrying or stopped", "sub": "By HTTP status", "tone": "state", "at": [0, 3], "detail": "408, 429, 5xx and network errors retry with a doubling delay up to an hour, or after the Retry-After the API gave. Other 4xx answers, a response that is not JSON or is too large, and a missing records location stop the poller until a person resumes it.", "code": ["services/adapters/lib/poll.cjs", "services/adapters/nodes/adapter.js"] }
+  ],
+  "edges": [
+    { "id": "vendor-receiver", "from": "vendor", "to": "receiver", "label": "POST" },
+    { "id": "receiver-auth", "from": "receiver", "to": "auth", "label": "body read" },
+    { "id": "receiver-refused", "from": "receiver", "to": "refused", "label": "too large", "dashed": true },
+    { "id": "auth-refused", "from": "auth", "to": "refused", "label": "fails, limited", "dashed": true },
+    { "id": "auth-sampling", "from": "auth", "to": "sampling", "label": "sampling", "dashed": true },
+    { "id": "auth-ingress", "from": "auth", "to": "ingress", "label": "running: MQTT 5 publish, QoS 1" },
+    { "id": "ingress-wsource", "from": "ingress", "to": "wsource", "label": "QoS 1" },
+    { "id": "wsource-decoder", "from": "wsource", "to": "decoder", "label": "input with http" },
+    { "id": "fetch-vapi", "from": "fetch", "to": "vapi", "label": "request" },
+    { "id": "vapi-fetch", "from": "vapi", "to": "fetch", "label": "JSON page" },
+    { "id": "fetch-decoder", "from": "fetch", "to": "decoder", "label": "one input per record, a page at a time" },
+    { "id": "decoder-cursor", "from": "decoder", "to": "cursor", "label": "page settled" },
+    { "id": "cursor-fetch", "from": "cursor", "to": "fetch", "label": "next page, or next run" },
+    { "id": "fetch-pollfail", "from": "fetch", "to": "pollfail", "label": "error", "dashed": true }
+  ],
+  "steps": [
+    { "edge": "vendor-receiver", "text": "A vendor cloud posts to the adapter's ingest URL. The receiver looks the ingest ID up in its routing file and reads the body, up to 1 MiB." },
+    { "edge": "receiver-auth", "text": "The delivery is authenticated with the adapter's mode: an HMAC signature of the body, a header token or a URL token, against at most two active secrets." },
+    { "edge": "auth-refused", "text": "A bad or stale signature answers 401. Past the rate limits it is 429, and for a paused adapter 503. The decoder never sees a refused delivery." },
+    { "edge": "auth-sampling", "text": "If no webhook revision is deployed yet, the delivery is answered 202 and kept as a sample to write the decoder against." },
+    { "edge": "auth-ingress", "text": "Otherwise the receiver publishes the body to the adapter's topic on the tenant's ingress broker and answers 202 only when the broker has acknowledged it." },
+    { "edge": "ingress-wsource", "text": "The adapter's source node takes it from its persistent session. If the runtime is restarting, the broker holds the deliveries, up to a bounded backlog." },
+    { "edge": "wsource-decoder", "text": "The decoder gets the body plus an `http` field with the path, query, content type, headers and delivery ID. Secrets and proxy headers are left out." },
+    { "edge": "fetch-vapi", "text": "A polling source has no receiver. Its source node wakes on its interval, between 60 seconds and 24 hours, and requests one page starting at the cursor." },
+    { "edge": "fetch-decoder", "text": "Each record of the page becomes one decoder input. The page is decoded and published before anything else happens." },
+    { "edge": "decoder-cursor", "text": "When every record is settled, the cursor moves and is written to disk. A crash before that fetches the page again; when the decoder returns message IDs, the publisher drops the repeats." },
+    { "edge": "cursor-fetch", "text": "If the API signals more data the next page follows at once; otherwise the run ends and is reported with its counts and cursor." },
+    { "edge": "fetch-pollfail", "text": "A temporary error retries with backoff. An error a retry cannot fix, such as rejected credentials, stops the poller until someone resumes it." }
+  ]
+}

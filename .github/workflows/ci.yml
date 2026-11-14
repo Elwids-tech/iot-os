@@ -142,7 +142,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @iot-os/api-client typecheck
       # Portal and admin lint = typecheck + design system guardrails (packages/ui/scripts/check-ui.mjs).
-      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin lint
+      - run: pnpm --filter @iot-os/portal --filter @iot-os/admin --filter @iot-os/atlas lint
       # Unit tests only: admin's test script is Playwright, which runs in the e2e job.
       - name: Unit tests
         run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test

@@ -1,0 +1,46 @@
+{
+  "id": "runtime",
+  "title": "Runtime",
+  "kind": "containers",
+  "summary": "One Go process, and only one instance may run (a PostgreSQL advisory lock). It is the Sparkplug host application, stores telemetry, evaluates automations, dispatches commands and reports what it applied back to Laravel. This map groups the code by job; it is not one box per package.",
+  "docs": ["docs/reference/events.md", "docs/adr/ADR-003-go-data-plane.md"],
+  "rows": 3.5,
+  "boxes": [
+    { "id": "broker", "label": "MQTT broker", "tone": "external", "at": [0, 0] },
+    { "id": "ingest", "label": "Telemetry ingest", "sub": "Sparkplug to readings", "tone": "system", "at": [1, 0], "opens": "telemetry-ingest" },
+    { "id": "storage", "label": "Storage consumer", "sub": "devices-storage", "tone": "system", "at": [2, 0], "detail": "Reads mapped readings from JetStream one message at a time and writes observations, latest values, diagnostics, the committed outbox and usage in one transaction.", "code": ["services/runtime/internal/app/control.go", "services/runtime/internal/storage/store.go"] },
+    { "id": "relay", "label": "Committed relay", "sub": "Outbox to stream", "tone": "system", "at": [3, 0], "detail": "Publishes stored readings from the telemetry outbox to the committed stream, in order, and feeds the telemetry streams that integration applications hold open.", "code": ["services/runtime/internal/app/committed.go", "services/runtime/internal/storage/committed.go"] },
+    { "id": "evaluator", "label": "Automation evaluator", "sub": "workflow-evaluator-v1", "tone": "system", "at": [4, 0], "detail": "Evaluates geofence rules and DAGs on committed telemetry. State, timers, transitions, intents and the checkpoint commit together.", "code": ["services/runtime/internal/app/rule_consumer.go", "services/runtime/internal/rules", "services/runtime/internal/dag"], "docs": ["docs/features/automation.md", "docs/adr/ADR-011-dag-automation-in-go.md"] },
+    { "id": "control", "label": "Control consumer", "sub": "devices-control", "tone": "system", "at": [0, 1], "detail": "Applies activations, deactivations, commands and deployments claimed from Laravel's outbox, fenced by generation. Commands leave as NCMD or DCMD.", "code": ["services/runtime/internal/app/control.go", "services/runtime/internal/app/commands.go"] },
+    { "id": "db", "label": "device_runtime schema", "sub": "TimescaleDB", "tone": "store", "at": [2.5, 1], "detail": "Observations are a hypertable with one-day chunks. The schema also holds latest values, diagnostics, both outboxes, rule and DAG state, connectivity and usage.", "code": ["services/runtime/internal/storage/schema.sql"] },
+    { "id": "api", "label": "Laravel API", "tone": "external", "at": [0, 2] },
+    { "id": "http", "label": "Internal HTTP", "sub": "Queries and checks", "tone": "system", "at": [1.5, 2], "detail": "Bearer-protected endpoints the API calls: latest values, history, captures, command checks, compile and simulate for rules and DAGs, status.", "code": ["services/runtime/internal/app/http.go"] },
+    { "id": "events", "label": "Event inbox", "sub": "devices-control-inbox", "tone": "system", "at": [3.5, 2], "detail": "Posts runtime events to Laravel in ordered batches: applied and failed operations, births, presence, transitions and intents.", "code": ["services/runtime/internal/app/inbox.go"], "docs": ["docs/adr/ADR-031-batched-runtime-events.md"] }
+  ],
+  "edges": [
+    { "id": "broker-ingest", "from": "broker", "to": "ingest", "label": "Sparkplug B" },
+    { "id": "ingest-storage", "from": "ingest", "to": "storage", "label": "telemetry\nstream" },
+    { "id": "storage-relay", "from": "storage", "to": "relay", "label": "outbox" },
+    { "id": "relay-evaluator", "from": "relay", "to": "evaluator", "label": "committed\nstream" },
+    { "id": "storage-db", "from": "storage", "to": "db" },
+    { "id": "evaluator-db", "from": "evaluator", "to": "db", "label": "state, checkpoint" },
+    { "id": "evaluator-events", "from": "evaluator", "to": "events", "label": "transitions,\nintents" },
+    { "id": "control-broker", "from": "control", "to": "broker", "label": "NCMD / DCMD" },
+    { "id": "api-control", "from": "api", "to": "control", "label": "claimed outbox rows" },
+    { "id": "api-http", "from": "api", "to": "http", "label": "GET /internal/…" },
+    { "id": "http-db", "from": "http", "to": "db", "label": "queries" },
+    { "id": "events-api", "from": "events", "to": "api", "label": "POST events/batch", "bend": 170 }
+  ],
+  "steps": [
+    { "edge": "broker-ingest", "text": "Every Sparkplug packet for a connection's group arrives here. The session engine validates it and the device's configuration maps metrics to readings." },
+    { "edge": "ingest-storage", "text": "Mapped readings are published to the IOT_DEVICE_TELEMETRY stream first. Storage can lag or retry without losing them." },
+    { "edge": "storage-db", "text": "The storage consumer commits readings and their outbox row in one transaction." },
+    { "edge": "storage-relay", "text": "The relay publishes what was stored to IOT_COMMITTED_TELEMETRY, so everything downstream sees only committed telemetry." },
+    { "edge": "relay-evaluator", "text": "Automations evaluate committed telemetry and commit their state with their checkpoint." },
+    { "edge": "evaluator-events", "text": "Transitions and action intents become runtime events." },
+    { "edge": "events-api", "text": "Laravel receives them in ordered batches and decides what happens: alerts, integration events or commands." },
+    { "edge": "api-control", "text": "In the other direction, Laravel's outbox rows are claimed and applied here, fenced by generation." },
+    { "edge": "control-broker", "text": "Commands and rebirth requests go out to devices as Sparkplug NCMD or DCMD." },
+    { "box": "ingest", "text": "Open telemetry ingest to follow one packet step by step." }
+  ]
+}

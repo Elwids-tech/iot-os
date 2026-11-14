@@ -1,0 +1,50 @@
+{
+  "id": "action-intents",
+  "title": "Action intents",
+  "kind": "flow",
+  "summary": "From a DAG action node to its effect. The runtime only records that an action was asked for. Laravel stores the request, and the automation worker decides again, at the time of acting, whether it is still allowed. A command is checked a third time by the runtime just before it is sent.",
+  "docs": ["docs/features/automation.md", "docs/reference/events.md"],
+  "boxes": [
+    { "id": "node", "label": "Action node fires", "sub": "alert, event or command", "tone": "system", "at": [0, 0], "detail": "An alert node asks only when its condition changes: activated starts a new episode, cleared ends it. Event and command nodes ask once per true episode or window, and not within their cooldown. A command node with several settings asks once per setting. Unknown input asks for nothing.", "code": ["services/runtime/internal/dag/evaluator.go", "services/runtime/internal/dag/commands.go"] },
+    { "id": "intent", "label": "automation.intent.v1", "sub": "dag_intents and the runtime outbox", "tone": "store", "at": [1, 0], "detail": "The intent's ID is a hash of the deployment, node and trigger, and it is stored once in the same transaction as the evaluation. It carries the node's configuration and a deadline: the command's ttl_seconds (1 to 300), or five minutes for alerts and events.", "code": ["services/runtime/internal/storage/dag.go", "services/runtime/internal/dag/types.go"] },
+    { "id": "inbox", "label": "Accept the intent", "sub": "DagActions::accept", "tone": "system", "at": [2.5, 0], "detail": "Inside the inbox transaction, with no side effects. The intent must name a deployment of that workflow, and its node and configuration must equal what the immutable deployment holds; otherwise it is refused with 422.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php"] },
+    { "id": "actions", "label": "automation_actions", "sub": "status: accepted", "tone": "store", "at": [4, 0], "detail": "One row per intent ID, inserted once. The row is the durable record of the action and its outcome, shown in the workflow's action history.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/database/migrations/2026_09_29_000000_add_dag_automation.php"] },
+    { "id": "worker", "label": "Automation worker", "sub": "automation:work, every second", "tone": "system", "at": [4, 1], "detail": "Its own container. Each pass takes up to 100 actions that are accepted or dispatched, oldest update first, and ticks each in its own transaction. An exception leaves the action for the next pass.", "code": ["apps/api/app/Domain/Automation/Console/AutomationWorker.php", "deploy/compose/compose.app.yml"] },
+    { "id": "checks", "label": "Re-authorization", "sub": "DagActions::tick, under row locks", "tone": "system", "at": [2.5, 1], "detail": "Automation must be enabled and not stopped for the organization. The action's deployment must be both the applied and the desired one, with no deployment pending and no stopped reason. The deadline must not have passed. The person who created the deployment must still exist and hold Workflow.activate.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Automation/Services/DagAuthorization.php"] },
+    { "id": "notdone", "label": "Not carried out", "sub": "cancelled, expired, suppressed, failed", "tone": "system", "at": [1, 1], "detail": "Cancelled: automation stopped or the execution was replaced. Expired: the deadline passed. Suppressed: the target's cooldown or rate limit. Failed: a permission, grant or configuration check refused it. The reason is kept on the action. Stopping the organization or replacing a deployment also cancels waiting actions at once.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Automation/Http/Controllers/DagController.php", "apps/api/app/Domain/Automation/Services/DagDeployment.php"] },
+    { "id": "alert", "label": "Raise or clear the alert", "sub": "AlertProjector", "tone": "system", "at": [4, 2], "detail": "One alert per deployment and episode. Activated and cleared are each applied once, counted against the alert allowance on activation, journaled, and sent to the workflow's recipients if notifications are on.", "code": ["apps/api/app/Domain/Automation/Services/AlertProjector.php"], "docs": ["docs/features/alerts.md"] },
+    { "id": "event", "label": "Journal integration event", "sub": "automation.triggered.v1", "tone": "system", "at": [3, 2], "detail": "Appends to the organization's integration event stream under its next sequence number, with the workflow, node, action ID and the name set on the node.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php"], "docs": ["docs/features/integrations.md"] },
+    { "id": "grant", "label": "Command grant and limits", "sub": "Grant, target, cooldown, rate", "tone": "system", "at": [2, 2], "detail": "The deployment must hold an unexpired grant for this node, binding and exact value. The approver must still have Device.command on the device, which must still be on the bound configuration and generation. No earlier command to that parameter may be uncertain or timed out and unreconciled. Then the grant's cooldown and maximum per minute are applied per device parameter.", "code": ["apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Automation/Services/DagDeployment.php"] },
+    { "id": "command", "label": "Device command", "sub": "DeviceCommandService::sendAutomation", "tone": "system", "at": [1, 2], "detail": "The same prepare and confirm path as a command sent by a person, with the action's deadline and an idempotency key derived from the intent ID. The action keeps the command's UUID; later passes of the worker copy the command's outcome onto the action: dispatched, observed at target, uncertain or failed.", "code": ["apps/api/app/Domain/Devices/Services/DeviceCommandService.php", "apps/api/app/Domain/Automation/Services/DagActions.php"], "docs": ["docs/features/devices.md"] },
+    { "id": "dispatch", "label": "Runtime dispatch check", "sub": "POST automation-command-check", "tone": "system", "at": [0, 2], "detail": "Just before the first physical send the runtime asks Laravel once more. Laravel repeats the stop, deployment, grant, permission and configuration checks and marks the action dispatched. No answer means the command fails without being sent; a refusal or a passed deadline cancels it. Otherwise it goes out as NCMD or DCMD.", "code": ["services/runtime/internal/app/commands.go", "apps/api/app/Domain/Automation/Services/DagActions.php", "apps/api/app/Domain/Devices/Http/Controllers/RuntimeController.php"] }
+  ],
+  "edges": [
+    { "id": "node-intent", "from": "node", "to": "intent", "label": "intent" },
+    { "id": "intent-inbox", "from": "intent", "to": "inbox", "label": "POST events/batch" },
+    { "id": "inbox-actions", "from": "inbox", "to": "actions", "label": "insert once" },
+    { "id": "actions-worker", "from": "actions", "to": "worker", "label": "accepted,\ndispatched" },
+    { "id": "worker-checks", "from": "worker", "to": "checks", "label": "tick" },
+    { "id": "checks-notdone", "from": "checks", "to": "notdone", "label": "cancelled, expired, failed", "dashed": true },
+    { "id": "checks-alert", "from": "checks", "to": "alert", "label": "alert", "labelAt": 0.62 },
+    { "id": "checks-event", "from": "checks", "to": "event", "label": "event" },
+    { "id": "checks-grant", "from": "checks", "to": "grant", "label": "command" },
+    { "id": "grant-notdone", "from": "grant", "to": "notdone", "label": "suppressed,\nfailed", "dashed": true },
+    { "id": "grant-command", "from": "grant", "to": "command", "label": "send" },
+    { "id": "command-dispatch", "from": "command", "to": "dispatch", "label": "device.\ncommand.v1" },
+    { "id": "dispatch-notdone", "from": "dispatch", "to": "notdone", "label": "not allowed", "dashed": true }
+  ],
+  "steps": [
+    { "edge": "node-intent", "text": "An action node's condition becomes true. The evaluation records an intent with a stable ID and a deadline; nothing has happened yet." },
+    { "edge": "intent-inbox", "text": "The intent reaches Laravel as a runtime event. It is accepted only if it matches the immutable deployment it names." },
+    { "edge": "inbox-actions", "text": "It is stored once as an action with status accepted." },
+    { "edge": "actions-worker", "text": "The automation worker picks up waiting actions about once a second." },
+    { "edge": "worker-checks", "text": "Under locks on the workflow, the organization's settings and the action, it checks the stop switch, that the deployment is still the current one, the deadline and the approver's permission." },
+    { "edge": "checks-notdone", "text": "If automation was stopped or the deployment replaced, the action is cancelled; past its deadline it expires. The reason is kept." },
+    { "edge": "checks-alert", "text": "An alert action opens or clears the workflow's alert episode." },
+    { "edge": "checks-event", "text": "An event action appends automation.triggered.v1 to the organization's integration events." },
+    { "edge": "checks-grant", "text": "A command action needs more: an unexpired grant for the exact value, Device.command, an unchanged device configuration and no unreconciled uncertain command to that parameter." },
+    { "edge": "grant-notdone", "text": "Inside the cooldown or over the per-minute limit for that device parameter, the action is suppressed." },
+    { "edge": "grant-command", "text": "Otherwise the command is created through the normal command pipeline, with the action's deadline." },
+    { "edge": "command-dispatch", "text": "Before sending, the runtime asks Laravel to confirm the action is still allowed. If Laravel cannot be reached, the command is not sent." }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "id": "authorization",
+  "title": "One authorized request",
+  "kind": "flow",
+  "summary": "What stands between a signed-in person and an organization's data, using GET organizations/{organization}/devices as the example. The middle row is the request. The ceiling is not checked there: the two rows below show how it is enforced when roles are written, so a role can never hold a permission outside it.",
+  "docs": ["docs/features/access.md", "specs/003-tenant-scoping/spec.md"],
+  "boxes": [
+    { "id": "request", "label": "Request", "sub": "GET organizations/{uuid}/devices", "tone": "person", "at": [0, 1], "detail": "Every tenant route sits under /api/v1/organizations/{organization}, where the organization is its UUID. Each domain registers its own routes with the same two middleware.", "code": ["apps/api/app/Domain/Devices/routes/api.php", "apps/api/routes/api.php"] },
+    { "id": "sanctum", "label": "auth:sanctum", "sub": "Session cookie to user", "tone": "system", "at": [1, 1], "detail": "Sanctum's stateful middleware reads the session cookie and resolves the user on the web guard. Roles and permissions always resolve on that guard.", "code": ["apps/api/bootstrap/app.php", "apps/api/app/Domain/Shared/Models/User.php"], "docs": ["docs/adr/ADR-008-laravel-sanctum-authentication.md"] },
+    { "id": "resolve", "label": "ResolveOrganizationContext", "sub": "Membership, then the team", "tone": "system", "at": [2, 1], "detail": "Requires the person to be a member of the organization in the path, or a super administrator. It then sets the organization's id as the spatie team and clears the user's loaded roles, so every role lookup in this request is for this organization. The previous team is restored afterwards.", "code": ["apps/api/app/Domain/Authorization/Http/Middleware/ResolveOrganizationContext.php"] },
+    { "id": "authorize", "label": "DeviceAuthorization", "sub": "authorize(user, permission, org)", "tone": "system", "at": [3, 1], "detail": "The controller's first line. Each domain has a service like it (DagAuthorization, DashboardAccess, DeviceProfileAuthorization) rather than a policy class. A resource that belongs to another organization answers 404 before the permission is looked at; a missing permission answers 403.", "code": ["apps/api/app/Domain/Devices/Services/DeviceAuthorization.php", "apps/api/app/Domain/Devices/Http/Controllers/DeviceController.php", "apps/api/app/Domain/Devices/Permissions/DevicePermission.php"] },
+    { "id": "query", "label": "Organization-scoped query", "sub": "where organization_id = …", "tone": "store", "at": [4, 1], "detail": "The query starts from the organization: the device list filters by organization_id, validation rules look up related rows in the same organization, and calls to the runtime pass its organization_uuid.", "code": ["apps/api/app/Domain/Devices/Services/DeviceDirectory.php", "apps/api/app/Domain/Devices/Http/Controllers/DeviceController.php"] },
+    { "id": "refused", "label": "Refused", "sub": "401, 403 or 404", "tone": "system", "at": [2, 0], "detail": "401 without a session. 404 for an unknown organization or a resource of another organization. 403 for a person who is not a member or whose roles lack the permission.", "code": ["apps/api/app/Domain/Authorization/Http/Middleware/ResolveOrganizationContext.php", "apps/api/app/Domain/Devices/Services/DeviceAuthorization.php"] },
+    { "id": "super", "label": "Super administrator", "sub": "users.is_super_admin", "tone": "person", "at": [3, 0], "detail": "The only full bypass. A super administrator passes the membership check, every domain permission check and, through Gate::before, every gate. A platform administrator does not: that role opens the admin routes and the members and roles of any organization, not its devices or data.", "code": ["apps/api/app/Providers/AppServiceProvider.php", "apps/api/app/Domain/Authorization/Services/PlatformAuthorization.php", "apps/api/app/Domain/Administration/Services/OrganizationAdministrationAuthorization.php"], "docs": ["specs/007-super-administrators/spec.md"] },
+    { "id": "roles", "label": "Role in the organization", "sub": "hasPermissionTo under the team", "tone": "store", "at": [3, 2], "detail": "spatie/laravel-permission with teams, keyed by organization_id. A role row belongs to one organization and an assignment row names the user, the role and the organization, so the lookup returns only what the person holds here.", "code": ["apps/api/config/permission.php", "apps/api/app/Domain/Authorization/Models/Role.php", "apps/api/app/Domain/Authorization/Enums/OrganizationRoleName.php"] },
+    { "id": "rolewrites", "label": "Role and member changes", "sub": "OrganizationRoleManager", "tone": "system", "at": [2, 2], "detail": "Creating or editing a role accepts only permissions from the organization's ceiling. Organization Admin cannot be edited: it follows the ceiling. An organization always keeps at least one Organization Admin.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationRoleManager.php", "apps/api/app/Domain/Administration/Services/OrganizationMembershipManager.php"] },
+    { "id": "ceiling", "label": "Permission ceiling", "sub": "OrganizationPermissionCeiling", "tone": "system", "at": [1, 2], "detail": "Every tenant permission unless the organization is restricted, then only the selected ones. Changing it runs reconcile in the same transaction: permissions outside the new ceiling are deleted from every role of the organization and Organization Admin is set to exactly the ceiling.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationPermissionCeiling.php", "apps/api/app/Domain/Administration/Services/OrganizationDefaultRoles.php"] },
+    { "id": "platform", "label": "Platform administrator", "sub": "manage-organizations", "tone": "person", "at": [1, 3], "detail": "The admin routes sit behind can:PlatformAdministration.manage-organizations, a gate answered from the person's platform roles. Holders set ceilings and may manage members and roles of an organization without belonging to it, granting up to the whole ceiling.", "code": ["apps/api/app/Domain/Administration/routes/api.php", "apps/api/app/Domain/Authorization/Permissions/PlatformAdministrationPermission.php", "apps/api/app/Domain/Administration/Http/Controllers/PlatformOrganizationPermissionController.php"], "docs": ["specs/008-platform-administrators/spec.md"] },
+    { "id": "grants", "label": "OrganizationGrants", "sub": "No escalation", "tone": "system", "at": [2, 3], "detail": "A member can hand out only permissions that are inside the ceiling and that they hold themselves in that organization. The same rule guards editing a role, changing or removing a member and sending an invitation. A violation answers 422.", "code": ["apps/api/app/Domain/Administration/Services/OrganizationGrants.php", "apps/api/app/Domain/Administration/Services/OrganizationInvitationManager.php"], "docs": ["specs/005-admin-organization-roles/spec.md"] }
+  ],
+  "edges": [
+    { "id": "request-sanctum", "from": "request", "to": "sanctum", "label": "cookie" },
+    { "id": "sanctum-resolve", "from": "sanctum", "to": "resolve", "label": "user" },
+    { "id": "resolve-authorize", "from": "resolve", "to": "authorize", "label": "member" },
+    { "id": "authorize-roles", "from": "authorize", "to": "roles", "label": "has the permission?" },
+    { "id": "authorize-query", "from": "authorize", "to": "query", "label": "allowed" },
+    { "id": "sanctum-refused", "from": "sanctum", "to": "refused", "label": "401", "dashed": true },
+    { "id": "resolve-refused", "from": "resolve", "to": "refused", "label": "404, 403", "dashed": true },
+    { "id": "authorize-refused", "from": "authorize", "to": "refused", "label": "404, 403", "dashed": true },
+    { "id": "authorize-super", "from": "authorize", "to": "super", "label": "passes every check", "dashed": true },
+    { "id": "ceiling-rolewrites", "from": "ceiling", "to": "rolewrites", "label": "bounds" },
+    { "id": "rolewrites-roles", "from": "rolewrites", "to": "roles", "label": "writes" },
+    { "id": "platform-ceiling", "from": "platform", "to": "ceiling", "label": "sets" },
+    { "id": "grants-rolewrites", "from": "grants", "to": "rolewrites", "label": "what the actor may grant" }
+  ],
+  "steps": [
+    { "edge": "request-sanctum", "text": "The request arrives with the session cookie. Sanctum resolves the user." },
+    { "edge": "sanctum-refused", "text": "Without a valid session the answer is 401 and nothing else runs." },
+    { "edge": "sanctum-resolve", "text": "The route binds the organization from the UUID in the path. An unknown one is 404." },
+    { "edge": "resolve-refused", "text": "The person must be a member of that organization. If not, 403." },
+    { "edge": "resolve-authorize", "text": "The middleware sets the organization as the team for role lookups. The controller then asks for one permission, here Device.view." },
+    { "edge": "authorize-roles", "text": "The check loads the roles the person holds in this organization and looks for the permission in them." },
+    { "edge": "authorize-refused", "text": "No role with the permission is 403. A device that belongs to another organization is 404, so its existence does not leak." },
+    { "edge": "authorize-super", "text": "A super administrator skips both the membership and the permission check. A platform administrator does not." },
+    { "edge": "authorize-query", "text": "The query then filters by the organization, and anything asked of the runtime carries its organization_uuid." },
+    { "edge": "ceiling-rolewrites", "text": "The ceiling was applied earlier, when the role was written: a role only accepts permissions the organization may grant." },
+    { "edge": "grants-rolewrites", "text": "Whoever edits a role or a member can grant only what they hold themselves, inside that ceiling." },
+    { "edge": "platform-ceiling", "text": "When a platform administrator narrows the ceiling, the dropped permissions are removed from every role at once." }
+  ]
+}

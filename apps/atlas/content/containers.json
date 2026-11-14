@@ -1,0 +1,52 @@
+{
+  "id": "containers",
+  "title": "Containers",
+  "kind": "containers",
+  "summary": "Laravel owns intent: definitions, authorization, AI orchestration and the public API. Go executes activated definitions in the data plane. Desired state lives in Laravel, applied state is reported by Go, and both fence work by generation.",
+  "docs": ["docs/architecture/overview.md", "docs/adr/ADR-014-control-plane-data-plane-http-integration.md"],
+  "boxes": [
+    { "id": "portal", "label": "Portal", "sub": "React, tenant app", "tone": "system", "at": [1, 0], "detail": "Devices, profiles, dashboards, automations, alerts, integrations and settings. It polls the API; there is no realtime push.", "code": ["apps/portal"] },
+    { "id": "admin", "label": "Admin", "sub": "React, platform app", "tone": "system", "at": [2, 0], "detail": "Organizations, users, roles, permission ceilings and retention.", "code": ["apps/admin"] },
+    { "id": "brokeradmin", "label": "broker-admin", "sub": "Credentials and ACLs", "tone": "system", "at": [0, 1], "detail": "Applies credentials and ACLs to Mosquitto Dynamic Security, so each organization's credentials are confined to its own Sparkplug group.", "code": ["services/runtime/cmd/broker-admin"], "docs": ["docs/adr/ADR-009-mosquitto-default-broker.md"] },
+    { "id": "api", "label": "API", "sub": "Laravel control plane", "tone": "system", "at": [1.5, 1], "detail": "Public, integration and internal APIs. Code is organized by domain, each with its own routes, models and services.", "code": ["apps/api/app/Domain"], "docs": ["docs/reference/api.md"] },
+    { "id": "workers", "label": "Workers", "sub": "Laravel queues and scheduler", "tone": "system", "at": [3, 1], "detail": "Automation, alerts, webhooks, assistant and device-adapter workers, plus the scheduler. Same codebase as the API.", "code": ["deploy/compose/compose.app.yml"] },
+    { "id": "manager", "label": "adapter-manager", "sub": "Deploys tenant runtimes", "tone": "system", "at": [4, 1], "detail": "Starts and updates one adapter runtime per tenant.", "code": ["services/adapters/manager.cjs"], "docs": ["docs/features/adapters.md"] },
+    { "id": "broker", "label": "MQTT broker", "sub": "Mosquitto", "tone": "store", "at": [0, 2], "detail": "The platform broker. Tenant identity comes from the authenticated connection, never from the payload.", "docs": ["docs/ops/broker.md"] },
+    { "id": "runtime", "label": "Runtime", "sub": "Go data plane", "tone": "system", "at": [1.5, 2], "opens": "runtime" },
+    { "id": "db", "label": "PostgreSQL + TimescaleDB", "sub": "public: Laravel, device_runtime: Go", "tone": "store", "at": [3, 2], "detail": "One database, two owners. Laravel owns the public schema. Go owns device_runtime: telemetry, latest state, outboxes, rule and DAG state.", "code": ["services/runtime/internal/storage/schema.sql"] },
+    { "id": "tenant", "label": "Tenant adapter runtime", "sub": "Ingress broker + Node-RED", "tone": "system", "at": [4, 2], "detail": "Per tenant: a Mosquitto ingress broker and a Node-RED runtime that runs the decoder and republishes Sparkplug B.", "code": ["services/adapters"], "docs": ["docs/adr/ADR-010-per-tenant-adapter-runtimes.md"] },
+    { "id": "devices", "label": "Sparkplug B devices", "tone": "external", "at": [0, 3] },
+    { "id": "nats", "label": "NATS JetStream", "sub": "Used only by the runtime", "tone": "store", "at": [1.5, 3], "detail": "Durable streams inside the data plane: control, runtime events, telemetry before storage and committed telemetry. Laravel has no NATS client.", "docs": ["docs/reference/events.md"] },
+    { "id": "vendor", "label": "Vendor MQTT devices", "tone": "external", "at": [4, 3] }
+  ],
+  "edges": [
+    { "id": "portal-api", "from": "portal", "to": "api", "label": "session cookie" },
+    { "id": "admin-api", "from": "admin", "to": "api" },
+    { "id": "api-db", "from": "api", "to": "db" },
+    { "id": "workers-db", "from": "workers", "to": "db" },
+    { "id": "api-runtime", "from": "api", "to": "runtime", "label": "internal HTTP" },
+    { "id": "runtime-api", "from": "runtime", "to": "api", "label": "claim outbox,\npost events" },
+    { "id": "runtime-nats", "from": "runtime", "to": "nats", "label": "streams" },
+    { "id": "runtime-db", "from": "runtime", "to": "db", "label": "device_runtime" },
+    { "id": "broker-runtime", "from": "broker", "to": "runtime", "label": "Sparkplug B" },
+    { "id": "runtime-broker", "from": "runtime", "to": "broker", "label": "commands" },
+    { "id": "api-brokeradmin", "from": "api", "to": "brokeradmin", "label": "credentials" },
+    { "id": "brokeradmin-broker", "from": "brokeradmin", "to": "broker" },
+    { "id": "workers-manager", "from": "workers", "to": "manager", "label": "deploy" },
+    { "id": "manager-tenant", "from": "manager", "to": "tenant" },
+    { "id": "devices-broker", "from": "devices", "to": "broker", "label": "MQTT over TLS" },
+    { "id": "vendor-tenant", "from": "vendor", "to": "tenant", "label": "native payloads" },
+    { "id": "tenant-broker", "from": "tenant", "to": "broker", "label": "Sparkplug B", "bend": 170 }
+  ],
+  "steps": [
+    { "edge": "devices-broker", "text": "A device publishes Sparkplug B to the platform broker. Its credentials confine it to its organization's group." },
+    { "edge": "broker-runtime", "text": "The runtime is the Sparkplug host application. It subscribes per broker connection and never asks Laravel how to process a message." },
+    { "edge": "runtime-nats", "text": "Readings take a durable hop through JetStream before storage, so telemetry keeps flowing while Laravel or the database is briefly down." },
+    { "edge": "runtime-db", "text": "The runtime writes observations, latest values and diagnostics to its own schema." },
+    { "edge": "portal-api", "text": "The portal asks the API for latest values and history." },
+    { "edge": "api-runtime", "text": "The API authorizes the request, then reads from the runtime over internal HTTP. It also pushes definitions this way." },
+    { "edge": "runtime-api", "text": "The runtime claims Laravel's outbox rows and posts back what it applied, so desired and applied state stay separate." },
+    { "edge": "tenant-broker", "text": "Vendor devices join the same path: the tenant's adapter runtime republishes their data as Sparkplug B." },
+    { "box": "runtime", "text": "Open the runtime to follow one reading through it." }
+  ]
+}
