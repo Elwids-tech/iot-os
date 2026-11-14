@@ -56,7 +56,7 @@ the code as evidence.
 | [ADR-039](ADR-039-hosted-devices-and-moves.md) | Devices move between organizations of one billing account as an archived predecessor and a linked successor; a device can be hosted by another organization's pipe (adapter or gateway), which stays with its owner; history follows only by the mover's choice; amends ADR-026 | Accepted (built in spec 031); amended by ADR-040 and ADR-041 |
 | [ADR-040](ADR-040-moved-back-devices-read-their-own-readings.md) | A device moved back reads the readings its earlier predecessors recorded in its own organization, as its own, whatever each move shared; readings from other organizations stay per link; amends ADR-039 | Accepted (built in spec 031); amended by ADR-041 |
 | [ADR-041](ADR-041-shared-history-follows-every-move.md) | Sharing a move's history shares the whole history the device had, earlier moves included; each part is read where it was recorded; stopping a move ends what crossed it for every device after it; amends ADR-039 and ADR-040 | Accepted (built in spec 031) |
-| [ADR-042](ADR-042-store-telemetry-once.md) | A reading is stored once, in observations or diagnostics; the committed outbox keeps a full event only for its eight-day queue and ledger window; a slim event row keeps identity, order and generation for the retention; location readers rebuild events from the stored readings | Proposed |
+| [ADR-042](ADR-042-store-telemetry-once.md) | A reading is stored once, in observations or diagnostics; the committed outbox keeps a full event only for its eight-day queue and ledger window; a slim event row keeps identity, order and generation for the retention; location readers rebuild events from the stored readings | Accepted (not built yet) |
 
 ## Template
 
