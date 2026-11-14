@@ -90,13 +90,15 @@ environment label).
 7. Take a backup immediately and test a restore on a disposable host before
    inviting anyone.
 
-`manage.py` needs Python 3.12+ and PyYAML on Linux and takes a non-blocking lock for
-write operations. The application database role owns only the `public` schema; the
+`manage.py` needs Python 3.12+ and PyYAML on Linux and takes the operation lock for
+every command after `validate`, waiting up to 1800 s for another holder (45 s for
+`metrics`, which runs every minute) before failing. The application database role owns only the `public` schema; the
 runtime role owns `device_runtime`; the API can read runtime telemetry for
 operations metrics. The Postgres superuser is used only for initialization, backup
 and recovery jobs.
 
-Commands: `init`, `validate`, `render`, `deploy`, `backup`, `restore`,
+Commands: `init`, `passport-keys` (adds Passport keys to an existing environment
+file), `validate`, `render`, `deploy`, `backup`, `restore`,
 `certificates`, `staging`, `metrics`, `monitoring_heartbeat`, `smoke`. Upgrades of a
 running deployment go through [`ship.py`](#shipping-an-upgrade).
 

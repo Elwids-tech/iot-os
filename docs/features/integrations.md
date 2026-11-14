@@ -348,12 +348,12 @@ verification flag ([testing](../dev/testing.md#verification-scripts)).
 
 ## SDK and sample host
 
-[`@iot-os/integration-sdk`](../../packages/integration-sdk/README.md) (0.5.0, Node
-22.12+, not published to a registry) covers devices, alerts, the event feed,
-webhook verification, telemetry (one device with `latestTelemetry()`, up to 100 with
+[`@iot-os/integration-sdk`](../../packages/integration-sdk/README.md) (0.6.0, Node
+22.12+, not published to a registry) covers devices (the device read includes
+`profile`, `site` and `parameters`), sites, alerts, the event feed, webhook
+verification, telemetry (one device with `latestTelemetry()`, up to 100 with
 `latestQuery()`), records, location bindings and fixes, the location map and
-geofences; the 0.6.0 surface adds `sites()` and the device read's `profile`, `site`
-and `parameters` (released with spec 030's last pull request). It validates responses at runtime, rejects redirects, has a
+geofences. It validates responses at runtime, rejects redirects, has a
 15-second default timeout and never retries automatically. It accepts every event
 type in the contract, `automation.triggered.v1` included.
 

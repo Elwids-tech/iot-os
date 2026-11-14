@@ -9,7 +9,8 @@ use Illuminate\Support\Str;
 
 /**
  * One alert transition a recipient received, for their bell (spec 022). Written by
- * AlertProjector in the runtime inbox transaction, so it is not queued. The id is a
+ * AlertProjector in the transaction that projects the transition (the runtime inbox's,
+ * or the automation worker's for a DAG alert action), so it is not queued. The id is a
  * UUIDv7, which sorts by time: send each instance to one notifiable only.
  */
 final class AlertTransitionNotification extends Notification

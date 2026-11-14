@@ -413,8 +413,9 @@ Nothing is copied:
 
 - **Where they stay.** The readings stay stored for the source, under the source's
   retention, and the target sees them for as long as the source keeps them. Laravel
-  decides the crossing and asks the runtime twice, once for the archived device under
-  the source and once for the new device, then joins the answers; the runtime never
+  decides each crossing and asks the runtime once for the new device and once for
+  each earlier part of its move chain, each under the organization it was recorded
+  in, then joins the answers; the runtime never
   reads across organizations.
 - **Labelled.** Every reading carries `recorded_in`: `source` for the archived
   device's, `self` for the device's own. The device page's chart and dashboard
@@ -531,7 +532,8 @@ requests ([Sparkplug reference](../reference/sparkplug.md)).
   a backlog uploaded after an outage appears when it was measured. The runtime's
   default, used by the integration API, is receipt time with one series per
   configuration.
-- **Queries.** History defaults to 24 hours and respects retention. Numeric
+- **Queries.** History takes a required `from` and `to` (the portal's device page
+  opens on the last 24 hours) and respects retention. Numeric
   aggregation returns average, minimum, maximum and count and preserves gaps.
   Queries accept 10–1000 target points; more than 2000 resulting points returns an
   error rather than truncating.
@@ -588,8 +590,11 @@ Rules for both:
   compatible session; dispatch checks session and deadline again. Offline, stale,
   incompatible or unauthorized controls cannot send, and offline commands are not
   queued.
-- Confirmation starts a 30-second deadline. Only a later valid live reading in the
-  same session that matches the target makes a command **observed**. A fresh
+- Confirmation starts a 30-second deadline. Only a later live reading of good quality in
+  the same session and configuration that matches the target makes a command
+  **observed**. The runtime checks every reading its storage consumer handles for the
+  current configuration, including a batch that storage discarded rather than
+  kept. A fresh
   matching value reports **already at target** without sending. Broker
   acknowledgement never completes a command.
 - Uncertain sends, and commands claimed when the runtime restarts, are **never
