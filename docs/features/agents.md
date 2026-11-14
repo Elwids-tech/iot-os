@@ -2,8 +2,8 @@
 
 People can connect their own AI agent (Claude.ai, Claude Desktop, Claude Code or any
 other Model Context Protocol client) to one organization. The agent investigates
-devices and prepares changes for the person to review. It acts with that person's
-permissions and never performs a live action. Design and decisions:
+devices with read-only tools. It acts with that person's permissions and never
+performs a live action. Design and decisions:
 [spec 004](../../specs/004-ai-agent-access/spec.md) and
 [ADR-018](../adr/ADR-018-agent-access-oauth.md).
 
@@ -50,7 +50,10 @@ application tokens.
   use the person's web-guard roles.
 
 A connection binds one person's agent (a Passport client) to one organization and an
-access level (`read` or `draft`). It ends when any of these happens:
+access level (`read` or `draft`). Every tool today needs only `read`
+([`PlatformServer::TOOLS`](../../apps/api/app/Domain/Agents/Mcp/PlatformServer.php)), so
+`draft` grants nothing more yet: no tool prepares changes. It ends when any of these
+happens:
 
 - the person or an administrator disconnects it;
 - the person is removed from the organization;

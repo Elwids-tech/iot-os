@@ -23,7 +23,11 @@ one too, keyed by `episode_key`. Its condition is **active** until the runtime r
 it cleared (`cleared_at`).
 
 - Projection of the runtime transition, the alert, its audit record, the event-log
-  entry, the integration event and queued email jobs commit in one transaction.
+  entry, the integration event and queued email jobs commit in one transaction. For a
+  geofence or offline transition that is the runtime inbox's transaction. A DAG alert
+  action is first stored as an intent in the inbox transaction; the automation worker
+  projects it shortly after, in its own transaction
+  ([`DagActions`](../../apps/api/app/Domain/Automation/Services/DagActions.php)).
   Replayed runtime events cannot create a second alert or a second email.
 - **Acknowledgement** records the first actor and time and is idempotent. It does
   not clear the condition or stop notifications. Several alerts can be

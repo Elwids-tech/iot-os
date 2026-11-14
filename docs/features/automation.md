@@ -62,9 +62,10 @@ another node, click it.
 
 | Group | Nodes |
 | --- | --- |
-| Sources | `source.parameter.v1` (an applied device parameter), `constant.v1`, `geofence.v1` |
-| Maths and logic | `math.v1`, `convert.v1`, `compare.v1`, `boolean.v1`, `branch.v1`, `hysteresis.v1` |
-| Time | `window.v1`, `join.v1`, `sustained.v1`, `cooldown.v1` |
+| Inputs | `source.parameter.v1` (an applied device parameter), `constant.v1` |
+| Calculations | `math.v1`, `convert.v1` |
+| Conditions | `compare.v1`, `boolean.v1`, `branch.v1`, `hysteresis.v1`, `geofence.v1` |
+| Timing & correlation | `window.v1`, `join.v1`, `sustained.v1`, `cooldown.v1` |
 | Actions | `action.alert.v1`, `action.event.v1` (integration event), `action.command.v1` (Set device state) |
 
 Graph limits: 2–100 nodes, 200 edges, 32 device bindings, at least one action and
@@ -159,6 +160,11 @@ evaluation. A failed check refuses the activation, or suspends the running execu
 | `binding_changed: <role>` | The bound device was reconfigured or reactivated, so the binding's configuration or applied generation is no longer the applied one. A refused device activation changes neither | Pick the device again in the bindings and activate |
 | `device_review_required: <role>` | The binding holds, but the device's source announced a birth that does not match its approved configuration ([devices](devices.md#configuration-and-activation)) | Review clears when the source announces the approved metrics again, or after the device's configuration is reviewed and activated; then activate the automation |
 | `unmapped or incompatible binding: <role>` | The parameter is no longer mapped, or its type or unit changed | Update the binding and activate |
+
+These are the binding reasons. Any other error while evaluating, such as a source
+exceeding its sample buffer, also suspends the execution, and the runtime stores the
+error's text as the reason
+([`storage/dag.go`](../../services/runtime/internal/storage/dag.go)).
 
 The automation list and editor name the device that needs review. Laravel records a
 suspension's `stopped_reason` as `binding_changed` or `device_review_required`. A
@@ -255,7 +261,7 @@ Under `/api/v1/organizations/{organization}/workflows`
 | `POST {w}/deployments`, `PUT dag/settings`, `POST dag/commands/{c}/reconcile` | Activation, preview and emergency stop, reconciliation | `Workflow.activate` |
 | `POST {w}/archive` | Turn off and hide | `Workflow.manage` and `Workflow.activate` |
 | `POST {w}/restore` | Bring back, off | `Workflow.manage` |
-| `GET {w}/execution`, `{w}/actions`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` (execution: `Device.view`) |
+| `GET {w}/execution`, `{w}/actions`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` |
 
 Organization Admin has all three `Workflow.*` permissions; Moderators and Members
 have `Workflow.view`.
@@ -268,8 +274,9 @@ Reference graph: [`contracts/rules/v2/workflow.fixture.json`](../../contracts/ru
 
 A **location binding** says which applied configuration parameters are a device's
 latitude, longitude (unit `deg`) and optional accuracy (`m`), with freshness
-(`max_age_seconds`, default 90) and clock-skew limits (`max_future_skew_seconds`,
-default 5) and whether unknown accuracy is allowed (`PUT location-bindings/{device}`).
+(`max_age_seconds`, 1–86400) and clock-skew limits (`max_future_skew_seconds`, 0–300)
+and whether unknown accuracy is allowed (`PUT location-bindings/{device}`). The API
+requires both limits; the portal fills in 90 and 5 seconds.
 Each save sends the binding's `revision` (0 for a new one); a stale revision gets 409.
 
 In the portal, the device **Overview → Location** card says whether the location is

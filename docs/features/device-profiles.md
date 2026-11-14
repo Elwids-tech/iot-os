@@ -1,7 +1,7 @@
 # Device profiles
 
 A device profile describes a device type: its parameters, groups, calculations,
-display hints and alarm suggestions. Publishing it produces an immutable revision
+display hints and alarm suggestions. Publishing it produces a revision with an immutable definition
 that devices pin through their configuration ([devices](devices.md)).
 
 Code: Laravel [`Domain/DeviceProfiles`](../../apps/api/app/Domain/DeviceProfiles)
@@ -39,9 +39,10 @@ For a ready-made example, run the Schneider three-phase meter seeder
 
 ## Rules that protect published data
 
-- **Revisions are immutable.** Each publication compiles a canonical
-  `device-profile.v2` definition with a SHA-256 hash. Earlier revisions stay
-  readable and usable. Editing after publication creates pending changes.
+- **A revision's definition is immutable.** Each publication compiles a canonical
+  `device-profile.v2` definition with a SHA-256 hash; neither changes afterwards. Only
+  the revision's `status` moves: the next publication turns the `active` revision
+  `retired`. Earlier revisions stay readable and usable. Editing after publication creates pending changes.
 - **Published parameters are fixed in key, kind and data type**, because devices,
   dashboards and history bind to them. A unit can change only to another spelling
   of the same unit. Labels, descriptions, groups and display settings stay

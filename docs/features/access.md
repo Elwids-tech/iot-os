@@ -37,7 +37,8 @@ Both sign-in pages link to **Forgot password?**, hosted by the portal at
   of server logs and referrers. Tokens are hashed, expire after 60 minutes and are
   single-use.
 - Passwords need 12–256 characters. A reset rotates the remember token, deletes
-  personal access tokens and database sessions, and requires a fresh sign-in.
+  the person's database sessions, revokes their agent connections with those
+  connections' Passport access and refresh tokens, and requires a fresh sign-in.
 - Reset mail goes through the `alerts` queue and `alerts-worker`; notification
   preferences never suppress it. Queued mail is encrypted with `APP_KEY`, so API and
   workers must share it.

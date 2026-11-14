@@ -9,7 +9,7 @@ ports and rebuilding one service are in [local setup](../../docs/dev/local-setup
 | `compose.app.yml` | Laravel API and workers, portal, admin | `./taskw stack:up` |
 | `compose.devices.yml` | Mosquitto over TLS with `broker-admin`, private NATS, the Go runtime | `./taskw devices:up` (after `./taskw devices:setup`) |
 | `compose.monitoring.yml` | Prometheus, Alertmanager, Grafana, Loki, Alloy, exporters | `python3 tooling/monitoring/local.py up` ([monitoring](../../docs/ops/monitoring.md#local-monitoring)) |
-| `compose.adapters.yml` | adapter-manager, adapter-worker, tenant runtime image | Manually, with a private env file ([adapters](../../docs/features/adapters.md#running-locally)) |
+| `compose.adapters.yml` | adapter-manager, adapter-worker, webhook-receiver, tenant runtime image | Manually, with a private env file ([adapters](../../docs/features/adapters.md#running-locally)) |
 | `compose.webhook-verification.yml` | A local webhook sink for `tooling/verify-webhooks.mjs` | Verification only |
 | `compose.devices-test.yml` | The disposable environment used by `tooling/test-devices.mjs` | `./taskw devices:test` |
 

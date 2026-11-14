@@ -103,8 +103,8 @@ Written to `device_runtime.outbox` with the runtime's own state change, relayed 
 [`inbox.go`](../../services/runtime/internal/app/inbox.go)). Laravel applies a batch in
 one transaction, each event in its own savepoint, and answers each event with the
 status the single-event endpoint (`/api/internal/devices/events`) would return. An
-event answered 409 or 422 is dead-lettered on its own; any other failure rolls the
-batch back and the runtime sends it again, so events keep their stream order
+event answered with a 4xx other than 401, 403, 404, 408, 425 or 429 (such as 409
+or 422) is dead-lettered on its own; any other failure rolls the batch back and the runtime sends it again, so events keep their stream order
 ([ADR-031](../adr/ADR-031-batched-runtime-events.md)). Laravel inserts the event UUID
 into `device_inbox` (primary key) and ignores duplicates, then drops events from older
 generations, operations or sessions.
