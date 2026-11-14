@@ -68,7 +68,7 @@ final class DagActions
             if ($action->status !== 'accepted') {
                 return;
             }
-            if (! $settings?->enabled || $settings->stopped || $w->applied_deployment_uuid !== $d->uuid || $w->desired_deployment_uuid !== $d->uuid || $w->pending_operation_uuid || $d->stopped_reason) {
+            if (! $settings?->enabled || $settings->stopped || ! $w->runs($d) || $d->stopped_reason) {
                 $finish('cancelled', 'Automation stopped or execution replaced.');
 
                 return;
@@ -152,7 +152,7 @@ final class DagActions
             $w = Workflow::whereKey($d->automation_workflow_id)->lockForUpdate()->firstOrFail();
             $settings = DB::table('automation_settings')->where('organization_id', $w->organization_id)->lockForUpdate()->first();
             $action = DB::table('automation_actions')->where('id', $id)->lockForUpdate()->first();
-            if (! $settings?->enabled || $settings->stopped || ! $action || $action->command_uuid !== $commandUuid || ! in_array($action->status, ['accepted', 'dispatched'], true) || Carbon::parse($action->expires_at)->isPast() || $w->pending_operation_uuid || $w->desired_deployment_uuid !== $d->uuid || $w->applied_deployment_uuid !== $d->uuid || $d->stopped_reason) {
+            if (! $settings?->enabled || $settings->stopped || ! $action || $action->command_uuid !== $commandUuid || ! in_array($action->status, ['accepted', 'dispatched'], true) || Carbon::parse($action->expires_at)->isPast() || ! $w->runs($d) || $d->stopped_reason) {
                 return false;
             }
             $intent = json_decode($action->intent, true, 512, JSON_THROW_ON_ERROR);
