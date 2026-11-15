@@ -60,7 +60,7 @@ func TestConnectivityTransitionsCommitTheirRowAndEventTogetherOnce(t *testing.T)
 		t.Fatal("an invalid event id was stored")
 	}
 
-	loaded, err := store.LoadConnectivity(ctx)
+	loaded, err := store.LoadConnectivity(ctx, Scope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestConnectivityTransitionsCommitTheirRowAndEventTogetherOnce(t *testing.T)
 	if err = store.SaveConnectivity(ctx, []ConnectivityRow{waiting, kept}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.PruneConnectivity(ctx, []string{kept.SubjectKey}); err != nil {
+	if _, err = store.PruneConnectivity(ctx, Scope{}, []string{kept.SubjectKey}); err != nil {
 		t.Fatal(err)
 	}
 	var keys []string

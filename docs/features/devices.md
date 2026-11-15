@@ -622,7 +622,8 @@ because captures can include unassigned sources.
   editor, and saving and activation stay manual.
 - **Suspension**: a user with activation permission can stop one device's new
   packets reaching production storage during a capture. Suspended samples are not
-  replayed; expiry, resume, stop or a runtime restart releases it.
+  replayed; expiry, resume, stop or a runtime restart releases it. After a restart the
+  capture is gone and the runtime says so when it is next read.
 
 Captures are runtime memory only: 32 sessions globally, 4 per organization, 200
 messages per session, 64 KiB per sample, at most 10 minutes. Export JSON to keep a

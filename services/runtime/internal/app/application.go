@@ -103,6 +103,9 @@ type Application struct {
 	connectivity      *connectivityTracker
 	subscriptions     []*nats.Subscription
 	tlsConfig         *tls.Config
+
+	// scope is the broker connections this runtime owns: all of them (ADR-046).
+	scope storage.Scope
 }
 
 // New starts the runtime. leadership is the runtime lock the caller holds and
@@ -136,7 +139,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger, leaders
 		nc.Close()
 		return nil, e
 	}
-	if e = store.RecoverCommands(ctx); e != nil {
+	if e = store.RecoverCommands(ctx, a.scope); e != nil {
 		nc.Close()
 		return nil, e
 	}
@@ -158,7 +161,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger, leaders
 	}
 	// Offline detection resumes from its stored rows; silence counts from now (D3).
 	a.connectivity = newConnectivityTracker(time.Now().UTC(), a.Engine.NodeOnline)
-	rows, e := store.LoadConnectivity(ctx)
+	rows, e := store.LoadConnectivity(ctx, a.scope)
 	if e != nil {
 		nc.Close()
 		return nil, e
@@ -276,17 +279,7 @@ func (a *Application) connect(c devices.Connection) error {
 			online, _ := json.Marshal(map[string]any{"online": true, "timestamp": stateTimestamp.Load()})
 			client.Publish("spBv1.0/STATE/"+c.HostID, 1, true, online)
 			a.connectivity.connect(c.UUID, time.Now().UTC())
-			a.mu.Lock()
-			defs := []devices.Definition{}
-			for _, d := range a.definitions {
-				if d.Source.ConnectionUUID == c.UUID {
-					defs = append(defs, d)
-				}
-			}
-			a.mu.Unlock()
-			for _, d := range defs {
-				a.requestRebirth(c.UUID, d.Source.GroupID, d.Source.EdgeNodeID)
-			}
+			a.rebirthConnection(c.UUID)
 		}()
 	})
 	client := mqtt.NewClient(options)
@@ -298,6 +291,23 @@ func (a *Application) connect(c devices.Connection) error {
 		return errors.New("MQTT connection timed out")
 	}
 	return token.Error()
+}
+
+// rebirthConnection asks every edge node with an applied device on a connection for
+// its births, once each. Asking once per device queued a second request behind the
+// first, and the node announced again 30 s later (ADR-046).
+func (a *Application) rebirthConnection(connection string) {
+	a.mu.Lock()
+	edges := map[string]rebirthRequest{}
+	for _, d := range a.definitions {
+		if d.Source.ConnectionUUID == connection {
+			edges[d.Source.EdgeNodeID] = rebirthRequest{connection, d.Source.GroupID, d.Source.EdgeNodeID}
+		}
+	}
+	a.mu.Unlock()
+	for _, request := range edges {
+		a.requestRebirth(request.Connection, request.Group, request.Edge)
+	}
 }
 func (a *Application) requestRebirth(connection, group, edge string) {
 	a.mu.Lock()
@@ -861,7 +871,7 @@ func (a *Application) deactivate(device, org string, generation int, operation .
 		op = operation[0]
 	}
 	// Dispatch owns the same fence, so no command can enter the send window here.
-	outstanding, err := a.Store.Outstanding(a.ctx)
+	outstanding, err := a.Store.Outstanding(a.ctx, a.scope)
 	if err != nil {
 		return err
 	}
@@ -1026,7 +1036,7 @@ func (a *Application) cleanup() error {
 	}
 	var failures []error
 	if active := a.connectivity.active(); active != nil {
-		if pruned, e := a.Store.PruneConnectivity(a.ctx, active); e != nil {
+		if pruned, e := a.Store.PruneConnectivity(a.ctx, a.scope, active); e != nil {
 			failures = append(failures, fmt.Errorf("connectivity pruning: %w", e))
 		} else if pruned > 0 {
 			a.Logger.Info("connectivity rows pruned", "deleted_rows", pruned)

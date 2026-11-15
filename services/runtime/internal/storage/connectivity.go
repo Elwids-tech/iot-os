@@ -117,9 +117,9 @@ func (s *Store) SaveConnectivity(ctx context.Context, rows []ConnectivityRow) er
 	return s.Pool.SendBatch(ctx, batch).Close()
 }
 
-// LoadConnectivity returns every stored subject, for the tracker to resume from.
-func (s *Store) LoadConnectivity(ctx context.Context) ([]ConnectivityRow, error) {
-	rows, e := s.Pool.Query(ctx, `SELECT subject_key, organization_uuid::text, kind, monitoring_since, heard_since_monitoring, settings_generation, episode, open, offline_since, opened_at, COALESCE(cause,''), affected_device_uuids FROM device_runtime.connectivity`)
+// LoadConnectivity returns the stored subjects in scope, for the tracker to resume from.
+func (s *Store) LoadConnectivity(ctx context.Context, scope Scope) ([]ConnectivityRow, error) {
+	rows, e := s.Pool.Query(ctx, `SELECT subject_key, organization_uuid::text, kind, monitoring_since, heard_since_monitoring, settings_generation, episode, open, offline_since, opened_at, COALESCE(cause,''), affected_device_uuids FROM device_runtime.connectivity WHERE `+scopedSubjects, scope.connections())
 	if e != nil {
 		return nil, e
 	}
@@ -146,10 +146,10 @@ func (s *Store) LoadConnectivity(ctx context.Context) ([]ConnectivityRow, error)
 	return result, rows.Err()
 }
 
-// PruneConnectivity deletes the rows of subjects that are no longer monitored and
-// have no open episode; active lists the subjects that are.
-func (s *Store) PruneConnectivity(ctx context.Context, active []string) (int64, error) {
-	tag, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime.connectivity WHERE NOT open AND NOT (subject_key = ANY($1::text[]))", active)
+// PruneConnectivity deletes the rows of subjects in scope that are no longer
+// monitored and have no open episode; active lists the subjects that are.
+func (s *Store) PruneConnectivity(ctx context.Context, scope Scope, active []string) (int64, error) {
+	tag, e := s.Pool.Exec(ctx, "DELETE FROM device_runtime.connectivity WHERE NOT open AND NOT (subject_key = ANY($2::text[])) AND "+scopedSubjects, scope.connections(), active)
 	if e != nil {
 		return 0, e
 	}

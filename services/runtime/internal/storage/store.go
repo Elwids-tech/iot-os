@@ -1168,8 +1168,10 @@ func (s *Store) CommandStatus(ctx context.Context, c devices.Command, status, di
 	}
 	return tx.Commit(ctx)
 }
-func (s *Store) Outstanding(ctx context.Context) ([]devices.Command, error) {
-	rows, e := s.Pool.Query(ctx, "SELECT request FROM device_runtime.commands WHERE status IN ('dispatching','sent')")
+
+// Outstanding returns the commands in scope that have no terminal outcome yet.
+func (s *Store) Outstanding(ctx context.Context, scope Scope) ([]devices.Command, error) {
+	rows, e := s.Pool.Query(ctx, "SELECT request FROM device_runtime.commands WHERE status IN ('dispatching','sent') AND ($1::text[] IS NULL OR device_uuid IN ("+scopedDevices+"))", scope.connections())
 	if e != nil {
 		return nil, e
 	}
@@ -1188,8 +1190,11 @@ func (s *Store) Outstanding(ctx context.Context) ([]devices.Command, error) {
 	}
 	return result, rows.Err()
 }
-func (s *Store) RecoverCommands(ctx context.Context) error {
-	commands, e := s.Outstanding(ctx)
+
+// RecoverCommands marks the commands in scope that a previous runtime left without an
+// outcome uncertain; none is sent again.
+func (s *Store) RecoverCommands(ctx context.Context, scope Scope) error {
+	commands, e := s.Outstanding(ctx, scope)
 	if e != nil {
 		return e
 	}
