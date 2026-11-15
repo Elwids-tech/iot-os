@@ -80,6 +80,10 @@ transaction itself, with no polling delay.
 It needs `track_commit_timestamp` on, which takes a database restart (`ALTER SYSTEM`,
 then `ALTER SYSTEM RESET` afterwards). Run it once per runtime build under the same load
 and compare (spec 029 SC-004, [billing](../features/billing.md#data-points)).
+[`tooling/measure-runtime-restart.py`](../../tooling/measure-runtime-restart.py) restarts
+or kills the runtime under the same load and reports what it cost, and
+`BenchmarkPipeline` measures what the runtime's serial stages carry
+([runtime](runtime.md)).
 Retire load-test devices afterwards with deactivate, then archive once the runtime
 has acknowledged. An archived device keeps its source id ("already onboarded"), so
 the next load check takes new numbers with `--meters-from`.

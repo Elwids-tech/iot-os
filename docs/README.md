@@ -44,6 +44,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Local setup](dev/local-setup.md)
 - [Testing](dev/testing.md)
 - [Simulators and fixtures](dev/simulators-and-fixtures.md)
+- [Runtime](dev/runtime.md): rules for new runtime code, measuring a restart and what one instance carries
 - [Design system](dev/design-system.md)
 - [Spec-driven development](dev/specs.md) (Spec Kit, the [constitution](../.specify/memory/constitution.md), `specs/`)
 - [Docs site](dev/docs-site.md): the platform's landing page and developer docs, how they're generated and checked

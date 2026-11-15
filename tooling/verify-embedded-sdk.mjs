@@ -7,6 +7,9 @@
 //
 //   node tooling/verify-embedded-sdk.mjs [environment.json] [--keep]
 //
+// EMBEDDED_WHILE_REPORTING="<command>" runs a command once everything is onboarded and
+// reporting, before the gateway goes offline.
+//
 // With an environment.json from tooling/test-devices.mjs it uses that harness; without
 // one, the dev stack (API on localhost:8001). Each run uses a new gateway, and its files
 // (kit, build, simulator log, evidence) go under .local/embedded-sdk/<run>/. The devices
@@ -321,6 +324,16 @@ try {
   assert.match(simulatorLog, new RegExp(`command: ${valveSource.source_device_id} ${open.key} applied`))
   timings.command_s = seconds(started)
   passed(`a command to ${valveSource.source_device_id} was applied by the simulator and observed in ${timings.command_s} s`)
+
+  // Optional: run a command while the gateway and its devices report, for example
+  // tooling/measure-runtime-restart.py (ADR-046). Its result does not fail this check.
+  if (process.env.EMBEDDED_WHILE_REPORTING) {
+    await birthsSettled()
+    const child = spawn("sh", ["-c", process.env.EMBEDDED_WHILE_REPORTING], { cwd: root, stdio: "inherit" })
+    const status = await new Promise((r) => child.on("exit", r))
+    passed(`ran "${process.env.EMBEDDED_WHILE_REPORTING}" while ${2 * DEVICES_PER_TYPE} devices reported (exit ${status})`)
+    await birthsSettled()
+  }
 
   // 8. Stopping the simulator takes the gateway and its devices offline.
   started = Date.now()
