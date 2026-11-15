@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -517,5 +518,40 @@ func TestBurstOfActivationsDuringAPacedRebirthAllApply(t *testing.T) {
 	}
 	if topics := client.published(); len(topics) != 0 {
 		t.Fatalf("rebirths sent during the burst: %v", topics)
+	}
+}
+
+// A connection that comes back asks each edge node for its births once, however many
+// applied devices the node has. Asking once per device queued a second request, and
+// the node announced again 30 s later (ADR-046).
+func TestAReconnectedConnectionAsksEachEdgeNodeForOneRebirth(t *testing.T) {
+	a, base, c, client, _ := heldFixture(t)
+	other := devices.Connection{UUID: storage.UUID(), GroupID: "elsewhere"}
+	a.mu.Lock()
+	for i, source := range []devices.Source{
+		{ConnectionUUID: c.UUID, GroupID: c.GroupID, EdgeNodeID: "edge-a", DeviceID: "one"},
+		{ConnectionUUID: c.UUID, GroupID: c.GroupID, EdgeNodeID: "edge-a", DeviceID: "two"},
+		{ConnectionUUID: c.UUID, GroupID: c.GroupID, EdgeNodeID: "edge-a", DeviceID: "three"},
+		{ConnectionUUID: c.UUID, GroupID: c.GroupID, EdgeNodeID: "edge-b", DeviceID: "one"},
+		{ConnectionUUID: other.UUID, GroupID: other.GroupID, EdgeNodeID: "edge-c", DeviceID: "one"},
+	} {
+		d := base
+		d.DeviceUUID, d.Source = fmt.Sprintf("device-%d", i), source
+		a.definitions[d.DeviceUUID] = d
+	}
+	a.mu.Unlock()
+
+	a.rebirthConnection(c.UUID)
+
+	published := client.published()
+	slices.Sort(published)
+	if want := []string{"spBv1.0/group/NCMD/edge-a", "spBv1.0/group/NCMD/edge-b"}; !slices.Equal(published, want) {
+		t.Fatalf("rebirth requests = %v, want %v", published, want)
+	}
+	a.mu.Lock()
+	queued := len(a.rebirthPending)
+	a.mu.Unlock()
+	if queued != 0 {
+		t.Fatalf("%d rebirth requests were queued to be sent again", queued)
 	}
 }

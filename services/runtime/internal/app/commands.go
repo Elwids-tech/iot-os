@@ -235,7 +235,7 @@ func (a *Application) expireCommands() {
 	}
 	a.mu.Unlock()
 	// Reconcile abandoned durable claims without ever publishing a command again.
-	persisted, e := a.Store.Outstanding(a.ctx)
+	persisted, e := a.Store.Outstanding(a.ctx, a.scope)
 	if e != nil {
 		return
 	}

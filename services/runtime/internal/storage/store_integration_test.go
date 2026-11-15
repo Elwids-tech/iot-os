@@ -155,7 +155,7 @@ func TestDurableStorageRetentionAndCommandRecovery(t *testing.T) {
 	command.UUID = UUID()
 	claimed, e = s.ClaimCommand(ctx, command)
 	must(e)
-	must(s.RecoverCommands(ctx))
+	must(s.RecoverCommands(ctx, Scope{}))
 	must(s.Pool.QueryRow(ctx, "SELECT status FROM device_runtime.commands WHERE command_uuid=$1", command.UUID).Scan(&status))
 	if status != "uncertain" {
 		t.Fatal("restart did not mark ambiguous dispatch uncertain")

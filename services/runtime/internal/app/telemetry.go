@@ -20,7 +20,7 @@ func (a *Application) listCaptures(w http.ResponseWriter, r *http.Request) {
 func (a *Application) getCapture(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.captureManager().Get(r.URL.Query().Get("organization_uuid"), r.PathValue("capture"))
 	if !ok {
-		respond(w, 422, map[string]string{"message": "Capture not found or expired. Runtime restart clears captures."})
+		respond(w, 422, map[string]string{"message": "Capture not found or expired. A runtime restart ends every capture, and a device whose ingestion a capture had suspended is ingesting again."})
 		return
 	}
 	respond(w, 200, map[string]any{"data": s})
