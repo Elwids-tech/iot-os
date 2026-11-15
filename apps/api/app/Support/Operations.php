@@ -58,6 +58,10 @@ final class Operations
             $gauge('worker_heartbeat_timestamp_seconds', (int) DB::table('operation_heartbeats')->where('name', $worker)->value('seen_at'), '{worker="'.$worker.'"}');
         }
         $gauge('device_outbox_pending', DB::table('device_outbox')->whereNull('published_at')->count());
+        // A row stays unacknowledged until the runtime has applied it (ADR-043), so a bulk
+        // change raises the count for a moment; the age of the oldest row says it is stuck.
+        $oldestControl = DB::table('device_outbox')->whereNull('published_at')->min('created_at');
+        $gauge('device_outbox_oldest_seconds', $oldestControl ? max(0, time() - strtotime((string) $oldestControl)) : 0);
         // Open application telemetry streams per organization (spec 030): each holds one
         // PHP worker, so the sum against IOT_STREAMS_MAX_OPEN says how close the pool is.
         $openStreams = IntegrationStreamSession::query()->open()->join('organizations', 'organizations.id', '=', 'integration_stream_sessions.organization_id')

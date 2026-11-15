@@ -125,7 +125,7 @@ func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Telemetry streams (spec 030): open now, and subscribers closed for falling behind.
 	streams := map[string]any{"open": a.streamsOpen.Load(), "dropped": a.broadcaster.Dropped()}
-	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters, "streams": streams, "leadership": a.leadershipStatus()})
+	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters, "control": map[string]any{"retrying_attempts": a.controlRetrying.Load()}, "streams": streams, "leadership": a.leadershipStatus()})
 }
 
 // leadershipStatus is the runtime lock as this process holds it (ADR-046).

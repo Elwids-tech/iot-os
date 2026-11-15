@@ -1,6 +1,6 @@
 # ADR-014: Control Plane and Data Plane Integrate over Internal HTTP
 
-**Status:** Accepted (recorded retroactively); amended by [ADR-031](ADR-031-batched-runtime-events.md)
+**Status:** Accepted (recorded retroactively); amended by [ADR-031](ADR-031-batched-runtime-events.md) and [ADR-043](ADR-043-runtime-applies-control-messages-from-the-claim.md) (control rows are applied from the claim, not through `IOT_DEVICE_CONTROL`)
 **Date:** 2026-10-11; built during Devices v1, September 2026
 **Relates to:** [ADR-002](ADR-002-laravel-control-plane.md), [ADR-003](ADR-003-go-data-plane.md)
 

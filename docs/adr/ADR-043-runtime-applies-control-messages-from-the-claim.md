@@ -1,6 +1,6 @@
 # ADR-043: The Runtime Applies Control Messages Straight from the Claim
 
-**Status:** Proposed
+**Status:** Accepted 2026-11-15, built
 **Date:** 2026-11-15
 **Amends:** [ADR-014](ADR-014-control-plane-data-plane-http-integration.md)
 **Relates to:** [ADR-031](ADR-031-batched-runtime-events.md)
@@ -203,13 +203,32 @@ batch acknowledgement endpoint is additive.
   `iot_device_outbox_pending > 100` will fire during a large bulk change where it
   did not before. The threshold moves to the age of the oldest row.
 
-**Follow-up, in the pull request that builds this**
+**As built (2026-11-15)**
 
-- [`docs/reference/events.md`](../reference/events.md),
-  [`docs/architecture/overview.md`](../architecture/overview.md), the roadmap entry,
-  ADR-014's status line, the monitoring rules and dashboards, and the atlas diagrams
-  `activation` and `activation-flow`.
-- Measure a 500-device bulk change before and after, and a command from confirmation
-  to dispatch.
+- [`claim.go`](../../services/runtime/internal/app/claim.go) holds the loop; the batch
+  acknowledgement is `acknowledge` in `RuntimeController`. A runtime newer than its
+  control plane falls back to acknowledging one row at a time.
+- Rows applied before a failing row are acknowledged before the wait, and applied rows
+  are acknowledged while the runtime shuts down, so fewer come back as repeats.
+- `GET /internal/status` reports `control.retrying_attempts`, and Laravel exports
+  `iot_device_outbox_oldest_seconds`; the backlog alert uses it (over 120 s) in place
+  of the pending count.
+- On the dev stack a message staged in `IOT_DEVICE_CONTROL` while the runtime was
+  stopped was applied at startup before the first claim.
+- Measured with the 500-device check (`tooling/verify-embedded-sdk.mjs`), which
+  onboards 247 devices in bulk at about 38 rows a second, sends a command and
+  deactivates 249 devices: every row was acknowledged as applied within 2 s of being
+  written (p95 1 s at the outbox's one-second resolution), and the runtime had stored
+  the outcome p50 1.3 s, p99 2.0 s after an activation was written. In the earlier
+  runs of the same check, rows took up to 41 s just to reach the stream. The command
+  was sent to the broker within a second of its row being written. The one-second
+  claim poll is now most of what is left.
+- Not done here: the later release that stops creating the stream and its consumer.
+
+**Follow-up**
+
+- The later release: stop creating `IOT_DEVICE_CONTROL` and `devices-control`, drop
+  `IOT_NATS_CONTROL_MAX_BYTES`, the consumer from the metrics' expected list, and the
+  drain.
 - A separate record for the events path, if the relay's smaller fix leaves a delay
   worth another change.

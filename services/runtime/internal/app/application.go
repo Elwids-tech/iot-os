@@ -104,6 +104,13 @@ type Application struct {
 	subscriptions     []*nats.Subscription
 	tlsConfig         *tls.Config
 
+	// controlRetrying is the attempt count of the control row being retried in place;
+	// zero when none is (ADR-043). applyControl and controlRetryDelay replace the
+	// handler and the backoff in tests.
+	controlRetrying   atomic.Uint64
+	applyControl      func(devices.Event) error
+	controlRetryDelay func(uint64) time.Duration
+
 	// scope is the broker connections this runtime owns: all of them (ADR-046).
 	scope storage.Scope
 }
@@ -182,6 +189,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger, leaders
 		// Devices, history and commands stay available; workflows wait for recovery.
 		a.pauseRules(ctx, e)
 	}
+	go a.claimControl(ctx)
 	go a.relay(ctx)
 	go a.relayCommitted(ctx)
 	go a.maintenance(ctx)

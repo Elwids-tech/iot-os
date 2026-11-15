@@ -36,7 +36,7 @@ groups:
         labels: {severity: critical}
         annotations: {summary: "Expected simulator telemetry is missing or stale"}
       - alert: QueueBacklog
-        expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_pending > 100 or iot_runtime_outbox_pending > 100
+        expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_oldest_seconds > 120 or iot_runtime_outbox_pending > 100
         for: 5m
         labels: {severity: warning}
         annotations: {summary: "Durable processing is falling behind"}

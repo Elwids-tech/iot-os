@@ -152,8 +152,8 @@ diagnostics and keep the last valid value visible but marked
 1. A user activates a device (or a workflow). Laravel writes an immutable
    snapshot, bumps the generation, sets the desired pointer and writes a
    `device_outbox` row in one transaction.
-2. The runtime claims the row over internal HTTP, places it on
-   `IOT_DEVICE_CONTROL`, acknowledges the claim, then applies it.
+2. The runtime claims the row over internal HTTP, applies it, then acknowledges
+   the claim ([ADR-043](../adr/ADR-043-runtime-applies-control-messages-from-the-claim.md)).
 3. The runtime reports `device.applied.v1` (or `device.failed.v1`) through its
    own outbox and `POST /api/internal/devices/events/batch`.
 4. Laravel moves the applied pointer only for the matching generation and
