@@ -33,6 +33,13 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Tests never reach an AI provider. A developer's .env or shell may hold a real
+             key: with one, the assistant's follow-up runs stay queued and a test that then
+             decides a proposal gets 409, and a test run could spend money. -->
+        <env name="OPENAI_API_KEY" value="" force="true"/>
+        <env name="ANTHROPIC_API_KEY" value="" force="true"/>
+        <server name="OPENAI_API_KEY" value="" force="true"/>
+        <server name="ANTHROPIC_API_KEY" value="" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

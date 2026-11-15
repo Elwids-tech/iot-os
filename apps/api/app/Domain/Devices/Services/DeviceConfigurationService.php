@@ -220,9 +220,7 @@ final class DeviceConfigurationService
                 'definition_hash' => hash('sha256', $this->canonical->encode($definition)), 'definition' => $definition,
                 'created_by' => $actor, 'created_at' => now(),
             ]);
-            $locked->forceFill(['desired_configuration_uuid' => $uuid, 'deployment_status' => 'pending',
-                'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1,
-                'diagnostic' => null, 'updated_by' => $actor])->save();
+            $locked->deploymentRequested($uuid, ['draft_revision' => $locked->draft_revision + 1, 'diagnostic' => null, 'updated_by' => $actor]);
             $operation = DeviceLifecycleService::record($locked, $rollback ? 'rollback' : 'configure', $actor);
             $locked->candidate->update(['status' => 'approved']);
             DeviceAudit::enqueue('device.activate.v1', ['organization_uuid' => $locked->organization->uuid,
@@ -242,8 +240,7 @@ final class DeviceConfigurationService
     {
         return $this->locked($device, $revision, function (Device $locked) use ($actor, $keepPlace) {
             abort_if($locked->deployment_status === 'pending', 409, 'Wait for the pending deployment to finish.');
-            $locked->forceFill(['desired_configuration_uuid' => null, 'deployment_status' => 'pending',
-                'state_revision' => $locked->state_revision + 1, 'deployment_generation' => $locked->deployment_generation + 1, 'draft_revision' => $locked->draft_revision + 1])->save();
+            $locked->deploymentRequested(null, ['draft_revision' => $locked->draft_revision + 1]);
             $operation = DeviceLifecycleService::record($locked, 'deactivate', $actor);
             if (! $keepPlace) {
                 $this->limit->release($locked);
