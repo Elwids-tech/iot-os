@@ -1,6 +1,6 @@
 # ADR-046: One Runtime That Can Be Taken Over, Then Shards by Connection
 
-**Status:** Accepted 2026-11-14; stage 1 being built
+**Status:** Accepted 2026-11-14; stage 1 built
 **Date:** 2026-11-14
 **Relates to:** [ADR-003](ADR-003-go-data-plane.md), [ADR-005](ADR-005-sparkplug-b-boundary.md), [ADR-006](ADR-006-deployment-profiles.md), [ADR-014](ADR-014-control-plane-data-plane-http-integration.md), [ADR-031](ADR-031-batched-runtime-events.md), [ADR-042](ADR-042-store-telemetry-once.md)
 
@@ -114,16 +114,14 @@ failing. It does not protect against the host failing, a deploy or a backup.**
 - Runtime events reach Laravel at 430 to 500 a second in batches
   ([ADR-031](ADR-031-batched-runtime-events.md)); the relay before them moves about
   125 a second ([roadmap](../roadmap.md#next)).
-- **The ceiling itself has never been measured** (the roadmap says "measure first").
-  Reading the code, the automation consumer makes a dozen or more round trips for
-  each message (two stream lookups, the checkpoint check twice, the timer pass, the
-  evaluating transaction, a synchronous acknowledgement), so on the two-server shape
-  it is probably the first stage to fall behind, somewhere under 100 messages a
-  second. That is an estimate, not a measurement.
+- **The ceiling was an estimate when this was accepted.** Stage 1 measured it; see
+  [Measured in stage 1](#measured-in-stage-1). One host has a wide margin. With the
+  database a 1.3 ms round trip away the automation evaluator carries 31 to 36
+  messages a second, below the tested rate.
 
-So one instance has room above the tested rate, the nearest limits are serial
-consumers that can be pipelined inside one process, and sharding is not needed for
-throughput yet.
+So on one host an instance has room above the tested rate, the nearest limits are
+serial consumers that can be pipelined inside one process, and sharding is not
+needed for throughput yet.
 
 ## Options
 
@@ -333,3 +331,39 @@ the developer rules and the atlas diagrams (`runtime`, `sparkplug-session`,
   STATE when a client ID is taken over.
 - That the SDK and the adapter publisher ignore an offline STATE older than the
   online one they hold.
+
+## Measured in stage 1
+
+Stage 1 is three pull requests: the lock wait, lock-loss stop and epoch (#245); one
+rebirth per edge node and scoped sweeps (#246); the restart tool, the pipeline
+benchmark and the rules for new runtime code (#247). Their figures, from one
+developer laptop on 2026-11-15, replace the estimates above.
+
+Messages a second through each serial stage, by the database's round trip:
+
+| Round trip | Stored | Relayed | Evaluated, no automation | Evaluated, a geofence per device |
+| --- | --- | --- | --- | --- |
+| 0.05 ms (same host) | 720 | 2,600 | 600 | 540 |
+| 0.46 ms | 215 | 1,100 | 93 | 84 |
+| 1.3 ms | 83 | 445 | 36 | 31 |
+
+A message costs about 8 database round trips to store and about 21 to evaluate. The
+estimate that evaluation would be the first stage to fall behind on the two-server
+shape held, and the storage figure of 160 a second there was too high.
+
+A runtime restart under one SDK gateway announcing 500 devices at 20 births a second,
+about 248 of them onboarded: the process was away 0.1 s, the last device stored a
+reading again 12.8 s after the start, and each device missed about one reading.
+Killed and started 30 s later, devices showed unknown from 12 s to 42 s after the
+kill and missed about three and a half readings each. A standby took the lock within
+2 s of the active runtime being killed. The cost of a restart to a paced gateway is
+its announcement, not the runtime's start.
+
+Still to verify: the will path after a crash, the keepalive path when a holder's host
+is lost, and the round trip of a real two-server deployment. The assumptions listed
+above about a bound durable consumer and a taken-over client ID were not exercised:
+the standby test killed the holder first.
+
+Follow-up outside the stages: take the evaluator's per-message stream lookups,
+checkpoint checks and timer pass, and the storage consumer's outstanding-command
+query, off the per-message path.
