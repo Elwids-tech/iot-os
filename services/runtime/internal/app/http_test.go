@@ -168,4 +168,22 @@ func TestStatusReportsStreamCounters(t *testing.T) {
 	if body.Storage != "unavailable" || body.Messaging != "disconnected" || body.Streams.Open != 3 || body.Streams.Dropped != 2 {
 		t.Fatalf("status: %s", response.Body.String())
 	}
+	// The process that answers holds the lock (ADR-046); built without one, its epoch is zero.
+	if !strings.Contains(response.Body.String(), `"leadership":{"epoch":0,"instance":null,"role":"active","since":null}`) {
+		t.Fatalf("status leadership: %s", response.Body.String())
+	}
+}
+
+func TestAStandbyIsAliveNotReadyAndHasNoInternalAPI(t *testing.T) {
+	handler := StandbyHandler()
+	for path, want := range map[string]int{"/health/live": 200, "/health/ready": 503, "/internal/status": 503, "/internal/measurements/latest": 503} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != want {
+			t.Errorf("%s = %d, want %d", path, response.Code, want)
+		}
+		if want == 503 && !strings.Contains(response.Body.String(), `"role":"standby"`) {
+			t.Errorf("%s does not say it is a standby: %s", path, response.Body.String())
+		}
+	}
 }

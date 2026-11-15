@@ -68,7 +68,9 @@ supported.
 
 - Interoperability is tested with the platform's simulators and the Waveshare
   board; this is not formal Sparkplug conformance certification.
-- One runtime is the host application for every connection; there is no host
-  redundancy.
+- One runtime is the host application for every connection. A second runtime can
+  wait as a standby and takes over with the same host ID when the first one's lock
+  is released; no release shape runs one yet, and a takeover starts from fresh
+  births like a restart.
 - Adapter output uses group `adapters-<organization uuid>` and edge node
   `adapter-<adapter uuid>`, published by the managed publisher.

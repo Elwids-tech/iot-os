@@ -304,6 +304,15 @@ devices, last position) under **Telemetry streams** in the organization's menu; 
 runtime's `GET /internal/status` adds `streams.open` and `streams.dropped` (subscribers
 closed for falling behind, which resume by catch-up).
 
+**Runtime lock.** `GET /internal/status` reports `leadership`: `role`, the `epoch`
+(how many times the lock has changed hands), the holding `instance` and `since`. The
+same record is the `all` row of `device_runtime.runtime_leaders`. A runtime that
+loses its lock session logs `runtime lock lost` and exits with status 1; Docker
+starts it again and devices announce again. A runtime started with
+`IOT_RUNTIME_STANDBY=true` waits for the lock instead of exiting, answers
+`/health/live`, and answers 503 with `"role":"standby"` on `/health/ready` and
+`/internal/*`. The release profile runs one runtime and no standby.
+
 ## Production
 
 Use a separate host, database, domain, secrets and Restic repository with the same

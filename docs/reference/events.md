@@ -115,7 +115,7 @@ generations, operations or sessions.
 | `device.presence.v1`, `gateway.presence.v1`, `connection.presence.v1` | Online/offline/unknown from births, deaths and broker state. An adapter's node death reports its devices `unknown` ("Adapter restarting; waiting for it to reconnect."), not offline. `connection.presence.v1` (every gateway and candidate on the connection) is sent only when the broker connection is lost; a rejected packet sends `gateway.presence.v1` and `device.presence.v1` for its own edge node or device. `device.presence.v1` carries `last_seen_at` only when a packet arrived from the device; presence derived from the broker connection omits it, and Laravel keeps the stored value |
 | `discovery.birth.v1`, `discovery.presence.v1` | A source announced metrics (new `birth_revision`) or changed presence |
 | `command.status.v1` | Command sent, observed, failed, timed out or uncertain |
-| `runtime.heartbeat.v1` | Every 10 seconds; presence becomes unknown after 20 seconds without one |
+| `runtime.heartbeat.v1` | Every 10 seconds; presence becomes unknown after 20 seconds without one. Carries `epoch`, which rises each time the runtime lock changes hands |
 | `retention.cleanup.v1` | Result of a per-organization cleanup pass |
 | `workflow.deployment.v1`, `workflow.suspended.v1` | A deployment applied or failed; an execution was suspended (`reason`, for example `binding_changed: <role>` or `device_review_required: <role>`) |
 | `workflow.transition.v1` | Geofence rule `activated` / `cleared` (becomes an alert episode) |

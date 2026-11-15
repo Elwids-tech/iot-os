@@ -22,9 +22,11 @@ storage in TimescaleDB, latest values and command transport. They exchange work
 through outboxes over internal HTTP
 ([ADR-014](../adr/ADR-014-control-plane-data-plane-http-integration.md)).
 
-One broker and **one runtime instance** are supported; a Postgres advisory lock
-rejects a second runtime. That is not distributed fencing: a database restart
-drops the lock, so operations must keep a single instance.
+One broker and **one active runtime** are supported; a Postgres advisory lock
+rejects a second runtime, or makes it wait when it is started as a standby
+(`IOT_RUNTIME_STANDBY=true`). The holder checks its lock session every two seconds
+and exits when it is gone, so a database restart or a lost database connection
+restarts the runtime instead of leaving it running without the lock (ADR-046).
 
 ## Sources: connections, gateways, discovery
 

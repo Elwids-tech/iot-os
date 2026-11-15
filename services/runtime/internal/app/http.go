@@ -125,7 +125,40 @@ func (a *Application) statusHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Telemetry streams (spec 030): open now, and subscribers closed for falling behind.
 	streams := map[string]any{"open": a.streamsOpen.Load(), "dropped": a.broadcaster.Dropped()}
-	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters, "streams": streams})
+	respond(w, 200, map[string]any{"storage": storageState, "messaging": messaging, "workflows": a.rulesStatus(), "brokers": map[string]int{"connected": connected, "total": total}, "dead_letters": deadLetters, "streams": streams, "leadership": a.leadershipStatus()})
+}
+
+// leadershipStatus is the runtime lock as this process holds it (ADR-046).
+func (a *Application) leadershipStatus() map[string]any {
+	status := map[string]any{"role": "active", "epoch": a.epoch(), "instance": nil, "since": nil}
+	if a.leadership != nil {
+		status["instance"], status["since"] = a.leadership.Instance, a.leadership.Since
+	}
+	return status
+}
+
+// epoch is the lock's epoch; zero for an application built without a lock, as unit
+// tests build it.
+func (a *Application) epoch() int64 {
+	if a.leadership == nil {
+		return 0
+	}
+	return a.leadership.Epoch
+}
+
+// StandbyHandler answers for a runtime that is waiting for the lock (ADR-046): it is
+// alive, it is not ready, and it has no internal API, because the active runtime
+// holds the state those answers come from.
+func StandbyHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]bool{"ok": true}) })
+	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 503, map[string]any{"ok": false, "role": "standby"})
+	})
+	mux.HandleFunc("/internal/", func(w http.ResponseWriter, r *http.Request) {
+		respond(w, 503, map[string]string{"message": "This runtime is a standby; the active runtime answers.", "role": "standby"})
+	})
+	return mux
 }
 func decodeBody(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
