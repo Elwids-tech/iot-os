@@ -22,10 +22,17 @@ Grouped by area. Links point at the decision or doc that explains the item.
   the device audit tables (a product decision).
 - **Heartbeat writes.** Each runtime heartbeat (every 10 s) updates every device and
   gateway row's `runtime_seen_at`; store one runtime status instead.
-- **Runtime throughput (measure first).** The ingest path publishes synchronously
-  inside the MQTT callback, holds one global lock and runs as a single instance
-  (advisory lock). Measure the ceiling with the simulators, then pipeline it with
-  per-device subjects and sharded state.
+- **Runtime throughput.** Measured per stage in November 2026
+  ([runtime](dev/runtime.md#measuring-what-one-instance-carries)): on one host a
+  runtime stores about 700 messages a second and evaluates about 550; with the
+  database a 1.3 ms round trip away it stores 83 and evaluates 31 to 36, below the
+  tested 50. The first gains are in the process: the automation consumer looks up the
+  stream, checks its checkpoint twice and runs the timer pass around every message
+  (about 21 round trips), and the storage consumer queries outstanding commands
+  after every message. Then store messages in parallel across devices, and take the
+  one application lock off the ingest path. The ingest path itself (the publish
+  inside the MQTT callback) is still unmeasured. Shards by connection come after
+  these (ADR-046).
 - **Runtime outbox relay.** Once a second the relay claims Laravel's control outbox, then
   publishes runtime events to JetStream one at a time, updating each outbox row on its
   own. With 500 devices reporting together every 10 s it drains each burst of about 750
