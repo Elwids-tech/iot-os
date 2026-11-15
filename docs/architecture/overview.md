@@ -111,7 +111,7 @@ flowchart TB
 | Admin | [`apps/admin`](../../apps/admin) | Platform administration: organizations, users, roles, permission ceilings, retention |
 | API | [`apps/api`](../../apps/api) | Laravel 13, Sanctum, spatie/laravel-permission, Laravel AI. Code is organized by domain under `app/Domain` |
 | Workers | `apps/api` Artisan commands | `automation:work`, `integrations:webhooks-work`, `queue:work` for `alerts`, `assistant`, `device-adapters`, `default`; `schedule:work` in release ([`compose.app.yml`](../../deploy/compose/compose.app.yml), [`deploy/release/compose.yml`](../../deploy/release/compose.yml)) |
-| Runtime | [`services/runtime`](../../services/runtime) | One Go process (`cmd/runtime`); only one instance may run (Postgres advisory lock) |
+| Runtime | [`services/runtime`](../../services/runtime) | One Go process (`cmd/runtime`); only one is active (Postgres advisory lock), and a second started as a standby waits for the lock |
 | broker-admin | [`services/runtime/cmd/broker-admin`](../../services/runtime/cmd/broker-admin) | Applies credentials and ACLs to Mosquitto Dynamic Security ([ADR-009](../adr/ADR-009-mosquitto-default-broker.md)) |
 | Adapters | [`services/adapters`](../../services/adapters) | adapter-manager plus per-tenant runtimes ([adapters](../features/adapters.md)) |
 | Database | TimescaleDB 2.29 on PostgreSQL 17 | Laravel owns the `public` schema; Go owns `device_runtime` (telemetry, latest state, outboxes, rule and DAG state) |

@@ -2,7 +2,7 @@
   "id": "runtime",
   "title": "Runtime",
   "kind": "containers",
-  "summary": "One Go process, and only one instance may run (a PostgreSQL advisory lock). It is the Sparkplug host application, stores telemetry, evaluates automations, dispatches commands and reports what it applied back to Laravel. This map groups the code by job; it is not one box per package.",
+  "summary": "One Go process, and only one is active: it holds a PostgreSQL advisory lock, checks that lock session every two seconds and exits if it is lost. A second process started as a standby waits for the lock and then starts like a restart, from fresh births. It is the Sparkplug host application, stores telemetry, evaluates automations, dispatches commands and reports what it applied back to Laravel. This map groups the code by job; it is not one box per package.",
   "docs": ["docs/reference/events.md", "docs/adr/ADR-003-go-data-plane.md"],
   "rows": 3.5,
   "boxes": [

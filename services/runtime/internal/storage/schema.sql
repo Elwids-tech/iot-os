@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS device_runtime.rule_checkpoint (
 -- The committed stream's runtime-assigned ID (StreamIdentity). Checkpoints bound
 -- before streams carried one keep NULL until the runtime adopts the ID.
 ALTER TABLE device_runtime.rule_checkpoint ADD COLUMN IF NOT EXISTS stream_id text;
+-- Who holds the runtime lock for a scope and how many times it has changed hands
+-- (ADR-046). The scope is 'all' until the runtime is sharded by connection.
+CREATE TABLE IF NOT EXISTS device_runtime.runtime_leaders (
+ scope text PRIMARY KEY, epoch bigint NOT NULL, instance text NOT NULL,
+ acquired_at timestamptz NOT NULL
+);
 CREATE TABLE IF NOT EXISTS device_runtime.rule_inputs (
  event_uuid uuid PRIMARY KEY, consumed_at timestamptz NOT NULL
 );

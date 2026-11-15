@@ -11,7 +11,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
@@ -84,31 +83,6 @@ func OpenWithSchema(ctx context.Context, url string, migrate bool) (*Store, erro
 	return &Store{Pool: pool}, nil
 }
 
-// Devices v1 intentionally supports one active runtime against a deployment.
-func (s *Store) ExclusiveRuntime(ctx context.Context) (func(), error) {
-	connection, err := s.Pool.Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	const key int64 = 528254100482801
-	var acquired bool
-	if err = connection.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&acquired); err != nil || !acquired {
-		connection.Release()
-		if err == nil {
-			err = errors.New("another Devices runtime is already active")
-		}
-		return nil, err
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			releaseCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			_, _ = connection.Exec(releaseCtx, "SELECT pg_advisory_unlock($1)", key)
-			connection.Release()
-		})
-	}, nil
-}
 func UUID() string {
 	var b [16]byte
 	if _, e := rand.Read(b[:]); e != nil {

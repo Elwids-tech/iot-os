@@ -63,24 +63,24 @@ type Application struct {
 	committedFailures atomic.Uint64
 	// broadcaster fans committed events out to open telemetry streams; streamsOpen
 	// counts them (spec 030).
-	broadcaster    committedBroadcaster
-	streamsOpen    atomic.Int64
-	deadLetters    atomic.Uint64
-	rulesHealthy   atomic.Bool
-	rulesFault     atomic.Pointer[ruleFault]
-	rulesRetry     chan struct{}
-	fences         sync.Map
-	releaseRuntime func()
-	ctx            context.Context
-	mu             sync.Mutex
-	Store          *storage.Store
-	Control        *ControlClient
-	JS             nats.JetStreamContext
-	NATS           *nats.Conn
-	Logger         *slog.Logger
-	Engine         *sparkplug.Engine
-	definitions    map[string]devices.Definition
-	generations    map[string]int
+	broadcaster  committedBroadcaster
+	streamsOpen  atomic.Int64
+	deadLetters  atomic.Uint64
+	rulesHealthy atomic.Bool
+	rulesFault   atomic.Pointer[ruleFault]
+	rulesRetry   chan struct{}
+	fences       sync.Map
+	leadership   *storage.Leadership // the runtime lock; nil in unit tests (ADR-046)
+	ctx          context.Context
+	mu           sync.Mutex
+	Store        *storage.Store
+	Control      *ControlClient
+	JS           nats.JetStreamContext
+	NATS         *nats.Conn
+	Logger       *slog.Logger
+	Engine       *sparkplug.Engine
+	definitions  map[string]devices.Definition
+	generations  map[string]int
 	// appliedGeneration is the generation each applied definition came with; a refused
 	// activation advances generations and leaves it (ADR-027).
 	appliedGeneration map[string]int
@@ -105,7 +105,9 @@ type Application struct {
 	tlsConfig         *tls.Config
 }
 
-func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Application, error) {
+// New starts the runtime. leadership is the runtime lock the caller holds and
+// releases (ADR-046).
+func New(ctx context.Context, store *storage.Store, logger *slog.Logger, leadership *storage.Leadership) (*Application, error) {
 	token := os.Getenv("DEVICE_RUNTIME_TOKEN")
 	if len(token) < 32 {
 		return nil, errors.New("DEVICE_RUNTIME_TOKEN must contain at least 32 characters")
@@ -123,17 +125,7 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 			return nil, errors.New("invalid MQTT CA certificate")
 		}
 	}
-	releaseRuntime, e := store.ExclusiveRuntime(ctx)
-	if e != nil {
-		return nil, e
-	}
-	started := false
-	defer func() {
-		if !started {
-			releaseRuntime()
-		}
-	}()
-	a := &Application{releaseRuntime: releaseRuntime, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, appliedGeneration: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, rulesRetry: make(chan struct{}, 1)}
+	a := &Application{leadership: leadership, ctx: ctx, Store: store, Logger: logger, Control: &ControlClient{URL: env("DEVICE_CONTROL_URL", "http://api:8000/api/internal/devices"), Token: token, Client: &http.Client{Timeout: 10 * time.Second}}, Engine: sparkplug.NewEngine(), definitions: map[string]devices.Definition{}, generations: map[string]int{}, appliedGeneration: map[string]int{}, latest: map[string]map[string]devices.Reading{}, sessions: map[string]string{}, compatible: map[string]bool{}, reviewRequired: map[string]bool{}, brokers: map[string]*broker{}, pending: map[string]*pendingCommand{}, rebirth: map[string]time.Time{}, rebirthPending: map[string]rebirthRequest{}, presenceAt: map[string]time.Time{}, tlsConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}, rulesRetry: make(chan struct{}, 1)}
 	nc, e := nats.Connect(env("NATS_URL", "nats://nats:4222"), nats.Name("iot-devices-runtime"), nats.MaxReconnects(-1))
 	if e != nil {
 		return nil, e
@@ -192,7 +184,6 @@ func New(ctx context.Context, store *storage.Store, logger *slog.Logger) (*Appli
 	go a.maintenance(ctx)
 	go a.reportUsageEvery(ctx, time.Minute)
 	go a.seedConnectivity(ctx)
-	started = true
 	return a, nil
 }
 
@@ -980,7 +971,7 @@ func (a *Application) maintenance(ctx context.Context) {
 				a.requestRebirth(request.Connection, request.Group, request.Edge)
 			}
 			if count%2 == 0 {
-				a.emit("runtime.heartbeat.v1", map[string]any{"at": time.Now().UTC()})
+				a.emit("runtime.heartbeat.v1", map[string]any{"at": time.Now().UTC(), "epoch": a.epoch()})
 			}
 			if count%6 == 0 {
 				if e := a.syncState(); e != nil {
@@ -1079,7 +1070,6 @@ func (a *Application) cleanup() error {
 	return errors.Join(failures...)
 }
 func (a *Application) Close() {
-	defer a.releaseRuntime()
 	a.mu.Lock()
 	brokers := []*broker{}
 	for _, b := range a.brokers {

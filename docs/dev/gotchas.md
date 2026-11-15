@@ -663,6 +663,14 @@ Things that have cost time before. Add to this list when something surprises you
   short gaps is the tempting fix and the wrong one: a device reporting every second then
   takes its last outage as its interval. Longer runs count reading by reading, which
   keeps fast reporters exact ([alerts](../features/alerts.md#offline-after)).
+- **A runtime that loses its lock session exits.** The runtime lock is a session-level
+  advisory lock, and the holder runs `SELECT 1` on that session every 2 s (5 s
+  timeout). A database restart, a dropped connection or `pg_terminate_backend` on it
+  ends the process with status 1 and `runtime lock lost` in the log, on purpose: a
+  runtime without the lock would share its Sparkplug host ID with whoever took it.
+  While the database stays down the container restarts repeatedly, which can trip
+  `ContainerFailure`. It exits like a crash, without the offline STATE, so the broker
+  publishes its will only if the session is still its own.
 - **After a runtime restart, "last heard" comes from stored readings.** The tracker keeps
   last-heard times in memory, so a restarted runtime knew none until each device's next
   packet: the device page read "not since monitoring started" and an episode opened in
