@@ -23,8 +23,8 @@ survive both.
    everything today, give it a scope column with one value, as
    `device_runtime.runtime_leaders` does.
 3. **A sweep takes the scope it owns.** Code that recovers, expires or prunes at
-   startup or on the maintenance tick takes a
-   [`storage.Scope`](../../services/runtime/internal/storage/scope.go) and touches
+   startup or on the maintenance tick takes a `storage.Scope`
+   (`services/runtime/internal/storage/scope.go`) and touches
    only what reports through those connections, even while the only scope in use is
    every connection.
 4. **Promise order per device or per connection.** Nothing new may depend on one
