@@ -60,7 +60,7 @@ groups:
       dashboard_url: http://localhost:3000/d/iot-local/local-operations
       runbook_url: http://localhost:9101/runbook
   - alert: QueueBacklog
-    expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_pending > 100 or iot_runtime_outbox_pending
+    expr: iot_queue_oldest_seconds > 120 or iot_device_outbox_oldest_seconds > 120 or iot_runtime_outbox_pending
       > 100
     for: 1m
     labels:

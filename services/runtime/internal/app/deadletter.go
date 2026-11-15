@@ -1,18 +1,21 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/Elwids-tech/iot-os/services/runtime/internal/devices"
 	"github.com/Elwids-tech/iot-os/services/runtime/internal/storage"
 	"github.com/nats-io/nats.go"
 )
 
 // Durable consumers process messages in stream order: one at a time, or in
-// batches settled before the next (devices-control-inbox, inbox.go). A message
+// batches settled before the next (devices-control-inbox, inbox.go). Claimed control
+// rows are applied the same way, in claim order (claim.go). A message
 // that can never succeed would therefore block everything behind it,
 // so permanent failures are copied to the dead-letter stream and terminated,
 // while transient failures (database, broker or control plane unavailable) are
@@ -97,19 +100,25 @@ func deliveries(m *nats.Msg) uint64 {
 	return 1
 }
 
-// deadLetter keeps the original payload with enough context to inspect and
-// replay it. The message id makes a repeated attempt for the same delivery
-// idempotent within the broker's duplicate window.
-func (a *Application) deadLetter(consumer string, m *nats.Msg, cause error) error {
+// newLetter keeps a payload that could not be processed, with enough context to
+// inspect and replay it.
+func newLetter(consumer, subject string, data []byte, cause error) *nats.Msg {
 	letter := nats.NewMsg(deadLetterSubject + consumer)
-	letter.Data = m.Data
+	letter.Data = data
 	reason := cause.Error()
 	if len(reason) > 1024 {
 		reason = reason[:1024]
 	}
 	letter.Header.Set("Iot-Consumer", consumer)
-	letter.Header.Set("Iot-Original-Subject", m.Subject)
+	letter.Header.Set("Iot-Original-Subject", subject)
 	letter.Header.Set("Iot-Error", reason)
+	return letter
+}
+
+// deadLetter sets a stream message aside. The message id makes a repeated attempt for
+// the same delivery idempotent within the broker's duplicate window.
+func (a *Application) deadLetter(consumer string, m *nats.Msg, cause error) error {
+	letter := newLetter(consumer, m.Subject, m.Data, cause)
 	if meta, err := m.Metadata(); err == nil {
 		letter.Header.Set("Iot-Stream", meta.Stream)
 		letter.Header.Set("Iot-Stream-Sequence", strconv.FormatUint(meta.Sequence.Stream, 10))
@@ -117,6 +126,20 @@ func (a *Application) deadLetter(consumer string, m *nats.Msg, cause error) erro
 		letter.Header.Set(nats.MsgIdHdr, fmt.Sprintf("%s:%s:%d", consumer, meta.Stream, meta.Sequence.Stream))
 	}
 	_, err := a.JS.PublishMsg(letter)
+	return err
+}
+
+// deadLetterRow sets aside a claimed control row that can never apply, under the same
+// subject and with the same payload shape as when control rows went through a stream.
+func (a *Application) deadLetterRow(row devices.Event, cause error) error {
+	raw, err := json.Marshal(devices.Event{UUID: row.UUID, Type: row.Type, Payload: row.Payload})
+	if err != nil {
+		return err
+	}
+	letter := newLetter(controlConsumer, "iot.control."+row.Type, raw, cause)
+	letter.Header.Set("Iot-Outbox-Uuid", row.UUID)
+	letter.Header.Set(nats.MsgIdHdr, controlConsumer+":device_outbox:"+row.UUID)
+	_, err = a.JS.PublishMsg(letter)
 	return err
 }
 

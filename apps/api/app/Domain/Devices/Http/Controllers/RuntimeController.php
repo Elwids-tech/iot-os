@@ -116,6 +116,27 @@ final class RuntimeController
         return ['ok' => true];
     }
 
+    /**
+     * Acknowledges the rows of one claim in a single request, after the runtime has applied
+     * them (ADR-043). A row is acknowledged by its current lease token whatever its
+     * `leased_until`: the runtime holds a claim for as long as applying it takes, and the
+     * lease only hands a stopped runtime's rows to the next one. A row whose token is no
+     * longer current was claimed again and is answered as not acknowledged.
+     *
+     * @return array{results: list<array{uuid: string, acknowledged: bool}>}
+     */
+    public function acknowledge(Request $request): array
+    {
+        $values = $request->validate(['rows' => ['required', 'list', 'max:100'], 'rows.*.uuid' => ['required', 'uuid'], 'rows.*.lease_token' => ['required', 'uuid']]);
+
+        return ['results' => DB::transaction(fn (): array => array_map(function (array $row): array {
+            $changed = DeviceOutbox::where('uuid', $row['uuid'])->where('lease_token', $row['lease_token'])->whereNull('published_at')
+                ->update(['published_at' => now(), 'leased_until' => null]);
+
+            return ['uuid' => $row['uuid'], 'acknowledged' => $changed > 0 || DeviceOutbox::where('uuid', $row['uuid'])->whereNotNull('published_at')->exists()];
+        }, $values['rows']))];
+    }
+
     public function automationCommandCheck(Request $request): array
     {
         $v = $request->validate(['action_id' => 'required|string|size:64', 'command_uuid' => 'required|uuid']);

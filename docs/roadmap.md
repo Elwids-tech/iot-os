@@ -33,18 +33,18 @@ Grouped by area. Links point at the decision or doc that explains the item.
   one application lock off the ingest path. The ingest path itself (the publish
   inside the MQTT callback) is still unmeasured. Shards by connection come after
   these (ADR-046).
-- **Runtime outbox relay.** Once a second the relay claims Laravel's control outbox, then
-  publishes runtime events to JetStream one at a time, updating each outbox row on its
-  own. With 500 devices reporting together every 10 s it drains each burst of about 750
+- **Runtime outbox relay.** Once a second the relay publishes runtime events to
+  JetStream one at a time, updating each outbox row on its own. With 500 devices reporting together every 10 s it drains each burst of about 750
   events in roughly 6 s (p95 3.0 s from write to JetStream, 2026-11-06), so it is the
   next limit on the runtime → API path now that delivery is batched
   ([ADR-031](adr/ADR-031-batched-runtime-events.md)). Mark a published batch in one
-  statement and give the control claim its own loop.
-- **Parallel control consumers.** The runtime applies control messages one at a time
-  for every organization (`devices-control` with `MaxAckPending(1)`), and acknowledges
-  each claimed outbox row with its own request. Acknowledge a claim in one request,
-  and apply messages in parallel across devices while keeping each device's messages
-  in order (generation fences already reject stale ones). A change that reaches
+  statement. (The control claim has had its own loop since
+  [ADR-043](adr/ADR-043-runtime-applies-control-messages-from-the-claim.md).)
+- **Parallel control apply.** The runtime applies claimed control rows one at a time
+  for every organization
+  ([ADR-043](adr/ADR-043-runtime-applies-control-messages-from-the-claim.md)). Apply
+  them in parallel across devices while keeping each device's rows in order
+  (generation fences already reject stale ones). A change that reaches
   thousands of devices at once, such as a profile-wide setting, is the first case that
   needs it.
 - **Dropped runtime events.** Events emitted outside a state change (presence,

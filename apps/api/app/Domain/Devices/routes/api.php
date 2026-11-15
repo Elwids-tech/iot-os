@@ -89,6 +89,7 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'can:'.PlatformAdministra
 Route::prefix('internal/devices')->middleware(AuthenticateDeviceRuntime::class)->group(function (): void {
     Route::get('state', [RuntimeController::class, 'state']);
     Route::post('outbox/claim', [RuntimeController::class, 'claim']);
+    Route::post('outbox/ack', [RuntimeController::class, 'acknowledge']);
     Route::post('outbox/{event}/ack', [RuntimeController::class, 'ack']);
     Route::post('automation-command-check', [RuntimeController::class, 'automationCommandCheck']);
     Route::post('events', [RuntimeController::class, 'event']);

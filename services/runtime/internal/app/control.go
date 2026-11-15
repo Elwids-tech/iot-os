@@ -99,6 +99,9 @@ func awaitControlPlane(ctx context.Context, logger *slog.Logger, wait time.Durat
 	}
 }
 
+// relay publishes the runtime's own events to JetStream on their way to the control
+// plane. Control rows have a loop of their own (claimControl), so an apply that takes
+// seconds never holds events back.
 func (a *Application) relay(ctx context.Context) {
 	ticker := time.NewTimer(0)
 	defer ticker.Stop()
@@ -110,29 +113,6 @@ func (a *Application) relay(ctx context.Context) {
 			// Idle/error polling remains bounded. A full acknowledged batch can
 			// resume promptly, without imposing a 100-events/second recovery cap.
 			ticker.Reset(time.Second)
-			var batch struct {
-				Data []devices.Event `json:"data"`
-			}
-			if e := a.Control.request(ctx, "POST", "/outbox/claim", map[string]any{}, &batch); e != nil {
-				a.Logger.Debug("control outbox unavailable", "error", e)
-			} else {
-				for _, ev := range batch.Data {
-					raw, e := json.Marshal(ev)
-					if e != nil {
-						continue
-					}
-					m := nats.NewMsg("iot.control." + ev.Type)
-					m.Data = raw
-					m.Header.Set(nats.MsgIdHdr, ev.UUID)
-					if _, e = a.JS.PublishMsg(m); e != nil {
-						a.Logger.Warn("control event publication failed", "error", e)
-						break
-					}
-					if e = a.Control.request(ctx, "POST", "/outbox/"+ev.UUID+"/ack", map[string]string{"lease_token": ev.LeaseToken}, nil); e != nil {
-						a.Logger.Warn("control outbox acknowledgement failed", "error", e)
-					}
-				}
-			}
 			events, e := a.Store.Outbox(ctx)
 			if e != nil {
 				a.Logger.Warn("runtime outbox unavailable", "error", e)
@@ -182,7 +162,7 @@ func (a *Application) subscribe() error {
 	for _, stream := range []struct {
 		Name, Subject, CapacityEnv string
 		Bytes                      int64
-	}{{"IOT_DEVICE_CONTROL", "iot.control.>", "IOT_NATS_CONTROL_MAX_BYTES", 64 << 20}, {eventsStream, "iot.runtime.>", "IOT_NATS_EVENTS_MAX_BYTES", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", "IOT_NATS_TELEMETRY_MAX_BYTES", 768 << 20}} {
+	}{{controlStream, "iot.control.>", "IOT_NATS_CONTROL_MAX_BYTES", 64 << 20}, {eventsStream, "iot.runtime.>", "IOT_NATS_EVENTS_MAX_BYTES", 256 << 20}, {"IOT_DEVICE_TELEMETRY", "iot.telemetry.>", "IOT_NATS_TELEMETRY_MAX_BYTES", 768 << 20}} {
 		capacity, err := streamCapacity(stream.CapacityEnv, stream.Bytes)
 		if err != nil {
 			return err
@@ -196,7 +176,9 @@ func (a *Application) subscribe() error {
 		subject, durable string
 		handle           func(*nats.Msg) error
 	}{
-		{"iot.control.>", "devices-control", func(m *nats.Msg) error {
+		// Nothing is published to the control stream any more; this consumer only applies
+		// what an earlier runtime left there, before the first claim (ADR-043).
+		{"iot.control.>", controlConsumer, func(m *nats.Msg) error {
 			var ev devices.Event
 			if e := storage.Decode(m.Data, &ev); e != nil {
 				return permanent(e)

@@ -287,6 +287,11 @@ Things that have cost time before. Add to this list when something surprises you
 - **Byte limits count uncompressed bytes.** `IOT_NATS_*_MAX_BYTES` and
   `IOT_NATS_STORE_MAX_BYTES` cap message bytes, not disk, so compression saves disk
   without letting a stream hold more messages.
+- Rerunning the runtime's `internal/app` tests against the same test broker within two
+  minutes fails `TestInboxDeliversEventsInOrderAndRetriesABatchInPlace` with "poison was
+  not dead-lettered". The test recreates its stream, so its dead letter gets the same
+  message ID as the last run's, and `IOT_DEAD_LETTERS` drops it as a duplicate for two
+  minutes. Wait, or restart the test broker.
 
 ## Local stack
 

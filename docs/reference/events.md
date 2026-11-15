@@ -23,7 +23,7 @@ rewrite.
 
 | Stream | Subjects | Carries | Byte limit (code default → Compose/release default) | Env var |
 | --- | --- | --- | --- | --- |
-| `IOT_DEVICE_CONTROL` | `iot.control.<type>` | Laravel outbox rows claimed by the runtime | 64 MiB → 64 MiB | `IOT_NATS_CONTROL_MAX_BYTES` |
+| `IOT_DEVICE_CONTROL` | `iot.control.<type>` | Nothing new: control rows are applied from the claim ([ADR-043](../adr/ADR-043-runtime-applies-control-messages-from-the-claim.md)). Kept for one release so an earlier runtime can be started again | 64 MiB → 64 MiB | `IOT_NATS_CONTROL_MAX_BYTES` |
 | `IOT_DEVICE_EVENTS` | `iot.runtime.<type>` | Runtime events on their way to Laravel | 256 MiB → 4 GiB | `IOT_NATS_EVENTS_MAX_BYTES` |
 | `IOT_DEVICE_TELEMETRY` | `iot.telemetry.>` (published as `iot.telemetry.device`) | Mapped readings before storage ([schema](../../contracts/devices/v1/telemetry.schema.json)) | 768 MiB → 12 GiB | `IOT_NATS_TELEMETRY_MAX_BYTES` |
 | `IOT_COMMITTED_TELEMETRY` | `iot.committed.telemetry.v1` | Readings after they are stored | 768 MiB → 4 GiB | `IOT_NATS_COMMITTED_MAX_BYTES` |
@@ -38,7 +38,7 @@ needs reconciliation ([incident runbook](../ops/incident-runbook.md)).
 
 | Consumer | Stream | Does |
 | --- | --- | --- |
-| `devices-control` | `IOT_DEVICE_CONTROL` | Applies activations, deactivations, commands and deployments |
+| `devices-control` | `IOT_DEVICE_CONTROL` | At startup, applies what an earlier runtime left in the stream, before the first claim |
 | `devices-control-inbox` | `IOT_DEVICE_EVENTS` | POSTs runtime events to Laravel in ordered batches |
 | `devices-storage` | `IOT_DEVICE_TELEMETRY` | Writes observations, latest values, diagnostics and the committed outbox in one transaction |
 | `workflow-evaluator-v1` | `IOT_COMMITTED_TELEMETRY` | Evaluates geofence rules and DAGs; state, timers, transitions, intents and checkpoint commit together |
@@ -51,9 +51,26 @@ and `devices-storage` have one message in flight; `devices-control-inbox` has up
 
 ## Control messages (Laravel → Go)
 
-Written to `device_outbox` in the same transaction as the change, claimed by the
-runtime over `POST /api/internal/devices/outbox/claim` (30-second lease, 100 rows),
-republished to `IOT_DEVICE_CONTROL`, then acknowledged.
+Written to `device_outbox` in the same transaction as the change and claimed by the
+runtime over `POST /api/internal/devices/outbox/claim` (100 rows, every second, at
+once after a full claim). The runtime applies a claim's rows one at a time in `id`
+order and then acknowledges them in one request,
+`POST /api/internal/devices/outbox/ack`
+([ADR-043](../adr/ADR-043-runtime-applies-control-messages-from-the-claim.md),
+[`claim.go`](../../services/runtime/internal/app/claim.go)). So `published_at` means
+applied, or set aside as a dead letter.
+
+- A row that fails for now (database or broker unavailable) is retried in place, 3 s
+  doubling to 1 minute, and the rows behind it wait. `GET /internal/status` reports
+  the attempt count as `control.retrying_attempts`, and Laravel exports the age of
+  the oldest unacknowledged row as `iot_device_outbox_oldest_seconds`.
+- A row that can never apply goes to `IOT_DEAD_LETTERS` under
+  `iot.deadletter.devices-control` and is acknowledged.
+- The 30-second lease is not a deadline for applying. A row is acknowledged by its
+  current lease token whatever its `leased_until`; the lease only hands a stopped
+  runtime's rows to the next one. A row applied but not acknowledged is claimed again
+  and handled as a repeat: generations, the command ledger and deployment generations
+  make every handler idempotent.
 
 | Type | Written by | Runtime action |
 | --- | --- | --- |

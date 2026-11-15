@@ -6,7 +6,9 @@ namespace Tests\Feature\Domain\Devices;
 
 use App\Domain\Automation\Services\DagActions;
 use App\Domain\Devices\Http\Controllers\RuntimeController;
+use App\Domain\Devices\Models\DeviceOutbox;
 use App\Domain\Devices\Models\SparkplugConnection;
+use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -41,6 +43,37 @@ final class RuntimeReliabilityTest extends TestCase
     private function runtimeEvents(array $events)
     {
         return $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events/batch', ['events' => $events]);
+    }
+
+    public function test_a_claim_is_acknowledged_in_one_request_once_the_runtime_has_applied_it(): void
+    {
+        $rows = collect(range(1, 3))->map(fn (int $i) => DeviceAudit::enqueue('connection.changed.v1', ['n' => $i]));
+        $claimed = collect($this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/claim', [])->assertOk()->json('data'));
+        $this->assertSame($rows->pluck('uuid')->all(), $claimed->pluck('uuid')->all());
+
+        // Applying outlasted the lease: the token is still current, so the rows are acknowledged (ADR-043).
+        $this->travel(5)->minutes();
+        $stale = ['uuid' => $claimed[2]['uuid'], 'lease_token' => (string) Str::uuid()];
+        $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/ack', ['rows' => [
+            $claimed[0], $claimed[1], $stale,
+        ]])->assertOk()->assertJsonPath('results.*.uuid', $claimed->pluck('uuid')->all())
+            ->assertJsonPath('results.*.acknowledged', [true, true, false]);
+        $this->assertSame([$rows[2]->uuid], DeviceOutbox::whereNull('published_at')->pluck('uuid')->all());
+
+        // A repeated acknowledgement of an acknowledged row is accepted, whatever its token.
+        $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/ack', ['rows' => [['uuid' => $claimed[0]['uuid'], 'lease_token' => (string) Str::uuid()]]])
+            ->assertOk()->assertJsonPath('results.0.acknowledged', true);
+
+        // The row left unacknowledged is handed out again once its lease has run out.
+        $again = $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/claim', [])->assertOk()->json('data');
+        $this->assertSame([$rows[2]->uuid], array_column($again, 'uuid'));
+        $this->assertNotSame($claimed[2]['lease_token'], $again[0]['lease_token']);
+    }
+
+    public function test_an_acknowledgement_needs_rows_with_a_uuid_and_a_lease_token(): void
+    {
+        $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/ack', ['rows' => [['uuid' => 'nope']]])->assertStatus(422);
+        $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/outbox/ack', ['rows' => []])->assertStatus(422);
     }
 
     public function test_a_batch_answers_each_event_in_order_and_sets_aside_only_those_that_can_never_apply(): void
