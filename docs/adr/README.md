@@ -57,6 +57,7 @@ the code as evidence.
 | [ADR-040](ADR-040-moved-back-devices-read-their-own-readings.md) | A device moved back reads the readings its earlier predecessors recorded in its own organization, as its own, whatever each move shared; readings from other organizations stay per link; amends ADR-039 | Accepted (built in spec 031); amended by ADR-041 |
 | [ADR-041](ADR-041-shared-history-follows-every-move.md) | Sharing a move's history shares the whole history the device had, earlier moves included; each part is read where it was recorded; stopping a move ends what crossed it for every device after it; amends ADR-039 and ADR-040 | Accepted (built in spec 031) |
 | [ADR-042](ADR-042-store-telemetry-once.md) | A reading is stored once, in observations or diagnostics; the committed outbox keeps a full event only for its eight-day queue and ledger window; a slim event row keeps identity, order and generation for the retention; location readers rebuild events from the stored readings | Accepted (built) |
+| [ADR-045](ADR-045-adapter-runtime-without-node-red.md) | Each tenant keeps its own ingress broker and runtime container; the runtime runs the platform's four adapter nodes on a small platform-owned host instead of Node-RED; no shared multi-tenant decoder host; decoders and Sparkplug output unchanged; amends ADR-010 | Proposed |
 
 ## Template
 
