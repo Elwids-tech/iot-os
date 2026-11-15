@@ -203,44 +203,59 @@ func (a *Application) subscribe() error {
 			}
 			return a.handleControl(ev)
 		}},
-		{"iot.telemetry.>", "devices-storage", func(m *nats.Msg) error {
-			var telemetry devices.Telemetry
-			if e := storage.Decode(m.Data, &telemetry); e != nil {
-				return permanent(e)
-			}
-			unlock := a.lockDevice(telemetry.Definition.DeviceUUID)
-			defer unlock()
-			a.mu.Lock()
-			definition, enabled := a.definitions[telemetry.Definition.DeviceUUID]
-			generation := a.appliedGeneration[telemetry.Definition.DeviceUUID]
-			a.mu.Unlock()
-			if !enabled || telemetry.Generation != generation || definition.ConfigurationUUID != telemetry.Definition.ConfigurationUUID {
-				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Configuration changed before persistence.")
-				return nil
-			}
-			stored, e := a.Store.PersistResult(a.ctx, telemetry)
-			if e != nil {
-				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "storage_retry", "Storage failed; durable delivery will retry.")
-				return e
-			}
-			if stored {
-				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "stored", "")
-			} else {
-				a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Storage did not accept this generation or an empty reading batch.")
-			}
-			a.observe(telemetry)
-			return nil
-		}},
+		{"iot.telemetry.>", storageConsumer, a.storeTelemetry},
 	}
 	for _, h := range handlers {
-		handler := h
-		sub, e := a.JS.Subscribe(handler.subject, func(m *nats.Msg) {
-			a.settle(handler.durable, m, handler.handle(m))
-		}, nats.Durable(handler.durable), nats.ManualAck(), nats.AckExplicit(), nats.MaxAckPending(1), nats.DeliverAll())
-		if e != nil {
+		if e := a.consume(h.subject, h.durable, h.handle); e != nil {
 			return e
 		}
-		a.subscriptions = append(a.subscriptions, sub)
 	}
 	return a.subscribeInbox()
+}
+
+// storageConsumer stores the telemetry handed on by the ingest path.
+const storageConsumer = "devices-storage"
+
+// consume subscribes a durable consumer that handles one message at a time, in
+// stream order, and settles each before the next.
+func (a *Application) consume(subject, durable string, handle func(*nats.Msg) error) error {
+	sub, e := a.JS.Subscribe(subject, func(m *nats.Msg) {
+		a.settle(durable, m, handle(m))
+	}, nats.Durable(durable), nats.ManualAck(), nats.AckExplicit(), nats.MaxAckPending(1), nats.DeliverAll())
+	if e != nil {
+		return e
+	}
+	a.subscriptions = append(a.subscriptions, sub)
+	return nil
+}
+
+// storeTelemetry stores one handed-on message, unless its device's configuration
+// changed since.
+func (a *Application) storeTelemetry(m *nats.Msg) error {
+	var telemetry devices.Telemetry
+	if e := storage.Decode(m.Data, &telemetry); e != nil {
+		return permanent(e)
+	}
+	unlock := a.lockDevice(telemetry.Definition.DeviceUUID)
+	defer unlock()
+	a.mu.Lock()
+	definition, enabled := a.definitions[telemetry.Definition.DeviceUUID]
+	generation := a.appliedGeneration[telemetry.Definition.DeviceUUID]
+	a.mu.Unlock()
+	if !enabled || telemetry.Generation != generation || definition.ConfigurationUUID != telemetry.Definition.ConfigurationUUID {
+		a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Configuration changed before persistence.")
+		return nil
+	}
+	stored, e := a.Store.PersistResult(a.ctx, telemetry)
+	if e != nil {
+		a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "storage_retry", "Storage failed; durable delivery will retry.")
+		return e
+	}
+	if stored {
+		a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "stored", "")
+	} else {
+		a.captureManager().Stored(telemetry.CaptureID, telemetry.Definition.DeviceUUID, "discarded", "Storage did not accept this generation or an empty reading batch.")
+	}
+	a.observe(telemetry)
+	return nil
 }
