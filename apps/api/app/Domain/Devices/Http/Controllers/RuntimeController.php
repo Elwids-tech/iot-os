@@ -353,10 +353,10 @@ final class RuntimeController
                 }
                 if ($event['type'] === 'device.applied.v1') {
                     abort_unless($device->desired_configuration_uuid === ($p['configuration_uuid'] ?? null), 409);
-                    $device->update(['applied_configuration_uuid' => $p['configuration_uuid'], 'last_applied_configuration_uuid' => $p['configuration_uuid'], 'applied_generation' => $device->deployment_generation, 'deployment_status' => 'applied', 'lifecycle' => 'active', 'presence' => $p['presence'] ?? 'unknown', 'diagnostic' => null, 'runtime_seen_at' => now()]);
+                    $device->configurationApplied($p['configuration_uuid'], $p['presence'] ?? 'unknown');
                 } elseif ($event['type'] === 'device.deactivated.v1') {
                     abort_unless($device->desired_configuration_uuid === null, 409);
-                    $device->update(['applied_configuration_uuid' => null, 'applied_generation' => null, 'deployment_status' => 'inactive', 'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null]);
+                    $device->deactivationApplied();
                     $uncertain = $p['uncertain_command_uuids'] ?? null;
                     $device->commands()->whereNotNull('outstanding_key')->where('status', 'prepared')->update(['status' => 'cancelled', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Unconfirmed command cancelled by deactivation.']);
                     if (is_array($uncertain)) {
@@ -364,8 +364,7 @@ final class RuntimeController
                     }
                     $device->commands()->whereNotNull('outstanding_key')->update(['status' => 'uncertain', 'outstanding_key' => null, 'completed_at' => now(), 'diagnostic' => 'Device deactivated while the command was outstanding.']);
                 } elseif ($event['type'] === 'device.failed.v1') {
-                    // The applied configuration and its generation stay, and so do their bindings (ADR-027).
-                    $device->update(['deployment_status' => 'failed', 'diagnostic' => $p['diagnostic'] ?? 'The runtime rejected the configuration.']);
+                    $device->deploymentFailed($p['diagnostic'] ?? 'The runtime rejected the configuration.');
                     // Device limit (spec 029 US2): a failed deactivation leaves the device running,
                     // so it takes its place back; a failed activation of a device that is not
                     // active gives its place up. A failed reconfiguration keeps it.

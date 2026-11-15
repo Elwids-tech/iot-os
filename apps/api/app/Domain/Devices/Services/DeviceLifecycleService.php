@@ -37,12 +37,7 @@ final class DeviceLifecycleService
                 abort_unless($configuration, 422, 'No confirmed working configuration is available. Review Configuration before activation.');
                 abort_unless($locked->candidate && $configuration->definition['source']['candidate_uuid'] === $locked->candidate->uuid, 422, 'The working configuration uses a different source. Review Configuration.');
             }
-            $locked->forceFill([
-                'desired_configuration_uuid' => $configuration?->uuid, 'deployment_status' => 'pending',
-                'deployment_generation' => $locked->deployment_generation + 1,
-                'state_revision' => $locked->state_revision + 1,
-                'diagnostic' => null, 'updated_by' => $actor,
-            ])->save();
+            $locked->deploymentRequested($configuration?->uuid, ['diagnostic' => null, 'updated_by' => $actor]);
             $operation = self::record($locked, $active ? 'resume' : 'deactivate', $actor, $input['operation_uuid']);
             // The device limit counts from acceptance (spec 029 US2): reactivation needs a
             // place and is refused at the limit; deactivation gives the place back.

@@ -21,6 +21,59 @@ final class Device extends DeviceModel
         return ['state_revision' => 'integer', 'draft' => 'array', 'draft_revision' => 'integer', 'deployment_generation' => 'integer', 'applied_generation' => 'integer', 'last_seen_at' => 'immutable_datetime', 'runtime_seen_at' => 'immutable_datetime', 'limit_place_at' => 'immutable_datetime', 'tags' => 'array', 'custom_attributes' => 'array'];
     }
 
+    /*
+     * Deployment pointers. They say where a device stands between what Laravel asked
+     * for and what the runtime confirmed, and they change only here:
+     *
+     * - desired_configuration_uuid: the configuration that should run, or null.
+     * - applied_configuration_uuid and applied_generation: what the runtime last
+     *   confirmed, which telemetry and automation bindings carry (ADR-027).
+     * - deployment_generation: counts requests; the runtime's answers name it.
+     *
+     * deployment_status is what people see: pending, applied, failed or inactive.
+     */
+
+    /**
+     * A change was requested: a configuration to run, or null to deactivate. The
+     * request is pending under the next generation. $also carries what else the
+     * caller changes in the same write (draft revision, diagnostic, who asked).
+     *
+     * @param  array<string, mixed>  $also
+     */
+    public function deploymentRequested(?string $configurationUuid, array $also = []): void
+    {
+        $this->forceFill([
+            'desired_configuration_uuid' => $configurationUuid, 'deployment_status' => 'pending',
+            'deployment_generation' => $this->deployment_generation + 1,
+            'state_revision' => $this->state_revision + 1,
+        ] + $also)->save();
+    }
+
+    /** The runtime applied the desired configuration under the current generation. */
+    public function configurationApplied(string $configurationUuid, string $presence): void
+    {
+        $this->update([
+            'applied_configuration_uuid' => $configurationUuid, 'last_applied_configuration_uuid' => $configurationUuid,
+            'applied_generation' => $this->deployment_generation, 'deployment_status' => 'applied', 'lifecycle' => 'active',
+            'presence' => $presence, 'diagnostic' => null, 'runtime_seen_at' => now(),
+        ]);
+    }
+
+    /** The runtime stopped the device. The last applied configuration is remembered for a later resume. */
+    public function deactivationApplied(): void
+    {
+        $this->update([
+            'applied_configuration_uuid' => null, 'applied_generation' => null, 'deployment_status' => 'inactive',
+            'lifecycle' => 'deactivated', 'presence' => 'offline', 'diagnostic' => null,
+        ]);
+    }
+
+    /** The runtime refused the request. The applied configuration and its generation stay, and so do their bindings (ADR-027). */
+    public function deploymentFailed(string $diagnostic): void
+    {
+        $this->update(['deployment_status' => 'failed', 'diagnostic' => $diagnostic]);
+    }
+
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);
