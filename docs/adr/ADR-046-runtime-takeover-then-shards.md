@@ -1,6 +1,6 @@
 # ADR-046: One Runtime That Can Be Taken Over, Then Shards by Connection
 
-**Status:** Proposed
+**Status:** Accepted 2026-11-14; stage 1 being built
 **Date:** 2026-11-14
 **Relates to:** [ADR-003](ADR-003-go-data-plane.md), [ADR-005](ADR-005-sparkplug-b-boundary.md), [ADR-006](ADR-006-deployment-profiles.md), [ADR-014](ADR-014-control-plane-data-plane-http-integration.md), [ADR-031](ADR-031-batched-runtime-events.md), [ADR-042](ADR-042-store-telemetry-once.md)
 
@@ -14,7 +14,7 @@ memory, stores telemetry, evaluates automations, dispatches commands and answers
 Laravel's internal queries. There is no failover and no sharding
 ([overview](../architecture/overview.md), [Sparkplug limits](../reference/sparkplug.md#limits),
 [release](../ops/release.md)). An architecture review asked for failover to be
-designed first and sharding second. This record is that design. Nothing is built.
+designed first and sharding second. This record is that design.
 
 ### What assumes one process
 
