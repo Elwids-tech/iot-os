@@ -59,6 +59,7 @@ the code as evidence.
 | [ADR-042](ADR-042-store-telemetry-once.md) | A reading is stored once, in observations or diagnostics; the committed outbox keeps a full event only for its eight-day queue and ledger window; a slim event row keeps identity, order and generation for the retention; location readers rebuild events from the stored readings | Accepted (built) |
 | [ADR-043](ADR-043-runtime-applies-control-messages-from-the-claim.md) | The runtime applies a claimed control row and then acknowledges it, in one request per claim; `IOT_DEVICE_CONTROL` and its consumer go; the events stream stays as ADR-031 left it; amends ADR-014 | Proposed |
 | [ADR-044](ADR-044-geofence-rules-join-dag-automation-in-stages.md) | Geofence rules join DAG automation in stages: the DAG engine first gets the rule's location semantics (same-event fixes, accuracy, evidence policy, an alert that holds through unknown), then the duplicated deployment plumbing is shared, and rules are converted last, with carried state and open alerts, behind a separate go-ahead; amends ADR-011 | Proposed |
+| [ADR-045](ADR-045-adapter-runtime-without-node-red.md) | Each tenant keeps its own ingress broker and runtime container; the runtime runs the platform's four adapter nodes on a small platform-owned host instead of Node-RED; no shared multi-tenant decoder host; decoders and Sparkplug output unchanged; amends ADR-010 | Proposed |
 
 ## Template
 
