@@ -26,6 +26,34 @@ hostname (`localhost` or `127.0.0.1`) in every tab so cookies are shared.
   capabilities, which the UI uses to show or hide features. The API enforces the
   same rules independently.
 
+### Keep me signed in
+
+The portal's sign-in and its **Restore your session** dialog offer **Keep me signed
+in**, off by default, with the hint *Don't tick this on a shared device.* Without it
+the session ends after 2 hours idle, as before. With it, that browser or installed app
+stays signed in for 30 days from sign-in, however long it sits idle
+([spec 033](../../specs/033-pwa-web-push/spec.md) FR-011a, research R11).
+
+- `POST /api/v1/auth/login` takes `remember: true`. It creates a `kept_sign_ins` row
+  and sets the `iot_kept` cookie (`{uuid}.{secret}`, encrypted, HttpOnly, on the
+  session's domain with its Secure and SameSite flags). Only the secret's SHA-256 is
+  stored.
+- `ResumeKeptSignIn`, in the `api` middleware group after Sanctum's stateful middleware,
+  signs a portal or admin request that has lost its session back in from a live
+  record, and signs a session out as soon as its record has ended or expired. It
+  ignores bearer tokens and requests that are not from a stateful frontend.
+- The 30 days run from sign-in and use never extends them. Signing out on that browser
+  ends only its record (`signed_out`); other devices stay signed in. A password reset
+  ends every record of the person (`password_reset`). Signing in again on the browser
+  replaces its record. Removing a push device will end the record linked to it
+  (`device_removed`, pull request 5 of spec 033).
+- The admin app shares the session cookie's domain, so a browser kept signed in on the
+  portal is signed in to the admin app too, as the shared session already is within
+  its 2 hours ([ADR-047](../adr/ADR-047-progressive-web-app-before-native-apps.md)).
+  The admin sign-in has no checkbox.
+- `auth:prune-kept-sign-ins` runs daily at 03:55 UTC and deletes records that ended or
+  expired more than 30 days ago.
+
 ### Password recovery
 
 Both sign-in pages link to **Forgot password?**, hosted by the portal at
@@ -37,8 +65,9 @@ Both sign-in pages link to **Forgot password?**, hosted by the portal at
   of server logs and referrers. Tokens are hashed, expire after 60 minutes and are
   single-use.
 - Passwords need 12–256 characters. A reset rotates the remember token, deletes
-  the person's database sessions, revokes their agent connections with those
-  connections' Passport access and refresh tokens, and requires a fresh sign-in.
+  the person's database sessions, ends every kept sign-in, revokes their agent
+  connections with those connections' Passport access and refresh tokens, and requires
+  a fresh sign-in.
 - Reset mail goes through the `alerts` queue and `alerts-worker`; notification
   preferences never suppress it. Queued mail is encrypted with `APP_KEY`, so API and
   workers must share it.

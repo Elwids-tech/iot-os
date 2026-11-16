@@ -2,6 +2,8 @@
 
 use App\Domain\Agents\Console\ExportToolCatalogue;
 use App\Domain\Agents\Console\PruneAgents;
+use App\Domain\Authentication\Console\PruneKeptSignIns;
+use App\Domain\Authentication\Http\Middleware\ResumeKeptSignIn;
 use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\Automation\Console\PruneAlertNotifications;
 use App\Domain\Billing\Console\DraftInvoices;
@@ -19,6 +21,7 @@ use App\Domain\Help\Console\ValidateHelp;
 use App\Domain\Integrations\Console\WebhookWorker;
 use App\Http\Middleware\OperationRequestLog;
 use App\Http\Middleware\TrustDeploymentProxies;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -32,9 +35,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class])
+    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class, PruneKeptSignIns::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        // Keep me signed in (spec 033, R11): after Sanctum has started the session, and
+        // ahead of `auth:sanctum`, which the priority list would otherwise sort first.
+        $middleware->appendToGroup('api', ResumeKeptSignIn::class);
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, ResumeKeptSignIn::class);
         // A signed-out person starting an agent connection signs in on the portal, which
         // then returns to the authorize URL. Other routes keep their behaviour.
         $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->routeIs('passport.authorizations.authorize')

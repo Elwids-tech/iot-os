@@ -18,7 +18,7 @@ import {
   useParams,
   NavLink,
 } from "react-router-dom"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
 import { Button } from "@iot-os/ui/components/button"
@@ -111,6 +111,7 @@ import { useSupportUnread } from "./support/model"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { PanelProvider, usePanel } from "./panel/context"
 import { TextField, RequestError, Confirm } from "./components/forms"
+import { KeepSignedIn, credentials } from "./components/KeepSignedIn"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
 import { AlertBellProvider } from "./alerts/bell/AlertBellProvider"
@@ -157,7 +158,9 @@ export function App() {
 function Login({ recovered = false }: { recovered?: boolean }) {
   const cache = useQueryClient()
   const [error, setError] = useState<unknown>(null)
-  const form = useForm({ defaultValues: { email: "", password: "" } })
+  const form = useForm({
+    defaultValues: { email: "", password: "", remember: false },
+  })
   return (
     <main className="flex min-h-svh items-center justify-center p-5">
       <Card className="w-full max-w-md">
@@ -179,7 +182,9 @@ function Login({ recovered = false }: { recovered?: boolean }) {
           onSubmit={form.handleSubmit(async (values) => {
             setError(null)
             try {
-              const user = await api.login(values)
+              const user = await api.login(
+                credentials(values.email, values.password, values.remember),
+              )
               cache.removeQueries({
                 predicate: (query) => query.queryKey[0] !== "session",
               })
@@ -204,6 +209,17 @@ function Login({ recovered = false }: { recovered?: boolean }) {
                 autoComplete="current-password"
                 required
                 {...form.register("password")}
+              />
+              <Controller
+                control={form.control}
+                name="remember"
+                render={({ field }) => (
+                  <KeepSignedIn
+                    id="login-remember"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
               />
               <RequestError error={error} />
               <Link to="/forgot-password" className="text-sm text-primary underline underline-offset-4">Forgot password?</Link>
@@ -1073,7 +1089,8 @@ function SessionRecovery({
     [error, setError] = useState<unknown>(null),
     [busy, setBusy] = useState(false),
     [signingOut, setSigningOut] = useState(false),
-    [confirmDiscard, setConfirmDiscard] = useState(false)
+    [confirmDiscard, setConfirmDiscard] = useState(false),
+    [remember, setRemember] = useState(false)
   const { dirty } = useDirtyContext()
   return (
     <Dialog open>
@@ -1094,7 +1111,7 @@ function SessionRecovery({
             setBusy(true)
             setError(null)
             try {
-              await api.login({ email, password })
+              await api.login(credentials(email, password, remember))
               await onRecovered()
             } catch (reason) {
               setError(reason)
@@ -1111,6 +1128,11 @@ function SessionRecovery({
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+            />
+            <KeepSignedIn
+              id="recovery-remember"
+              checked={remember}
+              onCheckedChange={setRemember}
             />
             <RequestError error={error} />
             {confirmDiscard && (

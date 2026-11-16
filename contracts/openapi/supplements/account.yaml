@@ -5,6 +5,24 @@
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
 operations:
+  POST /v1/auth/login:
+    description: |-
+      Signs in on the first-party session. With `remember: true` (Keep me signed in,
+      spec 033) it also starts a kept sign-in for this browser and sets the `iot_kept`
+      cookie: HttpOnly, on the session's domain, Secure and SameSite as the session
+      cookie, for a fixed 30 days that use never extends. While the kept sign-in is live,
+      a request from the portal or admin app that has lost its session signs the same
+      person back in without a password. Signing out on that browser or resetting the
+      password ends it. A missing or `false` `remember` behaves as before, and a new
+      sign-in ends the kept sign-in the browser held.
+  POST /v1/auth/logout:
+    description: |-
+      Ends the session and this browser's kept sign-in, and forgets the `iot_kept`
+      cookie. Kept sign-ins on other browsers stay.
+  POST /v1/auth/reset-password:
+    description: |-
+      Sets the new password, signs the person out everywhere, revokes their agent
+      connections and ends every kept sign-in they hold.
   PUT /v1/notifications/preferences:
     responses:
       '403':
