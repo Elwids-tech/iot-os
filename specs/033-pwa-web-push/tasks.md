@@ -112,7 +112,7 @@ readings with ages, open a dashboard and read every widget by scrolling down onl
 ## Phase 5: Finish pull request 2 (phone layouts)
 
 - [x] T025 [P] `docs/features/portal-on-phones.md` (new): which pages work at phone width, what stays desktop-only (editing dashboards, automations, profiles and adapters), and the filter sheet. Link it from `docs/README.md` beside the other feature docs
-- [ ] T026 Verify pull request 2:
+- [x] T026 Verify pull request 2 (done 2026-11-16: no Android phone was connected, so the walk used Playwright's mobile emulation against the rebuilt stack, plus the browser pane, whose hidden state renders at its own width until a frame is forced):
   - `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/admin lint`, `pnpm --filter @iot-os/portal test`, `pnpm --filter @iot-os/ui test`, all portal Playwright specs (existing desktop specs unchanged: SC-008), `./taskw lint`;
   - rebuild `portal admin` with the stack's env files and overlays ([local setup](../../docs/dev/local-setup.md#rebuild-one-service));
   - in the browser pane at the `mobile` preset, without discarding anyone's unsaved edits, walk US1 and US4, and time SC-001 (already signed in: from opening an alert link to acknowledged, under 30 s);
