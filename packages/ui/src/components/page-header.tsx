@@ -128,16 +128,16 @@ export function PageHeader({
         <div className="flex min-h-14 flex-wrap items-center px-1 py-1.5">
           <SidebarTrigger />
           {backLink}
-          <h1 className="line-clamp-2 min-w-0 flex-1 basis-22 px-1 text-lg leading-tight font-semibold tracking-tight">
+          <h1 className="line-clamp-3 min-w-0 flex-1 basis-22 px-1 text-base leading-snug font-semibold tracking-tight">
             {heading ?? title}
           </h1>
           {help?.trigger && <div className="ml-auto flex shrink-0 items-center">{help.trigger}</div>}
         </div>
         {(meta || listed.length > 0) && (
-          <div className="-mt-1 flex min-h-11 items-center gap-2 px-4 pb-2">
+          <div className="-mt-1 flex min-h-11 flex-wrap items-center gap-2 px-4 pb-2">
             {meta && <div className="min-w-0 flex-1 truncate text-meta text-muted-foreground">{meta}</div>}
             {listed.length > 0 && (
-              <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                 {kept}
                 {rest.length > 0 && <MoreActions>{rest}</MoreActions>}
               </div>

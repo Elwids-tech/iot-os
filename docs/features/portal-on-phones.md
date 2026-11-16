@@ -25,9 +25,9 @@ Code: portal [`src/alerts`](../../apps/portal/src/alerts),
 | Page | On a phone |
 | --- | --- |
 | Sign-in, password reset, invitation | The card spans the screen with 16 px sides. An alert link opened while signed out signs in and then opens that alert. |
-| Home | Summary cards and panels stack in one column. |
-| Alerts | One stacked row per alert or source: title, device, state and time. **Filters** opens every filter in a sheet (below). With manage access, selecting rows shows **Acknowledge selected** in a bar fixed to the bottom of the screen. |
-| Alert detail | Facts in one column, the assignee picker full width, **Acknowledge alert** one tap away. Email deliveries are cards with the recipient, status and attempts, and **Retry email** on a failed one. A link to an alert that is gone, or that you can no longer see, says *This alert isn't available* and nothing more. |
+| Home | Compact summary tiles, two to a row, so **Needs attention** is near the top; panels below in one column. |
+| Alerts | One stacked row per alert or source: title, device, state and time. **Filters** opens every filter in a sheet (below). Titles wrap to two lines. With manage access, selecting rows brings up **Acknowledge selected** in a bar at the bottom of the screen. |
+| Alert detail | **Acknowledge alert** in a bar at the bottom of the screen, one tap away while reading. The assignee picker is full width and the facts read as label and value rows. Email deliveries are cards with the recipient, status and attempts, and **Retry email** on a failed one. A link to an alert that is gone, or that you can no longer see, says *This alert isn't available* and nothing more. |
 | Devices | Cards, with search and **Filters** above them. |
 | Device detail | Status and last seen in the header, then the latest readings with their age, then the device's alerts, then location, details, connectivity, installation, dashboards it is used in and recent commands. |
 | Dashboards | The list as cards. |
@@ -36,8 +36,9 @@ Code: portal [`src/alerts`](../../apps/portal/src/alerts),
 
 On every page the menu button opens the sidebar with the organization switcher and the
 user menu, and the bell, **Assistant** and **Help** stay in the header. The bell's list,
-Help and the Assistant open the full width of the screen. A page header keeps its main
-action in view and puts the rest behind **More actions**. Every button and field is at
+Help and the Assistant open the full width of the screen. The header is an app bar:
+the title wraps to up to three lines, and the page's main action stays in view with the
+rest behind **More actions**. Every button and field is at
 least 44 px tall, and fields use 16 px text so iOS does not zoom in. Pages still fit
 with the phone's text at 200%; long rows wrap.
 
@@ -53,8 +54,8 @@ filters** returns to the default view and **Done** closes the sheet.
 
 Reachable on a phone, but laid out for a computer:
 
-- **Editing dashboards.** A dashboard on a phone offers no **Edit**; the header says
-  *Editing needs a larger screen*. A link that opens a dashboard for editing opens it to
+- **Editing dashboards.** A dashboard on a phone offers no **Edit**; **More actions**
+  says *Editing needs a larger screen* where Edit would be. A link that opens a dashboard for editing opens it to
   read. The computer layout is never changed from a phone.
 - **Automations, device profiles and device adapters**, and the other settings pages.
 

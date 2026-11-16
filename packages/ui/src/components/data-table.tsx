@@ -948,9 +948,11 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                                 // A column with an empty value prints no "Header" line of its own.
                                 const value = column.value?.(row.original)
                                 if (column.value && (value === null || value === undefined || value === "")) return null
+                                // The value truncates on its own, so a long code keeps its start beside the label.
                                 return (
-                                  <span key={column.id} className="min-w-0 truncate">
-                                    {column.header} {column.cell(row.original)}
+                                  <span key={column.id} className="flex max-w-full min-w-0 items-baseline gap-1">
+                                    <span className="shrink-0">{column.header}</span>{" "}
+                                    <span className="min-w-0 truncate">{column.cell(row.original)}</span>
                                   </span>
                                 )
                               })}
@@ -1103,8 +1105,8 @@ function Toolbar<T>({
           placeholder={search.placeholder}
           value={search.value}
           onChange={(event) => search.onChange(event.target.value)}
-          // Icon buttons fit beside the search on phones.
-          className="min-w-32 flex-1 sm:flex-none"
+          // Phones give the search a row of its own, so every list starts the same way.
+          className="min-w-32 flex-1 sm:flex-none max-md:basis-full"
         />
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">

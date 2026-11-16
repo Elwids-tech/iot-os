@@ -184,7 +184,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
     // Phones: the card spans the screen with 16 px sides, and its controls are 44 px tall.
     <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">
       {/* Phones: the form fills the screen without a card's frame. */}
-      <Card className="w-full max-w-md max-md:rounded-none max-md:bg-transparent max-md:shadow-none">
+      <Card className="w-full max-w-md max-md:rounded-none max-md:bg-transparent max-md:shadow-none max-md:[&_[data-slot=card-footer]]:border-0 max-md:[&_[data-slot=card-footer]]:bg-transparent">
         <CardHeader>
           <div className="mb-4 flex items-center justify-between">
             <CpuIcon className="text-primary" />

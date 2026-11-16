@@ -77,9 +77,9 @@ export const Computer: StoryObj = {
 }
 
 /**
- * Phones (under 768 px): the menu button and the primary action (Edit) stay; the rest go
- * behind More actions, where Rename still opens its dialog. The bell, Assistant and Help
- * never move.
+ * Phones (under 768 px): an app bar. Menu, back, the title and the bell, Assistant and
+ * Help on the first row; meta and the primary action (Edit) under it, with the rest
+ * behind More actions, where Rename still opens its dialog.
  */
 export const Phone: StoryObj = {
   globals: { viewport: { value: "phone", isRotated: false } },

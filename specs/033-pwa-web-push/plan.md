@@ -182,7 +182,7 @@ All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 | Alert detail | Facts in one column. Assignee select full width. The deliveries list becomes a `DataTable` with columns channel, recipient, devices (`1 of 2`), status and sent, showing phone cards, with **Retry** for failed rows of either channel. Not-found reads *This alert isn't available*. |
 | Devices (`DeviceDirectory.tsx`) | Already phone cards; filters through the sheet. |
 | Device detail (`DeviceOverview.tsx`) | At phone width the order is status and last seen, `LatestReadout` with ages, active alerts, then the rest. |
-| Dashboards (`DashboardWorkspace.tsx`, `DashboardGrid.tsx`) | **Edit** hidden under 768 px, with *Editing needs a larger screen* in its place. A minimum height per widget kind in the one-column layout (stat 3 rows, chart and map 6 rows, table 8 rows with its own sideways scroll). `TimeControls` collapses to one button that opens the range popover. |
+| Dashboards (`DashboardWorkspace.tsx`, `DashboardGrid.tsx`) | **Edit** hidden under 768 px, with *Editing needs a larger screen* under **More actions**. A minimum height per widget kind in the one-column layout (stat 3 rows, chart and map 6 rows, table 8 rows with its own sideways scroll). `TimeControls` collapses to one button that opens the range popover. |
 | Help and Assistant (`help/HelpPanel.tsx`) | The panel's `Sheet` is full width under 768 px (FR-005). |
 | Settings | The personal page **Email** becomes **My notifications** (`settings/my-notifications`, with `settings/email` redirecting). The user menu item is renamed the same. |
 

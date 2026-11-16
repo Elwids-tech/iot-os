@@ -137,19 +137,27 @@ keep their layouts: change nothing at `md` and up for a phone fix.
   the kit's.
 - **Inputs are 16 px.** `Input` and `Textarea` use `text-base` below `md` (`md:text-sm`
   above), because iOS zooms the page into any field with smaller text.
-- **Header overflow.** `PageHeader` keeps the menu button, one action and the help slot
-  (bell, Assistant, Help); the other actions go behind **More actions**. The action kept
-  is the primary `Button` (default variant) when there is one, else the first. Choosing
-  an action closes the list, unless it opens its own dialog or menu (`aria-haspopup`),
-  which then opens above the list.
+- **App bar.** `PageHeader` is an app bar on phones: the menu, back, the title (up to
+  three lines) and the help slot (bell, Assistant, Help) on the first row, in the same
+  places on every page; meta and actions share the row under it. One action stays in
+  view, the primary `Button` (default variant) when there is one, else the first; the
+  others go behind **More actions**, which also names icon-only actions. Choosing an
+  action closes the list, unless it opens its own dialog or menu (`aria-haspopup`),
+  which then opens above the list. Keep headers that scroll with the page: a sticky
+  header with three rows covers a quarter of a phone screen.
+- **The main task under the thumb.** A page's one main action on a phone (Acknowledge
+  on an alert, Acknowledge selected once rows are chosen) sits in a full-width bar stuck
+  to the bottom of the screen, as the primary button. Show it only while it can act.
 - **Filter sheet.** Lists put their filters in a bottom `FilterSheet` behind one
   **Filters** button with the active count: `DataTable` does it for its own filters,
   `CollectionPage` for its `filters` slot (with `activeFilterCount` and
   `onResetFilters`), and a page with its own toolbar (Alerts) uses `FilterSheet`
   directly. The sheet holds every filter the wider layout has.
 - **Lists are cards.** `DataTable` shows a card per row: the `mobile: "title"` column,
-  the `"badge"` column, then the other columns as "Header value" lines unless
-  `"hidden"`. Give every column a `mobile` role.
+  the `"badge"` column under it on every card, then the other columns as "Header value"
+  lines unless `"hidden"` or empty. Give every column a `mobile` role. The toolbar puts
+  the search on its own row and shows its icons without frames; phones get no Group menu
+  (cards are never grouped). Property lists read as label and value rows.
 - **Full width.** Side panels (Help and Assistant, the sidebar) and the bell's list open
   the full width of the screen. A grid that holds long text uses a
   `minmax(0,1fr)` track below `md` (`InboxPage` does), so a long title truncates
