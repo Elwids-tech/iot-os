@@ -503,9 +503,9 @@ function AlertsPage() {
       {grouped ? plural(total, "source") : plural(total, "alert")}
     </span>
   );
-  // Bulk acknowledge: a row above the list from 768 px; on phones a bar at the foot of the
-  // list that sticks to the bottom of the screen while the list is in view, under the toasts.
-  const bulkBar = capabilities.manage && (grouped ? groups : rows).length > 0 && (
+  // Bulk acknowledge: a row above the list from 768 px; on phones, once something is
+  // selected, a bar stuck to the bottom of the screen, under the toasts.
+  const bulkBar = capabilities.manage && (grouped ? groups : rows).length > 0 && (!phone || chosen.length > 0 || acknowledge.isPending) && (
     <div
       ref={phone ? keepToastsAbove : undefined}
       data-sticky-bar={phone ? "" : undefined}
@@ -539,7 +539,7 @@ function AlertsPage() {
       </span>
       <Button
         size="sm"
-        variant="outline"
+        variant={phone ? "default" : "outline"}
         disabled={!pending || acknowledge.isPending}
         onClick={() => (pending > 1 ? setConfirm(true) : acknowledge.mutate())}
       >
@@ -574,11 +574,11 @@ function AlertsPage() {
               <>
                 <FilterSheet title="Filter alerts" count={phoneFilters} onReset={() => setParams({})}>
                   <div className="flex flex-col gap-1.5">
-                    <span aria-hidden="true" className="text-meta text-muted-foreground">Condition</span>
+                    <span aria-hidden="true" className="text-sm leading-snug font-medium">Condition</span>
                     {conditionFilter}
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <span aria-hidden="true" className="text-meta text-muted-foreground">Repeats</span>
+                    <span aria-hidden="true" className="text-sm leading-snug font-medium">Repeats</span>
                     {repeatsFilter}
                   </div>
                   {unacknowledgedFilter}
@@ -1093,11 +1093,12 @@ const usesDevice = (dashboard: Dashboard, device: string) =>
       widget.config.devices?.some((item) => item.device_uuid === device),
   );
 
+/** A fact of the alert: label over value, and on phones a label and value row. */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 max-md:col-span-2 max-md:grid max-md:grid-cols-subgrid max-md:items-baseline max-md:border-b max-md:py-2.5 max-md:last:border-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 break-words">{children}</dd>
+      <dd className="mt-0.5 break-words max-md:mt-0">{children}</dd>
     </div>
   );
 }
@@ -1196,6 +1197,7 @@ function AlertDetail({
   search: string;
   back?: string;
 }) {
+  const phone = useIsMobile();
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const canViewDashboards = useDashboardCapabilities(org).view;
   const cache = useQueryClient();
@@ -1428,7 +1430,7 @@ function AlertDetail({
                 onChange={(value) => assign.mutate(value ? Number(value) : null)}
               />
             )}
-            {capabilities.manage && !alert.acknowledged_at && (
+            {capabilities.manage && !alert.acknowledged_at && !phone && (
               <Button
                 disabled={acknowledge.isPending}
                 onClick={() => acknowledge.mutate()}
@@ -1456,7 +1458,7 @@ function AlertDetail({
               </AlertDescription>
             </Alert>
           ) : null}
-          <dl className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-6 gap-y-4 border-y py-4 text-sm max-md:grid-cols-1">
+          <dl className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-6 gap-y-4 border-y py-4 text-sm max-md:grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] max-md:gap-x-4 max-md:gap-y-0 max-md:py-0">
             <Fact label="Condition">{conditionMark(alert)}</Fact>
             <Fact label="Acknowledgement">
               {alert.acknowledged_at ? (
@@ -1658,6 +1660,18 @@ function AlertDetail({
                 </Button>
               </form>
             </section>
+          )}
+          {/* Phones keep Acknowledge under the thumb: a bar stuck to the bottom of the screen. */}
+          {capabilities.manage && !alert.acknowledged_at && phone && (
+            <div
+              ref={keepToastsAbove}
+              data-sticky-bar=""
+              className="sticky bottom-0 z-10 -mx-4 -mb-4 border-t bg-background px-4 py-3"
+            >
+              <Button className="w-full" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate()}>
+                {acknowledge.isPending ? "Acknowledging…" : "Acknowledge alert"}
+              </Button>
+            </div>
           )}
           <Confirm
             open={Boolean(retry)}

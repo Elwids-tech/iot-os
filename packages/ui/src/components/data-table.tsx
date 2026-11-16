@@ -939,11 +939,9 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                         {/* Above the stretched row link, so tapping them does not open the row. */}
                         {selectable && selectBox(row, "relative z-10 mt-0.5")}
                         <div className="flex min-w-0 grow basis-40 flex-col gap-1">
-                          {/* Wraps the badge under the title when both do not fit (large text). */}
-                          <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1">
-                            <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
-                            {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
-                          </div>
+                          {/* The status sits under the title on every card, so cards line up and long names keep their room. */}
+                          <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
+                          {badgeColumn && <div className="min-w-0">{badgeColumn.cell(row.original)}</div>}
                           {metaColumns.length > 0 && (
                             <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
                               {metaColumns.map((column) => {
@@ -1181,7 +1179,8 @@ function Toolbar<T>({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {groups.length > 0 && (
+        {/* Phone cards are never grouped, so phones offer no Group menu. */}
+        {groups.length > 0 && !phone && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <ToolbarButton
@@ -1244,8 +1243,10 @@ export function ToolbarButton({
   label: string
   name?: string
 }) {
+  // Phones show toolbar icons without frames; the 44 px target stays.
+  const phone = useIsMobile()
   const button = (
-    <Button variant="outline" size={children ? "sm" : "icon-sm"} aria-label={name ?? label} {...props}>
+    <Button variant={phone ? "ghost" : "outline"} size={children ? "sm" : "icon-sm"} aria-label={name ?? label} {...props}>
       {children ? React.cloneElement(icon, { "data-icon": "inline-start" }) : icon}
       {children}
     </Button>

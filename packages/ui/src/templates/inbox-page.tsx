@@ -158,7 +158,7 @@ export function InboxItem({
           to={to}
           data-inbox-link=""
           aria-current={current ? "page" : undefined}
-          className="truncate font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+          className="truncate font-medium outline-none max-md:line-clamp-2 max-md:whitespace-normal after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
         >
           {title}
         </Link>

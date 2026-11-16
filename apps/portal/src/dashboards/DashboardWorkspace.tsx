@@ -906,7 +906,8 @@ export function DashboardWorkspace({
   return (
     <>
       <PageHeader
-        className="sticky top-0 z-20 bg-background"
+        // Phones scroll the header away: a sticky three-row header would cover a quarter of the screen.
+        className="sticky top-0 z-20 bg-background max-md:static"
         title={dashboard.name}
         heading={
           <DashboardSwitcher
@@ -1046,6 +1047,13 @@ export function DashboardWorkspace({
                   Edit<span className="sr-only"> dashboard</span>
                 </Button>
               )}
+              {/* Phones say why there is no Edit where people look for it: under More actions. */}
+              {canEdit && phone && (
+                <p className="flex items-center gap-2 px-2.5 py-2 text-meta text-muted-foreground">
+                  <PencilIcon aria-hidden="true" className="size-4 shrink-0" />
+                  Editing needs a larger screen
+                </p>
+              )}
             </>
           )
         }
@@ -1070,9 +1078,6 @@ export function DashboardWorkspace({
         >
           <UpdatedAt org={org} timezone={view.timezone} />
         </TimeControls>
-        {phone && canEdit && !draft && (
-          <p className="text-meta text-muted-foreground">Editing needs a larger screen</p>
-        )}
       </PageHeader>
       <div className="flex min-w-0 flex-col lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">

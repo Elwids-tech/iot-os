@@ -64,7 +64,8 @@ function FilterSheet({
             {description ?? "Changes apply as you make them."}
           </SheetDescription>
         </SheetHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 [&_[data-slot=toggle-group]]:max-w-full [&_[data-slot=toggle-group]]:overflow-x-auto">
+        {/* Segmented controls span the sheet, like the pickers under them. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 [&_[data-slot=toggle-group]]:w-full [&_[data-slot=toggle-group]]:max-w-full [&_[data-slot=toggle-group]]:overflow-x-auto [&_[data-slot=toggle-group-item]]:flex-1">
           {children}
         </div>
         <SheetFooter className="flex-row border-t">

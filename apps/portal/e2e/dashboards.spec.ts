@@ -1255,7 +1255,9 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   // Phones read workflow panels; editing needs a larger screen (spec 033, FR-006).
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByRole("button", { name: "Edit dashboard", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "More actions", exact: true }).click()
   await expect(page.getByText("Editing needs a larger screen", { exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
   await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
   await expect(page.getByText("1 active", { exact: true }).first()).toBeVisible()
   // The closing picker fades out; scan once no animation is running.

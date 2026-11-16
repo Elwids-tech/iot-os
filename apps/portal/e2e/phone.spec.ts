@@ -655,11 +655,12 @@ for (const viewport of viewports) {
       await page.goto(`${base}/dashboards/${dashboardId}`, { waitUntil: "load" })
       await expect(page.getByRole("heading", { name: "Voltage now" })).toBeVisible()
       await expect(page.getByRole("button", { name: /^Edit/ })).toHaveCount(0)
-      await expect(page.getByText("Editing needs a larger screen")).toBeVisible()
-      // The header keeps Share in view; the other actions sit behind More actions, menus included.
+      // The header keeps Share in view; the other actions sit behind More actions, menus
+      // included, with a note where Edit would be.
       await expect(page.getByRole("button", { name: "Share" })).toBeVisible()
       await page.getByRole("button", { name: "More actions" }).click()
       const more = page.getByRole("dialog", { name: "More actions" })
+      await expect(more.getByText("Editing needs a larger screen")).toBeVisible()
       // A label phones hide beside an icon shows again in the list.
       await expect(more.getByRole("button", { name: "Kiosk" })).toHaveText("Kiosk")
       await expect(more.getByText("Kiosk")).toBeVisible()
@@ -737,6 +738,7 @@ test.describe("computers", () => {
     await page.goto(`${base}/dashboards/${dashboardId}`)
     await expect(page.getByRole("button", { name: "Edit dashboard" })).toBeVisible()
     await expect(page.getByText("Editing needs a larger screen")).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "More actions" })).toHaveCount(0)
     const box = (id: string) => page.locator(`#panel-${id}`).evaluate((element) => {
       const { x, y, width, height } = element.parentElement!.getBoundingClientRect()
       return { x, y, width, height }
