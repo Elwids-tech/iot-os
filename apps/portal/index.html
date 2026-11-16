@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- The kit's light and Dusk --background (tokens.css), as hex. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f6f9" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101419" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Filled in by main.tsx, so tests can tell two builds apart (spec 033). -->
+    <meta name="build-id" content="" />
     <title>IoT OS</title>
     <script>
       // Skin and dark palette before first paint; SkinProvider and PaletteProvider

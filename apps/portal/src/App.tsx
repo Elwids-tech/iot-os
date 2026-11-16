@@ -38,6 +38,8 @@ import {
   ThemePicker,
 } from "@iot-os/ui/components/theme-picker"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { ConnectionNotice } from "@iot-os/ui/components/connection-notice"
+import { OfflineScreen } from "@iot-os/ui/components/offline-screen"
 import { PageHelpContext } from "@iot-os/ui/components/page-help"
 import { helpContextForPath } from "./help/context"
 import { useLastDashboardPath } from "./dashboards/lastPlace"
@@ -89,6 +91,7 @@ import {
   ChevronRightIcon,
   ChevronsUpDownIcon,
   CpuIcon,
+  DownloadIcon,
   HouseIcon,
   MailIcon,
   MapPinnedIcon,
@@ -116,6 +119,10 @@ import { ProfileDirectory } from "./profiles/ProfileDirectory"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
 import { AlertBellProvider } from "./alerts/bell/AlertBellProvider"
 import { AlertBell } from "./alerts/bell/AlertBell"
+import { useConnection } from "./pwa/connection"
+import { useInstallApp } from "./pwa/useInstallApp"
+import { clearPersonalState } from "./pwa/personal-state"
+import { standalone } from "./pwa/install"
 const HomePage = lazy(() => import("./home/HomePage"))
 const AutomationRoutes = lazy(() => import("./automation/Automation"))
 const DashboardPage = lazy(() => import("./dashboards/DashboardPage").then(module => ({ default: module.DashboardPage })))
@@ -139,6 +146,7 @@ const ProfileWorkspace = lazy(() =>
   })),
 )
 export function App() {
+  useStandaloneClass()
   return (
     <UnsavedProvider>
       <Routes>
@@ -155,6 +163,17 @@ export function App() {
     </UnsavedProvider>
   )
 }
+/** Marks `<html>` while the portal runs as an installed app, for the kit's safe-area padding (spec 033). */
+function useStandaloneClass() {
+  useEffect(() => {
+    const media = window.matchMedia?.("(display-mode: standalone)")
+    const sync = () => document.documentElement.classList.toggle("standalone", standalone())
+    sync()
+    media?.addEventListener("change", sync)
+    return () => media?.removeEventListener("change", sync)
+  }, [])
+}
+
 function Login({ recovered = false }: { recovered?: boolean }) {
   const cache = useQueryClient()
   const [error, setError] = useState<unknown>(null)
@@ -249,7 +268,16 @@ function Session() {
     queryKey: ["session"],
     queryFn: () => api.me(),
     staleTime: 60000,
+    // Started offline, this fails at once to the offline screen instead of waiting.
+    networkMode: "always",
   })
+  const connection = useConnection()
+  const unreachable = query.error instanceof ApiError && query.error.status === 0
+  const { refetch } = query
+  // The offline screen goes once the API answers again, without anyone tapping.
+  useEffect(() => {
+    if (unreachable && connection.state === "online") void refetch()
+  }, [unreachable, connection.state, refetch])
   if (query.isPending)
     return (
       <main
@@ -262,7 +290,11 @@ function Session() {
     )
   if (query.error instanceof ApiError && query.error.status === 401)
     return <Login />
-  if (query.error)
+  // Started offline: nothing from an earlier session is shown, the cache lives in memory
+  // only (FR-012). Offline later, the open page stays with its offline notice (FR-013).
+  if (unreachable && !query.data)
+    return <OfflineScreen retrying={query.isFetching} onRetry={() => void refetch()} />
+  if (query.error && !unreachable)
     return (
       <main className="mx-auto max-w-lg p-8">
         <RequestError error={query.error} />
@@ -373,10 +405,8 @@ function useSignedOut() {
   return async () => {
     api.setSelectedOrganizationUuid(null)
     setDirty(false)
-    cache.removeQueries({
-      predicate: (query) => query.queryKey[0] !== "session",
-    })
-    await cache.resetQueries({ queryKey: ["session"] })
+    // Everything kept for this person goes, so the next person on this device starts clean (FR-015).
+    await clearPersonalState(cache)
     navigate("/", { replace: true })
   }
 }
@@ -384,7 +414,7 @@ function useSignedOut() {
 const sectionPath = (uuid: string, section = "home") =>
   `/organizations/${encodeURIComponent(uuid)}/${section}`
 
-/** Remembers each user's last organization across sign-outs so the chooser is only needed once. */
+/** Remembers each user's last organization, so the chooser is needed once per sign-in; signing out clears it (spec 033). */
 const lastOrganizationKey = (userId: number) => `iot-os:last-organization:${userId}`
 function rememberedOrganization(userId: number): string | null {
   try {
@@ -643,6 +673,7 @@ function PortalSidebar({
     refetchInterval: 30000,
   })
   const unreadTickets = useSupportUnread(organization?.uuid)
+  const installApp = useInstallApp()
   const badges: Record<string, [number | undefined, string]> = {
     alerts: [overview.data?.alerts?.active_unacknowledged, "unacknowledged"],
     discovery: [overview.data?.discovery?.pending, "waiting"],
@@ -864,12 +895,19 @@ function PortalSidebar({
                     </a>
                   </DropdownMenuItem>
                 )}
+                {installApp.visible && (
+                  <DropdownMenuItem onSelect={installApp.install}>
+                    <DownloadIcon />
+                    Install app
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={onSignOut}>
                   <LogOutIcon />
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {installApp.dialog}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -937,6 +975,15 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
   // Every page header carries the alert bell, the Assistant and Help; on phones they shrink to their icons.
   const bellVisible = Boolean(org && devicesCan("view")(org))
+  const connection = useConnection()
+  // While offline every page header says so; values keep their own age labels (FR-013).
+  const notice = useMemo(
+    () =>
+      connection.state === "offline" ? (
+        <ConnectionNotice at={new Date(connection.lastSuccessAt ?? connection.since).toISOString()} />
+      ) : null,
+    [connection],
+  )
   const helpIntegration = useMemo(() => org ? {
     trigger: (
       <>
@@ -952,7 +999,8 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
       </>
     ),
     onContextChange: setHelpOverride,
-  } : null, [org?.uuid, bellVisible, assistantOpen, helpOpen, panel])
+    notice,
+  } : notice ? { trigger: null, onContextChange: setHelpOverride, notice } : null, [org?.uuid, bellVisible, assistantOpen, helpOpen, panel, notice])
 
   // ⌘K / Ctrl+K opens search from anywhere in the workspace.
   const [searchOpen, setSearchOpen] = useState(false)

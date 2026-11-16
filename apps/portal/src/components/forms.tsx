@@ -47,13 +47,24 @@ export function isRuntimeUnavailable(error: unknown): boolean {
   const message = (error.payload as { message?: string } | null)?.message ?? ""
   return /device runtime/i.test(message)
 }
+/** True when a request got no response at all: offline, or the API unreachable (spec 033). */
+export function isOffline(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 0
+}
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const payload = error.payload as {
       message?: string
       errors?: Record<string, string[]>
       references?: Array<{ label: string }>
+      offline?: boolean
     } | null
+    // Actions fail at once offline and are never queued (FR-013). Sent while the page was
+    // already offline, nothing reached the server; otherwise the answer may have been lost.
+    if (error.status === 0)
+      return payload?.offline
+        ? "You're offline. Nothing was saved."
+        : "The connection dropped before the server answered. Check whether this was saved before trying again."
     if (error.status === 409)
       return "Another change was saved while you were editing. Your form has been kept. Review the latest draft before retrying."
     if (error.status === 401)
@@ -112,7 +123,7 @@ export function LoadError({
       <CircleAlertIcon />
       <AlertTitle>Could not load {what}</AlertTitle>
       <AlertDescription>
-        <p>{errorMessage(error)}</p>
+        <p>{isOffline(error) ? "You're offline. It loads when the connection returns." : errorMessage(error)}</p>
         {onRetry && (
           <Button type="button" variant="outline" size="sm" className="mt-2" disabled={busy} onClick={() => void onRetry()}>
             <RefreshCwIcon data-icon="inline-start" className={cn(busy && "animate-spin")} aria-hidden="true" />

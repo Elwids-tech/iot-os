@@ -12,13 +12,22 @@ import { RouteError } from "@iot-os/ui/components/error-boundary"
 import { reloadOnStaleChunks } from "@iot-os/ui/lib/stale-chunks"
 import "@iot-os/ui/globals.css"
 import { App } from "./App"
+import { watchConnection } from "./pwa/connection"
+import "./pwa/install"
+import { UpdatePrompt } from "./pwa/UpdatePrompt"
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false, refetchOnWindowFocus: false, staleTime: 15000 },
-    mutations: { retry: false },
+    // An action made offline fails at once instead of waiting to be sent on reconnect:
+    // nothing is queued (spec 033, FR-013).
+    mutations: { retry: false, networkMode: "always" },
   },
 })
 reloadOnStaleChunks()
+watchConnection()
+document.querySelector('meta[name="build-id"]')?.setAttribute("content", __BUILD_ID__)
+// The service worker exists only in production builds (vite.config.ts, src/sw.ts).
+const installable = import.meta.env.PROD && "serviceWorker" in navigator
 const router = createBrowserRouter([{ path: "*", element: <App />, errorElement: <RouteError /> }])
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -34,6 +43,7 @@ createRoot(document.getElementById("root")!).render(
           <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
             <Toaster closeButton duration={2500} />
+            {installable && <UpdatePrompt />}
           </QueryClientProvider>
         </PaletteProvider>
       </SkinProvider>

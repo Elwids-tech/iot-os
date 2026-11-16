@@ -152,6 +152,7 @@ export function PageHeader({
           {children}
         </div>
       )}
+      {help?.notice}
     </header>
   )
 }

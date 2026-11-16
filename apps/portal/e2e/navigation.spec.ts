@@ -200,17 +200,24 @@ test("sign-in lands on home and an unknown workspace lists organizations", async
   expect(errors).toEqual([])
 })
 
-test("the last organization is remembered across sign-outs", async ({ page }) => {
+test("the last organization is remembered while signed in, and signing out forgets it (spec 033)", async ({ page }) => {
   const { errors, signIn } = await setup(page, {
     organizations: [acme, { ...acme, uuid: northstar, name: "Northstar", slug: "northstar" }],
   })
   await page.goto(`/organizations/${northstar}/devices`)
+  await page.goto("/")
+  await expect(page).toHaveURL(`/organizations/${northstar}/home`)
+  await page.evaluate(() => localStorage.setItem("iot-skin", "instrument"))
   await page.getByRole("button", { name: "Operator" }).click()
   await page.getByRole("menuitem", { name: "Sign out" }).click()
   await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
+  // Nothing about the person stays in the browser; display choices do (FR-015).
+  const kept = await page.evaluate(() => Object.keys(localStorage).sort())
+  expect(kept.filter((key) => key.startsWith("iot-os"))).toEqual([])
+  expect(kept).toContain("iot-skin")
   signIn()
   await page.reload()
-  await expect(page).toHaveURL(`/organizations/${northstar}/home`)
+  await expect(page.getByRole("heading", { name: "Choose an organization" })).toBeVisible()
   expect(errors).toEqual([])
 })
 

@@ -24,11 +24,11 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Dashboards](features/dashboards.md): panels, charts, access and sharing
 - [Automation](features/automation.md): DAG automations, geofences, location
 - [Alerts and notifications](features/alerts.md): episodes, email, event log
-- [The portal on phones](features/portal-on-phones.md): which pages work at phone width, the filter sheet, what stays desktop-only
 - [Integrations](features/integrations.md): applications, integration API, event feed, webhooks, SDK
 - [Assistant and help](features/assistant.md)
 - [AI agents](features/agents.md): connect Claude and other MCP clients, switches, connections
 - [Access](features/access.md): sign-in, organizations, roles, permission ceilings, platform administration
+- [Portal on phones](features/portal-on-phones.md): pages that work at phone width, the filter sheet, what stays desktop-only, installing the portal as an app, offline behaviour, updates
 - [Billing](features/billing.md): plans, allowances and usage, invoices, card payments and trials for billing accounts
 - [Support tickets](features/support.md): bug reports, feature requests and improvements, the team's queue
 - [Activity log](features/activity-log.md): the audit trail of who changed what, and the admin timeline
