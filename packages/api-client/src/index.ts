@@ -543,6 +543,8 @@ type ApiResponse<T> = {
 type LoginCredentials = {
   email: string
   password: string
+  /** Keep me signed in: this browser stays signed in for 30 days (spec 033). */
+  remember?: boolean
 }
 
 type InvitationRegistration = {

@@ -204,6 +204,23 @@ Things that have cost time before. Add to this list when something surprises you
   permission for every guard in `config('auth.guards')`, including Sanctum's runtime
   `sanctum` guard. A new guard that carries no roles must be excluded there, as the
   agent guard `mcp` is.
+- **Laravel's remember token is one per user.** `users.remember_token` holds one value
+  and `SessionGuard::logout()` cycles it, so Laravel's "remember me" cannot keep two
+  browsers signed in on their own or end one alone: signing out on a laptop would end
+  the phone's too. **Keep me signed in** uses `kept_sign_ins` and the `iot_kept` cookie
+  instead ([access](../features/access.md#keep-me-signed-in)); never pass `remember` to
+  `Auth::attempt()`.
+- **Middleware appended to the `api` group runs after `auth:sanctum` unless it is in
+  the priority list.** The router sorts a route's middleware by
+  `$middlewarePriority`, which moves `Authenticate` ahead of `SubstituteBindings` and
+  so ahead of anything appended after it. `ResumeKeptSignIn` is therefore also
+  prepended to the priority list before `AuthenticatesRequests` in
+  `bootstrap/app.php`; check the order with `Route::gatherRouteMiddleware()`.
+- **`getJson()` and `postJson()` send no cookies unless `withCredentials()`.** Cookies
+  set with `withCookie()` reach only non-JSON requests by default. The test app also
+  keeps auth guards, the session store and queued cookies between requests in one
+  test: to act as a browser that lost its session, call `Auth::forgetGuards()`,
+  `flushSession()` and `Cookie::flushQueuedCookies()` (`KeptSignInTest::loseSession`).
 - **`withToken()` sticks for the rest of a test.** It sets a default header, so a later
   request made with `actingAs()` still sends the old bearer token. Call
   `withoutToken()` when switching from a token to a session within one test.

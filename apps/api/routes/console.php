@@ -43,6 +43,7 @@ Schedule::command('billing:retention-warnings')->dailyAt('08:00')->withoutOverla
 Schedule::command('billing:draft-invoices')->dailyAt('02:10')->withoutOverlapping();
 Schedule::command('billing:payment-reminders')->dailyAt('09:00')->withoutOverlapping();
 Schedule::command('passport:purge')->dailyAt('03:35')->withoutOverlapping();
+Schedule::command('auth:prune-kept-sign-ins')->dailyAt('03:55')->withoutOverlapping();
 
 Schedule::call(function (): void {
     if (config('deployment.ops_enabled')) {
