@@ -53,7 +53,7 @@ function MoreActions({ children }: { children: React.ReactNode }) {
           const chosen = (event.target as HTMLElement).closest("button, a")
           if (chosen && !chosen.hasAttribute("aria-haspopup")) setOpen(false)
         }}
-        className="w-56 max-w-[calc(100vw-1rem)] gap-1 p-1 *:w-full *:justify-start [&_[data-slot=button]]:w-full [&_[data-slot=button]]:justify-start"
+        className="w-56 max-w-[calc(100vw-1rem)] gap-1 p-1 *:w-full *:justify-start [&_[data-slot=button]]:w-full [&_[data-slot=button]]:justify-start [&_[data-slot=button]]:gap-2"
       >
         {children}
       </PopoverContent>
