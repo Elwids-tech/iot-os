@@ -884,6 +884,13 @@ Things that have cost time before. Add to this list when something surprises you
   panel a scroll container, so `sticky bottom-0` sticks to the panel, which never
   scrolls. Use `overflow-clip` there (`InboxPage`'s list on phones), which clips the
   same without becoming one.
+- **On a phone, `window.innerWidth` is not the page width.** A phone browser zooms out
+  when a page is wider than the screen, and `innerWidth` then measures the zoomed-out
+  view. The kit's `useIsMobile()` used to read it: a dashboard that rendered its
+  computer layout first overflowed, the browser zoomed out, and the page stayed in the
+  computer layout (Edit and the full time bar at 375 px). It now reads the media query
+  through `useSyncExternalStore`, as `useWide()` does. Plain viewport tests miss this;
+  `phone.spec.ts` has a case with `isMobile: true` that checks `visualViewport.scale`.
 - **A dashboard can be one column on a computer.** The grid's breakpoints measure its
   own width: a 1024 px window with the sidebar open leaves about 720 px, the `xs`
   layout (one column), and people edit there. Phone-only dashboard rules (reading

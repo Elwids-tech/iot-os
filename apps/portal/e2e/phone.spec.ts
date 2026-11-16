@@ -705,6 +705,30 @@ for (const viewport of viewports) {
   })
 }
 
+// A phone browser zooms out when a page is wider than the screen, so a page that rendered
+// its computer layout first could stay in it (innerWidth then reads wide). Emulate a phone.
+test.describe("a phone browser", () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true })
+
+  test("renders the phone layouts from the first load, without zooming out", async ({ page }) => {
+    const state = await setup(page)
+    const unzoomed = () => page.evaluate(() => ({ width: innerWidth, scale: visualViewport?.scale }))
+    await page.goto(`${base}/dashboards/${dashboardId}`)
+    await expect(page.getByRole("heading", { name: "Voltage now" })).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Time range/ })).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Edit/ })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "More actions" })).toBeVisible()
+    expect(await unzoomed()).toEqual({ width: 375, scale: 1 })
+    await page.goto(alertsPath)
+    await expect(page.getByRole("button", { name: "Filters", exact: true })).toBeVisible()
+    expect(await unzoomed()).toEqual({ width: 375, scale: 1 })
+    await page.goto(`${alertsPath}/${alertIds.latest}`)
+    await expect(page.getByRole("button", { name: "Acknowledge alert" })).toBeVisible()
+    expect(await unzoomed()).toEqual({ width: 375, scale: 1 })
+    expect(state.errors).toEqual([])
+  })
+})
+
 test.describe("computers", () => {
   test.use({ viewport: { width: 1280, height: 900 } })
 

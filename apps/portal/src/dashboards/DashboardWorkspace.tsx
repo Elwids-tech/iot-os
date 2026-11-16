@@ -177,9 +177,7 @@ export function DashboardWorkspace({
   // link that asks to edit opens the dashboard to read there.
   const phone = useIsMobile()
   const [draft, setDraft] = useState<Dashboard | null>(() =>
-    location.state?.edit && canEdit && globalThis.matchMedia?.("(min-width: 768px)").matches !== false
-      ? structuredClone(saved)
-      : null,
+    location.state?.edit && canEdit && !phone ? structuredClone(saved) : null,
   )
   const [base, setBase] = useState(saved)
   const dashboard = draft ?? saved
