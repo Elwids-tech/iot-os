@@ -99,7 +99,7 @@ function NotificationBell({
         aria-label={label}
         collisionPadding={8}
         // Phones: the width of the screen less 0.5 rem each side, and at most 80% of its height.
-        className="flex max-h-[80dvh] w-[min(24rem,calc(100vw-2rem))] flex-col gap-0 p-0 max-md:w-[calc(100vw-1rem)]"
+        className="flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-0 p-0 max-md:max-h-[80dvh] max-md:w-[calc(100vw-1rem)]"
       >
         <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3 py-1.5">
           <h2 className="text-body font-medium">{label}</h2>

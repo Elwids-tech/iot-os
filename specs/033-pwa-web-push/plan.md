@@ -150,8 +150,8 @@ Full reasoning, with rejected alternatives, is in [research.md](research.md).
 All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 
 - **`PageHeader`**: at phone width one action stays (the primary `Button`, else the
-  first) and the others move into a popover behind **More actions**, kept mounted so
-  dialogs they open survive. The trigger slot (bell, Assistant, Help) stays visible.
+  first) and the others move into a popover behind **More actions**; an action that
+  opens its own dialog or menu opens it above the popover. The trigger slot (bell, Assistant, Help) stays visible.
   Story: phone and desktop.
 - **`CollectionPage`**: a `filters` slot renders inline on wider screens and inside a
   bottom `Sheet` behind **Filters (n)** at phone width. The sheet is a kit

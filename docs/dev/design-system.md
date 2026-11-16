@@ -139,8 +139,9 @@ keep their layouts: change nothing at `md` and up for a phone fix.
   above), because iOS zooms the page into any field with smaller text.
 - **Header overflow.** `PageHeader` keeps the menu button, one action and the help slot
   (bell, Assistant, Help); the other actions go behind **More actions**. The action kept
-  is the primary `Button` (default variant) when there is one, else the first. The list
-  stays mounted while closed, so a dialog an action opens keeps working.
+  is the primary `Button` (default variant) when there is one, else the first. Choosing
+  an action closes the list, unless it opens its own dialog or menu (`aria-haspopup`),
+  which then opens above the list.
 - **Filter sheet.** Lists put their filters in a bottom `FilterSheet` behind one
   **Filters** button with the active count: `DataTable` does it for its own filters,
   `CollectionPage` for its `filters` slot (with `activeFilterCount` and

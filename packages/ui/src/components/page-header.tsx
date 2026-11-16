@@ -1,10 +1,10 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { ChevronLeftIcon, EllipsisIcon } from "lucide-react"
-import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { cn } from "@iot-os/ui/lib/utils"
 import { Button } from "@iot-os/ui/components/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover"
 import { SidebarTrigger } from "@iot-os/ui/components/sidebar"
 import { PageHelpContext } from "@iot-os/ui/components/page-help"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
@@ -28,39 +28,36 @@ const isPrimary = (node: React.ReactNode) =>
   (node.props.variant ?? "default") === "default"
 
 /**
- * Phones: the actions other than the one kept in view, behind **More actions**. The list stays mounted
- * while closed (only hidden), so a dialog an action opens outlives the list closing.
+ * Phones: the actions other than the one kept in view, behind **More actions**. Choosing
+ * one closes the list, except an action that opens its own dialog or menu
+ * (`aria-haspopup`): that opens above the list, which Radix treats as inside it, so the
+ * dialog stays mounted.
  */
 function MoreActions({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button variant="outline" size="icon-sm" aria-label="More actions">
           <EllipsisIcon />
         </Button>
-      </PopoverPrimitive.Trigger>
-      <PopoverPrimitive.Portal forceMount>
-        <PopoverPrimitive.Content
-          forceMount
-          align="end"
-          sideOffset={4}
-          collisionPadding={8}
-          aria-label="More actions"
-          data-slot="page-header-more"
-          // Choosing an action closes the list; a dialog it opens stays mounted.
-          onClick={(event) => {
-            if ((event.target as HTMLElement).closest("button,a")) setOpen(false)
-          }}
-          className={cn(
-            "z-50 flex w-56 max-w-[calc(100vw-1rem)] flex-col gap-1 rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-raised outline-hidden data-[state=closed]:hidden",
-            "*:w-full *:justify-start [&_[data-slot=button]]:w-full [&_[data-slot=button]]:justify-start",
-          )}
-        >
-          {children}
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        collisionPadding={8}
+        aria-label="More actions"
+        data-slot="page-header-more"
+        onClick={(event) => {
+          // React bubbles clicks from portals (a dialog an action opened); only the list's own count.
+          if (!event.currentTarget.contains(event.target as Node)) return
+          const chosen = (event.target as HTMLElement).closest("button, a")
+          if (chosen && !chosen.hasAttribute("aria-haspopup")) setOpen(false)
+        }}
+        className="w-56 max-w-[calc(100vw-1rem)] gap-1 p-1 *:w-full *:justify-start [&_[data-slot=button]]:w-full [&_[data-slot=button]]:justify-start"
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
   )
 }
 

@@ -249,3 +249,22 @@ html.standalone [data-slot="sheet-content"][data-mobile="true"] {
 html.standalone :is([data-sticky-bar], [data-slot="sheet-content"][data-side="bottom"]) {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
+
+/*
+ * Phones: the page header's More actions list names every action. Labels that phones hide
+ * beside an icon (`max-sm:sr-only`) show again, and an icon-only action shows its
+ * accessible name, which already names it for screen readers.
+ */
+[data-slot="page-header-more"] .max-sm\:sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: nowrap;
+}
+
+[data-slot="page-header-more"] :is(button, a)[aria-label]:not(:has(span))::after {
+  content: attr(aria-label);
+}

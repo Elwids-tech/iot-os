@@ -649,6 +649,22 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { name: "Voltage now" })).toBeVisible()
       await expect(page.getByRole("button", { name: /^Edit/ })).toHaveCount(0)
       await expect(page.getByText("Editing needs a larger screen")).toBeVisible()
+      // The header keeps Share in view; the other actions sit behind More actions, menus included.
+      await expect(page.getByRole("button", { name: "Share" })).toBeVisible()
+      await page.getByRole("button", { name: "More actions" }).click()
+      const more = page.getByRole("dialog", { name: "More actions" })
+      // A label phones hide beside an icon shows again in the list.
+      await expect(more.getByRole("button", { name: "Kiosk" })).toHaveText("Kiosk")
+      await expect(more.getByText("Kiosk")).toBeVisible()
+      await more.getByRole("button", { name: "More dashboard actions" }).click()
+      await expect(page.getByRole("menuitem", { name: "Export JSON" })).toBeVisible()
+      await expectPhoneFit(page)
+      // Escape closes the menu (which hides the list from assistive tech while open), then the list.
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("menuitem", { name: "Export JSON" })).toHaveCount(0)
+      await expect(more).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(more).toHaveCount(0)
       const boxes = await Promise.all(
         ["Voltage now", "Voltage history", "Phase readings"].map(async (title) => (await page.getByRole("group", { name: title }).boundingBox())!),
       )
