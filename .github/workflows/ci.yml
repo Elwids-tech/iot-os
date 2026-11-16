@@ -145,7 +145,7 @@ jobs:
       - run: pnpm --filter @iot-os/portal --filter @iot-os/admin --filter @iot-os/atlas lint
       # Unit tests only: admin's test script is Playwright, which runs in the e2e job.
       - name: Unit tests
-        run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test
+        run: pnpm --filter @iot-os/portal --filter @iot-os/ui --filter @iot-os/api-client --filter @iot-os/charts --filter @iot-os/integration-sdk --filter @iot-os/vertical-demo test
       - run: pnpm --filter @iot-os/portal --filter @iot-os/admin build
 
   docs:
@@ -263,6 +263,13 @@ jobs:
           # studio.spec.ts drives a live API, so it stays a local check. The config runs
           # one worker for it; the mocked specs share no state, so they run in parallel.
           pnpm exec playwright test --workers=100% --fully-parallel $(ls e2e/*.spec.ts | grep -v '^e2e/studio\.spec\.ts$')
+      # The installable app (spec 033): the config builds its own copy and serves it on
+      # 4174 with the service worker, which the mocked specs above block.
+      - name: Run the installable app specs
+        working-directory: apps/portal
+        env:
+          STUDIO_ARTIFACTS: ${{ runner.temp }}/playwright
+        run: pnpm exec playwright test -c playwright.pwa.config.ts
       # Admin mocks every API call; its config starts a Vite dev server on 4174.
       - name: Run the admin specs
         working-directory: apps/admin

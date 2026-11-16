@@ -393,8 +393,8 @@ function WorkflowState({
       unresolved.current = null;
       track(result);
     } catch (error) {
-      // A 4xx is a definite answer; only a lost or failed response stays unresolved.
-      if (error instanceof ApiError && error.status < 500)
+      // A 4xx is a definite answer; a lost response (status 0) or a 5xx stays unresolved.
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500)
         unresolved.current = null;
       throw error;
     }

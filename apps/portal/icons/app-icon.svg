@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    App icon source (spec 033). After changing it, run the portal's "icons" script and
+    commit the PNGs it writes to public/. The chip glyph is lucide's "cpu" icon (ISC
+    licence, lucide.dev), the mark on the sign-in page, white on the brand navy. It fills
+    the middle half of the square, inside the 80% safe zone that maskable icons keep
+    when a launcher crops them to a circle or a squircle.
+  -->
+  <rect width="512" height="512" fill="#0c223e"/>
+  <g transform="translate(102.4 102.4) scale(12.8)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect width="16" height="16" x="4" y="4" rx="2"/>
+    <rect width="6" height="6" x="9" y="9" rx="1"/>
+    <path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>
+  </g>
+</svg>
