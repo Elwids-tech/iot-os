@@ -54,6 +54,7 @@ import type {
   TaxRate,
   WaitingInvoice,
 } from "./billing"
+import { connection } from "./connection"
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
@@ -527,6 +528,7 @@ export type OrganizationDeletion = {
   removes: OrganizationDeletionEntry[]
 }
 
+/** A failed request: the HTTP status, or 0 when no response arrived (offline, or the API unreachable). */
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -651,7 +653,7 @@ export class ApiClient {
   }
 
   async csrf(): Promise<void> {
-    await fetch(`${this.baseUrl}/sanctum/csrf-cookie`, {
+    await this.send(`${this.baseUrl}/sanctum/csrf-cookie`, {
       credentials: "include",
       headers: { Accept: "application/json" },
     })
@@ -2864,6 +2866,27 @@ export class ApiClient {
     return `${this.baseUrl}${this.adminTicketPath(ticket, `/attachments/${encodeURIComponent(attachment)}`)}`
   }
 
+  /**
+   * Fetches and tells the connection store (spec 033, R8): any response is a success. fetch
+   * rejects with a TypeError when no response arrived at all, which becomes ApiError(0);
+   * an abort stays the caller's AbortError. `offline` in its payload says the page was
+   * already offline when it sent the request, so the request never reached the server;
+   * otherwise the response may have been lost after the server acted on it.
+   */
+  private async send(url: string, init: RequestInit): Promise<Response> {
+    const offline = connection.getSnapshot().state === "offline"
+    let response: Response
+    try {
+      response = await fetch(url, init)
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error
+      connection.reportNetworkFailure()
+      throw new ApiError(0, { message: "Unable to reach the server. Check your connection and try again.", offline })
+    }
+    connection.reportSuccess()
+    return response
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set("Accept", "application/json")
@@ -2886,7 +2909,7 @@ export class ApiClient {
       headers.set("Content-Type", "application/json")
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.send(`${this.baseUrl}${path}`, {
       ...init,
       credentials: "include",
       headers,
@@ -2913,3 +2936,4 @@ export const apiClient = new ApiClient()
 export type { DeviceOnboarding, OnboardingInput, DeviceConnectionKit } from './onboarding'
 
 export { runtimeConfig, type RuntimeConfig } from "./runtime-config"
+export * from "./connection"

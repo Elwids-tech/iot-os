@@ -732,6 +732,19 @@ Things that have cost time before. Add to this list when something surprises you
   of the page `aria-hidden`, so `expect(getByRole("row", …)).toHaveCount(0)` passes
   while a confirm dialog is still open, before its request is sent. Wait for something
   the request causes, such as its toast, before reading a mock's state.
+- **Route mocks answer even when the context is offline.** `context.setOffline(true)`
+  fires `offline` and fails real requests, but a request that `page.route` or
+  `context.route` fulfils still succeeds. A spec that tests offline behaviour must
+  make its mock abort too, as `setOffline` in `apps/portal/e2e/installable.spec.ts`
+  does with `route.abort("internetdisconnected")`.
+- **A service worker answers before `page.route` does.** The portal's default
+  Playwright config sets `serviceWorkers: "block"`, so mocked specs never meet the
+  worker. Only `playwright.pwa.config.ts` allows it, against its own build on 4174.
+- **The portal probes the API's `/up` while idle.** The connection store (spec 033)
+  goes offline when the probe fails, which pauses every query. Mocked specs mock
+  `**/api/**` only, so the default config's global setup
+  (`apps/portal/e2e/support/api-health.ts`) answers `/up` on the API address unless
+  something already listens there.
 
 - **Playwright browser version.** If the headless shell pinned by
   `@playwright/test` is not installed but another build is, point
@@ -944,6 +957,49 @@ Things that have cost time before. Add to this list when something surprises you
   `generation` and `configuration_uuid` from `/dag/resources`, offers "Use
   current configuration" and drops unused bindings on save, so `/dag/resources`
   must return the generation that deploy checks.
+
+## Installable portal
+
+The portal is a progressive web app (spec 033,
+[portal on phones](../features/portal-on-phones.md)).
+
+- **The SPA fallback answers a missing `/sw.js` with HTML.** nginx's
+  `try_files $uri $uri/ /index.html` serves `index.html` for any path, so a browser
+  asking for a worker that isn't there gets HTML and keeps its old worker.
+  `deploy/docker/portal/nginx.conf` gives `/sw.js` and `/manifest.webmanifest` their
+  own `no-cache` locations with `try_files $uri =404`. The admin app keeps its own
+  config without them.
+- **TanStack Query pauses offline mutations unless `networkMode: "always"`.** The
+  default (`"online"`) holds a mutation made while `onlineManager` says offline and
+  sends it on reconnect, so an acknowledge could land minutes later. The portal's
+  `QueryClient` sets `mutations.networkMode: "always"`: an action made offline fails
+  at once with *You're offline. Nothing was saved.* The session query also runs
+  `"always"`, or an app opened offline would wait on a skeleton instead of showing
+  the offline screen.
+- **A network failure is `ApiError(0)`.** `ApiClient` turns fetch's `TypeError` into
+  `ApiError` with status 0 and reports it to the connection store; check `status === 0`
+  (`isOffline` in `forms.tsx`), not `instanceof TypeError`. An abort stays an
+  `AbortError`.
+- **An installed iPhone app has its own storage and sign-in.** A Home Screen app on
+  iOS does not share Safari's cookies or storage, so the person signs in again inside
+  it, and signing out in Safari leaves the app signed in. The install steps say so.
+- **iOS zooms the page when an input's text is under 16 px.** Focusing a field with
+  smaller text zooms in and leaves the page zoomed, so inputs need 16 px text at phone
+  width (the kit's phone sizing, spec 033).
+- **A new release reaches an open app only when the worker checks.** Browsers look
+  for a new `/sw.js` mainly on navigation, which a single-page app rarely does, so
+  `UpdatePrompt` calls `registration.update()` every 30 minutes and when the page
+  becomes visible. The new worker then waits for **Reload** or for every window to
+  close; it never takes over an open page by itself.
+- **The Claude desktop app's browser pane runs no service worker.** Registering
+  `/sw.js` there fails with "an unknown error occurred when fetching the script", while
+  a plain `fetch("/sw.js")` works, so the pane cannot check installing, offline starts
+  or updates. Use Google Chrome: by hand, or with Playwright's `channel: "chrome"` and a
+  throwaway profile against `localhost:5173`, as PR 3 of spec 033 did.
+- **Signing out clears personal storage from one list.** `clearPersonalState()` in
+  `apps/portal/src/pwa/personal-state.ts` removes the `localStorage` keys listed as
+  personal and keeps the per-browser ones (theme, skin, bell sound, table layout). A
+  new key goes in one of its two lists.
 
 ## Docs site
 

@@ -131,66 +131,66 @@ runs a new release no later than its next launch.
 see only the offline screen; deploy a new build and see **Reload**, then the new
 version on relaunch.
 
-- [ ] T027 [US3] `apps/portal/package.json`: add `vite-plugin-pwa` ^2.0, `workbox-precaching`, `workbox-routing`, `workbox-strategies` and `workbox-window` ^7.4, and dev `@vite-pwa/assets-generator`. Run `pnpm install` and commit the lockfile
-- [ ] T028 [P] [US3] App icon:
+- [x] T027 [US3] `apps/portal/package.json`: add `vite-plugin-pwa` ^2.0, `workbox-precaching`, `workbox-routing`, `workbox-strategies` and `workbox-window` ^7.4, and dev `@vite-pwa/assets-generator`. Run `pnpm install` and commit the lockfile
+- [x] T028 [P] [US3] App icon:
   - `apps/portal/icons/app-icon.svg`: the chip glyph from lucide `Cpu` (ISC licence, noted in a comment), white on the brand navy, with a 20% safe zone for the maskable variant;
   - `apps/portal/pwa-assets.config.ts` and a `"icons"` script in `apps/portal/package.json`;
   - generate and commit `apps/portal/public/pwa-64x64.png`, `pwa-192x192.png`, `pwa-512x512.png`, `maskable-icon-512x512.png` and `apple-touch-icon-180x180.png`.
-- [ ] T029 [US3] `apps/portal/vite.config.ts`: `VitePWA` with:
+- [x] T029 [US3] `apps/portal/vite.config.ts`: `VitePWA` with:
   - `strategies: "injectManifest"`, `srcDir: "src"`, `filename: "sw.ts"`, `registerType: "prompt"`, `injectRegister: false`, `devOptions.enabled: false`;
   - `manifest`: `name` and `short_name` "IoT OS", `id` "/", `start_url` "/", `scope` "/", `display` "standalone", `background_color` and `theme_color` from the kit's light tokens, and the icons from T028 (maskable marked `purpose: "maskable"`);
   - `injectManifest.globPatterns: ["**/*.{js,css,html,woff2,png,svg}"]` and `globIgnores: ["runtime-config.js"]`;
   - `define: { __BUILD_ID__: JSON.stringify(process.env.BUILD_ID ?? <short git commit or build time>) }`.
-- [ ] T030 [US3] `apps/portal/src/sw.ts`, plus a worker tsconfig with `lib: ["webworker"]` (`apps/portal/tsconfig.sw.json`, referenced by the build):
+- [x] T030 [US3] `apps/portal/src/sw.ts`, plus a worker tsconfig with `lib: ["webworker"]` (`apps/portal/tsconfig.sw.json`, referenced by the build):
   - `precacheAndRoute(self.__WB_MANIFEST)` and `cleanupOutdatedCaches()`;
   - a `NavigationRoute` to `createHandlerBoundToURL("/index.html")` with `denylist: [/^\/connect\/?$/]`, so `/connect` keeps nginx's `frame-ancestors` headers;
   - a `NetworkFirst` route for `/runtime-config.js` in cache `runtime-config`;
   - a `message` handler calling `self.skipWaiting()` on `{ type: "SKIP_WAITING" }`;
   - no other route, so nothing on the API host is ever cached (R3).
-- [ ] T031 [P] [US3] `apps/portal/index.html`:
+- [x] T031 [P] [US3] `apps/portal/index.html`:
   - two `theme-color` metas with `media="(prefers-color-scheme: light|dark)"` and the kit's background tokens;
   - `<link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png">`;
   - `viewport` gains `viewport-fit=cover`;
   - `<meta name="apple-mobile-web-app-status-bar-style" content="default">`;
   - `<meta name="build-id">`, filled from `__BUILD_ID__` at start by `apps/portal/src/main.tsx`, so tests can tell versions apart.
-- [ ] T032 [P] [US3] `deploy/docker/portal/nginx.conf` (new, from `deploy/docker/admin/nginx.conf`):
+- [x] T032 [P] [US3] `deploy/docker/portal/nginx.conf` (new, from `deploy/docker/admin/nginx.conf`):
   - add `location = /sw.js` and `location = /manifest.webmanifest`, each with `Cache-Control: no-cache` and `try_files $uri =404`, and `types { application/manifest+json webmanifest; }` for the manifest;
   - keep `/runtime-config.js` `no-store`, `/assets/` immutable, `/connect` headers and the `/` SPA fallback;
   - `deploy/docker/portal/Dockerfile` copies this file instead of the admin one.
-- [ ] T033 [P] [US3] `packages/api-client/src/connection.ts`, exported from `packages/api-client/src/index.ts`. Unit tests in `packages/api-client/src/connection.test.ts` with fake timers.
+- [x] T033 [P] [US3] `packages/api-client/src/connection.ts`, exported from `packages/api-client/src/index.ts`. Unit tests in `packages/api-client/src/connection.test.ts` with fake timers.
   - **The store**: state `online | offline`, `since`, `lastSuccessAt`; `subscribe()`; starts from `navigator.onLine` and listens to `online`/`offline`; `reportNetworkFailure()` and `reportSuccess()`.
   - **The probe**: `fetch(apiUrl + "/up", { mode: "no-cors", cache: "no-store" })` every 5 s while offline and the page is visible. While online, every 10 s only when the page is visible and no request succeeded in the last 10 s.
   - **`ApiClient.request`**: a network `TypeError` reports failure and throws `ApiError(0, { message: "network" })`; any response reports success.
-- [ ] T034 [P] [US3] Kit components, each with a story under `apps/storybook/src/components/`, exported from the kit:
+- [x] T034 [P] [US3] Kit components, each with a story under `apps/storybook/src/components/`, exported from the kit:
   - `packages/ui/src/components/connection-notice.tsx`: a banner under the page header reading *You're offline. Values are from {time}.*, with `role="status"` and `RelativeTime`;
   - `packages/ui/src/components/offline-screen.tsx`: a full-page `Panel` reading *You're offline. Alerts and readings need a connection.*, with **Try again**.
-- [ ] T035 [US3] `apps/portal/src/main.tsx`: `onlineManager.setEventListener` from the connection store; the `QueryClient` default `mutations.networkMode: "always"`; render `<UpdatePrompt />` (T039) beside the Toaster in production builds only (depends on T033)
-- [ ] T036 [US3] App shell in `apps/portal/src/App.tsx`:
+- [x] T035 [US3] `apps/portal/src/main.tsx`: `onlineManager.setEventListener` from the connection store; the `QueryClient` default `mutations.networkMode: "always"`; render `<UpdatePrompt />` (T039) beside the Toaster in production builds only (depends on T033)
+- [x] T036 [US3] App shell in `apps/portal/src/App.tsx`:
   - render `ConnectionNotice` under every page header while offline;
   - render `OfflineScreen` when the first `/me` fails with `ApiError(0)`, and retry when the store goes online;
   - add the `standalone` class to `<html>` when `matchMedia("(display-mode: standalone)")` matches or `navigator.standalone` is true.
 
   Depends on T033 and T034.
-- [ ] T037 [P] [US3] `apps/portal/src/components/forms.tsx` `errorMessage`: `ApiError` status 0 reads *You're offline. Nothing was saved.*
-- [ ] T038 [P] [US3] Installing:
+- [x] T037 [P] [US3] `apps/portal/src/components/forms.tsx` `errorMessage`: `ApiError` status 0 reads *You're offline. Nothing was saved.*
+- [x] T038 [P] [US3] Installing:
   - `apps/portal/src/pwa/install.ts`: capture `beforeinstallprompt` at module load, plus `canPrompt()`, `prompt()`, `standalone()` and `iosSafari()`;
   - `apps/portal/src/pwa/InstallAppDialog.tsx`: the iPhone and iPad steps (Share → **Add to Home Screen**, then open it from the home screen, which signs in separately from Safari), and a fallback pointing to the browser's menu;
   - **Install app** in the user menu in `apps/portal/src/App.tsx`, hidden when `standalone()`.
-- [ ] T039 [P] [US3] `apps/portal/src/pwa/UpdatePrompt.tsx`: `useRegisterSW({ immediate: true })`; in `onRegisteredSW`, call `registration.update()` every 30 minutes while the page is visible and on every `visibilitychange` to visible. On `needRefresh`, show a persistent sonner toast *A new version is available* with **Reload**, which calls `updateServiceWorker(true)`
-- [ ] T040 [US3] `apps/portal/src/pwa/personal-state.ts`:
+- [x] T039 [P] [US3] `apps/portal/src/pwa/UpdatePrompt.tsx`: `useRegisterSW({ immediate: true })`; in `onRegisteredSW`, call `registration.update()` every 30 minutes while the page is visible and on every `visibilitychange` to visible. On `needRefresh`, show a persistent sonner toast *A new version is available* with **Reload**, which calls `updateServiceWorker(true)`
+- [x] T040 [US3] `apps/portal/src/pwa/personal-state.ts`:
   - grep `localStorage` and `sessionStorage` across `apps/portal/src` and `packages/*/src`, and list every key as personal (for example `iot-os.selected-organization`, `iot-os:last-organization:{userId}`) or per-browser (the bell's sound switch, the theme);
   - `clearPersonalState()` clears the TanStack Query cache, `sessionStorage` and the personal keys;
   - call it on sign-out in `apps/portal/src/App.tsx` before navigating to `/`.
-- [ ] T041 [P] [US3] Vitest: `apps/portal/src/pwa/install.test.ts` (standalone, iOS Safari and Chromium detection from stubbed `navigator` and `matchMedia`) and `apps/portal/src/pwa/personal-state.test.ts` (personal keys removed, per-browser keys kept, throwing storage tolerated)
-- [ ] T042 [US3] PWA end-to-end tests:
+- [x] T041 [P] [US3] Vitest: `apps/portal/src/pwa/install.test.ts` (standalone, iOS Safari and Chromium detection from stubbed `navigator` and `matchMedia`) and `apps/portal/src/pwa/personal-state.test.ts` (personal keys removed, per-browser keys kept, throwing storage tolerated)
+- [x] T042 [US3] PWA end-to-end tests:
   - set `serviceWorkers: "block"` in `apps/portal/playwright.config.ts`, so mocked specs stay unaffected;
   - add `apps/portal/playwright.pwa.config.ts`, whose `webServer` builds and runs `vite preview` on port 4174 with service workers allowed;
   - `apps/portal/e2e/installable.spec.ts` checks: the manifest's fields and icons load; the worker activates; Cache Storage holds no API-host URL; offline then reload shows `OfflineScreen` and no earlier data; going offline on an open page shows `ConnectionNotice` within 10 s; **Acknowledge** offline shows the offline message and sends no request after `setOffline(false)`;
   - SC-006, automated: with build `BUILD_ID=a` served and the worker active, rebuild into the served `dist` with `BUILD_ID=b`; trigger `registration.update()` and expect the **Reload** toast; close every page, open a new one and expect `meta[name=build-id]` to be `b`.
-- [ ] T043 [P] [US3] Docs:
+- [x] T043 [P] [US3] Docs:
   - `docs/features/portal-on-phones.md`: installing, offline behaviour, updates;
   - `docs/dev/gotchas.md`: the SPA fallback answers a missing `/sw.js` with HTML; TanStack Query pauses offline mutations unless `networkMode: "always"`; an installed iOS app has its own storage and sign-in; iOS zooms on inputs under 16 px.
-- [ ] T044 Verify pull request 3:
+- [x] T044 Verify pull request 3:
   - run the T026 checks, plus `pnpm --filter @iot-os/portal exec playwright test -c playwright.pwa.config.ts`;
   - rebuild `portal admin`;
   - in the running portal, walk quickstart US3 steps 1 to 5 in desktop Chrome, then install and go offline on the Android phone;
