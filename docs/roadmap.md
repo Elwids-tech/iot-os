@@ -175,6 +175,12 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### UI
 
+- **Portal on phones** ([spec 033](../specs/033-pwa-web-push/spec.md),
+  [ADR-047](adr/ADR-047-progressive-web-app-before-native-apps.md)): phone layouts
+  for alerts, devices and dashboards, an installable app, push alerts that follow the
+  bell, and **Keep me signed in**. Native apps wait for one of four triggers: Bluetooth
+  provisioning from a phone, Critical Alerts, a store or managed install requirement,
+  or iOS push without installing.
 - **Smaller components.** Split the `App` shell (session, login, sidebar, recovery)
   and the largest components (`DashboardWorkspace`, `ConfigurationSection`,
   `Integrations`) into hooks and reducers.
