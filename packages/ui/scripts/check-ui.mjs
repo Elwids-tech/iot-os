@@ -3,7 +3,8 @@
 // places to migrate. A reviewed exception carries `ui-check: allow <rule>` on
 // the same or the previous line. Usage: node check-ui.mjs <dir> [<dir>...]
 import { readFileSync, readdirSync, statSync } from "node:fs"
-import { join, relative } from "node:path"
+import { dirname, join, relative } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const rules = [
   {
@@ -47,6 +48,28 @@ if (!dirs.length) {
 }
 let errors = 0
 const warnings = new Map()
+
+// Phones: the kit's interactive controls keep 44 px targets under 768 px (FR-004). Every app's
+// lint checks the kit sources too, so a kit edit that drops one fails wherever the kit is used.
+const kit = join(dirname(fileURLToPath(import.meta.url)), "../src/components")
+const phoneTargets = [
+  ["button.tsx", /max-md:min-h-11\b/],
+  ["input.tsx", /max-md:min-h-11\b/],
+  ["select.tsx", /max-md:min-h-11\b/],
+  // The switch grows its hit area (the `after` box), never the track.
+  ["switch.tsx", /max-md:after:-inset-y-3\.5\b/],
+  // A textarea's own minimum (min-h-16, 64 px) is already above 44 px.
+  ["textarea.tsx", /\bmin-h-(?:1[1-9]|[2-9]\d)\b/],
+]
+for (const [name, pattern] of phoneTargets) {
+  const file = join(kit, name)
+  if (pattern.test(readFileSync(file, "utf8"))) continue
+  errors += 1
+  console.error(
+    `error  phone-target  ${relative(process.cwd(), file)}  ${pattern}\n       Interactive kit controls need a 44 px target under 768 px (max-md:min-h-11); see Phones in docs/dev/design-system.md.`,
+  )
+}
+
 for (const file of dirs.flatMap(files)) {
   const lines = readFileSync(file, "utf8").split("\n")
   lines.forEach((line, index) => {

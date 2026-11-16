@@ -28,7 +28,7 @@ export default function HomePage({ organizationName }: { organizationName: strin
       <PageHeader title="Home" meta={`What needs attention in ${organizationName}`} />
       <div className="flex flex-col gap-6 p-4 md:p-6">
         <RequestError error={overview.error} />
-        <section aria-label="Summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Summary" className="grid gap-3 max-sm:grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 xl:grid-cols-4">
           {data ? (
             <>
               <Summary to={path("devices")} icon={<CpuIcon />} title="Devices" value={data.devices.active} unit="active">
@@ -52,7 +52,7 @@ export default function HomePage({ organizationName }: { organizationName: strin
             Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-32" />)
           )}
         </section>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid gap-6 max-md:grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <Card>
             <CardHeader>
               <CardTitle><h2>Needs attention</h2></CardTitle>
@@ -158,15 +158,16 @@ function Attention({ data, path }: { data: OrganizationOverview; path: (section:
 function Summary({ to, icon, title, value, unit, children }: { to: string; icon: ReactNode; title: string; value: number; unit: string; children: ReactNode }) {
   return (
     <Link to={to} className="group rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <Card className="h-full transition-colors group-hover:bg-muted/40">
+      {/* Phones: compact tiles, two to a row, so Needs attention is close to the top. */}
+      <Card className="h-full transition-colors group-hover:bg-muted/40 max-md:[--card-spacing:--spacing(3)]">
         <CardHeader>
           <CardDescription className="flex items-center gap-2 [&_svg]:size-4">{icon}{title}</CardDescription>
-          <CardTitle className="flex items-baseline gap-2">
-            <span className="font-mono text-3xl tabular-nums">{value}</span>
+          <CardTitle className="flex flex-wrap items-baseline gap-x-2">
+            <span className="font-mono text-3xl tabular-nums max-md:text-2xl">{value}</span>
             <span className="text-sm font-normal text-muted-foreground">{unit}</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-x-4 gap-y-1 text-sm">{children}</CardContent>
+        <CardContent className="flex flex-wrap gap-x-4 gap-y-1 text-sm max-md:flex-col max-md:text-meta max-md:[&_[data-slot=status-mark]]:whitespace-normal">{children}</CardContent>
       </Card>
     </Link>
   )
@@ -174,7 +175,7 @@ function Summary({ to, icon, title, value, unit, children }: { to: string; icon:
 
 function Row({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="flex min-h-10 items-center gap-3 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+    <Link to={to} className="flex min-h-10 items-center gap-3 max-md:min-h-11 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
       {children}
       <ChevronRightIcon className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </Link>

@@ -149,15 +149,17 @@ Full reasoning, with rejected alternatives, is in [research.md](research.md).
 
 All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 
-- **`PageHeader`**: `actions` that overflow move into a `DropdownMenu` behind a
-  **More** button. The trigger slot (bell, Assistant, Help) stays visible. Story:
-  phone and desktop.
+- **`PageHeader`**: at phone width one action stays (the primary `Button`, else the
+  first) and the others move into a popover behind **More actions**; an action that
+  opens its own dialog or menu opens it above the popover. The trigger slot (bell, Assistant, Help) stays visible.
+  Story: phone and desktop.
 - **`CollectionPage`**: a `filters` slot renders inline on wider screens and inside a
-  bottom `Sheet` behind **Filters (n)** at phone width. Story.
+  bottom `Sheet` behind **Filters (n)** at phone width. The sheet is a kit
+  `FilterSheet`, which `DataTable` uses for its own filters too. Stories.
 - **Phone sizing** (`styles` and the `Button`, `Input`, `SelectTrigger`, `Switch` and
   `Textarea` variants): minimum 44 px targets and 16 px input text under `max-md`.
   `check-ui.mjs` gains a rule that the interactive kit components (`button`, `input`,
-  `select`, `switch`, `textarea`) carry `max-md:min-h-11`.
+  `select`, `switch`, `textarea`) keep their 44 px phone targets.
 - **`NotificationBell`**: the popover is full width with a max height at phone width.
 - **Shell safe areas**: a `standalone` class on `<html>` (set by the portal) adds
   `env(safe-area-inset-*)` padding to the sidebar sheet, header and sticky bars.
@@ -180,7 +182,7 @@ All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 | Alert detail | Facts in one column. Assignee select full width. The deliveries list becomes a `DataTable` with columns channel, recipient, devices (`1 of 2`), status and sent, showing phone cards, with **Retry** for failed rows of either channel. Not-found reads *This alert isn't available*. |
 | Devices (`DeviceDirectory.tsx`) | Already phone cards; filters through the sheet. |
 | Device detail (`DeviceOverview.tsx`) | At phone width the order is status and last seen, `LatestReadout` with ages, active alerts, then the rest. |
-| Dashboards (`DashboardWorkspace.tsx`, `DashboardGrid.tsx`) | **Edit** hidden under 768 px, with *Editing needs a larger screen* in its place. A minimum height per widget kind in the one-column layout (stat 3 rows, chart and map 6 rows, table 8 rows with its own sideways scroll). `TimeControls` collapses to one button that opens the range popover. |
+| Dashboards (`DashboardWorkspace.tsx`, `DashboardGrid.tsx`) | **Edit** hidden under 768 px, with *Editing needs a larger screen* under **More actions**. A minimum height per widget kind in the one-column layout (stat 3 rows, chart and map 6 rows, table 8 rows with its own sideways scroll). `TimeControls` collapses to one button that opens the range popover. |
 | Help and Assistant (`help/HelpPanel.tsx`) | The panel's `Sheet` is full width under 768 px (FR-005). |
 | Settings | The personal page **Email** becomes **My notifications** (`settings/my-notifications`, with `settings/email` redirecting). The user menu item is renamed the same. |
 

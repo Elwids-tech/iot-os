@@ -64,8 +64,10 @@ export function InboxPage({
           </div>
         )}
         {!narrowDetail && notices}
-        <div className="grid min-w-0 flex-1 items-start gap-(--panel-gap) xl:grid-cols-[var(--split-list-width)_minmax(0,1fr)]">
-          {!narrowDetail && <Panel className="xl:sticky xl:top-4">{list}</Panel>}
+        {/* Phones: a minmax(0, 1fr) track, so a long title truncates instead of widening the page. */}
+        <div className="grid min-w-0 flex-1 items-start gap-(--panel-gap) max-md:grid-cols-[minmax(0,1fr)] xl:grid-cols-[var(--split-list-width)_minmax(0,1fr)]">
+          {/* Phones clip instead of hiding overflow, so a bar inside the list can stick to the screen. */}
+          {!narrowDetail && <Panel className="max-md:overflow-clip xl:sticky xl:top-4">{list}</Panel>}
           {detail && (wide || narrowDetail) ? (
             // One element in both layouts so the detail (and its drafts) stays mounted across the breakpoint.
             <Panel className={narrowDetail ? "contents" : "min-h-64"}>{detail}</Panel>
@@ -156,7 +158,7 @@ export function InboxItem({
           to={to}
           data-inbox-link=""
           aria-current={current ? "page" : undefined}
-          className="truncate font-medium outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+          className="truncate font-medium outline-none max-md:line-clamp-2 max-md:whitespace-normal after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
         >
           {title}
         </Link>

@@ -30,6 +30,7 @@ import {
 } from "@iot-os/ui/components/table"
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { LayoutDashboardIcon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
@@ -111,6 +112,10 @@ export function DeviceOverview({
   /** Starts Add to dashboard with this parameter selected. */
   onAddToDashboard?: (parameterUuid: string) => void
 }) {
+  // Phones read status and last seen (in the header), the latest readings, then the
+  // device's alerts, before the rest (FR-007). The order changes in the document, not
+  // only on screen, so reading and tabbing follow it.
+  const phone = useIsMobile()
   return (
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-6">
       <LatestReadout org={org} device={device} editable={editable} onAdd={onAddToDashboard} />
@@ -118,12 +123,13 @@ export function DeviceOverview({
         aria-label="Device summary"
         className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-6"
       >
+        {phone && <DeviceAlerts org={org} device={device} />}
         <DeviceLocation org={org} device={device} editable={editable && device.lifecycle !== "archived"} />
         <DeviceDetails org={org} device={device} />
         {device.lifecycle === "active" && <ConnectivitySection org={org} device={device} />}
         {!!device.installations?.length && <Section title="Physical installation"><p className="text-sm text-muted-foreground">Readings belong to virtual device <code className="break-all">{device.uuid}</code>.</p>{device.installations.map(installation => <div key={installation.uuid} className="mt-3 flex flex-col gap-1 text-sm"><p>{installation.manufacturer_serial} · {installation.ended_at ? "Previous installation" : "Current hardware"}</p><p className="text-muted-foreground">Installed {formatDateTime(installation.started_at)}</p><code className="break-all text-xs">{installation.uuid}</code></div>)}</Section>}
         <UsedIn org={org} device={device} />
-        <DeviceAlerts org={org} device={device} />
+        {!phone && <DeviceAlerts org={org} device={device} />}
         <RecentCommands org={org} device={device} />
       </aside>
     </div>

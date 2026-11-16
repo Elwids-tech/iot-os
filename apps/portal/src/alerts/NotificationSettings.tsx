@@ -655,7 +655,7 @@ function SettingsForm({
         </PanelContent>
       </Panel>
       <RequestError error={save.error} />
-      <div ref={keepToastsAbove} className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
+      <div ref={keepToastsAbove} data-sticky-bar="" className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
         <span role="status" className="mr-auto text-body text-muted-foreground">
           {save.isPending
             ? "Saving…"

@@ -888,6 +888,27 @@ Things that have cost time before. Add to this list when something surprises you
   action bar needs `ref={keepToastsAbove}`, and a panel docked to the right edge
   needs `keepToastsLeftOf`, both from `@iot-os/ui/components/sonner`, or toasts
   will cover their buttons.
+- **A one-column grid grows to its longest title.** A `grid` without
+  `grid-cols-*` has one `auto` track, and grid items default to `min-width: auto`, so
+  a `truncate` title or other `nowrap` text sets the track's width and the phone page
+  scrolls sideways (the alert detail did, with a long alert title). Give phone grids a
+  `minmax(0,1fr)` track (`max-md:grid-cols-[minmax(0,1fr)]`), as `InboxPage` and Home do.
+- **A `Panel` stops anything inside it from sticking.** `overflow-hidden` makes the
+  panel a scroll container, so `sticky bottom-0` sticks to the panel, which never
+  scrolls. Use `overflow-clip` there (`InboxPage`'s list on phones), which clips the
+  same without becoming one.
+- **On a phone, `window.innerWidth` is not the page width.** A phone browser zooms out
+  when a page is wider than the screen, and `innerWidth` then measures the zoomed-out
+  view. The kit's `useIsMobile()` used to read it: a dashboard that rendered its
+  computer layout first overflowed, the browser zoomed out, and the page stayed in the
+  computer layout (Edit and the full time bar at 375 px). It now reads the media query
+  through `useSyncExternalStore`, as `useWide()` does. Plain viewport tests miss this;
+  `phone.spec.ts` has a case with `isMobile: true` that checks `visualViewport.scale`.
+- **A dashboard can be one column on a computer.** The grid's breakpoints measure its
+  own width: a 1024 px window with the sidebar open leaves about 720 px, the `xs`
+  layout (one column), and people edit there. Phone-only dashboard rules (reading
+  order, minimum heights, no Edit) key on the viewport with `useIsMobile()`, never on
+  the grid breakpoint, or computer layouts change.
 - **`StatusMark` never wraps.** It is `whitespace-nowrap`, made for a short
   status label. A sentence in it ran one line past a dialog's edge, and
   `DialogContent`'s `overflow-y-auto` turned that into sideways scrolling (the

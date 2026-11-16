@@ -32,10 +32,10 @@ function SelectValue({
 /**
  * Pickers (Select, SearchableSelect) share the text field's inset look plus a
  * divided chevron addon on the trailing edge, so they read as "opens a list"
- * rather than "type here" or "press me".
+ * rather than "type here" or "press me". Phones get a 44 px tall trigger.
  */
 const pickerTriggerClassName =
-  "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-input-fill py-0 pr-0 pl-2.5 text-sm font-normal whitespace-nowrap shadow-[inset_0_1px_2px_rgb(0_0_0/0.06)] transition-colors outline-none select-none dark:shadow-[inset_0_1px_2px_rgb(0_0_0/0.5)] hover:border-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+  "flex w-fit max-md:min-h-11 items-center justify-between gap-1.5 rounded-lg border border-input bg-input-fill py-0 pr-0 pl-2.5 text-sm font-normal whitespace-nowrap shadow-[inset_0_1px_2px_rgb(0_0_0/0.06)] transition-colors outline-none select-none dark:shadow-[inset_0_1px_2px_rgb(0_0_0/0.5)] hover:border-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 function PickerAddon({ className, ...props }: React.ComponentProps<"span">) {
   return (

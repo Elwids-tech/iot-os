@@ -88,11 +88,11 @@ export const LongNames: StoryObj = {
   ),
 }
 
-/** At 375 px the list fits the screen without sideways scrolling. */
+/**
+ * Phones (under 768 px): the list is the screen's width less 0.5 rem each side, at most
+ * 80% of its height, and scrolls inside.
+ */
 export const Phone: StoryObj = {
-  render: () => (
-    <div className="w-[375px] border">
-      <Bell />
-    </div>
-  ),
+  globals: { viewport: { value: "phone", isRotated: false } },
+  render: () => <Bell hasOlder items={[...items, ...items.map((item) => ({ ...item, id: `${item.id}-older`, unread: false }))]} />,
 }

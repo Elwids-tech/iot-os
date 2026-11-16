@@ -593,11 +593,12 @@ test("device toolbar keeps search beside icon buttons and filters by status on t
   await expect(page.getByRole("tooltip")).toHaveCount(0)
   await axe(page)
 
-  // Phones keep the search and the icon buttons on one row.
+  // Phones (spec 033): 44 px buttons and the Filters sheet wrap under the search, all on screen.
   await page.setViewportSize({ width: 375, height: 812 })
-  const search = await toolbar.getByRole("searchbox", { name: "Search devices" }).boundingBox()
-  const columns = await toolbar.getByRole("button", { name: "Columns" }).boundingBox()
-  expect(Math.abs(search!.y + search!.height / 2 - (columns!.y + columns!.height / 2))).toBeLessThan(4)
+  await expect(toolbar.getByRole("button", { name: "Filters, 1 active" })).toHaveText("Filters1")
+  const columns = (await toolbar.getByRole("button", { name: "Columns" }).boundingBox())!
+  expect(columns.x + columns.width).toBeLessThanOrEqual(375)
+  expect(Math.min(columns.width, columns.height)).toBeGreaterThanOrEqual(44)
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true)

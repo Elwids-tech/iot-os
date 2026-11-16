@@ -65,7 +65,8 @@ export function EntityPage({
             {status && (
               <div
                 data-slot="entity-status"
-                className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 py-1 text-body"
+                // Phones let a long mark wrap rather than widen the page (large text).
+                className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 py-1 text-body max-md:[&_[data-slot=status-mark]]:whitespace-normal"
               >
                 {status}
               </div>

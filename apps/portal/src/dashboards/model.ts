@@ -469,21 +469,54 @@ export function cleanLayouts(layouts: DashboardLayout): DashboardLayout {
   )
 }
 
-/** Scale missing desktop layouts; never replace an explicitly saved breakpoint. */
-export function responsiveLayouts(layouts: DashboardLayout): DashboardLayout {
+/**
+ * Phones: the fewest grid rows a panel gets in the one-column layout, by kind, so each
+ * stays readable (spec 033, FR-006). Stat-like panels 3, charts and maps 6, tables and
+ * lists 8; other kinds keep their own height.
+ */
+export const PHONE_MIN_ROWS: Partial<Record<DashboardWidget["type"], number>> = {
+  status: 3,
+  gauge: 3,
+  timeseries: 6,
+  state_history: 6,
+  color_history: 6,
+  consumption: 6,
+  location: 6,
+  table: 8,
+  alerts: 8,
+}
+
+/**
+ * Scale missing desktop layouts; never replace an explicitly saved breakpoint.
+ * With `phone` (a screen under 768 px, where nobody edits), the one-column layouts always
+ * follow the computer layout's reading order, top to bottom then left to right, and give
+ * each panel at least its kind's `PHONE_MIN_ROWS`. Wider screens never get either, even
+ * when their grid is one column, so computer layouts do not change.
+ */
+export function responsiveLayouts(
+  layouts: DashboardLayout,
+  phone?: { widgets: Pick<DashboardWidget, "id" | "type">[] },
+): DashboardLayout {
   const result = cleanLayouts(layouts)
   const primary = result.lg ? "lg" : Object.keys(result)[0]
   const original = result[primary] ?? []
   const originalCols = GRID_COLUMNS[primary] ?? 12
+  const kinds = new Map(phone?.widgets.map((widget) => [widget.id, widget.type]))
+  const minimum = (id: string) => {
+    const kind = kinds.get(id)
+    return (kind && PHONE_MIN_ROWS[kind]) || 1
+  }
   for (const [key, cols] of Object.entries(GRID_COLUMNS)) {
-    if (result[key]) continue
+    const derivePhone = phone && cols === 1 && key !== primary
+    if (result[key] && !derivePhone) continue
     let row = 0
     result[key] = [...original]
       .sort((a, b) => a.y - b.y || a.x - b.x)
       .map((item) => {
         if (cols === 1) {
-          const value = { ...item, x: 0, y: row, w: 1 }
-          row += item.h
+          const h = derivePhone ? Math.max(item.h, minimum(item.i)) : item.h
+          const value = { ...item, x: 0, y: row, w: 1, h }
+          row += h
           return value
         }
         const width = Math.max(1, Math.floor((item.w * cols) / originalCols))

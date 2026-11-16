@@ -1184,6 +1184,7 @@ export function ConfigurationSection({
         {writable && (
           <div
             ref={keepToastsAbove}
+            data-sticky-bar=""
             className="sticky bottom-0 z-10 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
           >
             <span className="text-meta text-muted-foreground" role="status">

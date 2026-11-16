@@ -4,6 +4,7 @@ import { Checkbox as CheckboxPrimitive } from "radix-ui"
 import { cn } from "@iot-os/ui/lib/utils"
 import { CheckIcon, MinusIcon } from "lucide-react"
 
+/** Phones grow the hit area (the `after` box) to 44 px square, never the box. */
 function Checkbox({
   className,
   ...props

@@ -141,7 +141,7 @@ export function SearchableSelect({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-[var(--radix-popover-trigger-width)] min-w-64 max-w-[calc(100vw-2rem)] p-0"
+          className="w-[var(--radix-popover-trigger-width)] min-w-64 max-w-[calc(100vw-2rem)] p-0 max-md:min-w-0"
           aria-label={label}
         >
           <Command shouldFilter={false} defaultValue={value || "__empty"}>
@@ -308,7 +308,7 @@ export function SearchableMultiSelect({
             <PickerAddon />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" aria-label={label}>
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 max-w-[calc(100vw-2rem)] p-0 max-md:min-w-0" aria-label={label}>
           <Command>
             <CommandInput aria-label={`Search ${label.toLowerCase()}`} placeholder={`Search ${label.toLowerCase()}…`} />
             <CommandList aria-label={label}>

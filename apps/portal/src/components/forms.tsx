@@ -203,6 +203,7 @@ export function SaveBar({
   return (
     <div
       ref={keepToastsAbove}
+      data-sticky-bar=""
       className="sticky bottom-0 flex w-full flex-wrap items-center justify-between gap-3 border-t bg-card px-6 py-4"
     >
       <span

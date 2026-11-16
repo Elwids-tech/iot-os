@@ -58,7 +58,12 @@ function PanelActions({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="panel-actions"
-      className={cn("ml-auto flex shrink-0 items-center gap-2", className)}
+      // Phones: actions never widen the page; a segmented group scrolls inside the header.
+      className={cn(
+        "ml-auto flex shrink-0 items-center gap-2",
+        "max-md:max-w-full max-md:[&>[data-slot=toggle-group]]:max-w-full max-md:[&>[data-slot=toggle-group]]:overflow-x-auto max-md:[&>[data-slot=toggle-group]]:scrollbar-none",
+        className,
+      )}
       {...props}
     />
   )

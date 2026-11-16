@@ -77,6 +77,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
+import { FilterSheet } from "@iot-os/ui/components/filter-sheet"
 import { formatNumber } from "@iot-os/ui/lib/format"
 import { cn } from "@iot-os/ui/lib/utils"
 
@@ -666,6 +667,9 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
             : undefined
         }
         extra={props.toolbar}
+        phone={phone}
+        // The same reset as the active filters row: pages clear their URL state in one step.
+        onReset={reset}
       />
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-2" aria-label="Active filters" role="group">
@@ -683,7 +687,8 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
               <button
                 type="button"
                 aria-label={`Remove ${filter.label} filter`}
-                className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                // Phones: the hit area grows to 44 px around the small cross.
+                className="relative grid size-5 place-items-center rounded text-muted-foreground after:absolute hover:bg-background/60 hover:text-foreground max-md:after:-inset-3"
                 onClick={() => filter.onChange([])}
               >
                 <XIcon className="size-3.5" />
@@ -928,22 +933,29 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                         key={row.id}
                         data-slot="data-table-card"
                         data-state={row.getIsSelected() ? "selected" : undefined}
-                        className="group/card relative flex min-w-0 items-start gap-3 px-4 py-3 data-[state=selected]:bg-muted has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
+                        // With large text the content takes a line of its own rather than shrinking to nothing.
+                        className="group/card relative flex min-w-0 flex-wrap items-start gap-3 px-4 py-3 data-[state=selected]:bg-muted has-[[data-row-link]:focus-visible]:ring-2 has-[[data-row-link]:focus-visible]:ring-ring has-[[data-row-link]:focus-visible]:ring-inset"
                       >
                         {/* Above the stretched row link, so tapping them does not open the row. */}
                         {selectable && selectBox(row, "relative z-10 mt-0.5")}
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <div className="flex min-w-0 items-start justify-between gap-2">
-                            <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
-                            {badgeColumn && <div className="shrink-0">{badgeColumn.cell(row.original)}</div>}
-                          </div>
+                        <div className="flex min-w-0 grow basis-40 flex-col gap-1">
+                          {/* The status sits under the title on every card, so cards line up and long names keep their room. */}
+                          <div className="min-w-0">{titleColumn?.cell(row.original)}</div>
+                          {badgeColumn && <div className="min-w-0">{badgeColumn.cell(row.original)}</div>}
                           {metaColumns.length > 0 && (
                             <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
-                              {metaColumns.map((column) => (
-                                <span key={column.id} className="min-w-0 truncate">
-                                  {column.header} {column.cell(row.original)}
-                                </span>
-                              ))}
+                              {metaColumns.map((column) => {
+                                // A column with an empty value prints no "Header" line of its own.
+                                const value = column.value?.(row.original)
+                                if (column.value && (value === null || value === undefined || value === "")) return null
+                                // The value truncates on its own, so a long code keeps its start beside the label.
+                                return (
+                                  <span key={column.id} className="flex max-w-full min-w-0 items-baseline gap-1">
+                                    <span className="shrink-0">{column.header}</span>{" "}
+                                    <span className="min-w-0 truncate">{column.cell(row.original)}</span>
+                                  </span>
+                                )
+                              })}
                             </p>
                           )}
                         </div>
@@ -1032,6 +1044,8 @@ function Toolbar<T>({
   columns,
   sorting,
   extra,
+  phone = false,
+  onReset,
 }: {
   label: string
   views: DataTableProps<T>["views"]
@@ -1047,6 +1061,9 @@ function Toolbar<T>({
     onChange: (column: string, desc: boolean) => void
   }
   extra?: React.ReactNode
+  /** Under 768 px the filters open in a bottom sheet instead of a popover. */
+  phone?: boolean
+  onReset?: () => void
 }) {
   const active = filters.filter((filter) => filter.value.length > 0).length
   const filterTitleId = React.useId()
@@ -1088,13 +1105,20 @@ function Toolbar<T>({
           placeholder={search.placeholder}
           value={search.value}
           onChange={(event) => search.onChange(event.target.value)}
-          // Icon buttons fit beside the search on phones.
-          className="min-w-32 flex-1 sm:flex-none"
+          // Phones give the search a row of its own, so every list starts the same way.
+          className="min-w-32 flex-1 sm:flex-none max-md:basis-full"
         />
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {extra}
-        {filters.length > 0 && (
+        {filters.length > 0 && phone && (
+          <FilterSheet title={`Filter ${label.toLowerCase()}`} count={active} onReset={onReset}>
+            {filters.map((filter) => (
+              <FilterControl key={filter.id} filter={filter} />
+            ))}
+          </FilterSheet>
+        )}
+        {filters.length > 0 && !phone && (
           <Popover>
             <PopoverTrigger asChild>
               <ToolbarButton
@@ -1157,7 +1181,8 @@ function Toolbar<T>({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {groups.length > 0 && (
+        {/* Phone cards are never grouped, so phones offer no Group menu. */}
+        {groups.length > 0 && !phone && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <ToolbarButton
@@ -1220,8 +1245,10 @@ export function ToolbarButton({
   label: string
   name?: string
 }) {
+  // Phones show toolbar icons without frames; the 44 px target stays.
+  const phone = useIsMobile()
   const button = (
-    <Button variant="outline" size={children ? "sm" : "icon-sm"} aria-label={name ?? label} {...props}>
+    <Button variant={phone ? "ghost" : "outline"} size={children ? "sm" : "icon-sm"} aria-label={name ?? label} {...props}>
       {children ? React.cloneElement(icon, { "data-icon": "inline-start" }) : icon}
       {children}
     </Button>

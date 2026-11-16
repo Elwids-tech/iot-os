@@ -1252,20 +1252,20 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   unavailable = false
   await page.getByRole("button", { name: "Retry location" }).click()
   await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+  // Phones read workflow panels; editing needs a larger screen (spec 033, FR-006).
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
-  await page.getByRole("button", { name: "Add panel", exact: true }).click()
-  await addOther(page, "Alerts")
-  await page.getByRole("combobox", { name: "Workflow", exact: true }).click()
-  await page.keyboard.press("ArrowDown")
-  await page.keyboard.press("Enter")
-  await expect(page.getByText("1 active", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Edit dashboard", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "More actions", exact: true }).click()
+  await expect(page.getByText("Editing needs a larger screen", { exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByText("No applied workflow", { exact: true })).toBeVisible()
+  await expect(page.getByText("1 active", { exact: true }).first()).toBeVisible()
   // The closing picker fades out; scan once no animation is running.
   await page.waitForFunction(() => document.getAnimations().length === 0)
   const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()
   expect(audit.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-  await page.screenshot({ path: info.outputPath("workflow-editor-mobile.png"), fullPage: true })
+  await page.screenshot({ path: info.outputPath("workflow-panels-mobile.png"), fullPage: true })
   expect(errors).toEqual([])
 })
 
@@ -1308,8 +1308,11 @@ test("chart labels survive repeated layout changes, full-page capture and refres
     )).toBe(true)
     await page.screenshot({fullPage: true})
     const before = calls.history
+    // Phones keep refresh in the Time range popover (spec 033).
+    if (width < 768) await page.getByRole("button", {name: /^Time range/}).click()
     await page.getByRole("button", {name: "Refresh dashboard", exact: true}).click()
     await expect.poll(() => calls.history).toBeGreaterThan(before)
+    if (width < 768) await page.keyboard.press("Escape")
   }
   expect(errors).toEqual([])
 })

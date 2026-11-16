@@ -172,6 +172,47 @@ describe("configuration and layout", () => {
     expect(result.lg).toEqual(layout.lg);
     expect(Object.keys(layout)).toEqual(["lg"]);
   });
+  it("reads one column on phones in the computer layout's order, each panel tall enough", () => {
+    const layout = {
+      lg: [
+        { i: "table", x: 0, y: 2, w: 4, h: 4 },
+        { i: "chart", x: 4, y: 0, w: 8, h: 4 },
+        { i: "stat", x: 0, y: 0, w: 4, h: 2 },
+        { i: "text", x: 4, y: 4, w: 8, h: 2 },
+      ],
+      // A one-column layout saved from a narrow computer window.
+      xs: [
+        { i: "text", x: 0, y: 0, w: 1, h: 2 },
+        { i: "stat", x: 0, y: 2, w: 1, h: 2 },
+        { i: "chart", x: 0, y: 4, w: 1, h: 4 },
+        { i: "table", x: 0, y: 8, w: 1, h: 4 },
+      ],
+    };
+    const widgets = [
+      { id: "stat", type: "status" as const },
+      { id: "chart", type: "timeseries" as const },
+      { id: "table", type: "table" as const },
+      { id: "text", type: "text" as const },
+    ];
+    const phone = responsiveLayouts(layout, { widgets });
+    for (const key of ["xs", "xxs"])
+      expect(phone[key]?.map((item) => [item.i, item.x, item.y, item.w, item.h])).toEqual([
+        ["stat", 0, 0, 1, 3],
+        ["chart", 0, 3, 1, 6],
+        ["table", 0, 9, 1, 8],
+        ["text", 0, 17, 1, 2],
+      ]);
+    // The computer layouts are untouched, and wider screens keep the saved one column.
+    expect(phone.lg).toEqual(responsiveLayouts(layout).lg);
+    expect(phone.md).toEqual(responsiveLayouts(layout).md);
+    expect(responsiveLayouts(layout).xs).toEqual(layout.xs);
+    expect(responsiveLayouts(layout).xxs?.map((item) => item.h)).toEqual([2, 4, 4, 2]);
+  });
+  it("keeps a panel taller than its phone minimum at its own height", () => {
+    const layout = { lg: [{ i: "chart", x: 0, y: 0, w: 12, h: 9 }] };
+    const phone = responsiveLayouts(layout, { widgets: [{ id: "chart", type: "timeseries" }] });
+    expect(phone.xxs?.[0].h).toBe(9);
+  });
   it("offers last-applied parameters without latest telemetry", () => {
     const device = {
       applied_configuration_uuid: null,

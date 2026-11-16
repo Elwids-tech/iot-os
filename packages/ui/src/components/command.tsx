@@ -76,7 +76,8 @@ function CommandInput({
         <CommandPrimitive.Input
           asChild
           className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            // 16 px on phones, so iOS does not zoom in when the search field takes focus.
+            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50 max-md:text-base",
             className,
           )}
           {...props}

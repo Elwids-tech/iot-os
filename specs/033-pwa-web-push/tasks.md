@@ -45,13 +45,13 @@ plan.
 **Purpose**: the shared phone rules that US1 and US4 build on. All of them apply below
 768 px (`max-md:`), so no class changes at `md` and up.
 
-- [ ] T004 [P] Phone sizing in `packages/ui/src/components/button.tsx`, `input.tsx`, `select.tsx` (`SelectTrigger`), `switch.tsx` (hit area, not the track) and `textarea.tsx`: `max-md:min-h-11` (44 px) on interactive controls and `max-md:text-base` (16 px) on text inputs, so iOS does not zoom on focus. Update the button and input stories with a phone viewport
-- [ ] T005 [P] `packages/ui/src/components/page-header.tsx`: below 768 px, every action after the first goes into a `DropdownMenu` behind an icon button named "More actions"; the trigger slot (bell, Assistant, Help) and `SidebarTrigger` stay visible. Add `apps/storybook/src/components/PageHeader.stories.tsx` (or extend the existing header story) with phone and desktop viewports
-- [ ] T006 [P] `packages/ui/src/templates/collection-page.tsx`: new `filters?: ReactNode` and `activeFilterCount?: number` props. Filters render inline at `md` and up, and below 768 px inside a bottom `Sheet` opened by **Filters** with the count when above zero. Extend `apps/storybook/src/templates/CollectionPage.stories.tsx` with a phone story
-- [ ] T007 [P] `packages/ui/src/components/notification-bell.tsx`: below 768 px the popover is `calc(100vw - 1rem)` wide with `max-h-[80dvh]` and scrolls inside. Phone story in `apps/storybook/src/components/NotificationBell.stories.tsx`
-- [ ] T008 [P] `packages/ui/src/styles/globals.css`: under `html.standalone`, `env(safe-area-inset-top|right|bottom|left)` padding on the sidebar sheet, the page header and sticky bottom bars (`[data-sticky-bar]`, or the class `forms.tsx` uses)
-- [ ] T009 `packages/ui/scripts/check-ui.mjs`: a rule that interactive kit components (`button`, `input`, `select`, `switch`, `textarea`) carry `max-md:min-h-11`, with a message naming the Phones section (depends on T004)
-- [ ] T010 [P] `docs/dev/design-system.md`: a **Phones** section covering the 768 px breakpoint, 44 px targets, 16 px inputs, header overflow, the filter sheet, full-width panels, safe areas, and that rules apply only under `max-md`
+- [x] T004 [P] Phone sizing in `packages/ui/src/components/button.tsx` (every size, plus `max-md:min-w-11`; inline link buttons exempt), `input.tsx`, `select.tsx` (`SelectTrigger` and `SearchableSelect`), `toggle.tsx`, `tabs.tsx`, `input-group.tsx`, the sidebar's menu rows, `switch.tsx`, `checkbox.tsx` and `radio-group.tsx` (hit area, the `after` box, not the track or box) and `textarea.tsx` (its `min-h-16` is already above 44 px): `max-md:min-h-11` (44 px) on interactive controls and `text-base` below `md` (16 px) on text inputs, so iOS does not zoom on focus. Phone and computer stories in `Button.stories.tsx` cover the buttons and the input; Storybook's preview gains Phone, Small phone and Computer viewports
+- [x] T005 [P] `packages/ui/src/components/page-header.tsx`: below 768 px an app bar (menu, back, a title of up to three lines and the trigger slot on the first row; meta and actions under it), and one action stays in view, the primary `Button` (default variant) or else the first, and the others go into a popover behind an icon button named "More actions". It is a popover, not a `DropdownMenu`, because actions are buttons rather than menu items; choosing one closes it unless the action opens its own dialog or menu, which opens above it. The trigger slot (bell, Assistant, Help) and `SidebarTrigger` stay visible. `apps/storybook/src/components/PageHeader.stories.tsx` has phone and computer viewports
+- [x] T006 [P] `packages/ui/src/templates/collection-page.tsx`: new `filters?: ReactNode`, `activeFilterCount?: number` and `onResetFilters` props. Filters render inline at `md` and up, and below 768 px inside a bottom `Sheet` opened by **Filters** with the count when above zero. The sheet is a new kit component, `packages/ui/src/components/filter-sheet.tsx` (`FilterSheet`, story `FilterSheet.stories.tsx`), which `DataTable` also uses for its own filters on phones. `apps/storybook/src/templates/CollectionPage.stories.tsx` gains computer and phone stories with filters
+- [x] T007 [P] `packages/ui/src/components/notification-bell.tsx`: below 768 px the popover is `calc(100vw - 1rem)` wide with `max-h-[80dvh]` and scrolls inside. Phone story in `apps/storybook/src/components/NotificationBell.stories.tsx`
+- [x] T008 [P] `packages/ui/src/styles/globals.css`: under `html.standalone`, `env(safe-area-inset-top|right|bottom|left)` padding on the sidebar sheet, the page header, bottom sheets and sticky bottom bars (`[data-sticky-bar]`, now on the sticky bars in `forms.tsx`, notification settings, new ticket, device configuration and the Alerts bulk bar)
+- [x] T009 `packages/ui/scripts/check-ui.mjs`: a rule, `phone-target`, that interactive kit components (`button`, `input`, `select`) carry `max-md:min-h-11`, `switch` its 44 px hit area and `textarea` a minimum of at least 44 px, with a message naming the Phones section (depends on T004). It reads the kit's sources, so every app's lint runs it
+- [x] T010 [P] `docs/dev/design-system.md`: a **Phones** section covering the 768 px breakpoint, 44 px targets, 16 px inputs, header overflow, the filter sheet, full-width panels, safe areas, and that rules apply only under `max-md`
 
 **Checkpoint**: kit stories render at 375 px; `pnpm --filter @iot-os/ui test` and the Storybook accessibility addon pass.
 
@@ -65,19 +65,19 @@ comment, and browse alerts, all without zooming or sideways scrolling.
 **Independent Test**: at 360 px, open an alert link signed out, sign in, acknowledge,
 assign and comment; open Alerts, filter to active and unacknowledged, open another.
 
-- [ ] T011 [US1] Sign-in in `apps/portal/src/App.tsx` (`Login`): the card is full width with 16 px side padding below 768 px; the "Forgot password?" link and the submit button meet 44 px
-- [ ] T012 [P] [US1] `packages/auth/src/PasswordRecoveryPage.tsx` and `packages/auth/src/AcceptInvitationPage.tsx`: fix any overflow at 320 px (both inherit kit sizing from T004)
-- [ ] T013 [P] [US1] `apps/portal/src/home/HomePage.tsx`: panels stack in one column below 768 px with nothing wider than the screen
-- [ ] T014 [US1] Alerts list in `apps/portal/src/alerts/Alerts.tsx`:
-  - below 768 px the filters (`condition`, acknowledgement, assignee, kind, view) move into a bottom `Sheet` behind **Filters (n)**, offering every filter the computer layout has;
-  - the bulk **Acknowledge selected** bar stays sticky with `ref={keepToastsAbove}`.
-- [ ] T015 [US1] Alert detail (`AlertDetail` in `apps/portal/src/alerts/Alerts.tsx`):
-  - below 768 px the facts `<dl>` is one column and the assignee `SearchableSelect` is full width;
-  - the email deliveries `Table` becomes a `DataTable` with columns recipient (`mobile: "title"`), status (`"badge"`), attempts and sent (`"meta"`), and **Retry** for failed rows;
-  - the not-found state reads *This alert isn't available* and shows nothing about the alert.
-- [ ] T016 [P] [US1] `apps/portal/src/help/HelpPanel.tsx`: the Help and Assistant `Sheet` is full width below 768 px (FR-005)
-- [ ] T017 [P] [US1] `apps/portal/src/devices/DeviceDirectory.tsx`: move its filters into `CollectionPage`'s new `filters` slot (depends on T006)
-- [ ] T018 [US1] `apps/portal/e2e/phone.spec.ts` with route mocks:
+- [x] T011 [US1] Sign-in in `apps/portal/src/App.tsx` (`Login`): the card is full width with 16 px side padding below 768 px; the "Forgot password?" link and the submit button meet 44 px
+- [x] T012 [P] [US1] `packages/auth/src/PasswordRecoveryPage.tsx` and `packages/auth/src/AcceptInvitationPage.tsx`: fix any overflow at 320 px (both inherit kit sizing from T004)
+- [x] T013 [P] [US1] `apps/portal/src/home/HomePage.tsx`: below 768 px the summary is compact tiles two to a row and the panels stack in one column, with nothing wider than the screen
+- [x] T014 [US1] Alerts list in `apps/portal/src/alerts/Alerts.tsx`:
+  - below 768 px the filters (`condition`, acknowledgement, assignee, kind, view) move into a bottom `FilterSheet` behind **Filters (n)**, offering every filter the computer layout has;
+  - the bulk **Acknowledge selected** bar moves to the foot of the list and sticks to the bottom of the screen with `ref={keepToastsAbove}` (the list panel clips with `overflow-clip` so it can stick).
+- [x] T015 [US1] Alert detail (`AlertDetail` in `apps/portal/src/alerts/Alerts.tsx`):
+  - below 768 px the facts `<dl>` reads as label and value rows, the timeline is one column, the assignee `SearchableSelect` is full width, and **Acknowledge alert** sits in a bar stuck to the bottom of the screen;
+  - the email deliveries `Table` becomes a `DataTable` with columns recipient (`mobile: "title"`, with the diagnostic and **Retry email** under it on phones), email, status (`"badge"`), attempts and last attempt (`"meta"`), and **Retry email** for failed rows;
+  - the not-found state (404, or 403 once access is lost) reads *This alert isn't available* and shows nothing about the alert.
+- [x] T016 [P] [US1] `apps/portal/src/help/HelpPanel.tsx`: the Help and Assistant `Sheet` is full width below 768 px (FR-005)
+- [x] T017 [P] [US1] `apps/portal/src/devices/DeviceDirectory.tsx`: its filters are `DataTable` filters, which open in the same `FilterSheet` on phones (T006), so the page needed no change; `phone.spec.ts` checks its sheet
+- [x] T018 [US1] `apps/portal/e2e/phone.spec.ts` with route mocks:
   - **Helpers**: `expectPhoneFit(page)` asserts `document.scrollingElement.scrollWidth <= innerWidth`, and that every visible `button`, `[role=button]`, `input`, `select` and `textarea` is at least 44 × 44 px.
   - **Viewports**: run each case at 320, 360 and 390 px, and once more at 360 px with the root font size at 200% (`document.documentElement.style.fontSize = "200%"`), which still passes `expectPhoneFit` apart from text wrapping (spec edge case: large text).
   - **Cases**: a signed-out alert link renders sign-in and then the alert at the same path; acknowledge, assign and comment post the right requests; the filters sheet holds every filter; the menu, organization switcher, bell and user menu are reachable from Alerts, alert detail, Devices and Home; a member who can only view devices sees no acknowledge, assign or comment controls.
@@ -94,12 +94,12 @@ then read a dashboard top to bottom.
 **Independent Test**: at phone width, go from an alert to its device, read status and
 readings with ages, open a dashboard and read every widget by scrolling down only.
 
-- [ ] T019 [US4] `apps/portal/src/devices/DeviceOverview.tsx`: below 768 px the order is status and last seen, `LatestReadout` with ages, active alerts, then Location, Details, Connectivity, Physical installation, Used in and Recent commands
-- [ ] T020 [US4] `apps/portal/src/dashboards/DashboardWorkspace.tsx`: below 768 px the **Edit** button is not rendered; in its place the header shows *Editing needs a larger screen* (`text-meta`). A `location.state.edit` arriving at phone width does not enter edit mode. The desktop header is unchanged
-- [ ] T021 [US4] `apps/portal/src/dashboards/model.ts` (`responsiveLayouts`): in the `xs` and `xxs` layouts, panels keep the computer layout's reading order (by `y`, then `x`) and get minimum heights by widget kind: stat 3 rows, chart and map 6 rows, table 8 rows. A table widget scrolls sideways inside its panel (`apps/portal/src/dashboards/DashboardGrid.tsx` or the table widget). Unit cases in `apps/portal/src/dashboards/model.test.ts`
-- [ ] T022 [P] [US4] `apps/portal/src/dashboards/TimeControls.tsx`: below 768 px the presets, compare, refresh and auto-refresh collapse into one button that opens the existing range `Popover` holding them all
-- [ ] T023 [P] [US4] `apps/portal/src/dashboards/LibraryPage.tsx`: the dashboards list is usable at 320 px (cards via `DataTable` `mobile` options or stacked panels)
-- [ ] T024 [US4] Extend `apps/portal/e2e/phone.spec.ts`:
+- [x] T019 [US4] `apps/portal/src/devices/DeviceOverview.tsx`: below 768 px the order is status and last seen, `LatestReadout` with ages, active alerts, then Location, Details, Connectivity, Physical installation, Used in and Recent commands
+- [x] T020 [US4] `apps/portal/src/dashboards/DashboardWorkspace.tsx`: below 768 px the **Edit** button is not rendered; in its place **More actions** shows *Editing needs a larger screen* (`text-meta`), and the header scrolls with the page. A `location.state.edit` arriving at phone width does not enter edit mode. The desktop header is unchanged
+- [x] T021 [US4] `apps/portal/src/dashboards/model.ts` (`responsiveLayouts`, with a `phone` option that `DashboardGrid` passes below 768 px): in the `xs` and `xxs` layouts, panels keep the computer layout's reading order (by `y`, then `x`) and get minimum heights by widget kind (`PHONE_MIN_ROWS`): stat 3 rows, chart and map 6 rows, table and alert list 8 rows. Only phones get it: a computer's dashboard grid can be one column too (a 1024 px window with the sidebar open), and its layouts stay as saved. A table widget scrolls sideways inside its panel (`apps/portal/src/dashboards/DashboardGrid.tsx` or the table widget). Unit cases in `apps/portal/src/dashboards/model.test.ts`
+- [x] T022 [P] [US4] `apps/portal/src/dashboards/TimeControls.tsx`: below 768 px the presets, compare, refresh and auto-refresh collapse into one button that opens the existing range `Popover` holding them all
+- [x] T023 [P] [US4] `apps/portal/src/dashboards/LibraryPage.tsx`: the dashboards list is usable at 320 px (cards via `DataTable` `mobile` options or stacked panels)
+- [x] T024 [US4] Extend `apps/portal/e2e/phone.spec.ts`:
   - device detail shows status, last seen, readings and alerts before other sections;
   - a dashboard renders one column in reading order with no **Edit**;
   - a table widget scrolls inside itself while the page passes `expectPhoneFit`;
@@ -111,8 +111,8 @@ readings with ages, open a dashboard and read every widget by scrolling down onl
 
 ## Phase 5: Finish pull request 2 (phone layouts)
 
-- [ ] T025 [P] `docs/features/portal-on-phones.md` (new): which pages work at phone width, what stays desktop-only (editing dashboards, automations, profiles and adapters), and the filter sheet. Link it from `docs/README.md` beside the other feature docs
-- [ ] T026 Verify pull request 2:
+- [x] T025 [P] `docs/features/portal-on-phones.md` (new): which pages work at phone width, what stays desktop-only (editing dashboards, automations, profiles and adapters), and the filter sheet. Link it from `docs/README.md` beside the other feature docs
+- [x] T026 Verify pull request 2 (done 2026-11-16: no Android phone was connected, so the walk used Playwright's mobile emulation against the rebuilt stack, plus the browser pane, whose hidden state renders at its own width until a frame is forced):
   - `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/admin lint`, `pnpm --filter @iot-os/portal test`, `pnpm --filter @iot-os/ui test`, all portal Playwright specs (existing desktop specs unchanged: SC-008), `./taskw lint`;
   - rebuild `portal admin` with the stack's env files and overlays ([local setup](../../docs/dev/local-setup.md#rebuild-one-service));
   - in the browser pane at the `mobile` preset, without discarding anyone's unsaved edits, walk US1 and US4, and time SC-001 (already signed in: from opening an alert link to acknowledged, under 30 s);
