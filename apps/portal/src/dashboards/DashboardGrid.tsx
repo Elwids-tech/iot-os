@@ -13,6 +13,7 @@ import type {
   MovedDevice,
 } from "@iot-os/api-client"
 import { usePanelGap } from "@iot-os/ui/components/skin"
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { cn } from "@iot-os/ui/lib/utils"
 import { GRID_COLUMNS, resolveRange, responsiveLayouts } from "./model"
@@ -98,7 +99,12 @@ export function DashboardGrid({
   panelRef?: (id: string, node: HTMLDivElement | null) => void
 }) {
   const gap = usePanelGap()
-  const gridLayouts = useMemo(() => responsiveLayouts(layouts), [layouts])
+  // Phones read one column in the computer layout's order, each panel tall enough to read.
+  const phone = useIsMobile()
+  const gridLayouts = useMemo(
+    () => responsiveLayouts(layouts, phone ? { widgets } : undefined),
+    [layouts, phone, widgets],
+  )
   const rangeKey = JSON.stringify(view.range)
   const ownWindow = useMemo(() => resolveRange(view.range), [rangeKey])
   const layoutAction = useRef(false)

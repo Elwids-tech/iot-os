@@ -147,6 +147,7 @@ export function NewTicketPage() {
       </div>
       <div
         ref={keepToastsAbove}
+        data-sticky-bar=""
         className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-4 py-3 md:px-6"
       >
         <p className="mr-auto text-meta text-muted-foreground" aria-live="polite">

@@ -74,6 +74,14 @@ const preview: Preview = {
   parameters: {
     layout: "fullscreen",
     controls: { expanded: true },
+    // Phone layouts switch below 768 px (spec 033): stories pick these with `globals.viewport`.
+    viewport: {
+      options: {
+        phone: { name: "Phone, 375 px", styles: { width: "375px", height: "812px" }, type: "mobile" },
+        smallPhone: { name: "Small phone, 320 px", styles: { width: "320px", height: "640px" }, type: "mobile" },
+        computer: { name: "Computer, 1280 px", styles: { width: "1280px", height: "800px" }, type: "desktop" },
+      },
+    },
     a11y: { test: "error" },
     options: {
       storySort: { order: ["Introduction", "Foundations", "Components", "Templates"] },

@@ -159,7 +159,8 @@ function Login({ recovered = false }: { recovered?: boolean }) {
   const [error, setError] = useState<unknown>(null)
   const form = useForm({ defaultValues: { email: "", password: "" } })
   return (
-    <main className="flex min-h-svh items-center justify-center p-5">
+    // Phones: the card spans the screen with 16 px sides, and its controls are 44 px tall.
+    <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="mb-4 flex items-center justify-between">
@@ -206,7 +207,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
                 {...form.register("password")}
               />
               <RequestError error={error} />
-              <Link to="/forgot-password" className="text-sm text-primary underline underline-offset-4">Forgot password?</Link>
+              <Link to="/forgot-password" className="w-fit text-sm text-primary underline underline-offset-4 max-md:inline-flex max-md:min-h-11 max-md:items-center">Forgot password?</Link>
             </FieldGroup>
           </CardContent>
           <CardFooter>

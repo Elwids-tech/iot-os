@@ -149,15 +149,17 @@ Full reasoning, with rejected alternatives, is in [research.md](research.md).
 
 All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 
-- **`PageHeader`**: `actions` that overflow move into a `DropdownMenu` behind a
-  **More** button. The trigger slot (bell, Assistant, Help) stays visible. Story:
-  phone and desktop.
+- **`PageHeader`**: at phone width one action stays (the primary `Button`, else the
+  first) and the others move into a popover behind **More actions**, kept mounted so
+  dialogs they open survive. The trigger slot (bell, Assistant, Help) stays visible.
+  Story: phone and desktop.
 - **`CollectionPage`**: a `filters` slot renders inline on wider screens and inside a
-  bottom `Sheet` behind **Filters (n)** at phone width. Story.
+  bottom `Sheet` behind **Filters (n)** at phone width. The sheet is a kit
+  `FilterSheet`, which `DataTable` uses for its own filters too. Stories.
 - **Phone sizing** (`styles` and the `Button`, `Input`, `SelectTrigger`, `Switch` and
   `Textarea` variants): minimum 44 px targets and 16 px input text under `max-md`.
   `check-ui.mjs` gains a rule that the interactive kit components (`button`, `input`,
-  `select`, `switch`, `textarea`) carry `max-md:min-h-11`.
+  `select`, `switch`, `textarea`) keep their 44 px phone targets.
 - **`NotificationBell`**: the popover is full width with a max height at phone width.
 - **Shell safe areas**: a `standalone` class on `<html>` (set by the portal) adds
   `env(safe-area-inset-*)` padding to the sidebar sheet, header and sticky bars.

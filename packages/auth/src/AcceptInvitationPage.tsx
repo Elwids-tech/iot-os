@@ -141,7 +141,7 @@ export function AcceptInvitationPage({
 
   if (acceptedUser && state.data?.grants_super_admin) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CheckCircle2Icon className="text-primary" />
@@ -169,7 +169,7 @@ export function AcceptInvitationPage({
   if (acceptedUser) {
     const organization = state.data?.organization
     return (
-      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CheckCircle2Icon className="text-primary" />
@@ -198,7 +198,7 @@ export function AcceptInvitationPage({
 
   if (state.error) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+      <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>
@@ -230,7 +230,7 @@ export function AcceptInvitationPage({
   const isExistingAccount = state.data.acceptance_mode === "sign_in"
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>

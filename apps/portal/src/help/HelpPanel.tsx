@@ -998,7 +998,8 @@ export default function HelpPanel({
       <Sheet open={open} onOpenChange={(value) => !value && onClose()}>
         <SheetContent
           showCloseButton={false}
-          className="w-full! max-w-none! gap-0 p-0 sm:w-[440px]!"
+          // Full width on phones (under 768 px, FR-005); a 440 px panel from there to 1280 px.
+          className="w-full! max-w-none! gap-0 p-0 md:w-[440px]!"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             trigger.current?.focus();

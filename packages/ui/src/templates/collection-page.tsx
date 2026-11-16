@@ -1,6 +1,8 @@
 import * as React from "react"
 
+import { ResponsiveFilters } from "@iot-os/ui/components/filter-sheet"
 import { PageHeader } from "@iot-os/ui/components/page-header"
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { cn } from "@iot-os/ui/lib/utils"
 
 /**
@@ -9,7 +11,9 @@ import { cn } from "@iot-os/ui/lib/utils"
  * DataTable, whose toolbar sits on the canvas and whose rows sit in a panel.
  * Views, folders and other slices belong in the DataTable's views and filters,
  * never in a side rail. Pages pass content only: the template owns widths,
- * gutters and gaps.
+ * gutters and gaps. Filters that live outside the DataTable go in `filters`: a
+ * row above the list from 768 px, and behind **Filters** in a bottom sheet on
+ * phones (DataTable's own filters do the same).
  */
 export function CollectionPage({
   title,
@@ -18,6 +22,9 @@ export function CollectionPage({
   helpContext,
   tabs,
   notices,
+  filters,
+  activeFilterCount = 0,
+  onResetFilters,
   children,
   className,
   embedded = false,
@@ -33,10 +40,28 @@ export function CollectionPage({
   actions?: React.ReactNode
   helpContext?: string
   notices?: React.ReactNode
+  /** Filter controls outside the DataTable: inline from 768 px, in a bottom sheet on phones. */
+  filters?: React.ReactNode
+  /** How many of `filters` are set; the phone **Filters** button shows it. */
+  activeFilterCount?: number
+  /** Clears every filter; the phone sheet offers it while any is set. */
+  onResetFilters?: () => void
   /** The DataTable, or an EmptyState when the viewer has no access. */
   children: React.ReactNode
   className?: string
 }) {
+  const phone = useIsMobile()
+  const filterRow = filters ? (
+    <ResponsiveFilters
+      phone={phone}
+      title={`Filter ${title.toLowerCase()}`}
+      count={activeFilterCount}
+      onReset={onResetFilters}
+      className={phone ? "self-start" : undefined}
+    >
+      {filters}
+    </ResponsiveFilters>
+  ) : null
   if (embedded)
     return (
       <section aria-labelledby="collection-heading" data-slot="collection-page" className={cn("flex min-w-0 flex-col gap-4", className)}>
@@ -50,6 +75,7 @@ export function CollectionPage({
           {description && <p className="text-body text-muted-foreground">{description}</p>}
           {tabs && <div className="border-b">{tabs}</div>}
         </div>
+        {filterRow}
         {notices}
         {children}
       </section>
@@ -60,6 +86,7 @@ export function CollectionPage({
         {tabs}
       </PageHeader>
       <div data-slot="collection-page" className={cn("flex min-w-0 flex-col gap-4 p-4 md:p-6", className)}>
+        {filterRow}
         {notices}
         {children}
       </div>

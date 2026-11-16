@@ -13,6 +13,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { usePanelGap } from "@iot-os/ui/components/skin"
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import {
   Dialog,
   DialogContent,
@@ -172,8 +173,13 @@ export function DashboardWorkspace({
     cache = useQueryClient()
   const [params, setParams] = useSearchParams()
   const gap = usePanelGap()
+  // Phones (under 768 px) read dashboards; editing needs a larger screen (FR-006), so a
+  // link that asks to edit opens the dashboard to read there.
+  const phone = useIsMobile()
   const [draft, setDraft] = useState<Dashboard | null>(() =>
-    location.state?.edit && canEdit ? structuredClone(saved) : null,
+    location.state?.edit && canEdit && globalThis.matchMedia?.("(min-width: 768px)").matches !== false
+      ? structuredClone(saved)
+      : null,
   )
   const [base, setBase] = useState(saved)
   const dashboard = draft ?? saved
@@ -888,6 +894,17 @@ export function DashboardWorkspace({
     )
 
   const panels = `${dashboard.widgets.length} ${dashboard.widgets.length === 1 ? "panel" : "panels"}`
+  const shareAction = abilities.share ? (
+    <Button variant="outline" onClick={() => setDialog("share")}>
+      <Share2Icon data-icon="inline-start" />
+      <span className="max-sm:sr-only">Share</span>
+    </Button>
+  ) : (
+    <Button variant="outline" onClick={() => void copy(link(), "Dashboard link")}>
+      <LinkIcon data-icon="inline-start" />
+      <span className="max-sm:sr-only">Copy link</span>
+    </Button>
+  )
   return (
     <>
       <PageHeader
@@ -953,6 +970,8 @@ export function DashboardWorkspace({
             </>
           ) : (
             <>
+              {/* Phones keep Share in view; the other actions go behind More actions. */}
+              {phone && shareAction}
               <Toggle
                 variant="outline"
                 pressed={railOpen}
@@ -965,17 +984,7 @@ export function DashboardWorkspace({
               >
                 <PanelRightIcon />
               </Toggle>
-              {abilities.share ? (
-                <Button variant="outline" onClick={() => setDialog("share")}>
-                  <Share2Icon data-icon="inline-start" />
-                  <span className="max-sm:sr-only">Share</span>
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={() => void copy(link(), "Dashboard link")}>
-                  <LinkIcon data-icon="inline-start" />
-                  <span className="max-sm:sr-only">Copy link</span>
-                </Button>
-              )}
+              {!phone && shareAction}
               <Button
                 ref={kioskButton}
                 variant="outline"
@@ -1033,7 +1042,7 @@ export function DashboardWorkspace({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {canEdit && (
+              {canEdit && !phone && (
                 <Button onClick={startEditing}>
                   <PencilIcon data-icon="inline-start" />
                   Edit<span className="sr-only"> dashboard</span>
@@ -1063,6 +1072,9 @@ export function DashboardWorkspace({
         >
           <UpdatedAt org={org} timezone={view.timezone} />
         </TimeControls>
+        {phone && canEdit && !draft && (
+          <p className="text-meta text-muted-foreground">Editing needs a larger screen</p>
+        )}
       </PageHeader>
       <div className="flex min-w-0 flex-col lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
@@ -1288,7 +1300,7 @@ function DashboardSwitcher({
           aria-haspopup="dialog"
           aria-expanded={open}
           title="Switch dashboard"
-          className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring max-md:min-h-11"
         >
           <span className="truncate">{name}</span>
           <ChevronDownIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />

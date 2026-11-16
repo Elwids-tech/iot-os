@@ -60,6 +60,8 @@ portal or admin images.
   work on navigation, and keep the draft on revision conflicts.
 - **Keep data meanings.** Missing data is unknown, never zero or healthy; device
   colours and chart series keep their own semantics.
+- **Phones** follow the rules in [Phones](#phones): everything under 768 px, nothing
+  changed from there up.
 - **Add a story** for every new kit component and template.
 - Portal and admin never keep their own shadcn copies or local versions of kit
   components.
@@ -76,9 +78,11 @@ The release workflow runs the same lint.
 | `arbitrary-text-size` | error | `text-[12px]`-style sizes |
 | `local-age` | error | A local `function Age(` |
 | `local-status-map` | warning | A local value → `StatusTone` map |
+| `phone-target` | error | A kit `button`, `input`, `select`, `switch` or `textarea` that lost its 44 px phone target ([Phones](#phones)) |
 
 A reviewed exception carries `ui-check: allow <rule>` on the same or the previous
-line. Test and spec files are skipped.
+line. Test and spec files are skipped. `phone-target` reads the kit's own sources, so
+it runs in every app's lint.
 
 ## Layers
 
@@ -86,7 +90,7 @@ line. Test and spec files are skipped.
 | --- | --- | --- |
 | Tokens | Surfaces (`background` canvas, `card` panel, `popover` raised, `sunken` inside a panel), elevation (`shadow-panel`, `shadow-raised`, `shadow-overlay`), type scale, layout widths (`max-w-reading`, `max-w-form`), motion durations, skins and palettes | [`src/styles/globals.css`](../../packages/ui/src/styles/globals.css) |
 | Primitives | shadcn/ui on Radix, style `radix-nova` | [`components.json`](../../packages/ui/components.json), `src/components` |
-| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
+| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, `FilterSheet`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
 | Templates | `CollectionPage`, `EntityPage`, `InboxPage`, `WorkspacePage`, `SettingsPage`; `useUrlState` keeps search, filters, view and page in the URL | `src/templates`, `src/hooks` |
 
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with
@@ -115,6 +119,54 @@ leaving the page clears it. `reloadOnStaleChunks()` (`lib/stale-chunks`), called
 each app's entry, reloads once when a chunk from an older build fails to load after
 a deploy; a second failure within 10 seconds shows "A new version is available"
 instead of looping.
+
+## Phones
+
+The portal works on phones ([spec 033](../../specs/033-pwa-web-push/spec.md),
+[portal on phones](../features/portal-on-phones.md)). Phone width is under 768 CSS px,
+the `md` breakpoint and `useIsMobile()`. Every phone rule is written under `max-md:`
+or behind `useIsMobile()`, so tablets, landscape phones and computers (768 px and up)
+keep their layouts: change nothing at `md` and up for a phone fix.
+
+- **Targets are 44 px.** `Button` (every size, `max-md:min-w-11` too), `Input`,
+  `SelectTrigger` and `SearchableSelect`, `Toggle` and toggle groups, `TabsTrigger`,
+  `InputGroup` and the sidebar's rows carry `max-md:min-h-11`. `Checkbox`, `RadioGroupItem`
+  and `Switch` grow their hit area (the `after` box) to 44 px, never the box or the track.
+  Link buttons inside a sentence and `CopyText` are text targets and keep the line's
+  height. A new interactive control does the same; the `phone-target` guardrail checks
+  the kit's.
+- **Inputs are 16 px.** `Input` and `Textarea` use `text-base` below `md` (`md:text-sm`
+  above), because iOS zooms the page into any field with smaller text.
+- **Header overflow.** `PageHeader` keeps the menu button, one action and the help slot
+  (bell, Assistant, Help); the other actions go behind **More actions**. The action kept
+  is the primary `Button` (default variant) when there is one, else the first. The list
+  stays mounted while closed, so a dialog an action opens keeps working.
+- **Filter sheet.** Lists put their filters in a bottom `FilterSheet` behind one
+  **Filters** button with the active count: `DataTable` does it for its own filters,
+  `CollectionPage` for its `filters` slot (with `activeFilterCount` and
+  `onResetFilters`), and a page with its own toolbar (Alerts) uses `FilterSheet`
+  directly. The sheet holds every filter the wider layout has.
+- **Lists are cards.** `DataTable` shows a card per row: the `mobile: "title"` column,
+  the `"badge"` column, then the other columns as "Header value" lines unless
+  `"hidden"`. Give every column a `mobile` role.
+- **Full width.** Side panels (Help and Assistant, the sidebar) and the bell's list open
+  the full width of the screen. A grid that holds long text uses a
+  `minmax(0,1fr)` track below `md` (`InboxPage` does), so a long title truncates
+  instead of widening the page. Content that cannot narrow (a wide table or chart)
+  scrolls inside its own box; the page never scrolls sideways.
+- **Sticky bars and toasts.** A bar stuck to the bottom carries `ref={keepToastsAbove}`
+  and `data-sticky-bar`. A `Panel` that holds one clips (`max-md:overflow-clip`) rather
+  than hiding overflow, or the bar cannot stick.
+- **Safe areas.** The installed app draws under the notch and home indicator. With
+  `standalone` on `<html>`, `globals.css` pads the page header, the phone sidebar,
+  bottom sheets and `[data-sticky-bar]` by `env(safe-area-inset-*)`.
+- **Large text.** Phone pages stay usable with text at 200%: let rows wrap, give flex
+  and grid children `min-w-0`, and let status marks wrap.
+- **Check it.** [`apps/portal/e2e/phone.spec.ts`](../../apps/portal/e2e/phone.spec.ts)
+  checks each phone page at 320, 360 and 390 px and with text at 200%: no sideways
+  scroll and no control under 44 × 44 px (`expectPhoneFit`). Storybook's viewport menu
+  has Phone (375 px), Small phone (320 px) and Computer (1280 px); kit components with
+  phone rules have a phone story.
 
 ## Look and feel
 

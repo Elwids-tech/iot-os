@@ -53,7 +53,7 @@ export function PasswordRecoveryPage({ apiClient, mode }: { apiClient: ApiClient
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
+    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           {complete && <CheckCircle2Icon className="text-primary" />}

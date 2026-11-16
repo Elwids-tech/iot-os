@@ -26,6 +26,9 @@ import { Button } from "@iot-os/ui/components/button";
 import { Checkbox } from "@iot-os/ui/components/checkbox";
 import { DataTable, RowLink, ToolbarButton, type DataColumn } from "@iot-os/ui/components/data-table";
 import { Field, FieldLabel } from "@iot-os/ui/components/field";
+import { FilterSheet } from "@iot-os/ui/components/filter-sheet";
+import { keepToastsAbove } from "@iot-os/ui/components/sonner";
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page";
 import { PropertyList } from "@iot-os/ui/templates/entity-page";
@@ -34,14 +37,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/p
 import { SearchableMultiSelect, SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { Status, StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@iot-os/ui/components/table";
 import { Textarea } from "@iot-os/ui/components/textarea";
 import {
   ToggleGroup,
@@ -54,6 +49,7 @@ import {
 } from "@iot-os/ui/components/alert";
 import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
 import { statusOf } from "@iot-os/ui/lib/status";
+import { cn } from "@iot-os/ui/lib/utils";
 import { api } from "../lib/api";
 import { alertBellKeys } from "./bell/model";
 import { useDashboardCapabilities } from "../dashboards/access";
@@ -146,8 +142,9 @@ async function acknowledgeListed(org: string, uuids: string[]) {
     total += (await api.acknowledgeAlerts(org, { alert_uuids: uuids.slice(index, index + 500) })).acknowledged;
   return total;
 }
+/** Gone, or no longer yours to see: either way the alert page shows nothing about it. */
 const isNotFound = (error: unknown) =>
-  error instanceof ApiError && error.status === 404;
+  error instanceof ApiError && (error.status === 404 || error.status === 403);
 
 /** Cause (connectivity), duration, acknowledgement and assignee; the title already names the source. */
 function AlertMeta({ alert }: { alert: AlertItem }) {
@@ -213,6 +210,7 @@ const segment =
 function AlertsPage() {
   const { alertUuid: selected } = useParams();
   const wide = useWide();
+  const phone = useIsMobile();
   const narrowDetail = Boolean(selected) && !wide;
   const { org, capabilities, query: organization } = useDeviceOrganization();
   const cache = useQueryClient();
@@ -374,6 +372,188 @@ function AlertsPage() {
     for (const kind of alertKinds) if (values.includes(kind)) next.append("kind", kind);
     setParams(next);
   };
+  // The filter controls, shared by the toolbar (768 px and up) and the phone filter sheet.
+  const conditionFilter = (
+    <ToggleGroup
+      type="single"
+      size="sm"
+      spacing={0}
+      aria-label="Condition"
+      value={condition}
+      onValueChange={(value) => {
+        if (value) change("condition", value === "active" ? null : value);
+      }}
+      className={segmented}
+    >
+      {conditions.map((value, index) => (
+        <ToggleGroupItem key={value} value={value} className={segment}>
+          {value === "active" ? "Active" : value === "cleared" ? "Cleared" : "All"}
+          <span className="font-normal text-muted-foreground tabular-nums">
+            {counts[index].data?.meta.total}
+          </span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+  const repeatsFilter = (
+    <ToggleGroup
+      type="single"
+      size="sm"
+      spacing={0}
+      aria-label="Repeats"
+      value={grouped ? "grouped" : "individual"}
+      onValueChange={(value) => {
+        if (value) change("view", value === "grouped" ? null : value);
+      }}
+      className={segmented}
+    >
+      <ToggleGroupItem value="grouped" className={segment}>Grouped</ToggleGroupItem>
+      <ToggleGroupItem value="individual" className={segment}>Individual</ToggleGroupItem>
+    </ToggleGroup>
+  );
+  const unacknowledgedFilter = (
+    <Field orientation="horizontal" className="w-auto">
+      <Checkbox
+        id="alerts-unacknowledged"
+        checked={params.get("acknowledged") === "0"}
+        onCheckedChange={(checked) =>
+          change("acknowledged", checked === true ? "0" : null)
+        }
+      />
+      <FieldLabel htmlFor="alerts-unacknowledged" className="font-normal">
+        Unacknowledged only
+      </FieldLabel>
+    </Field>
+  );
+  const mineFilter = (
+    <Field orientation="horizontal" className="w-auto">
+      <Checkbox
+        id="alerts-mine"
+        checked={mine}
+        onCheckedChange={(checked) =>
+          change("assignee", checked === true ? "me" : null)
+        }
+      />
+      <FieldLabel htmlFor="alerts-mine" className="font-normal">
+        Assigned to me
+      </FieldLabel>
+    </Field>
+  );
+  const moreFilters = (
+    <>
+      <SearchableMultiSelect
+        label="Kind"
+        className="w-full"
+        values={kinds}
+        options={alertKinds.map((kind) => ({ value: kind, label: kindLabel(kind) }))}
+        placeholder="All kinds"
+        maximum={alertKinds.length}
+        onChange={changeKinds}
+      />
+      <SearchableSelect
+        label="Device"
+        className="w-full"
+        value={params.get("device") ?? ""}
+        selectedLabel={params.get("device") ? deviceName : "All devices"}
+        options={[
+          { value: "", label: "All devices" },
+          ...(devices.data?.data ?? []).map((device) => ({
+            value: device.uuid,
+            label: device.name,
+          })),
+        ]}
+        search={deviceSearch}
+        onSearchChange={(value) => {
+          setDeviceSearch(value);
+          setDevicePage(1);
+        }}
+        page={devicePage}
+        onPageChange={setDevicePage}
+        hasNextPage={devicePage < (devices.data?.meta.last_page ?? 1)}
+        loading={devices.isFetching}
+        onChange={(value) => change("device", value)}
+      />
+      <SearchableSelect
+        label="Workflow"
+        className="w-full"
+        value={params.get("workflow") ?? ""}
+        selectedLabel={params.get("workflow") ? workflowName : "All workflows"}
+        options={[
+          { value: "", label: "All workflows" },
+          ...(workflows.data?.data ?? []).map((workflow) => ({
+            value: workflow.uuid,
+            label: workflow.name,
+          })),
+        ]}
+        search={workflowSearch}
+        onSearchChange={(value) => {
+          setWorkflowSearch(value);
+          setWorkflowPage(1);
+        }}
+        page={workflowPage}
+        onPageChange={setWorkflowPage}
+        hasNextPage={workflowPage < (workflows.data?.meta.last_page ?? 1)}
+        loading={workflows.isFetching}
+        onChange={(value) => change("workflow", value)}
+      />
+    </>
+  );
+  const countStatus = total !== undefined && (
+    <span role="status" className="text-meta text-muted-foreground tabular-nums">
+      {grouped ? plural(total, "source") : plural(total, "alert")}
+    </span>
+  );
+  // Bulk acknowledge: a row above the list from 768 px; on phones a bar at the foot of the
+  // list that sticks to the bottom of the screen while the list is in view, under the toasts.
+  const bulkBar = capabilities.manage && (grouped ? groups : rows).length > 0 && (
+    <div
+      ref={phone ? keepToastsAbove : undefined}
+      data-sticky-bar={phone ? "" : undefined}
+      className={cn(
+        "flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 bg-sunken px-4 py-1.5",
+        phone ? "sticky bottom-0 z-10 border-t" : "border-b",
+      )}
+    >
+      <Checkbox
+        aria-label={grouped ? "Select every source on this page" : "Select every alert on this page"}
+        disabled={!selectable.length || acknowledge.isPending}
+        checked={
+          selectable.length > 0 && chosen.length === selectable.length
+            ? true
+            : chosen.length
+              ? "indeterminate"
+              : false
+        }
+        onCheckedChange={(checked) =>
+          setPicked({ key: listKey, ids: checked === true ? selectable : [] })
+        }
+      />
+      <span role="status" className="mr-auto text-sm text-muted-foreground">
+        {acknowledge.isPending
+          ? "Acknowledging…"
+          : chosen.length
+            ? `${plural(chosen.length, grouped ? "source" : "alert")} selected`
+            : acknowledge.isSuccess
+              ? `Acknowledged ${plural(acknowledge.data, "alert")}.`
+              : "None selected"}
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!pending || acknowledge.isPending}
+        onClick={() => (pending > 1 ? setConfirm(true) : acknowledge.mutate())}
+      >
+        Acknowledge selected{pending ? ` (${pending.toLocaleString()})` : ""}
+      </Button>
+    </div>
+  );
+  // Phones count every choice that differs from the default view, since all of them sit in the sheet.
+  const phoneFilters =
+    activeFilters +
+    Number(condition !== "active") +
+    Number(!grouped) +
+    Number(params.get("acknowledged") === "0") +
+    Number(mine);
   return (
     <Inbox tab="alerts" header={!narrowDetail || denied}>
       {denied ? (
@@ -390,71 +570,31 @@ function AlertsPage() {
           wide={wide}
           showDetail={Boolean(selected)}
           toolbar={
+            phone ? (
+              <>
+                <FilterSheet title="Filter alerts" count={phoneFilters} onReset={() => setParams({})}>
+                  <div className="flex flex-col gap-1.5">
+                    <span aria-hidden="true" className="text-meta text-muted-foreground">Condition</span>
+                    {conditionFilter}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span aria-hidden="true" className="text-meta text-muted-foreground">Repeats</span>
+                    {repeatsFilter}
+                  </div>
+                  {unacknowledgedFilter}
+                  {mineFilter}
+                  {moreFilters}
+                </FilterSheet>
+                <div className="ml-auto">{countStatus}</div>
+              </>
+            ) : (
             <>
-              <ToggleGroup
-                type="single"
-                size="sm"
-                spacing={0}
-                aria-label="Condition"
-                value={condition}
-                onValueChange={(value) => {
-                  if (value) change("condition", value === "active" ? null : value);
-                }}
-                className={segmented}
-              >
-                {conditions.map((value, index) => (
-                  <ToggleGroupItem key={value} value={value} className={segment}>
-                    {value === "active" ? "Active" : value === "cleared" ? "Cleared" : "All"}
-                    <span className="font-normal text-muted-foreground tabular-nums">
-                      {counts[index].data?.meta.total}
-                    </span>
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <ToggleGroup
-                type="single"
-                size="sm"
-                spacing={0}
-                aria-label="Repeats"
-                value={grouped ? "grouped" : "individual"}
-                onValueChange={(value) => {
-                  if (value) change("view", value === "grouped" ? null : value);
-                }}
-                className={segmented}
-              >
-                <ToggleGroupItem value="grouped" className={segment}>Grouped</ToggleGroupItem>
-                <ToggleGroupItem value="individual" className={segment}>Individual</ToggleGroupItem>
-              </ToggleGroup>
-              <Field orientation="horizontal" className="w-auto">
-                <Checkbox
-                  id="alerts-unacknowledged"
-                  checked={params.get("acknowledged") === "0"}
-                  onCheckedChange={(checked) =>
-                    change("acknowledged", checked === true ? "0" : null)
-                  }
-                />
-                <FieldLabel htmlFor="alerts-unacknowledged" className="font-normal">
-                  Unacknowledged only
-                </FieldLabel>
-              </Field>
-              <Field orientation="horizontal" className="w-auto">
-                <Checkbox
-                  id="alerts-mine"
-                  checked={mine}
-                  onCheckedChange={(checked) =>
-                    change("assignee", checked === true ? "me" : null)
-                  }
-                />
-                <FieldLabel htmlFor="alerts-mine" className="font-normal">
-                  Assigned to me
-                </FieldLabel>
-              </Field>
+              {conditionFilter}
+              {repeatsFilter}
+              {unacknowledgedFilter}
+              {mineFilter}
               <div className="ml-auto flex items-center gap-2">
-                {total !== undefined && (
-                  <span role="status" className="text-meta text-muted-foreground tabular-nums">
-                    {grouped ? plural(total, "source") : plural(total, "alert")}
-                  </span>
-                )}
+                {countStatus}
                 <Popover>
                   <PopoverTrigger asChild>
                     <ToolbarButton
@@ -470,65 +610,12 @@ function AlertsPage() {
                     </ToolbarButton>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 gap-3 p-3" aria-label="Filter alerts">
-            <SearchableMultiSelect
-              label="Kind"
-              className="w-full"
-              values={kinds}
-              options={alertKinds.map((kind) => ({ value: kind, label: kindLabel(kind) }))}
-              placeholder="All kinds"
-              maximum={alertKinds.length}
-              onChange={changeKinds}
-            />
-            <SearchableSelect
-              label="Device"
-              className="w-full"
-              value={params.get("device") ?? ""}
-              selectedLabel={params.get("device") ? deviceName : "All devices"}
-              options={[
-                { value: "", label: "All devices" },
-                ...(devices.data?.data ?? []).map((device) => ({
-                  value: device.uuid,
-                  label: device.name,
-                })),
-              ]}
-              search={deviceSearch}
-              onSearchChange={(value) => {
-                setDeviceSearch(value);
-                setDevicePage(1);
-              }}
-              page={devicePage}
-              onPageChange={setDevicePage}
-              hasNextPage={devicePage < (devices.data?.meta.last_page ?? 1)}
-              loading={devices.isFetching}
-              onChange={(value) => change("device", value)}
-            />
-            <SearchableSelect
-              label="Workflow"
-              className="w-full"
-              value={params.get("workflow") ?? ""}
-              selectedLabel={params.get("workflow") ? workflowName : "All workflows"}
-              options={[
-                { value: "", label: "All workflows" },
-                ...(workflows.data?.data ?? []).map((workflow) => ({
-                  value: workflow.uuid,
-                  label: workflow.name,
-                })),
-              ]}
-              search={workflowSearch}
-              onSearchChange={(value) => {
-                setWorkflowSearch(value);
-                setWorkflowPage(1);
-              }}
-              page={workflowPage}
-              onPageChange={setWorkflowPage}
-              hasNextPage={workflowPage < (workflows.data?.meta.last_page ?? 1)}
-              loading={workflows.isFetching}
-              onChange={(value) => change("workflow", value)}
-            />
+            {moreFilters}
                   </PopoverContent>
                 </Popover>
               </div>
             </>
+            )
           }
           notices={
             <>
@@ -540,41 +627,7 @@ function AlertsPage() {
           }
           list={
             <>
-              {capabilities.manage && (grouped ? groups : rows).length > 0 && (
-                <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-sunken px-4 py-1.5">
-                  <Checkbox
-                    aria-label={grouped ? "Select every source on this page" : "Select every alert on this page"}
-                    disabled={!selectable.length || acknowledge.isPending}
-                    checked={
-                      selectable.length > 0 && chosen.length === selectable.length
-                        ? true
-                        : chosen.length
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={(checked) =>
-                      setPicked({ key: listKey, ids: checked === true ? selectable : [] })
-                    }
-                  />
-                  <span role="status" className="mr-auto text-sm text-muted-foreground">
-                    {acknowledge.isPending
-                      ? "Acknowledging…"
-                      : chosen.length
-                        ? `${plural(chosen.length, grouped ? "source" : "alert")} selected`
-                        : acknowledge.isSuccess
-                          ? `Acknowledged ${plural(acknowledge.data, "alert")}.`
-                          : "None selected"}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!pending || acknowledge.isPending}
-                    onClick={() => (pending > 1 ? setConfirm(true) : acknowledge.mutate())}
-                  >
-                    Acknowledge selected{pending ? ` (${pending.toLocaleString()})` : ""}
-                  </Button>
-                </div>
-              )}
+              {!phone && bulkBar}
               {query.isPending || organization.isPending ? (
                 <div className="p-4">
                   <Skeleton className="h-48 w-full" />
@@ -655,6 +708,7 @@ function AlertsPage() {
                   }}
                 />
               </div>
+              {phone && bulkBar}
               <Confirm
                 open={confirm}
                 title={`Acknowledge ${plural(pending, "alert")}?`}
@@ -1048,6 +1102,91 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * Email deliveries: a table from 768 px, phone cards below (recipient, status, the rest
+ * as lines). On phones the diagnostic and Retry sit under the recipient.
+ */
+const deliveryColumns = (
+  retry: (delivery: AlertDelivery) => void,
+): DataColumn<AlertDelivery>[] => {
+  const retryButton = (item: AlertDelivery) =>
+    item.status === "failed" && (
+      <Button variant="outline" size="sm" onClick={() => retry(item)}>
+        Retry email
+      </Button>
+    );
+  return [
+    {
+      id: "recipient",
+      header: "Recipient",
+      mobile: "title",
+      hideable: false,
+      value: (item) => item.recipient_name,
+      cell: (item) => (
+        <>
+          <span className="max-md:font-medium">{item.recipient_name}</span>
+          {item.diagnostic && (
+            <span className="block text-meta text-muted-foreground md:hidden">{item.diagnostic}</span>
+          )}
+          {item.status === "failed" && <div className="mt-2 md:hidden">{retryButton(item)}</div>}
+        </>
+      ),
+    },
+    {
+      id: "email",
+      header: "Email",
+      mobile: "meta",
+      hideable: false,
+      cell: (item) => (item.type === "activated" ? "Activation" : "Recovery"),
+    },
+    {
+      id: "status",
+      header: "Status",
+      mobile: "badge",
+      hideable: false,
+      className: "whitespace-normal",
+      cell: (item) => (
+        <>
+          <Status value={item.status} domain="delivery" />
+          {item.diagnostic && (
+            <span className="block text-xs text-muted-foreground max-md:hidden">{item.diagnostic}</span>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "attempts",
+      header: "Attempts",
+      align: "end",
+      mobile: "meta",
+      hideable: false,
+      className: "tabular-nums",
+      cell: (item) => item.attempts,
+    },
+    {
+      id: "last",
+      header: "Last attempt",
+      align: "end",
+      mobile: "meta",
+      hideable: false,
+      className: "text-muted-foreground tabular-nums",
+      cell: (item) => {
+        const last = item.history.at(-1)?.created_at ?? null;
+        return last ? <RelativeTime at={last} never={null} /> : "None";
+      },
+    },
+    {
+      id: "action",
+      header: "Action",
+      headerHidden: true,
+      align: "end",
+      mobile: "hidden",
+      hideable: false,
+      cell: retryButton,
+    },
+  ];
+};
+
 function AlertDetail({
   id,
   search,
@@ -1155,11 +1294,8 @@ function AlertDetail({
       void cache.invalidateQueries({ queryKey: ["alert-comments", org, id] });
     },
   });
-  const title = alert
-    ? alertTitle(alert)
-    : missing && capabilities.view
-      ? "Alert not found"
-      : "Alert";
+  // A link to an alert that is gone or no longer yours names nothing about it.
+  const title = alert ? alertTitle(alert) : "Alert";
   const occurrence = alert ? `Occurrence ${alert.episode}` : undefined;
   // Sections sit under the page h1 when narrow and under the pane's h2 when wide.
   const Heading = back ? "h2" : "h3";
@@ -1233,8 +1369,8 @@ function AlertDetail({
     <div className="flex min-w-0 flex-col gap-6">
       {missing && capabilities.view ? (
         <DeviceEmpty
-          title="No alert matches this link"
-          description="It may have been removed, or the link may be incomplete."
+          title="This alert isn't available"
+          description="It may have been removed, or you may no longer have access to it."
         />
       ) : (
         <LoadError
@@ -1269,7 +1405,7 @@ function AlertDetail({
             {capabilities.manage && (
               <SearchableSelect
                 label="Assignee"
-                className="w-full sm:w-64"
+                className="w-full md:w-64"
                 value={alert.assignee ? String(alert.assignee.id) : ""}
                 selectedLabel={alert.assignee?.name ?? "Unassigned"}
                 options={[
@@ -1320,7 +1456,7 @@ function AlertDetail({
               </AlertDescription>
             </Alert>
           ) : null}
-          <dl className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-6 gap-y-4 border-y py-4 text-sm">
+          <dl className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-6 gap-y-4 border-y py-4 text-sm max-md:grid-cols-1">
             <Fact label="Condition">{conditionMark(alert)}</Fact>
             <Fact label="Acknowledgement">
               {alert.acknowledged_at ? (
@@ -1416,7 +1552,8 @@ function AlertDetail({
               {timeline.map((entry) => (
                 <li
                   key={entry.key}
-                  className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3"
+                  // Phones put the time above the entry, so large text still fits.
+                  className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 max-md:grid-cols-[minmax(0,1fr)]"
                 >
                   <time
                     dateTime={entry.at}
@@ -1465,58 +1602,15 @@ function AlertDetail({
               {deliveries.isPending ? (
                 <Skeleton className="h-16 w-full" />
               ) : deliveries.data?.data.length ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Recipient</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Attempts</TableHead>
-                      <TableHead className="text-right">Last attempt</TableHead>
-                      <TableHead>
-                        <span className="sr-only">Action</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deliveries.data.data.map((item) => {
-                      const last = item.history.at(-1)?.created_at ?? null;
-                      return (
-                        <TableRow key={item.uuid}>
-                          <TableCell>{item.recipient_name}</TableCell>
-                          <TableCell>
-                            {item.type === "activated" ? "Activation" : "Recovery"}
-                          </TableCell>
-                          <TableCell className="whitespace-normal">
-                            <Status value={item.status} domain="delivery" />
-                            {item.diagnostic && (
-                              <span className="block text-xs text-muted-foreground">
-                                {item.diagnostic}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {item.attempts}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground tabular-nums">
-                            {last ? <RelativeTime at={last} never={null} /> : "None"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.status === "failed" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setRetry(item)}
-                              >
-                                Retry email
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  id="alert-deliveries"
+                  label="Email deliveries"
+                  noun={["delivery", "deliveries"]}
+                  rows={deliveries.data.data}
+                  rowKey={(item) => item.uuid}
+                  rowLabel={(item) => item.recipient_name}
+                  columns={deliveryColumns(setRetry)}
+                />
               ) : !deliveries.error ? (
                 <p className="text-sm text-muted-foreground">
                   No email was requested for this alert.

@@ -13,6 +13,8 @@ import {
   ToggleGroupItem,
 } from "@iot-os/ui/components/toggle-group"
 import { Toggle } from "@iot-os/ui/components/toggle"
+import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
+import { cn } from "@iot-os/ui/lib/utils"
 import {
   Select,
   SelectContent,
@@ -39,7 +41,12 @@ import {
   timeLabel,
 } from "./model"
 
-/** Dashboard time bar: quick ranges apply on click; only a custom range needs Apply. */
+/**
+ * Dashboard time bar: quick ranges apply on click; only a custom range needs Apply.
+ * Phones (under 768 px) collapse the bar into one **Time range** button whose popover
+ * holds every control: quick ranges, the custom range, stepping, compare, time zone and
+ * refresh.
+ */
 export function TimeControls({
   view,
   defaults,
@@ -93,188 +100,175 @@ export function TimeControls({
     })
   }
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  return (
-    <div
-      role="group"
-      aria-label="Dashboard time controls"
-      className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-0.5"
+  const phone = useIsMobile()
+  const rangeLabel = absolute
+    ? `${timeLabel(window.from, view.timezone)} to ${timeLabel(window.to, view.timezone)}`
+    : PRESET_LABELS[view.range.mode === "relative" ? view.range.preset : "6h"]
+  const quickRanges = (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      size="sm"
+      spacing={phone ? 1 : 0}
+      className={cn(phone && "flex-wrap")}
+      aria-label="Quick ranges"
+      value={view.range.mode === "relative" ? view.range.preset : ""}
+      onValueChange={(preset) =>
+        preset &&
+        onChange({
+          ...view,
+          range: { mode: "relative", preset: preset as keyof typeof PRESETS },
+        })
+      }
     >
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        spacing={0}
-        aria-label="Quick ranges"
-        value={view.range.mode === "relative" ? view.range.preset : ""}
-        onValueChange={(preset) =>
-          preset &&
-          onChange({
-            ...view,
-            range: { mode: "relative", preset: preset as keyof typeof PRESETS },
-          })
+      {Object.entries(PRESET_LABELS).map(([key, text]) => (
+        <ToggleGroupItem key={key} value={key} aria-label={text} title={text}>
+          {key}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+  const customRange = (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const start = inputDate(from, view.timezone),
+          end = inputDate(to, view.timezone)
+        const issue = absoluteError(start, end)
+        if (issue) {
+          setError(issue)
+          return
         }
-      >
-        {Object.entries(PRESET_LABELS).map(([key, text]) => (
-          <ToggleGroupItem key={key} value={key} aria-label={text} title={text}>
-            {key}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <Popover open={open} onOpenChange={begin}>
-        <PopoverTrigger asChild>
+        onChange({ ...view, range: { mode: "absolute", from: start, to: end } })
+        setOpen(false)
+      }}
+    >
+      <h2 className="text-sm font-medium">Custom range</h2>
+      <FieldGroup className="grid gap-4 sm:grid-cols-2">
+        <Field data-invalid={Boolean(error)}>
+          <FieldLabel htmlFor="range-from">From</FieldLabel>
+          <Input
+            id="range-from"
+            type="datetime-local"
+            step="1"
+            value={from}
+            aria-invalid={Boolean(error)}
+            onChange={(e) => {
+              setFrom(e.target.value)
+              setError(null)
+            }}
+          />
+        </Field>
+        <Field data-invalid={Boolean(error)}>
+          <FieldLabel htmlFor="range-to">To</FieldLabel>
+          <Input
+            id="range-to"
+            type="datetime-local"
+            step="1"
+            value={to}
+            aria-invalid={Boolean(error)}
+            onChange={(e) => {
+              setTo(e.target.value)
+              setError(null)
+            }}
+          />
+        </Field>
+      </FieldGroup>
+      <p className="text-xs text-muted-foreground">
+        {view.timezone === "utc" ? "UTC" : `Browser time (${zone})`}. Up
+        to {MAX_ABSOLUTE_DAYS} days; device retention may be shorter.
+      </p>
+      {error && <FieldError>{error}</FieldError>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="submit">Apply time range</Button>
+      </div>
+    </form>
+  )
+  const backToLatest = absolute && (
           <Button
-            variant={absolute ? "secondary" : "outline"}
+            variant="ghost"
             size="sm"
-            className="max-w-full min-w-0"
-            title={
-              absolute
-                ? `${timeLabel(window.from, view.timezone)} to ${timeLabel(window.to, view.timezone)}`
-                : undefined
+            onClick={() =>
+              onChange({
+                ...view,
+                range:
+                  defaults.range.mode === "relative"
+                    ? defaults.range
+                    : { mode: "relative", preset: "6h" },
+              })
             }
           >
-            <span className="truncate">
-              {absolute
-                ? `${timeLabel(window.from, view.timezone)} to ${timeLabel(window.to, view.timezone)}`
-                : "Custom"}
-            </span>
-            <ChevronDownIcon data-icon="inline-end" />
+            Back to latest
           </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-[min(30rem,calc(100vw-2rem))]"
-        >
-          <form
-            className="flex flex-col gap-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const start = inputDate(from, view.timezone),
-                end = inputDate(to, view.timezone)
-              const issue = absoluteError(start, end)
-              if (issue) {
-                setError(issue)
-                return
-              }
-              onChange({ ...view, range: { mode: "absolute", from: start, to: end } })
-              setOpen(false)
-            }}
+        )
+    const stepping = (
+      <>
+        <div className="flex">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous interval"
+            onClick={() => move(-1)}
           >
-            <h2 className="text-sm font-medium">Custom range</h2>
-            <FieldGroup className="grid gap-4 sm:grid-cols-2">
-              <Field data-invalid={Boolean(error)}>
-                <FieldLabel htmlFor="range-from">From</FieldLabel>
-                <Input
-                  id="range-from"
-                  type="datetime-local"
-                  step="1"
-                  value={from}
-                  aria-invalid={Boolean(error)}
-                  onChange={(e) => {
-                    setFrom(e.target.value)
-                    setError(null)
-                  }}
-                />
-              </Field>
-              <Field data-invalid={Boolean(error)}>
-                <FieldLabel htmlFor="range-to">To</FieldLabel>
-                <Input
-                  id="range-to"
-                  type="datetime-local"
-                  step="1"
-                  value={to}
-                  aria-invalid={Boolean(error)}
-                  onChange={(e) => {
-                    setTo(e.target.value)
-                    setError(null)
-                  }}
-                />
-              </Field>
-            </FieldGroup>
-            <p className="text-xs text-muted-foreground">
-              {view.timezone === "utc" ? "UTC" : `Browser time (${zone})`}. Up
-              to {MAX_ABSOLUTE_DAYS} days; device retention may be shorter.
-            </p>
-            {error && <FieldError>{error}</FieldError>}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">Apply time range</Button>
-            </div>
-          </form>
-        </PopoverContent>
-      </Popover>
-      {absolute && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            onChange({
-              ...view,
-              range:
-                defaults.range.mode === "relative"
-                  ? defaults.range
-                  : { mode: "relative", preset: "6h" },
-            })
-          }
-        >
-          Back to latest
-        </Button>
-      )}
-      <div className="flex">
+            <ChevronLeftIcon />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next interval"
+            disabled={Date.parse(window.to) >= Date.now() - 1000}
+            onClick={() => move(1)}
+          >
+            <ChevronRightIcon />
+          </Button>
+        </div>
         <Button
           variant="outline"
           size="icon-sm"
-          aria-label="Previous interval"
-          onClick={() => move(-1)}
+          aria-label="Zoom out"
+          onClick={() => move(0)}
         >
-          <ChevronLeftIcon />
+          <ZoomOutIcon />
         </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Next interval"
-          disabled={Date.parse(window.to) >= Date.now() - 1000}
-          onClick={() => move(1)}
-        >
-          <ChevronRightIcon />
-        </Button>
-      </div>
-      <Button
-        variant="outline"
-        size="icon-sm"
-        aria-label="Zoom out"
-        onClick={() => move(0)}
-      >
-        <ZoomOutIcon />
-      </Button>
-      <Toggle
-        variant="outline"
-        size="sm"
-        pressed={compare}
-        onPressedChange={onCompare}
-        aria-label="Compare previous period"
-        title="Compare previous period"
-      >
-        Compare
-      </Toggle>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        spacing={0}
-        aria-label="Timezone"
-        value={view.timezone}
-        onValueChange={(timezone) =>
-          timezone &&
-          onChange({ ...view, timezone: timezone as DashboardView["timezone"] })
-        }
-      >
-        <ToggleGroupItem value="browser" title={zone}>
-          Browser
-        </ToggleGroupItem>
-        <ToggleGroupItem value="utc">UTC</ToggleGroupItem>
-      </ToggleGroup>
+      </>
+  )
+  const compareToggle = (
+    <Toggle
+      variant="outline"
+      size="sm"
+      pressed={compare}
+      onPressedChange={onCompare}
+      aria-label="Compare previous period"
+      title="Compare previous period"
+    >
+      Compare
+    </Toggle>
+  )
+  const timezoneGroup = (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      size="sm"
+      spacing={0}
+      aria-label="Timezone"
+      value={view.timezone}
+      onValueChange={(timezone) =>
+        timezone &&
+        onChange({ ...view, timezone: timezone as DashboardView["timezone"] })
+      }
+    >
+      <ToggleGroupItem value="browser" title={zone}>
+        Browser
+      </ToggleGroupItem>
+      <ToggleGroupItem value="utc">UTC</ToggleGroupItem>
+    </ToggleGroup>
+  )
+  const refreshing = (
+    <>
       <div className="flex items-center gap-1.5">
         <Select
           value={String(view.refresh)}
@@ -314,6 +308,78 @@ export function TimeControls({
       >
         <RefreshCwIcon />
       </Button>
+    </>
+  )
+  if (phone)
+    return (
+      <div
+        role="group"
+        aria-label="Dashboard time controls"
+        className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-0.5"
+      >
+        <Popover open={open} onOpenChange={begin}>
+          <PopoverTrigger asChild>
+            <Button variant={absolute ? "secondary" : "outline"} size="sm" className="max-w-full min-w-0">
+              <span className="truncate">
+                <span className="sr-only">Time range: </span>
+                {rangeLabel}
+              </span>
+              <ChevronDownIcon data-icon="inline-end" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            collisionPadding={8}
+            aria-label="Time range"
+            className="max-h-[80dvh] w-[calc(100vw-1rem)] gap-4 overflow-y-auto"
+          >
+            {quickRanges}
+            {backToLatest}
+            <div className="flex flex-wrap items-center gap-2">
+              {stepping}
+              {compareToggle}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {timezoneGroup}
+              {refreshing}
+            </div>
+            <div className="border-t pt-4">{customRange}</div>
+          </PopoverContent>
+        </Popover>
+        <span className="ml-auto">{children}</span>
+      </div>
+    )
+  return (
+    <div
+      role="group"
+      aria-label="Dashboard time controls"
+      className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-0.5"
+    >
+      {quickRanges}
+      <Popover open={open} onOpenChange={begin}>
+        <PopoverTrigger asChild>
+          <Button
+            variant={absolute ? "secondary" : "outline"}
+            size="sm"
+            className="max-w-full min-w-0"
+            title={absolute ? rangeLabel : undefined}
+          >
+            <span className="truncate">{absolute ? rangeLabel : "Custom"}</span>
+            <ChevronDownIcon data-icon="inline-end" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className="w-[min(30rem,calc(100vw-2rem))]"
+        >
+          {customRange}
+        </PopoverContent>
+      </Popover>
+      {backToLatest}
+      {stepping}
+      {compareToggle}
+      {timezoneGroup}
+      {refreshing}
       <span className="ml-auto">{children}</span>
     </div>
   )

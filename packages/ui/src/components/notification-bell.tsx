@@ -97,14 +97,16 @@ function NotificationBell({
       <PopoverContent
         align="end"
         aria-label={label}
-        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
+        collisionPadding={8}
+        // Phones: the width of the screen less 0.5 rem each side, and at most 80% of its height.
+        className="flex max-h-[80dvh] w-[min(24rem,calc(100vw-2rem))] flex-col gap-0 p-0 max-md:w-[calc(100vw-1rem)]"
       >
         <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3 py-1.5">
           <h2 className="text-body font-medium">{label}</h2>
           {actions && <div className="flex items-center gap-1">{actions}</div>}
         </div>
         {toolbar && <div className="border-b px-3 py-2">{toolbar}</div>}
-        <div className="max-h-[min(26rem,60vh)] overflow-y-auto">
+        <div className="max-h-[min(26rem,60vh)] min-h-0 overflow-y-auto max-md:max-h-none max-md:flex-1">
           {error ? (
             <div className="p-3 text-meta text-muted-foreground">{error}</div>
           ) : loading ? (
