@@ -946,11 +946,16 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                           </div>
                           {metaColumns.length > 0 && (
                             <p className="flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
-                              {metaColumns.map((column) => (
-                                <span key={column.id} className="min-w-0 truncate">
-                                  {column.header} {column.cell(row.original)}
-                                </span>
-                              ))}
+                              {metaColumns.map((column) => {
+                                // A column with an empty value prints no "Header" line of its own.
+                                const value = column.value?.(row.original)
+                                if (column.value && (value === null || value === undefined || value === "")) return null
+                                return (
+                                  <span key={column.id} className="min-w-0 truncate">
+                                    {column.header} {column.cell(row.original)}
+                                  </span>
+                                )
+                              })}
                             </p>
                           )}
                         </div>

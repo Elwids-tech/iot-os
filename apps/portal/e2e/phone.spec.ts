@@ -393,8 +393,9 @@ async function setup(page: Page, options: Options = {}) {
 }
 
 /**
- * The page fits a phone: no sideways scrolling (FR-002), and every visible button, input,
- * select and textarea offers a target of at least 44 × 44 px (FR-004). A control's hit
+ * The page fits a phone: no sideways scrolling (FR-002), every visible button, input,
+ * select and textarea offers a target of at least 44 × 44 px (FR-004), and text fields
+ * use 16 px text so iOS does not zoom in on focus. A control's hit
  * area includes an absolutely positioned `::before` or `::after` (checkboxes and switches
  * grow theirs on phones). Inline link buttons and copyable text are exempt, as WCAG 2.5.8
  * exempts targets in a line of text.
@@ -449,8 +450,11 @@ async function expectPhoneFit(page: Page) {
         width = Math.max(width, box.width - px(style.left) - px(style.right))
         height = Math.max(height, box.height - px(style.top) - px(style.bottom))
       }
+      const name = (element.getAttribute("aria-label") ?? element.getAttribute("placeholder") ?? element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40)
+      // Text fields need 16 px text, or iOS zooms the page when they take focus.
+      const typed = element.matches("textarea, input:not([type=checkbox], [type=radio], [type=range], [type=file])")
+      if (typed && parseFloat(getComputedStyle(element).fontSize) < 16) offenders.push(`${element.tagName.toLowerCase()} "${name}" text ${getComputedStyle(element).fontSize}`)
       if (width >= 43.5 && height >= 43.5) continue
-      const name = (element.getAttribute("aria-label") ?? element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40)
       offenders.push(`${element.tagName.toLowerCase()}[${element.getAttribute("role") ?? element.getAttribute("type") ?? ""}] "${name}" ${Math.round(width)}×${Math.round(height)}`)
     }
     return offenders
@@ -526,6 +530,9 @@ for (const viewport of viewports) {
       expect(state.acknowledged).toEqual([alertIds.latest])
 
       await detail.getByRole("combobox", { name: "Assignee" }).click()
+      await expect(page.getByRole("option", { name: "Operator Two" })).toBeVisible()
+      // The picker and its search field fit too.
+      await expectPhoneFit(page)
       await page.getByRole("option", { name: "Operator Two" }).click()
       await expect(detail.getByText("Assigned to Operator Two")).toBeVisible()
       expect(state.assigned).toEqual([2])
