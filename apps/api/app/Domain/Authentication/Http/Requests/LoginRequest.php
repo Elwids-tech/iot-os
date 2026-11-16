@@ -21,6 +21,8 @@ final class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            // Keep me signed in (spec 033, FR-011a): this browser stays signed in for 30 days.
+            'remember' => ['sometimes', 'boolean'],
         ];
     }
 }

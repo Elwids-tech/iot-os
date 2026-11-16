@@ -10185,6 +10185,7 @@
             "name": "login"
           }
         ],
+        "description": "Signs in on the first-party session. With `remember: true` (Keep me signed in,\nspec 033) it also starts a kept sign-in for this browser and sets the `iot_kept`\ncookie: HttpOnly, on the session's domain, Secure and SameSite as the session\ncookie, for a fixed 30 days that use never extends. While the kept sign-in is live,\na request from the portal or admin app that has lost its session signs the same\nperson back in without a password. Signing out on that browser or resetting the\npassword ends it. A missing or `false` `remember` behaves as before, and a new\nsign-in ends the kept sign-in the browser held.",
         "x-schema-status": "pending"
       }
     },
@@ -10218,6 +10219,7 @@
           }
         ],
         "x-audience": "account",
+        "description": "Ends the session and this browser's kept sign-in, and forgets the `iot_kept`\ncookie. Kept sign-ins on other browsers stay.",
         "x-schema-status": "pending"
       }
     },
@@ -10268,6 +10270,7 @@
             "name": "password-reset"
           }
         ],
+        "description": "Sets the new password, signs the person out everywhere, revokes their agent\nconnections and ends every kept sign-in they hold.",
         "x-schema-status": "pending"
       }
     },
@@ -38823,6 +38826,10 @@
           },
           "password": {
             "type": "string"
+          },
+          "remember": {
+            "type": "boolean",
+            "description": "Keep me signed in (spec 033, FR-011a): this browser stays signed in for 30 days."
           }
         },
         "required": [

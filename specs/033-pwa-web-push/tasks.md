@@ -209,7 +209,7 @@ Sign-out, a password reset or removing the device ends it.
 make a request: it resumes. Sign out on another device: this one stays. Reset the
 password: all end.
 
-- [ ] T045 [US2] Migration `apps/api/database/migrations/2026_11_17_000000_create_kept_sign_ins.php`:
+- [x] T045 [US2] Migration `apps/api/database/migrations/2026_11_21_000000_create_kept_sign_ins.php`:
   - `id` bigint PK;
   - `uuid` uuid unique;
   - `user_id` bigint FK `users`, cascade on delete, indexed;
@@ -220,25 +220,25 @@ password: all end.
   - `last_used_at` timestamptz null;
   - `ended_at` timestamptz null;
   - `end_reason` varchar(32) null, one of `signed_out`, `password_reset`, `device_removed`.
-- [ ] T046 [US2] `apps/api/app/Domain/Authentication/Models/KeptSignIn.php`:
+- [x] T046 [US2] `apps/api/app/Domain/Authentication/Models/KeptSignIn.php`:
   - `scopeLive` (`ended_at` null and `expires_at` > now);
   - `end(string $reason)` (no-op when already ended);
   - `matches(string $secret)` (`hash_equals` on SHA-256);
   - `issue(User $user, string $label): array{0: KeptSignIn, 1: string}`, which returns the record and the plain secret.
-- [ ] T047 [US2] Sign-in in `apps/api/app/Domain/Authentication/Http/Requests/LoginRequest.php` and `Http/Controllers/SessionController.php`:
+- [x] T047 [US2] Sign-in in `apps/api/app/Domain/Authentication/Http/Requests/LoginRequest.php` and `Http/Controllers/SessionController.php`:
   - `LoginRequest` accepts `remember` (`sometimes|boolean`);
   - `SessionController::store`, when `remember` is true and the attempt succeeded, issues a record after `regenerate()`, puts `kept_sign_in_id` in the session, and queues cookie `iot_kept` with value `{uuid}.{secret}`;
   - the cookie lasts 43200 minutes, is HttpOnly, and takes `secure`, `same_site` and `domain` from `config('session.*')`;
   - the label is built from the `User-Agent` and cut at 120 characters.
-- [ ] T048 [US2] Middleware `apps/api/app/Domain/Authentication/Http/Middleware/ResumeKeptSignIn.php`, appended to the `api` group in `apps/api/bootstrap/app.php` after `statefulApi()`:
+- [x] T048 [US2] Middleware `apps/api/app/Domain/Authentication/Http/Middleware/ResumeKeptSignIn.php`, appended to the `api` group in `apps/api/bootstrap/app.php` after `statefulApi()`:
   - **Scope**: acts only on stateful frontend requests (`EnsureFrontendRequestsAreStateful::fromFrontend`), never on Passport or application tokens.
   - **Resume**: with no session user and an `iot_kept` cookie whose record is live and matches, log in on `web`, `regenerate()` the session, and put `kept_sign_in_id`. Store the password hash the way `vendor/laravel/sanctum/src/Http/Middleware/AuthenticateSession.php` stores `password_hash_web`, and stamp `last_used_at` when it is null or older than 60 s.
   - **End**: with a session `kept_sign_in_id` whose record is not live, log out on `web`, invalidate the session and forget the cookie.
   - **Octane**: no static state.
-- [ ] T049 [US2] `SessionController::destroy` ends the session's record with `signed_out` and queues `Cookie::forget('iot_kept')` with the same domain
-- [ ] T050 [US2] `apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php` `reset`: inside its transaction, end every live record of the user with `password_reset`
-- [ ] T051 [P] [US2] `apps/api/app/Domain/Authentication/Console/PruneKeptSignIns.php` (`auth:prune-kept-sign-ins`): deletes rows ended or expired more than 30 days ago, in chunks. Register it in `apps/api/bootstrap/app.php` and schedule it daily in `apps/api/routes/console.php`
-- [ ] T052 [US2] `apps/api/tests/Feature/Domain/Authentication/KeptSignInTest.php`:
+- [x] T049 [US2] `SessionController::destroy` ends the session's record with `signed_out` and queues `Cookie::forget('iot_kept')` with the same domain
+- [x] T050 [US2] `apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php` `reset`: inside its transaction, end every live record of the user with `password_reset`
+- [x] T051 [P] [US2] `apps/api/app/Domain/Authentication/Console/PruneKeptSignIns.php` (`auth:prune-kept-sign-ins`): deletes rows ended or expired more than 30 days ago, in chunks. Register it in `apps/api/bootstrap/app.php` and schedule it daily in `apps/api/routes/console.php`
+- [x] T052 [US2] `apps/api/tests/Feature/Domain/Authentication/KeptSignInTest.php`:
   - login with `remember` sets the cookie and a live record, and without it sets neither;
   - a request with only the cookie resumes and refreshes `last_used_at`;
   - an expired record does not resume, and the 30 days are not extended by use;
@@ -248,19 +248,19 @@ password: all end.
   - a password reset ends all of them;
   - a Passport token request ignores the cookie;
   - the prune deletes rows ended or expired 31 days ago and keeps 29.
-- [ ] T053 [P] [US2] Contract and client:
+- [x] T053 [P] [US2] Contract and client:
   - `remember` in `contracts/openapi/supplements/account.yaml` for `POST v1/auth/login`;
   - `php artisan contract:export` and `contract:check --base=origin/main` pass;
   - `packages/api-client/src/index.ts` `login({ email, password, remember? })`.
-- [ ] T054 [US2] Portal checkbox, wired to `api.login`:
+- [x] T054 [US2] Portal checkbox, wired to `api.login`:
   - in `apps/portal/src/App.tsx`, `Login` and `SessionRecovery` get a **Keep me signed in** checkbox, off by default;
   - the hint below it reads *Don't tick this on a shared device.*;
   - the admin app's sign-in gets no checkbox.
-- [ ] T055 [P] [US2] `apps/portal/e2e/kept-sign-in.spec.ts` with route mocks: the login body has `remember: true` only when ticked; the checkbox meets 44 px at 360 px
-- [ ] T056 [P] [US2] Docs:
+- [x] T055 [P] [US2] `apps/portal/e2e/kept-sign-in.spec.ts` with route mocks: the login body has `remember: true` only when ticked; the checkbox meets 44 px at 360 px
+- [x] T056 [P] [US2] Docs:
   - `docs/features/access.md`: a **Keep me signed in** subsection under Signing in (30 days, what ends it, shared with the admin app, shared devices);
   - `docs/dev/gotchas.md`: Laravel's remember token is one per user and logout cycles it.
-- [ ] T057 Verify pull request 4:
+- [x] T057 Verify pull request 4:
   - `cd apps/api && php artisan test --compact` on PostgreSQL, plus the portal and admin lint and tests;
   - rebuild `api automation-worker default-worker alerts-worker webhooks-worker assistant-worker scheduler portal admin`, then run `php artisan migrate --force` in `api`;
   - run the quickstart's kept sign-in steps 1 to 3;
@@ -302,7 +302,7 @@ delivery row, one attempt row per device, and a push reach Chrome.
 
 ### Data for pull request 5
 
-- [ ] T061 [P] [US2] Migration `apps/api/database/migrations/2026_11_18_000000_create_push_devices.php`:
+- [ ] T061 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000100_create_push_devices.php`:
   - `id` bigint PK;
   - `uuid` uuid unique;
   - `user_id` bigint FK `users`, cascade on delete, indexed;
@@ -319,12 +319,12 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - `last_reached_at` timestamptz null;
   - `last_failed_at` timestamptz null;
   - `last_failure` varchar(255) null.
-- [ ] T062 [P] [US5] Migration `apps/api/database/migrations/2026_11_18_000100_add_push_preferences.php` on `notification_preferences`: `push_enabled` boolean default false, `push_levels` jsonb null, `push_revision` integer default 0
-- [ ] T063 [P] [US5] Migration `apps/api/database/migrations/2026_11_18_000200_create_push_organization_mutes.php`: `user_id` FK `users` cascade, `organization_id` FK `organizations` cascade, `created_at` timestamptz, primary key (`user_id`, `organization_id`)
-- [ ] T064 [P] [US2] Migration `apps/api/database/migrations/2026_11_18_000300_add_push_delivery_columns.php`:
+- [ ] T062 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000200_add_push_preferences.php` on `notification_preferences`: `push_enabled` boolean default false, `push_levels` jsonb null, `push_revision` integer default 0
+- [ ] T063 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000300_create_push_organization_mutes.php`: `user_id` FK `users` cascade, `organization_id` FK `organizations` cascade, `created_at` timestamptz, primary key (`user_id`, `organization_id`)
+- [ ] T064 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000400_add_push_delivery_columns.php`:
   - `automation_alert_deliveries` gains `devices_total` and `devices_reached` smallint null;
   - `automation_alert_delivery_attempts` gains `device_label` varchar(60) null and `response_status` smallint null.
-- [ ] T065 [P] [US2] Migration `apps/api/database/migrations/2026_11_18_000400_create_push_summaries.php`:
+- [ ] T065 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000500_create_push_summaries.php`:
   - `id` bigint PK;
   - `uuid` uuid unique;
   - `user_id` FK `users` cascade;

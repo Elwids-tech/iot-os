@@ -8,6 +8,7 @@ use App\Domain\Agents\Enums\RevocationReason;
 use App\Domain\Agents\Services\ConnectionRevoker;
 use App\Domain\Authentication\Http\Requests\ForgotPasswordRequest;
 use App\Domain\Authentication\Http\Requests\ResetPasswordRequest;
+use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Notifications\PasswordResetNotification;
 use App\Domain\Shared\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
@@ -41,6 +42,9 @@ final class PasswordRecoveryController
                 $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
                 // Agent connections and their Passport tokens, refresh tokens included.
                 app(ConnectionRevoker::class)->person($user, RevocationReason::PASSWORD_RESET);
+                // Every browser kept signed in for this person needs the new password (spec 033, FR-011a).
+                KeptSignIn::query()->where('user_id', $user->getKey())->live()
+                    ->update(['ended_at' => now(), 'end_reason' => KeptSignIn::PASSWORD_RESET]);
                 if (config('session.driver') === 'database') {
                     DB::connection(config('session.connection'))->table(config('session.table', 'sessions'))
                         ->where('user_id', $user->getKey())->delete();
