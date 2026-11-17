@@ -742,7 +742,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
             </Alert>
           ))}
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
+          <TabsList variant="line" aria-label="Workflow views">
             <TabsTrigger value="editor">Editor</TabsTrigger>
             <TabsTrigger value="simulation">Simulation</TabsTrigger>
             <TabsTrigger value="execution">Execution</TabsTrigger>

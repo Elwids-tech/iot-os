@@ -41,14 +41,14 @@ portal or admin images.
   search fields are for directory and table filters. Check the installed and
   official registries before writing a new primitive
   ([shadcn skill](../../.agents/skills/shadcn/SKILL.md)).
-- **Tabs and segments have three roles, and the selected one is always primary.**
-  Sections of a page or record use line tabs (`TabsList variant="line"`, or `PageTabs`
-  when each tab is its own URL): primary text and underline. A mode switch inside one
-  panel or dialog uses filled tabs (`TabsList`): primary fill. A one-of-a-few choice
-  (a list filter, a table view, a time range, an option in a form) uses
-  `SegmentedControl`: primary fill in a sunken track, as tall as an input. Never
-  restyle the selected state at a call site, and never use `ToggleGroup` directly in
-  an app.
+- **Tabs and segments have two looks, and the selected one is always primary.**
+  An underline swaps what you see: sections of a page, record, side panel or sheet use
+  line tabs (`TabsList variant="line"`, or `PageTabs` when each tab is its own URL).
+  A filled segment picks a value: a list filter, a table view, a time range or an
+  option in a form uses `SegmentedControl`. A small switch inside one panel (Fields
+  or JSON, Devices or Sites) keeps tab behaviour with the default `TabsList`, which is
+  drawn exactly like `SegmentedControl`. Never restyle the selected state at a call
+  site, and never use `ToggleGroup` directly in an app.
 - **Server-paged lists sort on the server or not at all.**
 - **Assistant chats** compose `MessageScroller`, `Message` and `Bubble`. Replies
   render through `Markdown` (never raw text with `whitespace-pre-wrap`), and a run
