@@ -9,7 +9,9 @@
     "DELETE api/v1/admin/super-administrators/{user}",
     "POST api/v1/admin/super-administrators/invitations",
     "PUT api/v1/admin/platform-team/{user}",
-    "DELETE api/v1/admin/organizations/{organization}"
+    "DELETE api/v1/admin/organizations/{organization}",
+    "GET api/v1/notifications/push",
+    "POST api/v1/notifications/push/devices"
   ],
   "named_routes": [
     "api.v1.admin.assistant-settings.show",
@@ -26,11 +28,14 @@
   "tables": [
     "assistant_settings", "assistant_provider_keys",
     "billing_plans", "billing_plan_allowances", "billing_plan_assignments", "billing_usage",
-    "billing_invoices", "billing_payments", "billing_provider_events"
+    "billing_invoices", "billing_payments", "billing_provider_events",
+    "kept_sign_ins", "push_devices", "push_organization_mutes", "push_summaries"
   ],
   "columns": {
     "organization_invitations": ["grants_super_admin"],
     "billing_accounts": ["past_due_since", "pm_saved_at"],
-    "devices": ["limit_place_at"]
+    "devices": ["limit_place_at"],
+    "automation_alert_deliveries": ["devices_total", "devices_reached", "push_summary_id"],
+    "notification_preferences": ["push_enabled", "push_levels", "push_revision"]
   }
 }

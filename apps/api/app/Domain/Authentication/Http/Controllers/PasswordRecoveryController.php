@@ -10,6 +10,7 @@ use App\Domain\Authentication\Http\Requests\ForgotPasswordRequest;
 use App\Domain\Authentication\Http\Requests\ResetPasswordRequest;
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Notifications\PasswordResetNotification;
+use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Shared\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,8 @@ final class PasswordRecoveryController
                 // Every browser kept signed in for this person needs the new password (spec 033, FR-011a).
                 KeptSignIn::query()->where('user_id', $user->getKey())->live()
                     ->update(['ended_at' => now(), 'end_reason' => KeptSignIn::PASSWORD_RESET]);
+                // ...and no device keeps getting their alerts; each turns push on again after signing in.
+                PushDevice::query()->where('user_id', $user->getKey())->delete();
                 if (config('session.driver') === 'database') {
                     DB::connection(config('session.connection'))->table(config('session.table', 'sessions'))
                         ->where('user_id', $user->getKey())->delete();

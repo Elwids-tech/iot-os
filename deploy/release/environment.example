@@ -54,6 +54,12 @@ ANTHROPIC_API_KEY=
 STRIPE_KEY=
 STRIPE_SECRET=
 STRIPE_WEBHOOK_SECRET=
+# Push alerts (spec 033). `manage.py init` writes all three; an existing deployment
+# adds them with `manage.py webpush-keys`. Replacing the pair makes every browser
+# register again the next time its person opens the portal.
+WEBPUSH_VAPID_PUBLIC_KEY=
+WEBPUSH_VAPID_PRIVATE_KEY=
+WEBPUSH_VAPID_SUBJECT=
 BILLING_CURRENCY=USD
 PUBLIC_MAP_STYLE_URL=
 # Images are provided by the digest-pinned release manifest, never mutable tags.

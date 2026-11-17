@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/push/v1/alert-push.v1.schema.json",
+  "title": "alert-push.v1",
+  "description": "The encrypted body of every push, from the API's push sender to the portal's service worker (spec 033). Structured fields only; the worker formats the text with the phone's own time zone and locale. A worker that meets another `v` shows a generic notification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "kind",
+    "organization",
+    "alert",
+    "occurred_at",
+    "count",
+    "url"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "kind": {
+      "enum": [
+        "activated",
+        "cleared",
+        "summary",
+        "test"
+      ]
+    },
+    "organization": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uuid",
+            "name"
+          ],
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          }
+        }
+      ]
+    },
+    "alert": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uuid",
+            "severity",
+            "automation",
+            "device"
+          ],
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "severity": {
+              "enum": [
+                "critical",
+                "warning",
+                "info"
+              ]
+            },
+            "automation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "device": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 120
+            }
+          }
+        }
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^/(organizations|settings)/"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "activated",
+              "cleared"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "organization": {
+            "type": "object"
+          },
+          "alert": {
+            "type": "object"
+          },
+          "count": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "summary"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "organization": {
+            "type": "object"
+          },
+          "alert": {
+            "type": "null"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "test"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "organization": {
+            "type": "null"
+          },
+          "alert": {
+            "type": "null"
+          },
+          "count": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

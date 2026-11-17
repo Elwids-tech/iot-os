@@ -5,6 +5,7 @@ All commands use argument arrays (no shell sourcing/eval). Backup, deployment,
 certificate reload and bootstrap share one host lock. Restore remains quarantined.
 """
 import argparse
+import base64
 import contextlib
 import fcntl
 import hashlib
@@ -52,6 +53,8 @@ def read_env(path):
 
 
 PASSPORT_KEYS = ("PASSPORT_PRIVATE_KEY", "PASSPORT_PUBLIC_KEY")
+# The VAPID pair that signs every push (spec 033). Both or neither: push is off without them.
+WEBPUSH_KEYS = ("WEBPUSH_VAPID_PUBLIC_KEY", "WEBPUSH_VAPID_PRIVATE_KEY")
 
 
 def passport_keys():
@@ -71,6 +74,45 @@ def add_passport_keys(path):
         raise ValueError("Only one Passport key is present; restore the pair from backup instead of generating a new one")
     text = path.read_text()
     private_write(path, text + ("" if text.endswith("\n") else "\n") + "".join(k+"="+json.dumps(v)+"\n" for k, v in passport_keys().items()))
+    return True
+
+
+def webpush_keys(contact=""):
+    """A VAPID key pair for push alerts (spec 033): P-256, both halves base64url without
+    padding, as browsers and the push library expect. Replacing it makes every browser
+    register again the next time its person opens the portal."""
+    pem = subprocess.run(["openssl", "ecparam", "-name", "prime256v1", "-genkey", "-noout"],
+                         check=True, capture_output=True, text=True).stdout
+    text = subprocess.run(["openssl", "ec", "-text", "-noout"], input=pem, check=True, capture_output=True, text=True).stdout
+    sections, current = {}, None
+    for line in text.splitlines():
+        if line.rstrip().endswith(":") and not line.startswith(" "):
+            current = line.strip().rstrip(":")
+            sections[current] = ""
+        elif current in ("priv", "pub") and line.startswith(" "):
+            sections[current] += line.strip().replace(":", "")
+    private = bytes.fromhex(sections["priv"]).rjust(32, b"\0")[-32:]
+    public = bytes.fromhex(sections["pub"])
+    if len(public) != 65 or public[0] != 4:
+        raise ValueError("openssl returned an unexpected public key")
+    encode = lambda raw: base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+    return {"WEBPUSH_VAPID_PUBLIC_KEY": encode(public), "WEBPUSH_VAPID_PRIVATE_KEY": encode(private),
+            "WEBPUSH_VAPID_SUBJECT": "mailto:"+contact if contact else ""}
+
+
+def add_webpush_keys(path):
+    """Add a push key pair to an existing private environment; never replace one."""
+    path = Path(path)
+    env = read_env(path)
+    if all(env.get(key) for key in WEBPUSH_KEYS):
+        return False
+    if any(env.get(key) for key in WEBPUSH_KEYS):
+        raise ValueError("Only one push key is present; restore the pair from backup instead of generating a new one")
+    keys = webpush_keys(env.get("ACME_EMAIL", ""))
+    if env.get("WEBPUSH_VAPID_SUBJECT"):
+        del keys["WEBPUSH_VAPID_SUBJECT"]
+    lines = [line for line in path.read_text().splitlines() if line.split("=", 1)[0] not in keys]
+    private_write(path, "".join(line+"\n" for line in lines) + "".join(k+"="+json.dumps(v)+"\n" for k, v in keys.items()))
     return True
 
 
@@ -236,6 +278,13 @@ class Deployment:
             raise ValueError("IOT_ASSISTANT_PROVIDER must be openai or anthropic")
         if self.env.get("IOT_AGENTS_ENABLED") == "true" and not all(self.env.get(key) for key in PASSPORT_KEYS):
             raise ValueError("Agent access enabled without Passport keys; run manage.py passport-keys")
+        push = [bool(self.env.get(key)) for key in WEBPUSH_KEYS]
+        if any(push) and not all(push):
+            raise ValueError("Only one push key is set; restore the pair from backup")
+        if not any(push):
+            print("Push alerts are off: no push keys. Run manage.py webpush-keys to turn them on.", file=sys.stderr)
+        elif not re.fullmatch(r"[A-Za-z0-9_-]{87}", self.env["WEBPUSH_VAPID_PUBLIC_KEY"]) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", self.env["WEBPUSH_VAPID_PRIVATE_KEY"]):
+            raise ValueError("Push keys must be a base64url P-256 pair (manage.py webpush-keys)")
         self.nats_capacity()
         if bool(self.env.get("ALERT_SMTP_USERNAME")) != bool(self.env.get("ALERT_SMTP_PASSWORD")):
             raise ValueError("Separate alert SMTP username and password must both be set")
@@ -497,6 +546,8 @@ class Deployment:
             raise ValueError("Restore requires the backed-up encryption and service credentials")
         if any(original.get(k) and original.get(k) != self.env.get(k) for k in PASSPORT_KEYS):
             raise ValueError("Restore requires the backed-up Passport keys")
+        if any(original.get(k) and original.get(k) != self.env.get(k) for k in WEBPUSH_KEYS):
+            raise ValueError("Restore requires the backed-up push keys")
         if original.get("IOT_ADAPTERS_ENABLED", "false") != self.env.get("IOT_ADAPTERS_ENABLED", "false"):
             raise ValueError("Restore requires the backed-up adapter feature configuration")
         if self.adapters_enabled and original.get("IOT_ADAPTER_MANAGER_TOKEN") != self.env.get("IOT_ADAPTER_MANAGER_TOKEN"):
@@ -635,12 +686,16 @@ class Deployment:
             with urllib.request.urlopen("https://"+host+"."+self.env["DOMAIN"]+path, timeout=15) as response:
                 if response.status != 200:
                     raise RuntimeError("Public HTTPS smoke check failed")
+        # The installed app's manifest (spec 033): the SPA fallback would answer HTML.
+        with urllib.request.urlopen("https://app."+self.env["DOMAIN"]+"/manifest.webmanifest", timeout=15) as response:
+            if response.status != 200 or "name" not in json.loads(response.read()):
+                raise RuntimeError("Public HTTPS smoke check failed: the portal manifest")
         print("Public HTTPS and dependency readiness checks passed.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["init", "passport-keys", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
+    parser.add_argument("command", choices=["init", "passport-keys", "webpush-keys", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
     parser.add_argument("--env", required=True)
     parser.add_argument("--manifest")
     parser.add_argument("--backup-env")
@@ -660,12 +715,17 @@ def main():
         values["APP_KEY"] = "base64:"+base64.b64encode(secrets.token_bytes(32)).decode()
         values.update(DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32))
         values.update(passport_keys())
+        values.update(webpush_keys())
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
         print("Private environment created. Fill provider inputs without changing generated keys.")
         return
     if args.command == "passport-keys":
         added = add_passport_keys(args.env)
         print("Passport keys added. Back up the environment file." if added else "Passport keys already present; nothing changed.")
+        return
+    if args.command == "webpush-keys":
+        added = add_webpush_keys(args.env)
+        print("Push keys added; deploy to turn push on, and back up the environment file." if added else "Push keys already present; nothing changed.")
         return
     deployment = Deployment(args.env, args.manifest)
     if args.command == "validate":

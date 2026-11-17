@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace App\Domain\Automation\Jobs;
 
 use App\Domain\Automation\Mail\AlertEmail;
-use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\AlertDelivery;
+use App\Domain\Automation\Services\AlertRecipientCheck;
+use App\Domain\Automation\Services\AlertRecipientVerdict;
 use App\Domain\Devices\Services\DeviceAuthorization;
-use App\Domain\Notifications\Services\Preferences;
-use App\Domain\Shared\Models\Organization;
-use App\Domain\Shared\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -44,49 +42,24 @@ final class DeliverAlertEmail implements ShouldQueue
 
     public function handle(DeviceAuthorization $authorization): void
     {
-        $retry = DB::transaction(function () use ($authorization): bool {
+        $check = new AlertRecipientCheck($authorization);
+        $retry = DB::transaction(function () use ($check): bool {
             $delivery = AlertDelivery::where('uuid', $this->deliveryUuid)->lockForUpdate()->first();
             if (! $delivery || (int) $delivery->retry_generation !== $this->generation || in_array($delivery->status, ['sent', 'cancelled', 'failed'], true)) {
                 return false;
             }
-            $alert = Alert::with(['workflow', 'deployment'])->findOrFail($delivery->automation_alert_id);
-            if (! $alert->isWorkflow()) {
-                $delivery->update(['status' => 'cancelled', 'diagnostic' => 'Automation alert emails are sent for automation alerts only.']);
+            $verdict = $check->forEmail($delivery);
+            if ($verdict->action === AlertRecipientVerdict::CANCEL) {
+                $delivery->update(['status' => 'cancelled', 'diagnostic' => $verdict->reason]);
 
                 return false;
             }
-            $workflow = $alert->workflow;
-            $settings = $workflow->notification_settings ?? [];
-            $user = User::find($delivery->recipient_id);
-            $org = Organization::find($alert->organization_id);
-            $allowed = $user && $org && $user->email_verified_at && $user->organizations()->whereKey($org->id)->exists() && $authorization->capabilities($user, $org)['view'];
-            $reason = null;
-            if (! $allowed) {
-                $reason = 'Recipient access is no longer valid.';
-            } elseif (! Preferences::allows($user, 'workflow', $delivery->type === 'cleared' ? 'recovery' : 'warning')) {
-                $reason = 'Recipient email preferences are disabled.';
-            } elseif (! ($settings['enabled'] ?? false) || ! in_array($delivery->recipient_id, $settings['recipient_ids'] ?? [], true) || ($delivery->type === 'cleared' && ! ($settings['notify_on_clear'] ?? false))) {
-                $reason = 'Notification subscription was removed or disabled.';
-            } elseif ($alert->deployment->stopped_reason || $alert->deployment->status === 'failed' || $workflow->desired_deployment_uuid === null) {
-                $reason = 'Workflow execution has stopped or disable was requested.';
-            } elseif ($delivery->type === 'activated' && $alert->cleared_at) {
-                $reason = 'Condition cleared before activation email was sent.';
-            }
-            if ($reason) {
-                $delivery->update(['status' => 'cancelled', 'diagnostic' => $reason]);
-
-                return false;
-            }
-            if ($alert->deployment->status === 'pending') {
+            if ($verdict->action === AlertRecipientVerdict::RELEASE) {
                 $this->release(30);
 
                 return false;
             }
-            if ($workflow->applied_deployment_uuid !== $alert->deployment->uuid) {
-                $delivery->update(['status' => 'cancelled', 'diagnostic' => 'Workflow execution was replaced.']);
-
-                return false;
-            }
+            [$alert, $user, $org] = [$verdict->alert, $verdict->user, $verdict->organization];
             $delivery->attempts++;
             $delivery->cycle_attempts++;
             $failed = false;

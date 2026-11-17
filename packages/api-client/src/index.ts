@@ -709,6 +709,34 @@ export class ApiClient {
     return this.data<import("./notifications").NotificationPreferences>("/api/v1/notifications/preferences", "PUT", input)
   }
 
+  pushSettings() {
+    return this.data<import("./notifications").PushSettings>("/api/v1/notifications/push")
+  }
+
+  updatePushSettings(input: import("./notifications").PushSettingsInput) {
+    return this.data<import("./notifications").PushSettings>("/api/v1/notifications/push", "PUT", input)
+  }
+
+  setPushOrganization(organizationUuid: string, enabled: boolean) {
+    return this.data<import("./notifications").PushSettings>(`/api/v1/notifications/push/organizations/${organizationUuid}`, "PUT", { enabled })
+  }
+
+  registerPushDevice(input: import("./notifications").PushDeviceRegistration) {
+    return this.data<import("./notifications").PushDeviceRegistered>("/api/v1/notifications/push/devices", "POST", input)
+  }
+
+  syncPushDevice(endpoint: string) {
+    return this.data<import("./notifications").PushSyncResult>("/api/v1/notifications/push/devices/sync", "POST", { endpoint })
+  }
+
+  removePushDevice(deviceUuid: string) {
+    return this.request<void>(`/api/v1/notifications/push/devices/${deviceUuid}`, { method: "DELETE" })
+  }
+
+  testPushDevice(deviceUuid: string) {
+    return this.data<import("./notifications").PushTestResult>(`/api/v1/notifications/push/devices/${deviceUuid}/test`, "POST")
+  }
+
   notificationEvents(query = "") {
     return this.request<import("./notifications").NotificationEventsPage>(`/api/v1/notifications/events?${query}`)
   }

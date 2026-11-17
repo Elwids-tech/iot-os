@@ -23,7 +23,12 @@ final class PruneAlertNotifications extends Command
             $ids = DB::table('notifications')->where('type', 'alert')->where('created_at', '<', now()->subDays(self::DAYS))->limit(1000)->pluck('id');
             $deleted += $ids->isEmpty() ? 0 : DB::table('notifications')->whereIn('id', $ids)->delete();
         } while ($ids->count() === 1000);
+        // Burst summaries (spec 033) go with the bell's notifications they stood beside.
+        $summaries = DB::table('push_summaries')->where('created_at', '<', now()->subDays(self::DAYS))->delete();
         $this->info("Pruned {$deleted} alert notifications.");
+        if ($summaries > 0) {
+            $this->info("Pruned {$summaries} push summaries.");
+        }
 
         return self::SUCCESS;
     }

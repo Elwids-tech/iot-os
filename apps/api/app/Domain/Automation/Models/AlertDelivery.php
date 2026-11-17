@@ -13,6 +13,11 @@ final class AlertDelivery extends DeviceModel
 {
     public const EMAIL = 'email';
 
+    public const PUSH = 'push';
+
+    /** Push only: carried by a summary push instead of its own (spec 033, FR-024). Never retried. */
+    public const SUMMARISED = 'summarised';
+
     protected $table = 'automation_alert_deliveries';
 
     protected $attributes = ['channel' => self::EMAIL];
@@ -20,5 +25,10 @@ final class AlertDelivery extends DeviceModel
     public function recipient(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recipient_id');
+    }
+
+    public function alert(): BelongsTo
+    {
+        return $this->belongsTo(Alert::class, 'automation_alert_id');
     }
 }
