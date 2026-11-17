@@ -6,7 +6,7 @@ import { Badge } from "@iot-os/ui/components/badge"
 import { Input } from "@iot-os/ui/components/input"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { evidenceText } from "./timeline"
 import { axisOf, insideRing, locationInputs, nodeOutcomes, requestedActions, sampleError, simulationSources, type SimResult } from "./simulation"
@@ -40,10 +40,10 @@ export function SimulationPanel({ graph, labels, registry, revision, dirty, busy
     <Field key={b.role} data-invalid={Boolean(errors[b.role])}>
       <FieldLabel id={`sample-${b.role}-label`} htmlFor={b.data_type === "boolean" ? undefined : `sample-${b.role}`} className="first-letter:uppercase">{text}{b.unit ? ` (${b.unit})` : ""}</FieldLabel>
       {b.data_type === "boolean" ? (
-        <ToggleGroup aria-labelledby={`sample-${b.role}-label`} type="single" variant="outline" size="sm" value={values[b.role] ?? ""} onValueChange={(value) => value && set(b.role, value)}>
-          <ToggleGroupItem value="true">True</ToggleGroupItem>
-          <ToggleGroupItem value="false">False</ToggleGroupItem>
-        </ToggleGroup>
+        <SegmentedControl aria-labelledby={`sample-${b.role}-label`} value={values[b.role] ?? ""} onValueChange={(value) => value && set(b.role, value)}>
+          <SegmentedControlItem value="true">True</SegmentedControlItem>
+          <SegmentedControlItem value="false">False</SegmentedControlItem>
+        </SegmentedControl>
       ) : (
         <Input id={`sample-${b.role}`} inputMode={b.data_type === "number" ? "decimal" : undefined} aria-invalid={Boolean(errors[b.role])} value={values[b.role] ?? ""} onChange={(e) => set(b.role, e.target.value)} />
       )}
@@ -94,10 +94,10 @@ export function SimulationPanel({ graph, labels, registry, revision, dirty, busy
           </div>
           <Field>
             <FieldLabel id="simulation-step-label">Show</FieldLabel>
-            <ToggleGroup aria-labelledby="simulation-step-label" type="single" variant="outline" size="sm" className="flex-wrap" value={String(step)} onValueChange={(value) => value && onStepChange(value === "summary" ? "summary" : Number(value))}>
-              <ToggleGroupItem value="summary">Summary</ToggleGroupItem>
-              {result.labels.map((text, i) => <ToggleGroupItem key={i} value={String(i)} aria-label={`Step ${i + 1}: ${text}`} title={text}>{i + 1}</ToggleGroupItem>)}
-            </ToggleGroup>
+            <SegmentedControl aria-labelledby="simulation-step-label" wrap value={String(step)} onValueChange={(value) => value && onStepChange(value === "summary" ? "summary" : Number(value))}>
+              <SegmentedControlItem value="summary">Summary</SegmentedControlItem>
+              {result.labels.map((text, i) => <SegmentedControlItem key={i} value={String(i)} aria-label={`Step ${i + 1}: ${text}`} title={text}>{i + 1}</SegmentedControlItem>)}
+            </SegmentedControl>
             <FieldDescription>{step === "summary" ? "Actions requested in any step, otherwise each node's latest result. Nodes are highlighted on the canvas." : `Step ${step + 1}: ${result.labels[step]}`}</FieldDescription>
           </Field>
           <div className="flex flex-col gap-1.5">

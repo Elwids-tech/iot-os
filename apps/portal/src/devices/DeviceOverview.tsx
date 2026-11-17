@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { formatDateTime, formatNumber } from "@iot-os/ui/lib/format"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { LayoutDashboardIcon } from "lucide-react"
@@ -221,21 +221,17 @@ function LatestReadout({
         }
         actions={
           numeric.length > 0 && (
-            <ToggleGroup
-              type="single"
-              size="sm"
-              variant="outline"
-              spacing={0}
+            <SegmentedControl
               aria-label="Trend range"
               value={range}
               onValueChange={(value) => value && setRange(value as Range)}
             >
               {Object.entries(ranges).map(([value, { label }]) => (
-                <ToggleGroupItem key={value} value={value}>
+                <SegmentedControlItem key={value} value={value}>
                   {label}
-                </ToggleGroupItem>
+                </SegmentedControlItem>
               ))}
-            </ToggleGroup>
+            </SegmentedControl>
           )
         }
       >

@@ -39,9 +39,9 @@ import { Skeleton } from "@iot-os/ui/components/skeleton";
 import { Status, StatusMark, type StatusTone } from "@iot-os/ui/components/status-mark";
 import { Textarea } from "@iot-os/ui/components/textarea";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group";
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@iot-os/ui/components/segmented-control";
 import {
   Alert,
   AlertDescription,
@@ -203,9 +203,6 @@ function AlertRow({
  * Both layouts are one tree so crossing the breakpoint keeps the detail (and its comment draft) mounted.
  * Repeats of one workflow on one device are grouped unless the URL asks for individual alerts.
  */
-const segmented = "gap-0 rounded-lg bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]";
-const segment =
-  "gap-1.5 rounded-md! px-2.5 text-muted-foreground hover:bg-transparent data-[state=on]:border-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-panel data-[state=on]:hover:bg-card data-[state=on]:hover:text-foreground";
 
 function AlertsPage() {
   const { alertUuid: selected } = useParams();
@@ -374,42 +371,31 @@ function AlertsPage() {
   };
   // The filter controls, shared by the toolbar (768 px and up) and the phone filter sheet.
   const conditionFilter = (
-    <ToggleGroup
-      type="single"
-      size="sm"
-      spacing={0}
+    <SegmentedControl
       aria-label="Condition"
       value={condition}
       onValueChange={(value) => {
         if (value) change("condition", value === "active" ? null : value);
       }}
-      className={segmented}
     >
       {conditions.map((value, index) => (
-        <ToggleGroupItem key={value} value={value} className={segment}>
+        <SegmentedControlItem key={value} value={value} count={counts[index].data?.meta.total}>
           {value === "active" ? "Active" : value === "cleared" ? "Cleared" : "All"}
-          <span className="font-normal text-muted-foreground tabular-nums">
-            {counts[index].data?.meta.total}
-          </span>
-        </ToggleGroupItem>
+        </SegmentedControlItem>
       ))}
-    </ToggleGroup>
+    </SegmentedControl>
   );
   const repeatsFilter = (
-    <ToggleGroup
-      type="single"
-      size="sm"
-      spacing={0}
+    <SegmentedControl
       aria-label="Repeats"
       value={grouped ? "grouped" : "individual"}
       onValueChange={(value) => {
         if (value) change("view", value === "grouped" ? null : value);
       }}
-      className={segmented}
     >
-      <ToggleGroupItem value="grouped" className={segment}>Grouped</ToggleGroupItem>
-      <ToggleGroupItem value="individual" className={segment}>Individual</ToggleGroupItem>
-    </ToggleGroup>
+      <SegmentedControlItem value="grouped">Grouped</SegmentedControlItem>
+      <SegmentedControlItem value="individual">Individual</SegmentedControlItem>
+    </SegmentedControl>
   );
   const unacknowledgedFilter = (
     <Field orientation="horizontal" className="w-auto">

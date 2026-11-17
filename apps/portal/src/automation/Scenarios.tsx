@@ -10,9 +10,9 @@ import {
 } from "@iot-os/ui/components/card";
 import { Button } from "@iot-os/ui/components/button";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group";
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@iot-os/ui/components/segmented-control";
 import { Input } from "@iot-os/ui/components/input";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert";
@@ -382,8 +382,7 @@ export function Scenarios({
                                         replace({ ...r, value })
                                       }
                                     />
-                                    <ToggleGroup
-                                      type="single"
+                                    <SegmentedControl
                                       value={r.quality}
                                       onValueChange={(value) => {
                                         if (value)
@@ -393,13 +392,13 @@ export function Scenarios({
                                           });
                                       }}
                                     >
-                                      <ToggleGroupItem value="good">
+                                      <SegmentedControlItem value="good">
                                         Good quality
-                                      </ToggleGroupItem>
-                                      <ToggleGroupItem value="bad">
+                                      </SegmentedControlItem>
+                                      <SegmentedControlItem value="bad">
                                         Bad quality
-                                      </ToggleGroupItem>
-                                    </ToggleGroup>
+                                      </SegmentedControlItem>
+                                    </SegmentedControl>
                                     <Input
                                       aria-label={`${b.role} age in seconds`}
                                       type="number"
@@ -483,8 +482,7 @@ export function Scenarios({
                               })
                             }
                           />
-                          <ToggleGroup
-                            type="single"
+                          <SegmentedControl
                             value={c.known ? "known" : "unknown"}
                             onValueChange={(value) => {
                               if (value)
@@ -499,13 +497,13 @@ export function Scenarios({
                                 });
                             }}
                           >
-                            <ToggleGroupItem value="known">
+                            <SegmentedControlItem value="known">
                               Known value
-                            </ToggleGroupItem>
-                            <ToggleGroupItem value="unknown">
+                            </SegmentedControlItem>
+                            <SegmentedControlItem value="unknown">
                               Unknown
-                            </ToggleGroupItem>
-                          </ToggleGroup>
+                            </SegmentedControlItem>
+                          </SegmentedControl>
                           {c.known && (
                             <ScalarInput
                               label="Expected output value"

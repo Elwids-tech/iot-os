@@ -5,7 +5,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { DataTable } from "@iot-os/ui/components/data-table"
 import { Field, FieldLabel } from "@iot-os/ui/components/field"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { SidebarProvider } from "@iot-os/ui/components/sidebar"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
@@ -63,19 +63,15 @@ function FilteredDevices() {
         }
         filters={
           <>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              spacing={0}
+            <SegmentedControl
               aria-label="Presence"
               value={presence}
               onValueChange={(value) => value && setPresence(value)}
             >
-              <ToggleGroupItem value="all">All</ToggleGroupItem>
-              <ToggleGroupItem value="online">Online</ToggleGroupItem>
-              <ToggleGroupItem value="offline">Offline</ToggleGroupItem>
-            </ToggleGroup>
+              <SegmentedControlItem value="all">All</SegmentedControlItem>
+              <SegmentedControlItem value="online">Online</SegmentedControlItem>
+              <SegmentedControlItem value="offline">Offline</SegmentedControlItem>
+            </SegmentedControl>
             <Field orientation="horizontal" className="w-auto">
               <Checkbox id="story-mine" checked={mine} onCheckedChange={(value) => setMine(value === true)} />
               <FieldLabel htmlFor="story-mine" className="font-normal">Assigned to me</FieldLabel>

@@ -4,7 +4,7 @@ import { Checkbox } from "@iot-os/ui/components/checkbox"
 import { Field, FieldLabel } from "@iot-os/ui/components/field"
 import { FilterSheet } from "@iot-os/ui/components/filter-sheet"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 
 const meta: Meta<typeof FilterSheet> = { title: "Components/FilterSheet", component: FilterSheet }
 export default meta
@@ -31,19 +31,15 @@ function AlertFilters() {
         setDevice("")
       }}
     >
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        spacing={0}
+      <SegmentedControl
         aria-label="Condition"
         value={condition}
         onValueChange={(value) => value && setCondition(value)}
       >
-        <ToggleGroupItem value="active">Active</ToggleGroupItem>
-        <ToggleGroupItem value="cleared">Cleared</ToggleGroupItem>
-        <ToggleGroupItem value="all">All</ToggleGroupItem>
-      </ToggleGroup>
+        <SegmentedControlItem value="active">Active</SegmentedControlItem>
+        <SegmentedControlItem value="cleared">Cleared</SegmentedControlItem>
+        <SegmentedControlItem value="all">All</SegmentedControlItem>
+      </SegmentedControl>
       <Field orientation="horizontal" className="w-auto">
         <Checkbox id="story-unacknowledged" checked={unacknowledged} onCheckedChange={(value) => setUnacknowledged(value === true)} />
         <FieldLabel htmlFor="story-unacknowledged" className="font-normal">Unacknowledged only</FieldLabel>

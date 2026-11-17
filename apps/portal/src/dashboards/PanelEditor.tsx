@@ -33,9 +33,9 @@ import { Input } from "@iot-os/ui/components/input"
 import { Textarea } from "@iot-os/ui/components/textarea"
 import { Checkbox } from "@iot-os/ui/components/checkbox"
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group"
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@iot-os/ui/components/segmented-control"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import {
   ArrowDownIcon,
@@ -444,9 +444,7 @@ export function PanelEditor({
               {widget.type === "controls" && (
                 <Field>
                   <FieldLabel>Cards per row</FieldLabel>
-                  <ToggleGroup
-                    type="single"
-                    variant="outline"
+                  <SegmentedControl
                     value={String(widget.config.columns ?? 1)}
                     onValueChange={(value) => {
                       if (!value) return
@@ -462,14 +460,14 @@ export function PanelEditor({
                       })
                     }}
                     aria-label="Cards per row"
-                    className="flex-wrap"
+                    wrap
                   >
                     {["auto", "1", "2", "3", "4"].map((value) => (
-                      <ToggleGroupItem key={value} value={value}>
+                      <SegmentedControlItem key={value} value={value}>
                         {value === "auto" ? "Auto" : value}
-                      </ToggleGroupItem>
+                      </SegmentedControlItem>
                     ))}
-                  </ToggleGroup>
+                  </SegmentedControl>
                   <FieldDescription>
                     Cards collapse to fewer columns when the panel is narrow.
                   </FieldDescription>

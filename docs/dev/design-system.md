@@ -41,6 +41,14 @@ portal or admin images.
   search fields are for directory and table filters. Check the installed and
   official registries before writing a new primitive
   ([shadcn skill](../../.agents/skills/shadcn/SKILL.md)).
+- **Tabs and segments have three roles, and the selected one is always primary.**
+  Sections of a page or record use line tabs (`TabsList variant="line"`, or `PageTabs`
+  when each tab is its own URL): primary text and underline. A mode switch inside one
+  panel or dialog uses filled tabs (`TabsList`): primary fill. A one-of-a-few choice
+  (a list filter, a table view, a time range, an option in a form) uses
+  `SegmentedControl`: primary fill in a sunken track, as tall as an input. Never
+  restyle the selected state at a call site, and never use `ToggleGroup` directly in
+  an app.
 - **Server-paged lists sort on the server or not at all.**
 - **Assistant chats** compose `MessageScroller`, `Message` and `Bubble`. Replies
   render through `Markdown` (never raw text with `whitespace-pre-wrap`), and a run
@@ -77,6 +85,8 @@ The release workflow runs the same lint.
 | `palette-colour` | error | Tailwind palette colours and black/white utilities |
 | `arbitrary-text-size` | error | `text-[12px]`-style sizes |
 | `local-age` | error | A local `function Age(` |
+| `local-selected-style` | error | A call site restyling the selected tab or segment (`data-[state=on]:bg-…`) |
+| `bare-toggle-group` | error | An app importing `toggle-group` instead of `SegmentedControl` |
 | `local-status-map` | warning | A local value → `StatusTone` map |
 | `phone-target` | error | A kit `button`, `input`, `select`, `switch` or `textarea` that lost its 44 px phone target ([Phones](#phones)) |
 
@@ -90,7 +100,7 @@ it runs in every app's lint.
 | --- | --- | --- |
 | Tokens | Surfaces (`background` canvas, `card` panel, `popover` raised, `sunken` inside a panel), elevation (`shadow-panel`, `shadow-raised`, `shadow-overlay`), type scale, layout widths (`max-w-reading`, `max-w-form`), motion durations, skins and palettes | [`src/styles/globals.css`](../../packages/ui/src/styles/globals.css) |
 | Primitives | shadcn/ui on Radix, style `radix-nova` | [`components.json`](../../packages/ui/components.json), `src/components` |
-| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `PageHeader`, `CommandPalette`, `FilterBar`, `FilterSheet`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
+| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `SegmentedControl`, `PageHeader`, `CommandPalette`, `FilterBar`, `FilterSheet`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
 | Templates | `CollectionPage`, `EntityPage`, `InboxPage`, `WorkspacePage`, `SettingsPage`; `useUrlState` keeps search, filters, view and page in the URL | `src/templates`, `src/hooks` |
 
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with
@@ -129,7 +139,7 @@ or behind `useIsMobile()`, so tablets, landscape phones and computers (768 px an
 keep their layouts: change nothing at `md` and up for a phone fix.
 
 - **Targets are 44 px.** `Button` (every size, `max-md:min-w-11` too), `Input`,
-  `SelectTrigger` and `SearchableSelect`, `Toggle` and toggle groups, `TabsTrigger`,
+  `SelectTrigger` and `SearchableSelect`, `Toggle`, toggle groups and `SegmentedControl`, `TabsTrigger`,
   `InputGroup` and the sidebar's rows carry `max-md:min-h-11`. `Checkbox`, `RadioGroupItem`
   and `Switch` grow their hit area (the `after` box) to 44 px, never the box or the track.
   Link buttons inside a sentence and `CopyText` are text targets and keep the line's

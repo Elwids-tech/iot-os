@@ -40,7 +40,7 @@ import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status, type StatusTone } from "@iot-os/ui/components/status-mark"
 import { TicketThread, ticketTypeLabels } from "@iot-os/ui/components/ticket-thread"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { useWide } from "@iot-os/ui/hooks/use-wide"
 import { statusOf } from "@iot-os/ui/lib/status"
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page"
@@ -122,19 +122,15 @@ export function TicketsPage() {
       showDetail={Boolean(ticketUuid)}
       toolbar={
         <>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            spacing={0}
+          <SegmentedControl
             aria-label="Tickets"
             value={state}
             onValueChange={(value) => value && change("state", value === "open" ? null : value)}
           >
-            <ToggleGroupItem value="open">Open</ToggleGroupItem>
-            <ToggleGroupItem value="closed">Closed</ToggleGroupItem>
-            <ToggleGroupItem value="all">All</ToggleGroupItem>
-          </ToggleGroup>
+            <SegmentedControlItem value="open">Open</SegmentedControlItem>
+            <SegmentedControlItem value="closed">Closed</SegmentedControlItem>
+            <SegmentedControlItem value="all">All</SegmentedControlItem>
+          </SegmentedControl>
           <div className="relative w-56">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -535,18 +531,14 @@ function TeamComposer({
   return (
     <div className="flex flex-col gap-2 border-t pt-4">
       <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup
-          type="single"
-          size="sm"
-          variant="outline"
-          spacing={0}
+        <SegmentedControl
           aria-label="Message kind"
           value={kind}
           onValueChange={(value) => value && setKind(value as "reply" | "note")}
         >
-          <ToggleGroupItem value="reply">Reply</ToggleGroupItem>
-          <ToggleGroupItem value="note">Internal note</ToggleGroupItem>
-        </ToggleGroup>
+          <SegmentedControlItem value="reply">Reply</SegmentedControlItem>
+          <SegmentedControlItem value="note">Internal note</SegmentedControlItem>
+        </SegmentedControl>
         <div className="w-52">
         <SelectField
           label="Then set the status"

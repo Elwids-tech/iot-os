@@ -35,7 +35,7 @@ export function ViewsRail({
       aria-current={item.current ? "page" : undefined}
       className={cn(
         "flex h-8 shrink-0 items-center gap-2 rounded-md px-2 max-md:h-11 text-body whitespace-nowrap text-muted-foreground outline-none hover:bg-card hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:w-full",
-        item.current && "bg-card font-medium text-foreground shadow-panel",
+        item.current && "bg-card font-medium text-primary shadow-panel hover:text-primary",
       )}
     >
       {item.icon}

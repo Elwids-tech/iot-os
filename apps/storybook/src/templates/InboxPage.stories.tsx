@@ -4,7 +4,7 @@ import { PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os
 import { SidebarProvider } from "@iot-os/ui/components/sidebar"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page"
 import { ago, now } from "../fixtures"
 
@@ -26,11 +26,11 @@ export const Alerts: StoryObj = {
         title="Alerts"
         wide
         toolbar={
-          <ToggleGroup type="single" size="sm" variant="outline" spacing={0} aria-label="Condition" defaultValue="open">
-            <ToggleGroupItem value="open">Open</ToggleGroupItem>
-            <ToggleGroupItem value="acknowledged">Acknowledged</ToggleGroupItem>
-            <ToggleGroupItem value="resolved">Resolved</ToggleGroupItem>
-          </ToggleGroup>
+          <SegmentedControl aria-label="Condition" defaultValue="open">
+            <SegmentedControlItem value="open">Open</SegmentedControlItem>
+            <SegmentedControlItem value="acknowledged">Acknowledged</SegmentedControlItem>
+            <SegmentedControlItem value="resolved">Resolved</SegmentedControlItem>
+          </SegmentedControl>
         }
         list={
           <InboxList label="Alerts">

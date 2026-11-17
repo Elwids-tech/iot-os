@@ -9,9 +9,9 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group"
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@iot-os/ui/components/segmented-control"
 import { Toggle } from "@iot-os/ui/components/toggle"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { cn } from "@iot-os/ui/lib/utils"
@@ -105,12 +105,8 @@ export function TimeControls({
     ? `${timeLabel(window.from, view.timezone)} to ${timeLabel(window.to, view.timezone)}`
     : PRESET_LABELS[view.range.mode === "relative" ? view.range.preset : "6h"]
   const quickRanges = (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      size="sm"
-      spacing={phone ? 1 : 0}
-      className={cn(phone && "flex-wrap")}
+    <SegmentedControl
+      wrap={phone}
       aria-label="Quick ranges"
       value={view.range.mode === "relative" ? view.range.preset : ""}
       onValueChange={(preset) =>
@@ -122,11 +118,11 @@ export function TimeControls({
       }
     >
       {Object.entries(PRESET_LABELS).map(([key, text]) => (
-        <ToggleGroupItem key={key} value={key} aria-label={text} title={text}>
+        <SegmentedControlItem key={key} value={key} aria-label={text} title={text}>
           {key}
-        </ToggleGroupItem>
+        </SegmentedControlItem>
       ))}
-    </ToggleGroup>
+    </SegmentedControl>
   )
   const customRange = (
     <form
@@ -249,11 +245,7 @@ export function TimeControls({
     </Toggle>
   )
   const timezoneGroup = (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      size="sm"
-      spacing={0}
+    <SegmentedControl
       aria-label="Timezone"
       value={view.timezone}
       onValueChange={(timezone) =>
@@ -261,11 +253,11 @@ export function TimeControls({
         onChange({ ...view, timezone: timezone as DashboardView["timezone"] })
       }
     >
-      <ToggleGroupItem value="browser" title={zone}>
+      <SegmentedControlItem value="browser" title={zone}>
         Browser
-      </ToggleGroupItem>
-      <ToggleGroupItem value="utc">UTC</ToggleGroupItem>
-    </ToggleGroup>
+      </SegmentedControlItem>
+      <SegmentedControlItem value="utc">UTC</SegmentedControlItem>
+    </SegmentedControl>
   )
   const refreshing = (
     <>

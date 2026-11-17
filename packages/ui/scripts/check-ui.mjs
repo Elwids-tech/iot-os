@@ -26,6 +26,18 @@ const rules = [
     pattern: /function Age\s*\(/g,
   },
   {
+    level: "error",
+    name: "local-selected-style",
+    message: "The selected tab or segment is primary, from the kit. Use Tabs, PageTabs or SegmentedControl without restyling the selected state.",
+    pattern: /data-\[state=(?:on|active)\]:(?:hover:)?(?:bg|text|border|shadow)-[\w/[\]-]+/g,
+  },
+  {
+    level: "error",
+    name: "bare-toggle-group",
+    message: "Use SegmentedControl from @iot-os/ui/components/segmented-control for a one-of-a-few choice.",
+    pattern: /components\/toggle-group["']/g,
+  },
+  {
     level: "warning",
     name: "local-status-map",
     message: "Prefer statusOf/Status from @iot-os/ui/lib/status over a local value → tone map.",

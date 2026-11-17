@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { Meta, StoryObj } from "@storybook/react-vite"
 import { Composer, type ComposerFile } from "@iot-os/ui/components/composer"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 
 const meta: Meta<typeof Composer> = { title: "Components/Composer", component: Composer }
 export default meta
@@ -58,10 +58,10 @@ export const WithControls: StoryObj = {
           onFilesChange={setFiles}
           onSubmit={() => setValue("")}
           controls={
-            <ToggleGroup type="single" size="sm" variant="outline" spacing={0} value={kind} onValueChange={(next) => next && setKind(next)} aria-label="Message kind">
-              <ToggleGroupItem value="reply">Reply</ToggleGroupItem>
-              <ToggleGroupItem value="note">Internal note</ToggleGroupItem>
-            </ToggleGroup>
+            <SegmentedControl value={kind} onValueChange={(next) => next && setKind(next)} aria-label="Message kind">
+              <SegmentedControlItem value="reply">Reply</SegmentedControlItem>
+              <SegmentedControlItem value="note">Internal note</SegmentedControlItem>
+            </SegmentedControl>
           }
         />
       </div>
