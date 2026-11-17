@@ -59,8 +59,11 @@ class AppServiceProvider extends ServiceProvider
         // Credential guessing: a few tries per account from one address, and a wider cap per
         // address. There is deliberately no per-account limit across addresses, which would
         // let anyone lock a real user out.
+        // The code step (spec 034, FR-010) carries no email: it counts against the same
+        // account and address as the password that started it.
         RateLimiter::for('login', static function (Request $request): array {
-            $email = $request->input('email');
+            $email = $request->input('email')
+                ?? ($request->hasSession() ? $request->session()->get('two_step.pending.email') : null);
             $tooMany = static fn (Request $request, array $headers) => response()->json([
                 'message' => 'Too many sign-in attempts. Try again in '.($headers['Retry-After'] ?? 60).' seconds.',
             ], 429, $headers);

@@ -153,8 +153,9 @@ Full reasoning, with rejected alternatives, is in [research.md](research.md).
   - `Passkeys::useUserModel(User::class)`;
   - binds `TwoFactorAuthenticationProvider` to `PerUserTwoFactorProvider`;
   - `config/fortify.php` keeps only `features => [twoFactorAuthentication(['confirm' => true])]`;
-  - `config/passkeys.php` reads `PASSKEYS_RP_ID`, the allowed origins from
-    `FRONTEND_URL`/`ADMIN_FRONTEND_URL`, and `PASSKEYS_USER_HANDLE_SECRET`.
+  - `config/fortify.php`'s `passkeys` block reads `PASSKEYS_RP_ID`, the allowed
+    origins from `FRONTEND_URL`/`ADMIN_FRONTEND_URL`, and
+    `PASSKEYS_USER_HANDLE_SECRET`; Fortify's provider copies it into `passkeys.*`.
 - **`User`**:
   - uses `TwoFactorAuthenticatable` and `PasskeyAuthenticatable`, and implements
     `PasskeyUser`;
@@ -330,7 +331,7 @@ apps/api/
 ├── app/Domain/Authorization/Permissions/PlatformAdministrationPermission.php   # RESET_TWO_STEP
 ├── app/Domain/Shared/Models/User.php
 ├── app/Domain/Audit/Services/ActivityCatalogue.php
-├── config/{fortify,passkeys,auth}.php
+├── config/{fortify,auth}.php
 ├── database/migrations/                       # users two-factor columns, passkeys, organizations.two_step_required, permission seed
 ├── resources/help/two-step-sign-in.md
 ├── tests/Feature/Domain/Authentication/      # TwoStepSignInTest, TwoStepSettingsTest, SecurityAuditTest,

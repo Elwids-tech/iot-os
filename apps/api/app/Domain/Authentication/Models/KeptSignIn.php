@@ -38,6 +38,12 @@ final class KeptSignIn extends Model
 
     public const DEVICE_REMOVED = 'device_removed';
 
+    /** Two-step turned on or off, or recovery codes regenerated, on another browser (spec 034). */
+    public const TWO_STEP_CHANGED = 'two_step_changed';
+
+    /** An administrator or the server operator reset the person's two-step sign-in (spec 034). */
+    public const TWO_STEP_RESET = 'two_step_reset';
+
     public const UPDATED_AT = null;
 
     protected $guarded = [];

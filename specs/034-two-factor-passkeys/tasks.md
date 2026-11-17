@@ -54,28 +54,28 @@ plan.
 **Purpose**: the packages, schema and shared services every story needs. No story
 works until this phase is done.
 
-- [ ] T005 Add `laravel/fortify` ^1.42 to `apps/api/composer.json` and run `composer update laravel/fortify --with-dependencies`. Record the `laravel/passkeys`, `pragmarx/google2fa` and `bacon/bacon-qr-code` versions Composer resolves in `specs/034-two-factor-passkeys/research.md` R4
-- [ ] T006 Publish Fortify's two-factor migration as `apps/api/database/migrations/2026_11_17_000001_add_two_factor_columns_to_users_table.php`, adding `two_factor_secret` (text, null), `two_factor_recovery_codes` (text, null) and `two_factor_confirmed_at` (timestamp, null) to `users`, with a working `down()`
-- [ ] T007 Create `apps/api/config/fortify.php` with only `'features' => [Features::twoFactorAuthentication(['confirm' => true])]` (Fortify's routes are off, so our routes apply `password.confirm` themselves), and set `password_timeout` to 900 in `apps/api/config/auth.php`
-- [ ] T008 In `apps/api/app/Providers/AppServiceProvider.php` (or a new `apps/api/app/Domain/Authentication/AuthenticationServiceProvider.php` registered in `apps/api/bootstrap/providers.php`): call `Fortify::ignoreRoutes()`, and bind `Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider` to `App\Domain\Authentication\Services\PerUserTwoFactorProvider`
-- [ ] T009 [P] Create `apps/api/app/Domain/Authentication/Services/PerUserTwoFactorProvider.php`. It extends Fortify's `TwoFactorAuthenticationProvider` and adds `verifyFor(User $user, string $secret, string $code): bool`, which keys the replay cache by user id and code (research R6). The window stays at 1. Unit test in `apps/api/tests/Unit/Authentication/PerUserTwoFactorProviderTest.php`: the same code is refused the second time for one user and accepted for another
-- [ ] T010 Update `apps/api/app/Domain/Shared/Models/User.php`:
+- [x] T005 Add `laravel/fortify` ^1.42 to `apps/api/composer.json` and run `composer update laravel/fortify --with-dependencies`. Record the `laravel/passkeys`, `pragmarx/google2fa` and `bacon/bacon-qr-code` versions Composer resolves in `specs/034-two-factor-passkeys/research.md` R4
+- [x] T006 Publish Fortify's two-factor migration as `apps/api/database/migrations/2026_11_23_000100_add_two_factor_columns_to_users.php` (dated after the latest migration on `main`), adding `two_factor_secret` (text, null), `two_factor_recovery_codes` (text, null) and `two_factor_confirmed_at` (timestamp, null) to `users`, with a working `down()`
+- [x] T007 Create `apps/api/config/fortify.php` with only `'features' => [Features::twoFactorAuthentication(['confirm' => true])]` (Fortify's routes are off, so our routes apply `password.confirm` themselves), and set `password_timeout` to 900 in `apps/api/config/auth.php`
+- [x] T008 In `apps/api/app/Providers/AppServiceProvider.php` (or a new `apps/api/app/Domain/Authentication/AuthenticationServiceProvider.php` registered in `apps/api/bootstrap/providers.php`): call `Fortify::ignoreRoutes()`, and bind `Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider` to `App\Domain\Authentication\Services\PerUserTwoFactorProvider`
+- [x] T009 [P] Create `apps/api/app/Domain/Authentication/Services/PerUserTwoFactorProvider.php`. It extends Fortify's `TwoFactorAuthenticationProvider` and overrides `verify($secret, $code)` to key the replay cache by a hash of the secret and the code (research R6), so Fortify's confirm action is covered too. The window stays at 1. Unit test in `apps/api/tests/Unit/Authentication/PerUserTwoFactorProviderTest.php`: the same code is refused the second time for one secret and accepted for another, and the container binds the subclass
+- [x] T010 Update `apps/api/app/Domain/Shared/Models/User.php`:
   - use `Laravel\Fortify\TwoFactorAuthenticatable`;
   - add `two_factor_secret` and `two_factor_recovery_codes` to `$hidden`;
   - cast `two_factor_confirmed_at` to datetime;
   - override `replaceRecoveryCode($code)` to remove the used code from the encrypted list instead of replacing it;
   - add `remainingRecoveryCodes(): int` and `twoStepSatisfied(): bool` (confirmed two-step only for now; passkeys join in T045)
-- [ ] T011 Extract `apps/api/app/Domain/Authentication/Services/CompleteSignIn.php` from `SessionController::store`. It takes a `User`, the `remember` flag and the request, then ends the previous kept sign-in, regenerates the session, logs in on the `web` guard and issues the kept sign-in, as `apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php` does today. `SessionController::store` calls it, with no behaviour change, and `apps/api/tests/Feature/Domain/Authentication/SessionAuthenticationTest.php` and `KeptSignInTest.php` still pass
-- [ ] T012 Extract `apps/api/app/Domain/Authentication/Services/EndSignIns.php` from `PasswordRecoveryController::reset`:
+- [x] T011 Extract `apps/api/app/Domain/Authentication/Services/CompleteSignIn.php` from `SessionController::store`. It takes a `User`, the `remember` flag and the request, then ends the previous kept sign-in, regenerates the session, logs in on the `web` guard and issues the kept sign-in, as `apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php` does today. `SessionController::store` calls it, with no behaviour change, and `apps/api/tests/Feature/Domain/Authentication/SessionAuthenticationTest.php` and `KeptSignInTest.php` still pass
+- [x] T012 Extract `apps/api/app/Domain/Authentication/Services/EndSignIns.php` from `PasswordRecoveryController::reset`:
   - `everywhere(User $user, string $reason)`: the person's database sessions and live kept sign-ins, and the current `web` guard only when its user is that person (an administrator running a reset stays signed in);
   - `elsewhere(User $user, Request $request, string $reason)`: keeps the current session id and the current kept sign-in.
 
-  Switch `apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php` to `everywhere(…, KeptSignIn::PASSWORD_RESET)`. Agent revocation and push-device removal stay in the controller. `PasswordRecoveryTest.php` still passes
-- [ ] T013 [P] Add the end reasons `TWO_STEP_CHANGED = 'two_step_changed'` and `TWO_STEP_RESET = 'two_step_reset'` to `apps/api/app/Domain/Authentication/Models/KeptSignIn.php`
-- [ ] T014 [P] Create `apps/api/app/Domain/Authentication/Notifications/SecurityChanged.php`, a queued mail notification sent after commit, with one variant per event: two-step on, two-step off, recovery codes regenerated, recovery code used (with remaining count), passkey added (name), passkey removed (name), and reset by an administrator or the server. The text never contains codes, secrets or credential ids
-- [ ] T015 [P] Add `person.two_step_enabled`, `person.two_step_disabled`, `person.recovery_codes_regenerated`, `person.recovery_code_used`, `person.passkey_added`, `person.passkey_removed`, `person.two_step_reset` and `organization.two_step_required_changed` with labels to `apps/api/app/Domain/Audit/Services/ActivityCatalogue.php`
-- [ ] T016 Create `apps/api/app/Domain/Authentication/Services/SecurityAudit.php`, which records one `person.*` activity entry (subject the person by integer id, no organization, causer the actor or none, properties as in `data-model.md`) and queues `SecurityChanged`. Feature test in `apps/api/tests/Feature/Domain/Authentication/SecurityAuditTest.php`: the entry has no `organization_id` and no property contains a secret
-- [ ] T017 Create `apps/api/app/Domain/Authentication/Http/Controllers/ConfirmationController.php` with `POST auth/confirm-password` (validates `password`, calls `$request->session()->passwordConfirmed()`, returns `204`, or `422` for a wrong password), and register it in `apps/api/app/Domain/Authentication/routes/api.php` under `auth:sanctum`. Confirm that Laravel's `password.confirm` middleware returns `423` for JSON requests, with a test in `apps/api/tests/Feature/Domain/Authentication/ConfirmationTest.php`
+  Switch `apps/api/app/Domain/Authentication/Http/Controllers/PasswordRecoveryController.php` to `everywhere(…, KeptSignIn::PASSWORD_RESET)`. Push devices of the ended sign-ins are removed by `EndSignIns` too; agent revocation and the remember-token rotation stay in the controller. `PasswordRecoveryTest.php` still passes
+- [x] T013 [P] Add the end reasons `TWO_STEP_CHANGED = 'two_step_changed'` and `TWO_STEP_RESET = 'two_step_reset'` to `apps/api/app/Domain/Authentication/Models/KeptSignIn.php`
+- [x] T014 [P] Create `apps/api/app/Domain/Authentication/Notifications/SecurityChanged.php`, a queued mail notification sent after commit, with one variant per event: two-step on, two-step off, recovery codes regenerated, recovery code used (with remaining count), passkey added (name), passkey removed (name), and reset by an administrator or the server. The text never contains codes, secrets or credential ids
+- [x] T015 [P] Add `person.two_step_enabled`, `person.two_step_disabled`, `person.recovery_codes_regenerated`, `person.recovery_code_used`, `person.passkey_added`, `person.passkey_removed`, `person.two_step_reset` and `organization.two_step_required_changed` with labels to `apps/api/app/Domain/Audit/Services/ActivityCatalogue.php`
+- [x] T016 Create `apps/api/app/Domain/Authentication/Services/SecurityAudit.php`, which records one `person.*` activity entry (subject the person by integer id, no organization, causer the actor or none, properties as in `data-model.md`) and queues `SecurityChanged`. Covered in `apps/api/tests/Feature/Domain/Authentication/TwoStepSettingsTest.php` and `TwoStepSignInTest.php`: each entry has no `organization_id`, the person as subject and causer, no secret in its properties, and every mail variant is free of codes and secrets
+- [x] T017 Create `apps/api/app/Domain/Authentication/Http/Controllers/ConfirmationController.php` with `POST auth/confirm-password` (validates `password`, calls `$request->session()->passwordConfirmed()`, returns `204`, or `422` for a wrong password), and register it in `apps/api/app/Domain/Authentication/routes/api.php` under `auth:sanctum`. Confirm that Laravel's `password.confirm` middleware returns `423` for JSON requests and again after 15 minutes, with a test in `apps/api/tests/Feature/Domain/Authentication/TwoStepSettingsTest.php`
 
 **Checkpoint**: Fortify is wired, the schema exists, and sign-in still behaves exactly
 as before.
@@ -97,7 +97,7 @@ session exists (FR-001 to FR-015).
 
 ### Tests for User Story 1 (API)
 
-- [ ] T018 [P] [US1] Write `apps/api/tests/Feature/Domain/Authentication/TwoStepSignInTest.php` covering:
+- [x] T018 [P] [US1] Write `apps/api/tests/Feature/Domain/Authentication/TwoStepSignInTest.php` covering:
   - `202 {"two_step_required": true, "expires_in": 300, "methods": ["code", "recovery_code"]}` and no authenticated session after a right password;
   - `me` returns `401` while pending, and `oauth/authorize` treats the pending person as a guest (the agent-consent path, SC-002);
   - a valid code signs in, and **Keep me signed in** issues the kept sign-in cookie only when `remember` was set at the password step;
@@ -107,7 +107,7 @@ session exists (FR-001 to FR-015).
   - after 5 minutes (`travel(301)->seconds()`), `422 pending`;
   - wrong codes count toward the `login` limiter;
   - a password reset does not turn two-step off (FR-014)
-- [ ] T019 [P] [US1] Write `apps/api/tests/Feature/Domain/Authentication/TwoStepSettingsTest.php` covering:
+- [x] T019 [P] [US1] Write `apps/api/tests/Feature/Domain/Authentication/TwoStepSettingsTest.php` covering:
   - setup needs confirmation (`423` without it);
   - setup returns `qr_svg`, `setup_key` and `otpauth_url`;
   - an unconfirmed setup is replaced on restart (FR-002);
@@ -118,32 +118,32 @@ session exists (FR-001 to FR-015).
 
 ### Implementation for User Story 1 (API)
 
-- [ ] T020 [US1] Change `SessionController::store` in `apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php` to check the password with `Auth::guard('web')->validate()` and the `User` provider:
+- [x] T020 [US1] Change `SessionController::store` in `apps/api/app/Domain/Authentication/Http/Controllers/SessionController.php` to check the password with `Auth::guard('web')->validate()` and the `User` provider:
   - **two-step confirmed**: store `two_step.pending` = `{user_id, remember, methods, expires_at: now()+5 minutes, attempts: 0}` in the session, replacing any earlier one, and return `202 {"two_step_required": true, "expires_in": 300, "methods": ["code", "recovery_code"]}`;
   - **otherwise**: call `CompleteSignIn`.
 
   Keep the wrong-password message and limiter as they are
-- [ ] T021 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/TwoStepChallengeController.php` (`POST auth/two-step`, `throttle:login`, guest) with a form request `apps/api/app/Domain/Authentication/Http/Requests/TwoStepChallengeRequest.php` that requires exactly one of `code` (six digits) or `recovery_code`:
+- [x] T021 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/TwoStepChallengeController.php` (`POST auth/two-step`, `throttle:login`, guest) with a form request `apps/api/app/Domain/Authentication/Http/Requests/TwoStepChallengeRequest.php` that requires exactly one of `code` (six digits) or `recovery_code`:
   1. load the pending entry; if it is missing or past `expires_at`, `422 {"errors": {"pending": [...]}}`;
   2. verify through `PerUserTwoFactorProvider::verifyFor`, or match the recovery code with `hash_equals` against `recoveryCodes()`;
   3. on a recovery code, call `replaceRecoveryCode()` and `SecurityAudit` (`person.recovery_code_used`, `remaining`);
-  4. on failure, hit the same `login` rate-limiter keys as a wrong password (built from the pending person's email, since this request carries none) and increment `attempts`; at five, forget the entry; return `422` with `attempts_left`;
+  4. on failure, increment `attempts`. The route's `throttle:login` counts every attempt against the password step's keys: the `login` limiter in `apps/api/app/Providers/AppServiceProvider.php` takes the email from `two_step.pending.email` when the request carries none; at five, forget the entry; return `422` with `attempts_left`;
   5. on success, forget the entry and call `CompleteSignIn` with the stored `remember`, returning the user, plus `recovery_codes_remaining` when a recovery code was used
-- [ ] T022 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/TwoStepController.php` with:
+- [x] T022 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/TwoStepController.php` with:
   - **`store`** (`POST me/two-step`, `password.confirm`): `409` if confirmed; otherwise `EnableTwoFactorAuthentication($user, force: true)`, returning `qr_svg` (`twoFactorQrCodeSvg()`), `setup_key` (the decrypted secret, grouped in fours) and `otpauth_url`;
   - **`confirm`** (`POST me/two-step/confirm`): `ConfirmTwoFactorAuthentication` through the bound provider, then `EndSignIns::elsewhere(…, KeptSignIn::TWO_STEP_CHANGED)`, then `SecurityAudit` (`person.two_step_enabled`); returns `{"recovery_codes": [...]}`;
   - **`recoveryCodes`** (`POST me/two-step/recovery-codes`, `password.confirm`): `GenerateNewRecoveryCodes`, `EndSignIns::elsewhere`, `SecurityAudit`, returning the new codes;
   - **`destroy`** (`DELETE me/two-step`, `password.confirm`): `DisableTwoFactorAuthentication`, `EndSignIns::elsewhere`, `SecurityAudit`, `204`. The `409 two_step_required` guard is added in T062
-- [ ] T023 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/SecurityController.php` (`GET me/security`) returning the `two_step` block from `contracts/auth-api.md`. For now `required` is false, `required_by` is `[]` and `satisfied` is `twoStepSatisfied()`. The `passkeys` block is left out until T048 adds it (never a false `not_https`). Register every route from T020 to T023 in `apps/api/app/Domain/Authentication/routes/api.php` with the names in the contract
-- [ ] T024 [P] [US1] Add the routes, schemas (`TwoStepRequired`, `TwoStepChallenge`, `SecuritySettings`, `TwoStepSetup`, `RecoveryCodes`), the `202` login response and the `423` response to the OpenAPI supplements in `contracts/openapi/supplements/`, regenerate `contracts/openapi/openapi.json`, and pass the drift check
-- [ ] T025 [P] [US1] In `packages/api-client/src/security.ts` (new) and `packages/api-client/src/index.ts`:
-  - `login()` returns `AuthenticatedUser | { twoStepRequired: true; expiresIn: number }`;
-  - add `twoStepChallenge({ code } | { recoveryCode })`, `confirmPassword(password)`, `security()`, `startTwoStep()`, `confirmTwoStep(code)`, `regenerateRecoveryCodes()` and `disableTwoStep()`;
+- [x] T023 [US1] Create `apps/api/app/Domain/Authentication/Http/Controllers/SecurityController.php` (`GET me/security`) returning the `two_step` block from `contracts/auth-api.md`. For now `required` is false, `required_by` is `[]` and `satisfied` is `twoStepSatisfied()`. The `passkeys` block is left out until T048 adds it (never a false `not_https`). Register every route from T020 to T023 in `apps/api/app/Domain/Authentication/routes/api.php` with the names in the contract
+- [x] T024 [P] [US1] Add the routes, schemas (`TwoStepRequired`, `TwoStepChallenge`, `SecuritySettings`, `TwoStepSetup`, `RecoveryCodes`), the `202` login response and the `423` response to the OpenAPI supplements in `contracts/openapi/supplements/`, regenerate `contracts/openapi/openapi.json`, and pass the drift check
+- [x] T025 [P] [US1] In `packages/api-client/src/security.ts` (new) and `packages/api-client/src/index.ts`:
+  - `login()` still returns `AuthenticatedUser`, and throws a typed `TwoStepRequiredError` (`expiresIn`, `methods`) on `202`, so the apps keep type-checking until pull request 3 handles it;
+  - add `twoStepChallenge({ code } | { recoveryCode })`, `confirmPassword(password)`, `security()`, `startTwoStep()`, `confirmTwoStep(code)`, `regenerateRecoveryCodes()` and `disableTwoStep()` on `ApiClient`, with the types in `security.ts`;
   - map `423` to a typed `ConfirmationRequiredError`.
 
   Vitest in `packages/api-client/src/security.test.ts`
-- [ ] T026 [P] [US1] Add a **Two-step sign-in** section to `docs/features/access.md`, after **Keep me signed in**: setup, codes, recovery codes, the pending step, ending other sign-ins, password reset, and the routes
-- [ ] T027 [US1] Verify pull request 2:
+- [x] T026 [P] [US1] Add a **Two-step sign-in** section to `docs/features/access.md`, after **Keep me signed in**: setup, codes, recovery codes, the pending step, ending other sign-ins, password reset, and the routes
+- [x] T027 [US1] Verify pull request 2:
   - run the full API suite on PostgreSQL and `pnpm --filter @iot-os/api-client test`;
   - rebuild the API family (`api`, workers, scheduler) with the command in `AGENTS.md`;
   - run `quickstart.md` US1 steps 3, 4, 7 and 8 against `http://localhost` with `curl` and the TOTP one-liner;
@@ -238,14 +238,13 @@ Touch ID on `localhost`.
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Publish the `laravel/passkeys` migration as `apps/api/database/migrations/2026_11_17_000002_create_passkeys_table.php` (`id`, `user_id` foreign key cascade on delete, `name`, `credential_id` unique, `credential` json, `last_used_at` nullable, timestamps, index on `user_id`). Create `apps/api/config/passkeys.php`:
-  - `relying_party_id` = `env('PASSKEYS_RP_ID', parse_url(config('notifications.portal_url'), PHP_URL_HOST))`;
+- [ ] T044 [US2] Publish the `laravel/passkeys` migration as `apps/api/database/migrations/2026_11_17_000002_create_passkeys_table.php` (`id`, `user_id` foreign key cascade on delete, `name`, `credential_id` unique, `credential` json, `last_used_at` nullable, timestamps, index on `user_id`). Add a `passkeys` block to `apps/api/config/fortify.php` (Fortify's provider copies it into `passkeys.*` at register time, research R4):
+  - `relying_party_id` = `env('PASSKEYS_RP_ID', parse_url(env('FRONTEND_URL', 'http://localhost'), PHP_URL_HOST))`;
   - `allowed_origins` = `[env('FRONTEND_URL'), env('ADMIN_FRONTEND_URL')]`;
-  - `user_handle_secret` = `env('PASSKEYS_USER_HANDLE_SECRET', config('app.key'))`;
-  - `guard` = `web`;
-  - `throttle` = `throttle:6,1`
+  - `user_handle_secret` = `env('PASSKEYS_USER_HANDLE_SECRET', env('APP_KEY'))`;
+  - `limiters.passkeys` for the 6-a-minute limit
 - [ ] T045 [US2] In the provider from T008:
-  - call `Passkeys::ignoreRoutes()` and `Passkeys::useUserModel(User::class)`;
+  - check that Fortify's provider has already called `Passkeys::ignoreRoutes()` and set the user model (research R4), and add both only if it has not;
   - update `apps/api/app/Domain/Shared/Models/User.php` to use `Laravel\Fortify\PasskeyAuthenticatable` and implement `Laravel\Fortify\Contracts\PasskeyUser`;
   - change `twoStepSatisfied()` to also return true when the person has at least one passkey
 - [ ] T046 [P] [US2] Create `apps/api/app/Domain/Authentication/Services/PasskeyAvailability.php`: available when `FRONTEND_URL` and `ADMIN_FRONTEND_URL` are both `https`, or their host is `localhost`; otherwise `unavailable_reason: "not_https"`

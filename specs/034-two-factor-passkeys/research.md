@@ -90,13 +90,19 @@ and `@laravel/passkeys` (the browser client) v0.4.1.
 
   Browsers use `@laravel/passkeys` 0.4 with its routes pointed at our API, plus
   `credentials: "include"` and its Sanctum `XSRF-TOKEN` header support.
-- **Versions**:
-  - Fortify 1.42 requires `laravel/passkeys` ^0.2, so Composer installs the newest 0.2
-    release and not 0.3. Both are before 1.0.
+- **Versions** (resolved in pull request 2, 2026-11-17): `laravel/fortify` 1.43.0,
+  which brings `laravel/passkeys` 0.3.0, `pragmarx/google2fa` 9.1.0,
+  `bacon/bacon-qr-code` 3.1.1 and `web-auth/webauthn-lib` 5.3.12. No existing package
+  changed version.
+  - Fortify 1.43 allows `laravel/passkeys` 0.3, not only 0.2. Both are before 1.0.
   - We wrap them behind our own routes and contract, pin the version Composer
     resolves, and upgrade when Fortify allows.
-  - The PR 4 spike confirms that the 0.2 action signatures match what is described
-    here.
+  - Fortify's service provider already calls `Passkeys::ignoreRoutes()`, sets the user
+    model, and overwrites `passkeys.*` config at register time from
+    `fortify.passkeys.*` (relying party ID, allowed origins, user-handle secret) and
+    `fortify.guard`. Pull request 4 sets these under `fortify.passkeys` in
+    `config/fortify.php`, not in a separate `config/passkeys.php`.
+  - The PR 4 spike confirms the 0.3 action signatures.
 - **Alternatives considered**:
   - `spatie/laravel-passkeys`. Rejected: it is built around Livewire and is not
     first-party.
@@ -128,9 +134,13 @@ and `@laravel/passkeys` (the browser client) v0.4.1.
 - **Decision**:
   - Keep google2fa's default window of 1, which accepts the previous, current and next
     30-second step (FR-008).
-  - Bind our own subclass of Fortify's provider that adds the user id to the replay
-    cache key, so a used code is refused for that person for the rest of its window.
-    Fortify's own key is the code alone.
+  - Bind our own subclass of Fortify's provider (`PerUserTwoFactorProvider`) whose
+    replay cache key is a hash of the person's secret and the code, so a used code is
+    refused for that person for the rest of its window. Fortify's own key is the code
+    alone. Keying by secret rather than user id keeps Fortify's `verify($secret, $code)`
+    signature, so its confirm action gets the same protection with no extra method.
+  - Concurrent submissions are serialized with a cache lock per person, and recovery
+    codes are matched under a row lock, so one code never signs in twice (SC-007).
   - The cache store is `database` in every profile, so all Octane workers see the same
     replay entries (ADR-038).
 - **Alternatives considered**: Fortify's provider as is. Rejected: two people who
@@ -221,9 +231,11 @@ and `@laravel/passkeys` (the browser client) v0.4.1.
 ## R12. Slowing down guessing
 
 - **Decision**:
-  - Every wrong code or recovery code hits the same rate-limiter keys as a wrong
-    password for that email and address (the `login` limiter in
-    `AppServiceProvider`).
+  - `POST auth/two-step` uses the same `login` limiter as the password step. When a
+    request carries no email, the limiter takes it from the pending sign-in, so every
+    code attempt counts against the same account-and-address key (5 a minute) and
+    address key (30 a minute) as passwords. Like the password step, every attempt
+    counts, not only wrong ones: a password and four codes use up a minute's tries.
   - The pending sign-in also counts its own attempts and is discarded after five, or
     after 5 minutes (FR-010, FR-011).
   - Passkey sign-in has its own limiter of 6 a minute per address, the package

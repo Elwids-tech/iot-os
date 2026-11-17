@@ -10,11 +10,10 @@ use App\Domain\Authentication\Http\Requests\ForgotPasswordRequest;
 use App\Domain\Authentication\Http\Requests\ResetPasswordRequest;
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Notifications\PasswordResetNotification;
-use App\Domain\Notifications\Models\PushDevice;
+use App\Domain\Authentication\Services\EndSignIns;
 use App\Domain\Shared\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -43,22 +42,9 @@ final class PasswordRecoveryController
                 $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
                 // Agent connections and their Passport tokens, refresh tokens included.
                 app(ConnectionRevoker::class)->person($user, RevocationReason::PASSWORD_RESET);
-                // Every browser kept signed in for this person needs the new password (spec 033, FR-011a).
-                KeptSignIn::query()->where('user_id', $user->getKey())->live()
-                    ->update(['ended_at' => now(), 'end_reason' => KeptSignIn::PASSWORD_RESET]);
-                // ...and no device keeps getting their alerts; each turns push on again after signing in.
-                PushDevice::query()->where('user_id', $user->getKey())->delete();
-                if (config('session.driver') === 'database') {
-                    DB::connection(config('session.connection'))->table(config('session.table', 'sessions'))
-                        ->where('user_id', $user->getKey())->delete();
-                }
-                if (Auth::guard('web')->id() === $user->getKey()) {
-                    Auth::guard('web')->logout();
-                    if ($request->hasSession()) {
-                        $request->session()->invalidate();
-                        $request->session()->regenerateToken();
-                    }
-                }
+                // Every session, browser kept signed in (spec 033, FR-011a) and push device
+                // of this person ends: each needs the new password.
+                app(EndSignIns::class)->everywhere($user, KeptSignIn::PASSWORD_RESET, $request);
                 event(new PasswordReset($user));
             });
         });
