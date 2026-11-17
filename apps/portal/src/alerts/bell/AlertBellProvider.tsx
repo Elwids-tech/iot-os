@@ -7,6 +7,8 @@ import { alertBellKeys, initialChime, nextChime, notificationNames, pollInterval
 
 type AlertBellContext = {
   org: string;
+  /** The person signed in, for push on this browser (spec 033). */
+  userId: number;
   manage: boolean;
   /** Undefined until the first check, and while checks fail. */
   summary: AlertNotificationSummary | undefined;
@@ -81,6 +83,7 @@ export function AlertBellProvider({
   const value: AlertBellContext | null = active
     ? {
         org: org!,
+        userId,
         manage,
         summary: summary.isError ? undefined : summary.data,
         sound,

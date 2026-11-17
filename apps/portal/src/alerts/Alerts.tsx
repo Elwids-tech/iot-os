@@ -1104,8 +1104,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
- * Email deliveries: a table from 768 px, phone cards below (recipient, status, the rest
- * as lines). On phones the diagnostic and Retry sit under the recipient.
+ * Email and push deliveries (spec 033): a table from 768 px, phone cards below (recipient,
+ * status, the rest as lines). On phones the diagnostic and Retry sit under the recipient.
  */
 const deliveryColumns = (
   retry: (delivery: AlertDelivery) => void,
@@ -1113,7 +1113,7 @@ const deliveryColumns = (
   const retryButton = (item: AlertDelivery) =>
     item.status === "failed" && (
       <Button variant="outline" size="sm" onClick={() => retry(item)}>
-        Retry email
+        {item.channel === "push" ? "Retry push" : "Retry email"}
       </Button>
     );
   return [
@@ -1134,8 +1134,15 @@ const deliveryColumns = (
       ),
     },
     {
-      id: "email",
-      header: "Email",
+      id: "channel",
+      header: "Channel",
+      mobile: "meta",
+      hideable: false,
+      cell: (item) => (item.channel === "push" ? "Push" : "Email"),
+    },
+    {
+      id: "type",
+      header: "Type",
       mobile: "meta",
       hideable: false,
       cell: (item) => (item.type === "activated" ? "Activation" : "Recovery"),
@@ -1154,6 +1161,17 @@ const deliveryColumns = (
           )}
         </>
       ),
+    },
+    {
+      id: "devices",
+      header: "Devices",
+      align: "end",
+      mobile: "meta",
+      hideable: false,
+      className: "tabular-nums",
+      // Push only: the devices whose push service accepted the latest attempt.
+      cell: (item) =>
+        item.channel === "push" && item.devices_total !== null ? `${item.devices_reached ?? 0} of ${item.devices_total}` : "",
     },
     {
       id: "attempts",
@@ -1187,6 +1205,18 @@ const deliveryColumns = (
     },
   ];
 };
+
+/** How a delivery attempt ended, as the timeline says it. */
+function attemptOutcome(channel: AlertDelivery["channel"], status: string) {
+  if (channel !== "push") return status === "accepted" ? "accepted by mail server" : "transport failed, outcome uncertain";
+  return (
+    {
+      accepted: "accepted by the push service",
+      gone: "device no longer subscribed, removed",
+      rejected: "refused by the push service",
+    } as Record<string, string>
+  )[status] ?? "push service didn't answer";
+}
 
 function AlertDetail({
   id,
@@ -1333,8 +1363,8 @@ function AlertDetail({
         key: `${delivery.uuid}-${attempt.attempt}`,
         at: attempt.created_at,
         tone: attempt.status === "accepted" ? "good" : "critical",
-        text: `${delivery.type === "activated" ? "Activation" : "Recovery"} email to ${delivery.recipient_name}`,
-        detail: `Attempt ${attempt.attempt} · ${attempt.status === "accepted" ? "accepted by mail server" : "transport failed, outcome uncertain"}`,
+        text: `${delivery.type === "activated" ? "Activation" : "Recovery"} ${delivery.channel === "push" ? "push" : "email"} to ${delivery.recipient_name}${attempt.device_label ? ` · ${attempt.device_label}` : ""}`,
+        detail: `Attempt ${attempt.attempt} · ${attemptOutcome(delivery.channel, attempt.status)}`,
       });
   if (alert?.acknowledged_at)
     timeline.push({
@@ -1590,7 +1620,7 @@ function AlertDetail({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Heading id="alert-email" className="text-sm font-semibold">
-                  Email delivery
+                  Delivery
                 </Heading>
                 {settings && (
                   <Link
@@ -1606,7 +1636,7 @@ function AlertDetail({
               ) : deliveries.data?.data.length ? (
                 <DataTable
                   id="alert-deliveries"
-                  label="Email deliveries"
+                  label="Deliveries"
                   noun={["delivery", "deliveries"]}
                   rows={deliveries.data.data}
                   rowKey={(item) => item.uuid}
@@ -1615,7 +1645,7 @@ function AlertDetail({
                 />
               ) : !deliveries.error ? (
                 <p className="text-sm text-muted-foreground">
-                  No email was requested for this alert.
+                  No email or push was requested for this alert.
                 </p>
               ) : null}
             </section>
@@ -1675,9 +1705,13 @@ function AlertDetail({
           )}
           <Confirm
             open={Boolean(retry)}
-            title="Retry failed email?"
-            description={`Retry delivery to ${retry?.recipient_name ?? "this recipient"}. A previous attempt may have reached the mail server, so another email could be received. Current access and notification preferences are checked again.`}
-            action="Retry email"
+            title={retry?.channel === "push" ? "Retry failed push?" : "Retry failed email?"}
+            description={
+              retry?.channel === "push"
+                ? `Push again to ${retry.recipient_name}'s devices. Current access and push settings are checked again.`
+                : `Retry delivery to ${retry?.recipient_name ?? "this recipient"}. A previous attempt may have reached the mail server, so another email could be received. Current access and notification preferences are checked again.`
+            }
+            action={retry?.channel === "push" ? "Retry push" : "Retry email"}
             destructive={false}
             onClose={() => setRetry(null)}
             onConfirm={async () => {

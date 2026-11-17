@@ -175,6 +175,10 @@
     "title": "Alerts · Notifications · Workflow",
     "overview": "alert-notifications"
   },
+  "settings.my-notifications": {
+    "title": "Settings · My notifications",
+    "overview": "phone-app"
+  },
   "integrations": {
     "title": "Integrations",
     "overview": "integrations"

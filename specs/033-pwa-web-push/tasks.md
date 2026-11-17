@@ -466,57 +466,57 @@ choose levels and organizations, and manage their devices.
 and tap the notification within 30 s; then switch an organization off and see the
 bell still update while the phone stays quiet.
 
-- [ ] T088 [P] [US2] `apps/portal/src/pwa/notification.ts`: a pure `toNotification(payload, now, locale, timeZone)` returning `{ title, options: { body, tag, icon, badge, data: { url }, renotify: false } }` per [contracts/push-payload.md](contracts/push-payload.md), with the unknown-`v` fallback. `apps/portal/src/pwa/notification.test.ts` renders every file in `contracts/push/fixtures/`, plus a null device, today and an earlier day
-- [ ] T089 [US2] Push handlers in `apps/portal/src/sw.ts`:
+- [x] T088 [P] [US2] `apps/portal/src/pwa/notification.ts`: a pure `toNotification(payload, now, locale, timeZone)` returning `{ title, options: { body, tag, icon, badge, data: { url }, renotify: false } }` per [contracts/push-payload.md](contracts/push-payload.md), with the unknown-`v` fallback. `apps/portal/src/pwa/notification.test.ts` renders every file in `contracts/push/fixtures/`, plus a null device, today and an earlier day
+- [x] T089 [US2] Push handlers in `apps/portal/src/sw.ts`:
   - `push`: parse JSON (show the fallback on failure) and call `event.waitUntil(self.registration.showNotification(...))` with `toNotification`;
-  - `notificationclick`: close, then `clients.matchAll({ type: "window", includeUncontrolled: true })`; focus a same-origin client and `navigate(url)`, else `clients.openWindow(url)`;
+  - `notificationclick`: close, then `clients.matchAll({ type: "window", includeUncontrolled: true })`; focus a same-origin client and `navigate(url)`, else `clients.openWindow(url)`. *Built*: the focused window gets a message and navigates through the router (`PushNavigation`), so unsaved edits get the usual question instead of a reload;
   - `pushsubscriptionchange`: subscribe again with `event.oldSubscription.options.applicationServerKey`.
 
   Depends on T088.
-- [ ] T090 [US2] `apps/portal/src/pwa/push.ts`:
+- [x] T090 [US2] `apps/portal/src/pwa/push.ts`:
   - **`support()`**: one of `supported`, `ios-needs-install`, `unsupported` or `denied`.
   - **`turnOn(publicKey)`**: `Notification.requestPermission()` from the click, `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`, `registerPushDevice` with a label from the user agent (for example *Safari on iPhone*, at most 60 characters), then `testPushDevice` for the new device, so a test push arrives (US2 scenario 1); stores the registered endpoint and device uuid under personal `localStorage` keys added to the `personal-state.ts` registry.
   - **`sync(publicKey)`**: no subscription does nothing. A subscription whose key differs from `publicKey` is unsubscribed, subscribed again and registered. A subscription whose endpoint differs from the stored one is registered. Otherwise `syncPushDevice`: `mine` stores the uuid; `released` unsubscribes; `unknown` unsubscribes and, when this browser had push on, shows a toast *Push stopped on this device* with **Turn on again**.
-  - **`turnOff()`**: unsubscribe, then remove the device.
-- [ ] T091 [US2] `apps/portal/src/App.tsx`: call `sync()` once per signed-in start when push is `available`; call `turnOff()` on sign-out before `clearPersonalState()` (depends on T090)
-- [ ] T092 [US5] Rename the page:
+  - **`turnOff()`**: unsubscribe, then remove the device. *Built* as `unsubscribeHere()` (sign-out: the API already removes the device with the session) and `removeDevice()` (the device list; removing this browser's own device signs it out). `sync()` asks for the public key only when a subscription exists, so most starts make no request.
+- [x] T091 [US2] `apps/portal/src/App.tsx`: call `sync()` once per signed-in start when push is `available`; call `turnOff()` on sign-out before `clearPersonalState()` (depends on T090). *Built*: `PushSync` in `src/pwa/PushSync.tsx`; sign-out calls `unsubscribeHere()` after the API's logout, which removes the device by session
+- [x] T092 [US5] Rename the page:
   - `apps/portal/src/alerts/MyNotifications.tsx` (new) holds the existing `EmailPreferences` as an **Email** panel and the **Push** panel (T093, T094);
   - `apps/portal/src/settings/Settings.tsx` serves it at `settings/my-notifications`, with `settings/email` redirecting;
   - `apps/portal/src/notifications/NotificationCenter.tsx` mounts it;
   - the user menu item in `App.tsx` and the tab label read **My notifications**.
-- [ ] T093 [US2] The **Push** panel's states, from `support()` and `GET v1/notifications/push`:
+- [x] T093 [US2] The **Push** panel's states, from `support()` and `GET v1/notifications/push`:
   - hidden when not `available`;
   - `ios-needs-install` shows the `InstallAppDialog` steps;
   - `unsupported` says this browser can't receive push;
   - `denied` explains how to allow notifications in the browser or phone settings and asks nothing;
   - otherwise **Turn on push on this device**, which on success marks **This device** and shows *Test sent*.
-- [ ] T094 [US5] The **Push** panel's settings:
+- [x] T094 [US5] The **Push** panel's settings:
   - **Turn off push everywhere**; the level switches **Critical**, **Warning**, **Info** and **Cleared**; one switch per organization;
   - the device list with label, added and last reached (both as `RelativeTime`), **This device**, **Send test** and **Remove** (confirm dialog);
   - unsaved switches use the kit's form grammar with a sticky save bar, `ref={keepToastsAbove}`, and a 409 reload message;
   - toasts for `replaced` (*{label} was removed to make room*).
-- [ ] T095 [US2] `apps/portal/src/alerts/bell/AlertBell.tsx` footer, shown when push is available and this browser has no registered device (FR-017):
+- [x] T095 [US2] `apps/portal/src/alerts/bell/AlertBell.tsx` footer, shown when push is available and this browser has no registered device (FR-017):
   - when `support()` is `supported`, a **Turn on push on this device** button that calls `turnOn()` directly and shows the result in a toast;
   - otherwise a link, *Get alerts on your phone*, to `settings/my-notifications`, which explains why.
 
   Depends on T090.
-- [ ] T096 [P] [US2] Delivery status and list:
+- [x] T096 [P] [US2] Delivery status and list:
   - `packages/ui/src/lib/status.ts`: delivery status `summarised` (muted tone, label *In summary*);
   - in `apps/portal/src/alerts/Alerts.tsx`, the deliveries `DataTable` gains **Channel** (Email or Push) and **Devices** (`{reached} of {total}`, push only), and **Retry** for failed rows of either channel.
-- [ ] T097 [US2] `apps/portal/e2e/push-settings.spec.ts`:
+- [x] T097 [US2] `apps/portal/e2e/push-settings.spec.ts`:
   - **Setup**: route mocks, plus `page.addInitScript` stubbing `Notification.requestPermission`, `navigator.serviceWorker.ready` and `PushManager.subscribe`/`getSubscription`.
   - **Panel states**: turning on posts the subscription and marks **This device**; the iOS Safari state shows the install steps; denied explains settings.
   - **Settings**: levels save with the revision; an organization switch posts `{enabled:false}`; **Remove** asks first then deletes; **Send test** posts.
   - **Sync**: `unknown` shows *Push stopped on this device*.
   - **Elsewhere**: the bell's **Turn on push on this device** posts the subscription and the test from the bell, and the footer shows only when this browser has no registered device; with push unsupported, the footer is a link to My notifications; the deliveries table shows channel and devices; `expectPhoneFit` passes at 360 px.
-- [ ] T098 [P] [US2] Help article:
+- [x] T098 [P] [US2] Help article:
   - `apps/api/resources/help/phone-app.md` (new), with front matter `slug`, `title`, `section`, `summary`, `contexts` `["settings.my-notifications"]`, `keywords`, `required_capabilities` `["devices.view"]`, `revision` 1 and `questions`;
   - its headings are Purpose, Before you start, Steps (install on Android, install on iPhone and iPad, turn on push, choose levels and organizations), Expected result, Troubleshooting (no prompt on iPhone, permission blocked, lock-screen previews, push stopped) and Related guides;
   - it never names the product;
   - add the `settings.my-notifications` context to `apps/api/resources/help/contexts.json` and to `apps/portal/src/help/context.ts`;
   - link it from `apps/api/resources/help/alert-notifications.md` and bump that article's `revision`;
   - `php artisan help:validate` passes.
-- [ ] T099 [P] [US2] Docs: the user part of the push section in `docs/features/alerts.md`; push and devices in `docs/features/portal-on-phones.md`; `docs/dev/gotchas.md` (a worker cannot send Sanctum's CSRF token, so rotated subscriptions are registered by the page)
+- [x] T099 [P] [US2] Docs: the user part of the push section in `docs/features/alerts.md`; push and devices in `docs/features/portal-on-phones.md`; `docs/dev/gotchas.md` (a worker cannot send Sanctum's CSRF token, so rotated subscriptions are registered by the page)
 - [ ] T100 Verify pull request 6:
   - portal and admin lint and tests, all portal Playwright specs including the PWA config, and `./taskw lint`;
   - rebuild `portal admin`;

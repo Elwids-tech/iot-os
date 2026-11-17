@@ -267,7 +267,7 @@ test("at phone width the bell is an icon and its list fits without sideways scro
 
 test("people without device view get no bell and no polling", async ({ page }) => {
   const { state } = await setup(page, { view: false, notifications: [notification(1)] });
-  await page.goto(`${base}/settings/email`);
+  await page.goto(`${base}/settings/my-notifications`);
   await expect(page.getByRole("button", { name: "Help" }).first()).toBeVisible();
   await expect(bell(page)).toHaveCount(0);
   expect(state.summaries).toBe(0);

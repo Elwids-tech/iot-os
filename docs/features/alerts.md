@@ -371,6 +371,42 @@ Code: [`DeliverAlertPush`](../../apps/api/app/Domain/Automation/Jobs/DeliverAler
 [`DeliverPushSummary`](../../apps/api/app/Domain/Notifications/Jobs/DeliverPushSummary.php),
 [`PushSender`](../../apps/api/app/Domain/Notifications/Services/PushSender.php).
 
+### In the portal
+
+- **My notifications** (user menu, or **Settings → My notifications**, replacing Email
+  preferences; old `settings/email` links land there) holds the **Push notifications**
+  panel above the alert email settings. It is hidden when the deployment has no push
+  key.
+- **Turning it on**: **Turn on push on this device** asks for notification permission
+  from the click, subscribes with the deployment's public key, registers the browser
+  with a label such as *Chrome on Android*, and sends a test push. The bell's footer
+  offers the same button until this browser has a device, or links to My notifications
+  where the browser can't (iPhone and iPad outside the Home Screen app, blocked
+  notifications, no push support), which explains why.
+- **What gets pushed**: the switch, levels and organizations save together with the
+  sticky bar; a stale revision reloads them with a message. **Turn off push
+  everywhere** saves at once. Organization switches keep the bell unchanged.
+- **Devices**: label, added and last reached, with **This device**, **Send test** and
+  **Remove**. Removing this browser's own device signs it out, as signing out does.
+- **Each start** compares the browser's subscription with the API: a rotated
+  subscription is registered again, someone else's is released and dropped, and one
+  the API no longer knows tells the person *Push stopped on this device* with **Turn on
+  again**. Starts without a subscription make no request.
+- **The service worker** shows each push with
+  [`toNotification`](../../apps/portal/src/pwa/notification.ts) (a generic
+  notification for anything it can't read), and a tap focuses an open window and
+  navigates it through the router, so unsaved edits get the usual question, or opens a
+  new one. It never opens a path outside `/organizations/` and `/settings/`.
+- **Deliveries** on an alert list email and push together, with **Channel**, **Devices**
+  (`reached of total`) and **Retry** for failed rows of either; a push carried by a
+  summary reads *In summary*.
+
+Code: portal [`src/pwa/push.ts`](../../apps/portal/src/pwa/push.ts),
+[`src/alerts/MyNotifications.tsx`](../../apps/portal/src/alerts/MyNotifications.tsx),
+[`src/sw.ts`](../../apps/portal/src/sw.ts); tests
+[`e2e/push-settings.spec.ts`](../../apps/portal/e2e/push-settings.spec.ts) and
+[`src/pwa/notification.test.ts`](../../apps/portal/src/pwa/notification.test.ts).
+
 ## Event log
 
 **Alerts → Event log** records, per organization, workflow alert transitions,

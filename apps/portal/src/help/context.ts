@@ -38,8 +38,8 @@ export function helpContextForPath(pathname: string): string {
             ? tab
               ? "alerts.notifications.workflow"
               : "alerts.notifications"
-            : resource === "email"
-              ? "alerts.preferences"
+            : resource === "my-notifications" || resource === "email"
+              ? "settings.my-notifications"
               : resource === "usage"
                 ? "billing.usage"
                 : "getting-started";

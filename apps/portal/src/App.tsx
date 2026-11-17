@@ -93,7 +93,6 @@ import {
   CpuIcon,
   DownloadIcon,
   HouseIcon,
-  MailIcon,
   MapPinnedIcon,
   PlugIcon,
   SearchIcon,
@@ -122,6 +121,8 @@ import { AlertBell } from "./alerts/bell/AlertBell"
 import { useConnection } from "./pwa/connection"
 import { useInstallApp } from "./pwa/useInstallApp"
 import { clearPersonalState } from "./pwa/personal-state"
+import { SIGNED_OUT_HERE, unsubscribeHere } from "./pwa/push"
+import { PushNavigation, PushSync } from "./pwa/PushSync"
 import { standalone } from "./pwa/install"
 const HomePage = lazy(() => import("./home/HomePage"))
 const AutomationRoutes = lazy(() => import("./automation/Automation"))
@@ -135,6 +136,7 @@ const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const SettingsRoutes = lazy(() => import("./settings/Settings"))
 const ConnectPage = lazy(() => import("./agents/ConnectPage"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
+const MyNotificationsRedirect = lazy(() => import("./notifications/NotificationCenter").then(module => ({ default: module.MyNotificationsRedirect })))
 const BillingAccountsPage = lazy(() => import("./billing/BillingAccountsPage"))
 const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
@@ -160,6 +162,7 @@ export function App() {
         />
         <Route path="*" element={<Session />} />
       </Routes>
+      <PushNavigation />
     </UnsavedProvider>
   )
 }
@@ -264,6 +267,12 @@ function Session() {
     window.addEventListener("iot-session-expired", expire)
     return () => window.removeEventListener("iot-session-expired", expire)
   }, [])
+  // Removing this browser's own push device ended its session on the server (spec 033, FR-028).
+  useEffect(() => {
+    const ended = () => void api.logout().catch(() => {}).then(signedOut)
+    window.addEventListener(SIGNED_OUT_HERE, ended)
+    return () => window.removeEventListener(SIGNED_OUT_HERE, ended)
+  }, [signedOut])
   const cache = useQueryClient()
   const query = useQuery({
     queryKey: ["session"],
@@ -307,11 +316,14 @@ function Session() {
   const user = query.data!
   return (
     <>
+      <PushSync user={user.id} />
       <Routes>
         {/* An AI agent asking to connect: a standalone page, outside the workspace shell. */}
         <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
+          {/* The test push opens My notifications without naming an organization. */}
+          <Route path="settings/my-notifications" element={<Suspense fallback={<PageFallback />}><MyNotificationsRedirect /></Suspense>} />
           <Route path="billing" element={<Suspense fallback={<PageFallback />}><BillingAccountsPage /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/home" element={<HomeRoute organizations={user.organizations} />} />
@@ -406,6 +418,8 @@ function useSignedOut() {
   return async () => {
     api.setSelectedOrganizationUuid(null)
     setDirty(false)
+    // Push stops here; the API already forgot the device with the session (spec 033, FR-028).
+    await unsubscribeHere()
     // Everything kept for this person goes, so the next person on this device starts clean (FR-015).
     await clearPersonalState(cache)
     navigate("/", { replace: true })
@@ -878,7 +892,7 @@ function PortalSidebar({
                 <AppearanceMenuItems />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to={organization ? sectionPath(organization.uuid, "settings/email") : "/notifications"}><MailIcon />Email preferences</Link>
+                  <Link to={organization ? sectionPath(organization.uuid, "settings/my-notifications") : "/notifications"}><BellIcon />My notifications</Link>
                 </DropdownMenuItem>
                 {user.capabilities.billing_accounts && (
                   <DropdownMenuItem asChild>

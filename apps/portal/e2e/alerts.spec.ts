@@ -677,7 +677,7 @@ test("notification settings live in Settings, list the email state and disable a
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: "Notifications" }),
+    page.getByRole("navigation", { name: "Settings sections" }).getByRole("link", { name: "Notifications", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   const row = page.getByRole("row", { name: /GPS demo geofence/ });
   await expect(row).toContainText("Active");
@@ -890,8 +890,8 @@ test("the event log lives in Alerts, email preferences in Settings, and old link
 
   await expect(page.getByRole("tab", { name: "Email preferences" })).toHaveCount(0);
   await page.goto(`${base}/preferences`);
-  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/email$`));
-  await expect(page.getByRole("heading", { name: "Email preferences" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/my-notifications$`));
+  await expect(page.getByRole("heading", { name: "My notifications" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Cleared" })).toBeVisible();
   await page.getByRole("button", { name: "Turn off all emails" }).click();
   await expect(page.getByText("All alert emails are off")).toBeVisible();
@@ -900,7 +900,7 @@ test("the event log lives in Alerts, email preferences in Settings, and old link
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 
   await page.goto(`/organizations/${org}/notifications?tab=preferences`);
-  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/email$`));
+  await expect(page).toHaveURL(new RegExp(`/organizations/${org}/settings/my-notifications$`));
   await page.goto(`${base}/events`);
   await page.getByRole("tab", { name: "Alerts" }).click();
   await expect(page).toHaveURL(new RegExp(`${base}$`));
@@ -936,7 +936,7 @@ test("device offline alerts list beside automations, filter by kind and explain 
   await expect(affected.getByRole("link", { name: "RGB light" })).toHaveAttribute("href", `/organizations/${org}/devices/${light}`);
   await expect(affected.getByRole("link", { name: "Energy meter" })).toBeVisible();
   // Nothing is sent in this release: no email delivery and no workflow settings to link to.
-  await expect(detail.getByText("No email was requested for this alert.")).toBeVisible();
+  await expect(detail.getByText("No email or push was requested for this alert.")).toBeVisible();
   await expect(detail.getByRole("link", { name: "Notification settings" })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 

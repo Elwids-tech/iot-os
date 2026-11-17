@@ -150,7 +150,7 @@ describe("Event log vocabulary", () => {
       legacyNotificationPath("org-1", new URLSearchParams("status=resolved&source=service")),
     ).toBe("/organizations/org-1/alerts/events?status=cleared&source=service");
     expect(legacyNotificationPath("org-1", new URLSearchParams("tab=preferences&page=3"))).toBe(
-      "/organizations/org-1/settings/email",
+      "/organizations/org-1/settings/my-notifications",
     );
   });
 });

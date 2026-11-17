@@ -68,7 +68,7 @@ final class OrganizationWelcomeNotification extends Notification implements Shou
             ->lineIf($can(DevicePermission::MANAGE), '**Connect devices.** Describe a device type once in **Device profiles**, then add devices with the guided setup or onboard what **Discovery** finds when a gateway connects. **Integrations** gives your own systems scoped access to the data.')
             ->lineIf($can(WorkflowPermission::MANAGE), '**Automate.** Build automations in the visual editor under **Automations** and test them on simulated readings before they go live.')
             ->lineIf($can(UserPermission::CREATE), '**Invite your team.** Add colleagues and give them roles in **Settings → Members**.')
-            ->line('**Get help.** Every page has a step-by-step guide behind its **Help** button, and **Support** takes bug reports and feature requests. Choose which emails reach you in **Settings → Email preferences**.')
+            ->line('**Get help.** Every page has a step-by-step guide behind its **Help** button, and **Support** takes bug reports and feature requests. Choose which alerts reach your inbox and your phone in **My notifications** in your user menu.')
             ->action(sprintf('Open %s', $name), $homeUrl)
             ->line(sprintf('You receive this because you accepted an invitation to %s.', $name));
     }
