@@ -2915,7 +2915,21 @@ export class ApiClient {
     return response
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  /**
+   * A kept sign-in whose session lapsed (spec 033, FR-011a): the API checks the CSRF
+   * token before the kept sign-in can resume, so the first change after hours idle gets
+   * 419. A read resumes the session and renews the token cookie. False when nobody is
+   * signed in here any more.
+   */
+  private async resume(): Promise<boolean> {
+    try {
+      return (await this.send(`${this.baseUrl}/api/v1/me`, { credentials: "include", headers: { Accept: "application/json" } })).ok
+    } catch {
+      return false
+    }
+  }
+
+  private async request<T>(path: string, init: RequestInit = {}, resumed = false): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set("Accept", "application/json")
 
@@ -2945,6 +2959,9 @@ export class ApiClient {
     const payload = await response.json().catch(() => null)
 
     if (!response.ok) {
+      // The refused request never ran, so it is sent once more with the renewed token.
+      if (response.status === 419 && !resumed && path !== "/api/v1/auth/login" && path !== "/api/v1/me" && (await this.resume()))
+        return this.request<T>(path, init, true)
       if (
         (response.status === 401 || response.status === 419) &&
         path !== "/api/v1/auth/login" &&

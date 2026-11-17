@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Automation;
 
+use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Authorization\Models\Role;
 use App\Domain\Automation\Jobs\DeliverAlertPush;
 use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\WorkflowDeploymentService;
+use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Notifications\Jobs\DeliverPushSummary;
 use App\Domain\Notifications\Models\PushDevice;
@@ -51,10 +55,7 @@ final class AlertPushDeliveryTest extends TestCase
         $this->actingAs($actor, 'sanctum');
         $this->recipient = User::where('email', 'acme.member@example.test')->firstOrFail();
         $this->recipient->forceFill(['email_verified_at' => now()])->save();
-        $definition = ['binding' => ['device_uuid' => (string) Str::uuid()]];
-        $this->workflow = Workflow::create(['organization_id' => $this->org->id, 'name' => 'Freezer temperature', 'workflow' => ['nodes' => []], 'definition' => $definition, 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
-        $this->deployment = Deployment::create(['automation_workflow_id' => $this->workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition' => $definition, 'definition_hash' => str_repeat('a', 64), 'created_by' => $actor->id, 'created_at' => now()]);
-        $this->workflow->update(['applied_deployment_uuid' => $this->deployment->uuid, 'desired_deployment_uuid' => $this->deployment->uuid, 'deployment_status' => 'applied']);
+        [$this->workflow, $this->deployment] = $this->automation($this->org, $actor);
         $this->base = '/api/v1/organizations/'.$this->org->uuid;
         config(['devices.runtime_token' => str_repeat('t', 40)]);
         Mail::fake();
@@ -177,9 +178,18 @@ final class AlertPushDeliveryTest extends TestCase
     {
         return [
             'removed member' => ['Recipient access is no longer valid.', 'removeMembership'],
+            'email no longer verified' => ['Recipient access is no longer valid.', 'unverifyEmail'],
+            'lost device view' => ['Recipient access is no longer valid.', 'revokeDeviceView'],
+            'warning level switched off' => ['Recipient push preferences are off for this level or organization.', 'switchOffWarning'],
+            'push turned off everywhere' => ['Recipient push preferences are off for this level or organization.', 'turnOffPushEverywhere'],
             'organization switched off' => ['Recipient push preferences are off for this level or organization.', 'muteOrganization'],
+            'no device left at send time' => ['Recipient has no push devices.', 'removeDevices'],
             'subscription disabled' => ['Notification subscription was removed or disabled.', 'disableSubscription'],
+            'dropped from the recipients' => ['Notification subscription was removed or disabled.', 'dropRecipient'],
             'execution stopped' => ['Workflow execution has stopped or disable was requested.', 'stopExecution'],
+            'execution replaced' => ['Workflow execution was replaced.', 'replaceExecution'],
+            // The runtime applying the new execution marks the old one superseded, so this reads as stopped.
+            'execution superseded by the runtime' => ['Workflow execution has stopped or disable was requested.', 'supersedeExecution'],
         ];
     }
 
@@ -201,6 +211,33 @@ final class AlertPushDeliveryTest extends TestCase
         $this->recipient->organizations()->detach($this->org->id);
     }
 
+    private function unverifyEmail(): void
+    {
+        $this->recipient->forceFill(['email_verified_at' => null])->save();
+    }
+
+    private function revokeDeviceView(): void
+    {
+        Role::where('organization_id', $this->org->id)->where('name', OrganizationRoleName::MEMBER->value)->firstOrFail()
+            ->revokePermissionTo(DevicePermission::VIEW->value);
+    }
+
+    private function switchOffWarning(): void
+    {
+        DB::table('notification_preferences')->where('user_id', $this->recipient->id)
+            ->update(['push_levels' => json_encode(['critical' => true, 'warning' => false, 'info' => true, 'recovery' => false])]);
+    }
+
+    private function turnOffPushEverywhere(): void
+    {
+        DB::table('notification_preferences')->where('user_id', $this->recipient->id)->update(['push_enabled' => false]);
+    }
+
+    private function removeDevices(): void
+    {
+        PushDevice::query()->where('user_id', $this->recipient->id)->delete();
+    }
+
     private function muteOrganization(): void
     {
         DB::table('push_organization_mutes')->insert(['user_id' => $this->recipient->id, 'organization_id' => $this->org->id, 'created_at' => now()]);
@@ -211,22 +248,57 @@ final class AlertPushDeliveryTest extends TestCase
         $this->workflow->update(['notification_settings' => [...$this->workflow->fresh()->notification_settings, 'enabled' => false]]);
     }
 
+    private function dropRecipient(): void
+    {
+        $colleague = User::where('email', 'acme.moderator@example.test')->firstOrFail();
+        $this->workflow->update(['notification_settings' => [...$this->workflow->fresh()->notification_settings, 'recipient_ids' => [$colleague->id]]]);
+    }
+
     private function stopExecution(): void
     {
         $this->workflow->update(['desired_deployment_uuid' => null]);
     }
 
-    public function test_a_level_switched_off_or_push_turned_off_cancels_the_push(): void
+    private function replaceExecution(): void
     {
-        $this->pushDevice($this->recipient);
-        $push = $this->activatedPush();
-        DB::table('notification_preferences')->where('user_id', $this->recipient->id)
-            ->update(['push_levels' => json_encode(['critical' => true, 'warning' => false, 'info' => true, 'recovery' => false])]);
+        $next = $this->nextExecution();
+        $this->workflow->update(['applied_deployment_uuid' => $next->uuid, 'desired_deployment_uuid' => $next->uuid]);
+    }
 
-        $this->deliver($push);
+    private function supersedeExecution(): void
+    {
+        $next = $this->nextExecution();
+        $this->workflow->update(['desired_deployment_uuid' => $next->uuid]);
+        $this->workflow->fresh()->deploymentSucceeded($next);
+    }
 
-        $this->assertSame('cancelled', $push->fresh()->status);
-        $this->assertSame([], $this->pushesSent());
+    private function nextExecution(): Deployment
+    {
+        return Deployment::create(['automation_workflow_id' => $this->workflow->id, 'generation' => 2, 'draft_revision' => 2, 'target' => 'active', 'status' => 'succeeded', 'definition' => $this->deployment->definition, 'definition_hash' => str_repeat('b', 64), 'created_by' => $this->workflow->updated_by, 'created_at' => now()]);
+    }
+
+    public function test_a_person_of_another_organization_listed_as_a_recipient_gets_a_cancelled_push(): void
+    {
+        $outsider = User::where('email', 'northstar.member@example.test')->firstOrFail();
+        $outsider->forceFill(['email_verified_at' => now()])->save();
+        $theirDevice = $this->pushDevice($outsider);
+        $this->turnOnPush($outsider);
+        $ourDevice = $this->pushDevice($this->recipient);
+        $this->turnOnPush($this->recipient);
+        $this->settings();
+        // The settings API refuses non-members, so force them in as a stale or tampered row would.
+        $this->workflow->update(['notification_settings' => [...$this->workflow->notification_settings, 'recipient_ids' => [$this->recipient->id, $outsider->id]]]);
+        $this->transition('activated');
+        $theirs = AlertDelivery::where('channel', AlertDelivery::PUSH)->where('recipient_id', $outsider->id)->sole();
+        $ours = AlertDelivery::where('channel', AlertDelivery::PUSH)->where('recipient_id', $this->recipient->id)->sole();
+
+        $this->deliver($theirs);
+        $this->deliver($ours);
+
+        $this->assertSame(['cancelled', 'Recipient access is no longer valid.'], [$theirs->fresh()->status, $theirs->fresh()->diagnostic]);
+        $this->assertSame('sent', $ours->fresh()->status);
+        $this->assertSame([$ourDevice->endpoint], array_column($this->pushesSent(), 'url'));
+        $this->assertNull($theirDevice->fresh()->last_reached_at);
     }
 
     public function test_an_activation_that_cleared_first_is_never_pushed(): void
@@ -382,6 +454,106 @@ final class AlertPushDeliveryTest extends TestCase
         $this->assertCount(3, $this->pushesSent());
     }
 
+    public function test_a_second_organizations_alerts_in_the_same_minute_open_their_own_summary(): void
+    {
+        // A person who is a member of both organizations, with device view in each.
+        $this->recipient = User::where('email', 'shared.operator@example.test')->firstOrFail();
+        $this->recipient->forceFill(['email_verified_at' => now()])->save();
+        $this->pushDevice($this->recipient);
+        $this->turnOnPush($this->recipient);
+        $this->settings();
+        $northstar = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        [$workflow, $deployment] = $this->automation($northstar, User::where('email', 'super-admin@example.test')->firstOrFail());
+        $this->settings($workflow);
+        foreach (range(1, 4) as $episode) {
+            $this->transition('activated', $episode);
+        }
+        foreach (range(1, 4) as $episode) {
+            $this->transition('activated', $episode, $workflow, $deployment);
+        }
+        $pushes = AlertDelivery::where('channel', AlertDelivery::PUSH)->orderBy('id')->get();
+        $pushes->each(fn (AlertDelivery $push) => $this->deliver($push));
+
+        $statuses = $pushes->map(fn (AlertDelivery $push) => $push->fresh()->status)->all();
+        $this->assertSame(['sent', 'sent', 'sent', 'summarised', 'sent', 'sent', 'sent', 'summarised'], $statuses);
+        $acme = PushSummary::query()->where('organization_id', $this->org->id)->sole();
+        $theirs = PushSummary::query()->where('organization_id', $northstar->id)->sole();
+        $this->assertSame([$acme->id, $theirs->id], [$pushes[3]->fresh()->push_summary_id, $pushes[7]->fresh()->push_summary_id]);
+        $this->assertSame([$this->recipient->id, $this->recipient->id], [$acme->user_id, $theirs->user_id]);
+
+        $this->travel(PushSummary::WINDOW_SECONDS + 1)->seconds();
+        $this->deliverSummary($acme);
+        $this->deliverSummary($theirs);
+
+        $this->assertSame([['sent', 1], ['sent', 1]], [[$acme->fresh()->status, $acme->fresh()->alert_count], [$theirs->fresh()->status, $theirs->fresh()->alert_count]]);
+        $sent = $this->pushesSent();
+        $this->assertCount(8, $sent); // at most four per organization
+        $this->assertSame([str_replace('-', '', (string) $northstar->uuid)], $sent[7]['headers']['Topic']);
+    }
+
+    public function test_a_duplicate_dispatch_of_a_delivery_sends_once(): void
+    {
+        $this->pushDevice($this->recipient, 'Safari on iPhone');
+        $this->pushDevice($this->recipient, 'Chrome on Android');
+        $push = $this->activatedPush();
+
+        $this->deliver($push);
+        $this->deliver($push); // the queue ran the same job twice
+
+        $push->refresh();
+        $this->assertSame(['sent', 1, 2], [$push->status, (int) $push->attempts, $push->devices_reached]);
+        $this->assertCount(2, $this->pushesSent());
+        $this->assertSame(2, DB::table('automation_alert_delivery_attempts')->where('automation_alert_delivery_id', $push->id)->count());
+    }
+
+    public function test_a_rolled_back_projection_removes_the_push_with_the_bell(): void
+    {
+        $this->pushDevice($this->recipient);
+        $this->turnOnPush($this->recipient);
+        $this->settings();
+        try {
+            DB::transaction(function (): void {
+                app(WorkflowDeploymentService::class)->event('workflow.transition.v1', $this->payload('activated', 1, $this->workflow, $this->deployment));
+                $this->assertSame(1, AlertDelivery::where('channel', AlertDelivery::PUSH)->count());
+                $this->assertSame(1, DB::table('notifications')->count());
+                throw new \RuntimeException('Force rollback');
+            });
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Force rollback', $e->getMessage());
+        }
+
+        $this->assertSame(0, AlertDelivery::where('channel', AlertDelivery::PUSH)->count());
+        $this->assertSame(0, DB::table('notifications')->count());
+        $this->assertSame(0, DB::table('jobs')->where('payload', 'like', '%DeliverAlertPush%')->count());
+        $this->assertSame([], $this->pushesSent());
+    }
+
+    public function test_a_sent_clear_does_not_count_toward_the_three_activations_a_minute(): void
+    {
+        $this->pushDevice($this->recipient);
+        $this->turnOnPush($this->recipient);
+        DB::table('notification_preferences')->where('user_id', $this->recipient->id)
+            ->update(['push_levels' => json_encode(['critical' => true, 'warning' => true, 'info' => true, 'recovery' => true])]);
+        $this->settings();
+        // Each is sent before the next arrives, so the first activation is out before it clears.
+        foreach ([['activated', 1], ['activated', 2], ['cleared', 1], ['activated', 3]] as [$type, $episode]) {
+            $this->transition($type, $episode);
+            $this->deliver(AlertDelivery::where('channel', AlertDelivery::PUSH)->orderByDesc('id')->firstOrFail());
+        }
+        $pushes = AlertDelivery::where('channel', AlertDelivery::PUSH)->orderBy('id')->get();
+
+        $this->assertSame(['activated', 'activated', 'cleared', 'activated'], $pushes->pluck('type')->all());
+        $this->assertSame(['sent', 'sent', 'sent', 'sent'], $pushes->map(fn (AlertDelivery $push) => $push->fresh()->status)->all());
+        $this->assertSame(0, PushSummary::query()->count());
+        $this->assertCount(4, $this->pushesSent());
+
+        // A third activation sent in the minute is what opens a summary.
+        $this->transition('activated', 4);
+        $fourth = AlertDelivery::where('channel', AlertDelivery::PUSH)->orderByDesc('id')->first();
+        $this->deliver($fourth);
+        $this->assertSame(AlertDelivery::SUMMARISED, $fourth->fresh()->status);
+    }
+
     private function deliverSummary(PushSummary $summary): void
     {
         (new DeliverPushSummary($summary->uuid))->handle(app(DeviceAuthorization::class), app(PushSender::class));
@@ -401,19 +573,43 @@ final class AlertPushDeliveryTest extends TestCase
         Preferences::enablePushDefaults($user);
     }
 
-    private function settings(): void
+    private function settings(?Workflow $workflow = null): void
     {
-        if (($this->workflow->fresh()->notification_settings['enabled'] ?? false) === true) {
+        $workflow ??= $this->workflow;
+        if (($workflow->fresh()->notification_settings['enabled'] ?? false) === true) {
             return;
         }
-        $this->putJson($this->base.'/workflows/'.$this->workflow->uuid.'/notifications', ['revision' => 0, 'enabled' => true, 'notify_on_clear' => true, 'recipient_ids' => [$this->recipient->id]])->assertOk();
-        $this->workflow->refresh();
+        $org = Organization::findOrFail($workflow->organization_id);
+        $this->putJson('/api/v1/organizations/'.$org->uuid.'/workflows/'.$workflow->uuid.'/notifications', ['revision' => 0, 'enabled' => true, 'notify_on_clear' => true, 'recipient_ids' => [$this->recipient->id]])->assertOk();
+        $workflow->refresh();
     }
 
-    private function transition(string $type, int $episode = 1): void
+    /**
+     * A workflow whose execution is applied, bound to a device the organization does not have.
+     *
+     * @return array{0: Workflow, 1: Deployment}
+     */
+    private function automation(Organization $org, User $actor): array
     {
-        $payload = ['rule_uuid' => $this->workflow->uuid, 'organization_uuid' => $this->org->uuid, 'operation_uuid' => $this->deployment->uuid, 'transition' => ['id' => hash('sha256', $this->deployment->uuid.':'.$episode.':'.$type), 'type' => $type, 'episode' => $episode, 'occurred_at' => now()->toIso8601String(), 'rule_uuid' => $this->workflow->uuid, 'organization_uuid' => $this->org->uuid, 'device_uuid' => $this->deployment->definition['binding']['device_uuid'], 'version_uuid' => $this->deployment->uuid, 'definition_hash' => $this->deployment->definition_hash]];
+        $definition = ['binding' => ['device_uuid' => (string) Str::uuid()]];
+        $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'Freezer temperature', 'workflow' => ['nodes' => []], 'definition' => $definition, 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
+        $deployment = Deployment::create(['automation_workflow_id' => $workflow->id, 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'succeeded', 'definition' => $definition, 'definition_hash' => str_repeat('a', 64), 'created_by' => $actor->id, 'created_at' => now()]);
+        $workflow->update(['applied_deployment_uuid' => $deployment->uuid, 'desired_deployment_uuid' => $deployment->uuid, 'deployment_status' => 'applied']);
+
+        return [$workflow, $deployment];
+    }
+
+    private function transition(string $type, int $episode = 1, ?Workflow $workflow = null, ?Deployment $deployment = null): void
+    {
+        $payload = $this->payload($type, $episode, $workflow ?? $this->workflow, $deployment ?? $this->deployment);
         $this->withToken(str_repeat('t', 40))->postJson('/api/internal/devices/events', ['uuid' => (string) Str::uuid(), 'type' => 'workflow.transition.v1', 'payload' => $payload])->assertOk();
+    }
+
+    private function payload(string $type, int $episode, Workflow $workflow, Deployment $deployment): array
+    {
+        $org = Organization::findOrFail($workflow->organization_id);
+
+        return ['rule_uuid' => $workflow->uuid, 'organization_uuid' => $org->uuid, 'operation_uuid' => $deployment->uuid, 'transition' => ['id' => hash('sha256', $deployment->uuid.':'.$episode.':'.$type), 'type' => $type, 'episode' => $episode, 'occurred_at' => now()->toIso8601String(), 'rule_uuid' => $workflow->uuid, 'organization_uuid' => $org->uuid, 'device_uuid' => $deployment->definition['binding']['device_uuid'], 'version_uuid' => $deployment->uuid, 'definition_hash' => $deployment->definition_hash]];
     }
 
     private function deliver(AlertDelivery $delivery): void

@@ -95,13 +95,14 @@ final class Preferences
     }
 
     /**
-     * A device was registered: push is on, and a person who never had levels gets the
-     * defaults. Levels someone chose are kept.
+     * A device was registered. The first time, push turns on with the default levels.
+     * After that the person's own choices stand: a rotated subscription or another device
+     * never undoes Turn off push everywhere (FR-019, contracts/push-api.md).
      */
     public static function enablePushDefaults(User $user): void
     {
         $row = self::row($user);
-        if ($row->push_enabled && $row->push_levels !== null) {
+        if ($row->push_levels !== null) {
             return;
         }
         DB::table('notification_preferences')->where('user_id', $user->id)->update([

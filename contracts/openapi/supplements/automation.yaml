@@ -4,6 +4,58 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    AlertDelivery:
+      type: object
+      additionalProperties: false
+      required: [uuid, recipient_id, recipient_name, type, channel, status, attempts, diagnostic, sent_at, retry_generation, devices_total, devices_reached, history]
+      properties:
+        uuid: {type: string, format: uuid}
+        recipient_id: {type: integer}
+        recipient_name: {type: string}
+        type:
+          type: string
+          enum: [activated, cleared]
+        channel:
+          type: string
+          enum: [email, push]
+        status:
+          type: string
+          description: '`pending`, `sent`, `failed` or `cancelled`; a push may also be `summarised`, carried by a burst summary.'
+        attempts: {type: integer}
+        diagnostic:
+          type: [string, 'null']
+          description: Why it was cancelled or failed.
+        sent_at: {type: [string, 'null']}
+        retry_generation:
+          type: integer
+          description: Sent back with a retry, so a retry of a changed delivery is refused.
+        devices_total:
+          type: [integer, 'null']
+          description: Push only, the person's devices tried in the latest attempt; null for email.
+        devices_reached:
+          type: [integer, 'null']
+          description: Push only, the devices whose push service accepted it; null for email.
+        history:
+          type: array
+          description: One row per attempt; for push, one row per device.
+          items:
+            $ref: '#/components/schemas/AlertDeliveryAttempt'
+    AlertDeliveryAttempt:
+      type: object
+      additionalProperties: false
+      required: [attempt, status, created_at, device_label, response_status]
+      properties:
+        attempt: {type: integer}
+        status: {type: string}
+        created_at: {type: string}
+        device_label:
+          type: [string, 'null']
+          description: Push only, the device's label as it was then.
+        response_status:
+          type: [integer, 'null']
+          description: Push only, the push service's HTTP status; null when it never answered.
 operations:
   POST /v1/organizations/{organization}/alerts/{alert}/comments:
     responses:
@@ -15,11 +67,40 @@ operations:
       the person's devices were tried and reached, a `summarised` status when a burst
       summary carried them, and one history row per device with its label and the push
       service's status.
+    responses:
+      '200':
+        description: The alert's deliveries, oldest first.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AlertDelivery'
   POST /v1/organizations/{organization}/alerts/{alert}/deliveries/{delivery}/retry:
     description: |-
       Retries a failed delivery on its own channel, email or push. A summarised push is
       never retried.
     responses:
+      '202':
+        description: The delivery is queued again.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  additionalProperties: false
+                  required: [status]
+                  properties:
+                    status:
+                      type: string
+                      enum: [pending]
       '409':
         $ref: '#/components/responses/Conflict'
   POST /v1/organizations/{organization}/workflows:

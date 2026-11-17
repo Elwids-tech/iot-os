@@ -885,7 +885,7 @@ function SourceOccurrences({
         <Heading id="alert-occurrences" className="text-sm font-semibold">
           Occurrences
         </Heading>
-        <Link className="text-sm underline underline-offset-4" to={`${list}?${all}`}>
+        <Link className="text-sm underline underline-offset-4 link-target" to={`${list}?${all}`}>
           Show all {workflow ? total.toLocaleString() : ""}
         </Link>
       </div>
@@ -924,7 +924,7 @@ function SourceOccurrences({
             {item.uuid === alert.uuid ? (
               <span className="font-medium">Occurrence {item.episode} (this alert)</span>
             ) : (
-              <Link className="underline underline-offset-4" to={`${list}/${item.uuid}${search}`}>
+              <Link className="underline underline-offset-4 link-target" to={`${list}/${item.uuid}${search}`}>
                 Occurrence {item.episode}
               </Link>
             )}
@@ -970,7 +970,7 @@ const subjectPath = (org: string, subject: ConnectivityAlert["subject"]) =>
 function SubjectName({ org, subject }: { org: string; subject: ConnectivityAlert["subject"] }) {
   const path = subjectPath(org, subject);
   return path ? (
-    <Link className="underline underline-offset-4" to={path}>
+    <Link className="underline underline-offset-4 link-target" to={path}>
       {subject.name}
     </Link>
   ) : (
@@ -1527,7 +1527,7 @@ function AlertDetail({
               <>
                 <Fact label="Workflow">
                   {capabilities.manage ? (
-                    <Link className="underline underline-offset-4" to={settings}>
+                    <Link className="underline underline-offset-4 link-target" to={settings}>
                       {alert.workflow_name}
                     </Link>
                   ) : (
@@ -1537,7 +1537,7 @@ function AlertDetail({
                 <Fact label="Device">
                   {alert.device_name ? (
                     <Link
-                      className="underline underline-offset-4"
+                      className="underline underline-offset-4 link-target"
                       to={devicePath(org, alert.device_uuid)}
                     >
                       {alert.device_name}
@@ -1561,7 +1561,7 @@ function AlertDetail({
                     <span key={dashboard.uuid}>
                       {index > 0 && ", "}
                       <Link
-                        className="underline underline-offset-4"
+                        className="underline underline-offset-4 link-target"
                         to={`/organizations/${org}/dashboards/${dashboard.uuid}`}
                       >
                         {dashboard.name}
@@ -1624,7 +1624,7 @@ function AlertDetail({
                 </Heading>
                 {settings && (
                   <Link
-                    className="text-sm underline underline-offset-4"
+                    className="text-sm underline underline-offset-4 link-target"
                     to={settings}
                   >
                     Notification settings

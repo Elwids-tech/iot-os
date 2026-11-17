@@ -18,6 +18,7 @@ import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { cn } from "@iot-os/ui/lib/utils"
 import { GRID_COLUMNS, resolveRange, responsiveLayouts } from "./model"
 import { PanelBody } from "./registry"
+import { useConnection } from "../pwa/connection"
 
 const Grid = WidthProvider(Responsive)
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
@@ -98,6 +99,8 @@ export function DashboardGrid({
   onLayoutChange?: (layouts: ResponsiveLayouts) => void
   panelRef?: (id: string, node: HTMLDivElement | null) => void
 }) {
+  // Controls refresh every second only while the API answers (FR-013).
+  const disconnected = useConnection().state === "offline"
   const gap = usePanelGap()
   // Phones read one column in the computer layout's order, each panel tall enough to read.
   const phone = useIsMobile()
@@ -159,7 +162,9 @@ export function DashboardGrid({
           ]
           const meta =
             widget.type === "controls"
-              ? "Live · 1 s"
+              ? disconnected
+                ? "Not updating"
+                : "Live · 1 s"
               : devices.length > 2
                 ? `${devices.length} devices`
                 : devices.join(", ")

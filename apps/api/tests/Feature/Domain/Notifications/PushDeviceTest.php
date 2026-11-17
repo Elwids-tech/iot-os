@@ -6,6 +6,7 @@ namespace Tests\Feature\Domain\Notifications;
 
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Notifications\Models\PushDevice;
+use App\Domain\Notifications\Services\PushSender;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,6 +72,33 @@ final class PushDeviceTest extends TestCase
         $this->assertFalse($this->stateful()->getJson('/api/v1/notifications/push')->json('data.available'));
         $this->assertNull($this->stateful()->getJson('/api/v1/notifications/push')->json('data.public_key'));
         $this->assertSame(0, PushDevice::query()->count());
+    }
+
+    public function test_registration_refuses_keys_a_push_cannot_be_encrypted_to(): void
+    {
+        $this->signIn(User::factory()->create(['password' => 'password']));
+        $good = $this->browserSubscription();
+        $short = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+
+        $this->stateful()->postJson(self::DEVICES, [...$good, 'keys' => [...$good['keys'], 'p256dh' => $short]])->assertUnprocessable()->assertJsonValidationErrors('keys.p256dh');
+        $this->stateful()->postJson(self::DEVICES, [...$good, 'keys' => [...$good['keys'], 'auth' => $short]])->assertUnprocessable()->assertJsonValidationErrors('keys.auth');
+        $this->stateful()->postJson(self::DEVICES, [...$good, 'keys' => [...$good['keys'], 'p256dh' => 'not base64!']])->assertUnprocessable()->assertJsonValidationErrors('keys.p256dh');
+        $this->assertSame(0, PushDevice::query()->count());
+    }
+
+    public function test_registering_again_never_undoes_turn_off_push_everywhere(): void
+    {
+        $this->signIn(User::factory()->create(['password' => 'password']));
+        $this->stateful()->postJson(self::DEVICES, $this->browserSubscription())->assertCreated();
+        $settings = $this->stateful()->getJson('/api/v1/notifications/push')->json('data');
+        $this->stateful()->putJson('/api/v1/notifications/push', ['revision' => $settings['revision'], 'enabled' => false, 'levels' => $settings['levels']])->assertOk();
+
+        // A rotated subscription, or push turned on in another browser.
+        $this->stateful()->postJson(self::DEVICES, $this->browserSubscription('Safari on iPhone'))->assertCreated();
+
+        $after = $this->stateful()->getJson('/api/v1/notifications/push')->json('data');
+        $this->assertSame([false, $settings['levels']], [$after['enabled'], $after['levels']]);
+        $this->assertSame(2, PushDevice::query()->count());
     }
 
     public function test_an_endpoint_registered_by_someone_else_is_released_to_the_new_person(): void
@@ -161,6 +189,36 @@ final class PushDeviceTest extends TestCase
         $this->fakePushService(410);
         $this->postJson(self::DEVICES.'/'.$device->uuid.'/test')->assertOk()->assertExactJson(['data' => ['status' => 'gone']]);
         $this->assertModelMissing($device);
+    }
+
+    public function test_a_403_removes_the_device_only_when_the_push_service_names_a_key_mismatch(): void
+    {
+        $owner = User::factory()->create();
+        $device = $this->pushDevice($owner);
+        $this->actingAs($owner, 'sanctum');
+
+        // A token the push service refused is this server's problem: every device would fail.
+        $this->fakePushService(403, '{"reason":"BadJwtToken"}');
+        $this->postJson(self::DEVICES.'/'.$device->uuid.'/test')->assertOk()->assertExactJson(['data' => ['status' => 'failed']]);
+        $this->assertNotNull($device->fresh()->last_failed_at);
+
+        $this->fakePushService(403, '{"reason":"VapidPkHashMismatch"}');
+        $this->postJson(self::DEVICES.'/'.$device->uuid.'/test')->assertOk()->assertExactJson(['data' => ['status' => 'gone']]);
+        $this->assertModelMissing($device);
+        $this->assertTrue(PushSender::keyMismatch('the key in the authorization header does not correspond to the sender ID used to subscribe this push'));
+    }
+
+    public function test_a_device_whose_keys_cannot_be_encrypted_to_fails_alone(): void
+    {
+        $owner = User::factory()->create();
+        $device = $this->pushDevice($owner);
+        // A point that is not on the curve passes the length check but can't be used.
+        $device->forceFill(['public_key' => rtrim(strtr(base64_encode("\x04".str_repeat("\x01", 64)), '+/', '-_'), '=')])->save();
+        $this->actingAs($owner, 'sanctum');
+
+        $this->postJson(self::DEVICES.'/'.$device->uuid.'/test')->assertOk()->assertExactJson(['data' => ['status' => 'failed']]);
+        $this->assertSame([], $this->pushesSent());
+        $this->assertStringStartsWith('no response Could not encrypt', (string) $device->fresh()->last_failure);
     }
 
     public function test_send_test_is_throttled(): void

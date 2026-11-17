@@ -2,11 +2,11 @@ import { expect, type Page } from "@playwright/test"
 
 /**
  * The page fits a phone: no sideways scrolling (FR-002), every visible button, input,
- * select and textarea offers a target of at least 44 × 44 px (FR-004), and text fields
+ * select, textarea and standalone link offers a target of at least 44 × 44 px (FR-004), and text fields
  * use 16 px text so iOS does not zoom in on focus. A control's hit
  * area includes an absolutely positioned `::before` or `::after` (checkboxes and switches
- * grow theirs on phones). Inline link buttons and copyable text are exempt, as WCAG 2.5.8
- * exempts targets in a line of text.
+ * grow theirs on phones). Inline link buttons, copyable text and links inside a sentence
+ * are exempt, as WCAG 2.5.8 exempts targets in a line of text.
  */
 export async function expectPhoneFit(page: Page) {
   // The overflow, or the outermost elements that stick out past the right edge.
@@ -41,7 +41,7 @@ export async function expectPhoneFit(page: Page) {
     const px = (value: string) => (value.endsWith("px") ? parseFloat(value) : 0)
     const offenders: string[] = []
     for (const element of document.querySelectorAll<HTMLElement>(
-      "button, [role=button], input:not([type=hidden]), select, textarea",
+      "button, [role=button], input:not([type=hidden]), select, textarea, a[href]",
     )) {
       if (element.closest("[aria-hidden=true], [inert]")) continue
       if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
@@ -50,13 +50,24 @@ export async function expectPhoneFit(page: Page) {
       if (box.width <= 1 || box.height <= 1) continue
       // Text targets inside a line: link buttons and copyable codes.
       if (element.dataset.variant === "link" || element.dataset.slot === "copy-text") continue
+      // A link inside a sentence: inline, with other text beside it in its parent.
+      if (
+        element.tagName === "A" &&
+        getComputedStyle(element).display === "inline" &&
+        [...element.parentElement!.childNodes].some((node) => node !== element && node.textContent?.trim())
+      )
+        continue
       let width = box.width
       let height = box.height
+      // An absolute pseudo-element is placed in its containing block: the element when it
+      // is positioned, else its nearest positioned ancestor (a row link covers its card).
+      const anchor = getComputedStyle(element).position !== "static" ? element : ((element.offsetParent as HTMLElement | null) ?? element)
+      const area = anchor.getBoundingClientRect()
       for (const pseudo of ["::before", "::after"]) {
         const style = getComputedStyle(element, pseudo)
         if (style.content === "none" || style.position !== "absolute") continue
-        width = Math.max(width, box.width - px(style.left) - px(style.right))
-        height = Math.max(height, box.height - px(style.top) - px(style.bottom))
+        width = Math.max(width, area.width - px(style.left) - px(style.right))
+        height = Math.max(height, area.height - px(style.top) - px(style.bottom))
       }
       const name = (element.getAttribute("aria-label") ?? element.getAttribute("placeholder") ?? element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40)
       // Text fields need 16 px text, or iOS zooms the page when they take focus.

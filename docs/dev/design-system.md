@@ -135,6 +135,13 @@ keep their layouts: change nothing at `md` and up for a phone fix.
   Link buttons inside a sentence and `CopyText` are text targets and keep the line's
   height. A new interactive control does the same; the `phone-target` guardrail checks
   the kit's.
+- **Links that stand on their own are 44 px too.** A link in a fact, a list line or a
+  section header ("Show all") takes `link-target`, which grows its `after` box to 44 px
+  on phones without moving text; a link that truncates takes `block-link-target`
+  instead (its own padding, with a matching negative margin), because `truncate` clips
+  an `after` box. `RowLink` already covers its card, `RefLink` carries `link-target`,
+  and `ViewsRail` rows are 44 px. Links inside a sentence need neither.
+  `expectPhoneFit` (`apps/portal/e2e/support/phone-fit.ts`) measures them.
 - **Inputs are 16 px.** `Input` and `Textarea` use `text-base` below `md` (`md:text-sm`
   above), because iOS zooms the page into any field with smaller text.
 - **App bar.** `PageHeader` is an app bar on phones: the menu, back, the title (up to

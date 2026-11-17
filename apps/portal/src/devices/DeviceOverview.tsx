@@ -620,7 +620,7 @@ export function UsedIn({ org, device }: { org: string; device: DeviceDetail }) {
           {used.map(({ dashboard, panels }) => (
             <li key={dashboard.uuid} className="flex justify-between gap-3">
               <Link
-                className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+                className="min-w-0 truncate text-primary underline-offset-4 hover:underline block-link-target"
                 to={dashboardPath(org, dashboard.uuid)}
               >
                 {dashboard.name}
@@ -686,7 +686,7 @@ function DeviceAlerts({ org, device }: { org: string; device: DeviceDetail }) {
               <li key={group.key}>
                 <div className="flex items-center justify-between gap-3">
                   <Link
-                    className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+                    className="min-w-0 truncate text-primary underline-offset-4 hover:underline block-link-target"
                     to={
                       count === 1
                         ? `${base}/${encodeURIComponent(latest.uuid)}`

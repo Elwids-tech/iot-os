@@ -1046,6 +1046,12 @@ The portal is a progressive web app (spec 033,
   waits on it only while turning push on, with a timeout; sync and sign-out use
   `getRegistration()`, so signing out never waits. Mocked specs stub both on
   `ServiceWorkerContainer.prototype` (`e2e/push-settings.spec.ts`).
+- **A push service that never answers hangs `subscribe()` and `getSubscription()`.**
+  Neither rejects: in the iOS 27 Simulator `webpushd` fails a launch constraint, and
+  turning push on sat on "Turning on…" for good while sign-out waited forever behind
+  `getSubscription()`. `src/pwa/push.ts` wraps every push call in `within()` (20 s to
+  turn on, 3 s at sign-out). Try push on a real iPhone; the Simulator can install the
+  app and show its states but cannot subscribe.
 - **Notification permission is asked from the click itself.** Safari grants
   `Notification.requestPermission()` only during a user gesture, so `turnOn()` calls it
   before any `await`, and its callers run it straight from `onClick` rather than

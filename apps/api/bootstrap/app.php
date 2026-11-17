@@ -19,6 +19,7 @@ use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
 use App\Domain\Firmware\Console\StarterFixtures;
 use App\Domain\Help\Console\ValidateHelp;
 use App\Domain\Integrations\Console\WebhookWorker;
+use App\Http\Middleware\NoStorePrivateResponses;
 use App\Http\Middleware\OperationRequestLog;
 use App\Http\Middleware\TrustDeploymentProxies;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ahead of `auth:sanctum`, which the priority list would otherwise sort first.
         $middleware->appendToGroup('api', ResumeKeptSignIn::class);
         $middleware->prependToPriorityList(AuthenticatesRequests::class, ResumeKeptSignIn::class);
+        $middleware->appendToGroup('api', NoStorePrivateResponses::class);
         // A signed-out person starting an agent connection signs in on the portal, which
         // then returns to the authorize URL. Other routes keep their behaviour.
         $middleware->redirectGuestsTo(fn (Request $request): ?string => $request->routeIs('passport.authorizations.authorize')

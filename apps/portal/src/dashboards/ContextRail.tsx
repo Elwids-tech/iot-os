@@ -173,7 +173,7 @@ export function ContextRail({
               const device = devices(id)?.data
               return (
                 <li key={id} className="flex h-(--row-h) items-center gap-2">
-                  <Link className="min-w-0 flex-1 truncate hover:underline" to={devicePath(org, id)}>
+                  <Link className="min-w-0 flex-1 truncate hover:underline block-link-target" to={devicePath(org, id)}>
                     {deviceName(id)}
                   </Link>
                   <StatusMark tone={presenceTone(device?.presence)} className="text-xs">

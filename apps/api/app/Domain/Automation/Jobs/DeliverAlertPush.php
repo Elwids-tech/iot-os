@@ -34,7 +34,11 @@ final class DeliverAlertPush implements ShouldQueue
 
     public int $tries = 0;
 
-    public int $timeout = 30;
+    /**
+     * Up to ten devices at PushSender's 8 seconds each, and still under the alerts
+     * queue's `retry_after` (120), so a slow push service never cuts a send short.
+     */
+    public int $timeout = 100;
 
     public int $generation = 0;
 
@@ -137,6 +141,8 @@ final class DeliverAlertPush implements ShouldQueue
                 ->where('automation_alerts.organization_id', $org->id)
                 ->where('automation_alert_deliveries.recipient_id', $user->id)
                 ->where('automation_alert_deliveries.channel', AlertDelivery::PUSH)
+                // Only activations count toward the three (FR-024); clears never open a summary.
+                ->where('automation_alert_deliveries.type', 'activated')
                 ->where('automation_alert_deliveries.status', 'sent')
                 ->where('automation_alert_deliveries.sent_at', '>=', now()->subSeconds(PushSummary::WINDOW_SECONDS))
                 ->count();

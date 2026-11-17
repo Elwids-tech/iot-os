@@ -64,19 +64,23 @@ trait PushFixtures
 
     private bool $pushFaked = false;
 
+    private string $pushBody = '';
+
     /**
      * Every push service answers with this status (201 accepted), or with what the
      * closure returns for each request. Calling it again changes the answer: Http::fake
      * keeps its first stub, so one stub reads this setting.
      *
      * @param  int|\Closure(ClientRequest): int  $status
+     * @param  string  $body  what the push service says, such as a 403's reason
      */
-    protected function fakePushService(int|\Closure $status = 201): void
+    protected function fakePushService(int|\Closure $status = 201, string $body = ''): void
     {
         $this->pushStatus = $status;
+        $this->pushBody = $body;
         if (! $this->pushFaked) {
             $this->pushFaked = true;
-            Http::fake(['push.example.test/*' => fn (ClientRequest $request) => Http::response('', is_int($this->pushStatus) ? $this->pushStatus : ($this->pushStatus)($request))]);
+            Http::fake(['push.example.test/*' => fn (ClientRequest $request) => Http::response($this->pushBody, is_int($this->pushStatus) ? $this->pushStatus : ($this->pushStatus)($request))]);
         }
     }
 

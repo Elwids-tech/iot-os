@@ -99,6 +99,28 @@ final class KeptSignInTest extends TestCase
         $this->assertTrue($record->fresh()->last_used_at->gt($stamped));
     }
 
+    public function test_a_change_refused_after_the_session_lapsed_goes_through_once_a_read_resumed_it(): void
+    {
+        $user = User::factory()->create(['password' => 'password']);
+        $kept = $this->keptCookie($this->signIn($user));
+        $stale = session()->token();
+        $this->checkCsrfTokens();
+        $this->loseSession();
+        $this->travel(3)->hours();
+
+        // After hours idle the portal's first request is a change. The token check runs
+        // before the kept sign-in can resume, so the API refuses it and nothing ran.
+        $this->withKept($kept)->withHeader('X-CSRF-TOKEN', $stale)
+            ->putJson('/api/v1/notifications/preferences', [])->assertStatus(419);
+
+        // The portal's client then reads once (packages/api-client `resume`): the kept
+        // sign-in resumes the session with a new token, and the change goes through.
+        $this->withKept($kept)->getJson('/api/v1/me')->assertOk()->assertJsonPath('data.email', $user->email);
+        $preferences = $this->withSessionCookie()->getJson('/api/v1/notifications/preferences')->assertOk()->json('data');
+        $this->withSessionCookie()->withHeader('X-CSRF-TOKEN', session()->token())
+            ->putJson('/api/v1/notifications/preferences', $preferences)->assertOk();
+    }
+
     public function test_an_expired_record_does_not_resume_and_use_never_extends_it(): void
     {
         $user = User::factory()->create(['password' => 'password']);
@@ -285,6 +307,25 @@ final class KeptSignInTest extends TestCase
         $this->defaultCookies = [];
 
         return $this->withCredentials()->withHeader('Origin', 'http://localhost')->withCookie(KeptSignInCookie::NAME, $kept);
+    }
+
+    /** The browser's session cookie, as it holds it after a response that set one. */
+    private function withSessionCookie(): static
+    {
+        return $this->withCredentials()->withHeader('Origin', 'http://localhost')
+            ->withCookie(config('session.cookie'), session()->getId());
+    }
+
+    /** Laravel skips the CSRF check in tests; a browser never does. */
+    private function checkCsrfTokens(): void
+    {
+        $this->app->instance(ValidateCsrfToken::class, new class($this->app, $this->app['encrypter']) extends ValidateCsrfToken
+        {
+            protected function runningUnitTests(): bool
+            {
+                return false;
+            }
+        });
     }
 
     /** The browser lost its session cookie (idle timeout); the kept cookie, if any, stays. */

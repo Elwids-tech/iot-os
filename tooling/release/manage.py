@@ -155,6 +155,10 @@ class Deployment:
     def __init__(self, env_path, manifest):
         self.env_path = Path(env_path).resolve()
         self.env = read_env(self.env_path)
+        # Push services want a contact (plan: Release tooling). `init` runs before
+        # ACME_EMAIL is filled in, so an empty subject takes it at deploy time.
+        if not self.env.get("WEBPUSH_VAPID_SUBJECT") and self.env.get("ACME_EMAIL"):
+            self.env["WEBPUSH_VAPID_SUBJECT"] = "mailto:"+self.env["ACME_EMAIL"]
         self.manifest = Path(manifest).resolve() if manifest else None
         if self.manifest:
             self.release_text = self.manifest.read_text()

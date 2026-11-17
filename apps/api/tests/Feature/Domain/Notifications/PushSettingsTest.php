@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Notifications;
 
+use App\Domain\Authorization\Enums\OrganizationRoleName;
+use App\Domain\Authorization\Models\Role;
+use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Notifications\Models\PushSummary;
 use App\Domain\Shared\Models\Organization;
@@ -85,6 +88,17 @@ final class PushSettingsTest extends TestCase
         $other = Organization::where('slug', '!=', 'acme-manufacturing')->whereDoesntHave('users', fn ($users) => $users->whereKey($this->member->id))->firstOrFail();
         $this->putJson(self::SETTINGS.'/organizations/'.$other->uuid, ['enabled' => false])->assertNotFound();
         $this->assertSame(0, DB::table('push_organization_mutes')->count());
+    }
+
+    public function test_a_member_without_device_view_cannot_switch_the_organization(): void
+    {
+        Role::where('organization_id', $this->acme->id)->where('name', OrganizationRoleName::MEMBER->value)->firstOrFail()
+            ->revokePermissionTo(DevicePermission::VIEW->value);
+
+        $this->putJson(self::SETTINGS.'/organizations/'.$this->acme->uuid, ['enabled' => false])->assertNotFound();
+
+        $this->assertSame(0, DB::table('push_organization_mutes')->count());
+        $this->assertNotContains($this->acme->uuid, array_column($this->getJson(self::SETTINGS)->json('data.organizations'), 'uuid'));
     }
 
     public function test_switches_summaries_and_devices_go_with_their_organization_or_person(): void

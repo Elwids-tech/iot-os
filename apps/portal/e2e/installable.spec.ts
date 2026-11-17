@@ -248,3 +248,31 @@ test("a new release offers Reload, and the next launch runs it (SC-006)", async 
     )
     .toBe(next)
 })
+
+test("the browser's own reload runs a waiting release when no other window is open (FR-014)", async ({ page, context }) => {
+  await mockApi(context)
+  await page.goto("/")
+  await controlled(page)
+  const before = await page.locator('meta[name="build-id"]').getAttribute("content")
+  const next = `pwa-${Date.now()}`
+  execSync(`pnpm exec vite build --outDir "${outDir}" --emptyOutDir`, {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
+    env: { ...process.env, BUILD_ID: next },
+    stdio: "ignore",
+  })
+  await page.evaluate(async () => {
+    await (await navigator.serviceWorker.getRegistration())?.update()
+  })
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "A new version is available" })).toBeVisible({ timeout: 30000 })
+
+  // A second window open: a reload keeps the version both windows run.
+  const other = await context.newPage()
+  await other.goto("/")
+  await page.reload()
+  await expect(page.locator('meta[name="build-id"]')).toHaveAttribute("content", before!)
+
+  // Alone again: the reload switches to the new release.
+  await other.close()
+  await page.reload()
+  await expect(page.locator('meta[name="build-id"]')).toHaveAttribute("content", next, { timeout: 15000 })
+})
