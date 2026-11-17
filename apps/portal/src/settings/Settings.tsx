@@ -13,7 +13,7 @@ import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import { useDeviceOrganization } from "../devices/shared"
 import { TimezoneField } from "../devices/TimezoneField"
-import { EmailPreferences } from "../alerts/EmailPreferences"
+import { MyNotifications } from "../alerts/MyNotifications"
 import { NotificationsList, WorkflowNotificationsPage } from "../alerts/NotificationSettings"
 import { UsageSettings } from "./Usage"
 import { MembersPage } from "../members/Members"
@@ -35,7 +35,7 @@ export default function SettingsRoutes() {
     ...(capabilities.manage ? [{ key: "notifications", label: "Notifications", to: `${base}/notifications` }] : []),
     ...(capabilities.manage ? [{ key: "usage", label: "Usage", to: `${base}/usage` }] : []),
     ...(agentAccessOffered(organization) ? [{ key: "ai-apps", label: "AI apps", to: `${base}/ai-apps` }] : []),
-    { key: "email", label: "Email preferences", to: `${base}/email` },
+    { key: "my-notifications", label: "My notifications", to: `${base}/my-notifications` },
   ].map((section) => ({ ...section, current: pathname.startsWith(section.to) }))
   const layout = (
     <SettingsPage sections={sections}>
@@ -51,7 +51,9 @@ export default function SettingsRoutes() {
         <Route path="roles" element={<RolesList />} />
         <Route path="notifications" element={<NotificationsList />} />
         <Route path="usage" element={<UsageSettings />} />
-        <Route path="email" element={<EmailSettings />} />
+        <Route path="my-notifications" element={<MyNotifications />} />
+        {/* Email preferences became My notifications (spec 033); old links land there. */}
+        <Route path="email" element={<Navigate to="../my-notifications" replace />} />
         <Route path="ai-apps" element={<AiAppsSettings />} />
       </Route>
       <Route path="roles/*" element={<RoleRoutes />} />
@@ -98,16 +100,6 @@ function GeneralSettings() {
           <AppearanceSettings />
         </PanelContent>
       </Panel>
-    </div>
-  )
-}
-
-/** Personal: applies to this account in every organization. */
-function EmailSettings() {
-  return (
-    <div className="flex max-w-form flex-col gap-(--panel-gap)">
-      <h2 className="text-title">Email preferences</h2>
-      <EmailPreferences />
     </div>
   )
 }

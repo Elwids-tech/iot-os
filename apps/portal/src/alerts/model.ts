@@ -137,10 +137,10 @@ export function eventState(event: Pick<NotificationEvent, "status" | "active">) 
 
 /**
  * Notification center links used tab=preferences and status=resolved. Preferences now live in
- * Settings → Email preferences; everything else carries its filters into the event log.
+ * Settings → My notifications; everything else carries its filters into the event log.
  */
 export function legacyNotificationPath(org: string, params: URLSearchParams) {
-  if (params.get("tab") === "preferences") return `/organizations/${encodeURIComponent(org)}/settings/email`;
+  if (params.get("tab") === "preferences") return `/organizations/${encodeURIComponent(org)}/settings/my-notifications`;
   const query = new URLSearchParams(params);
   query.delete("tab");
   if (query.get("status") === "resolved") query.set("status", "cleared");

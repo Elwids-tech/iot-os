@@ -125,14 +125,28 @@ The portal image has its own nginx config (`deploy/docker/portal/nginx.conf`): `
 and `/manifest.webmanifest` are served `no-cache` and a missing one is a 404, never the
 app's `index.html`.
 
+## Push
+
+Alerts reach an installed app, or a browser with push, as notifications
+([alerts](alerts.md#push-notifications)). On iPhone and iPad push works only in the app
+added to the Home Screen, so **My notifications** shows the install steps there instead
+of the button. Elsewhere it works in the browser and in the installed app alike.
+
+A device is one browser profile: the installed app and the browser on the same phone
+share it on Android, and are separate on iPhone and iPad, where the app has its own
+storage.
+
 ## Signing out
 
 Signing out removes everything the portal kept in the browser for that person: every
 cached response, `sessionStorage` and the personal `localStorage` keys (selected and
-last organization, last dashboard, the bell's last chime, dashboard panel display). The
-registry is `apps/portal/src/pwa/personal-state.ts`. Display choices that are not about
-anyone stay: theme, skin, palette, the bell's sound switch and table layouts. The app
-shell in Cache Storage holds no one's data and stays.
+last organization, last dashboard, the bell's last chime, dashboard panel display, the
+push device this browser registered). The registry is
+`apps/portal/src/pwa/personal-state.ts`. Display choices that are not about anyone
+stay: theme, skin, palette, the bell's sound switch and table layouts. The app shell in
+Cache Storage holds no one's data and stays. Signing out also unsubscribes the browser
+from push, and the API forgets its device with the session, so the next person never
+inherits it.
 
 ## Testing
 
@@ -143,5 +157,7 @@ shell in Cache Storage holds no one's data and stays.
   the manifest, the shell-only cache, the offline screen, the offline notice, that
   nothing is queued, and that a new release reaches the next launch (SC-006).
 - The default Playwright config blocks service workers, so mocked specs are unaffected.
+- `e2e/push-settings.spec.ts` stubs notification permission, the worker registration and
+  `PushManager`; a real push needs the dev stack with a push key (spec 033 quickstart).
 - `e2e/phone.spec.ts`, in the default config, checks the phone pages at 320, 360 and
   390 px and with text at 200%: no sideways scrolling, 44 px controls and 16 px fields.

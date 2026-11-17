@@ -17,6 +17,8 @@ export const PERSONAL_KEYS: readonly (string | RegExp)[] = [
   /^iot-os\.alert-bell\.chimed\./,
   // dashboards/DashboardWorkspace.tsx: how each dashboard panel shows Status.
   "iot-dashboard-status-display",
+  // pwa/push.ts: the push device this browser registered, and for whom.
+  "iot-os.push-device",
 ]
 
 /** Kept on sign-out: display choices for whoever uses this browser next. */

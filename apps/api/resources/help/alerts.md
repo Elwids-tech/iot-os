@@ -23,6 +23,7 @@
     "condition",
     "event log",
     "email preferences",
+    "my notifications",
     "notification",
     "bell",
     "sound",
@@ -39,8 +40,8 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 4,
-  "summary": "**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. It lists automation alerts and the offline alerts the platform raises by itself. Its Event log and Email preferences tabs replace the notification center.",
+  "revision": 5,
+  "summary": "**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. It lists automation alerts and the offline alerts the platform raises by itself. Its Event log tab and **My notifications** replace the notification center.",
   "questions": [
     "Does acknowledging an alert clear it?",
     "How do I assign an alert to a colleague?",
@@ -52,10 +53,10 @@
 }
 ---
 ## Purpose
-**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. It lists alerts raised by automations and **offline alerts**, which the platform raises by itself when a device or gateway stops reporting, with no automation to build. The **Event log** tab lists workflow, offline, service monitoring, and host watchdog events, and **Email preferences** controls which of them reach your inbox.
+**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. It lists alerts raised by automations and **offline alerts**, which the platform raises by itself when a device or gateway stops reporting, with no automation to build. The **Event log** tab lists workflow, offline, service monitoring, and host watchdog events, and **My notifications** (in your user menu) controls which of them reach your inbox and your phone.
 
 ## Before you start
-Viewing requires device viewing permission. Response actions require their respective device management capabilities. Email preferences are personal and apply across your organizations.
+Viewing requires device viewing permission. Response actions require their respective device management capabilities. My notifications are personal and apply across your organizations.
 
 ## Steps
 1. Open **Alerts**. It shows active alerts first; choose **Cleared** or **All** for history, and filter by kind (**Automation**, **Device offline**, **Gateway offline**), acknowledgment, device, or workflow.
@@ -83,11 +84,11 @@ Offline alerts send nothing yet: no email and no bell notification. They appear 
 Acknowledgment records that someone saw the alert; assignment records responsibility. Neither automatically clears its underlying condition. Acknowledging in bulk skips alerts that are already acknowledged.
 
 ## Troubleshooting
-If an alert remains active after acknowledgment, inspect the latest condition evidence. Notification delivery is separate from the alert record. Check **Email preferences** and the workflow’s notification settings when recipients do not receive an update.
+If an alert remains active after acknowledgment, inspect the latest condition evidence. Notification delivery is separate from the alert record. Check **My notifications** and the workflow’s notification settings when recipients do not receive an update.
 
 Offline alerts are not sent to anyone yet, so check this page or the device list for them. Offline alerts watch the device as a whole: one value going quiet while the device keeps reporting, or an automation action on silence, needs an automation’s **No data** condition, which is not available yet. An automation’s freshness setting is separate from Offline after; see [the conditions guide](/help/automation-conditions).
 
 The bell lists only alerts of automations that name you as a recipient. A new alert plays a short chime while the portal is open, but only after you have clicked or typed in the page once, and only when **Sound for new alerts in this browser** is on in the bell. A tab in the background checks about once a minute, so its chime can be late.
 
 ## Related guides
-[Read the related guide](/help/alert-notifications)
+[Configure notification recipients](/help/alert-notifications) · [Get alerts on your phone](/help/phone-app)

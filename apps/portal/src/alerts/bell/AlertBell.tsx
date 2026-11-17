@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { BellIcon } from "lucide-react";
+import { BellIcon, BellRingIcon } from "lucide-react";
 import type { AlertNotificationPage, AlertNotificationReadInput } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { EmptyState } from "@iot-os/ui/components/empty-state";
@@ -9,6 +9,8 @@ import { Label } from "@iot-os/ui/components/label";
 import { NotificationBell, type NotificationBellItem } from "@iot-os/ui/components/notification-bell";
 import { Switch } from "@iot-os/ui/components/switch";
 import { api } from "../../lib/api";
+import { support as pushSupport } from "../../pwa/push-support";
+import { usePushSettings, useThisDevice, useTurnOnPush } from "../../pwa/usePush";
 import { useAlertBell } from "./AlertBellProvider";
 import { alertBellKeys, notificationNames } from "./model";
 
@@ -21,6 +23,11 @@ export function AlertBell() {
   const [open, setOpen] = useState(false);
   const cache = useQueryClient();
   const org = bell?.org ?? "";
+  // Push on this browser (spec 033, FR-017): offered here until this browser has a device.
+  const user = bell?.userId;
+  const push = usePushSettings(Boolean(bell) && open);
+  const here = useThisDevice(user);
+  const turnOn = useTurnOnPush(user);
   const list = useInfiniteQuery({
     queryKey: alertBellKeys.list(org),
     queryFn: ({ pageParam, signal }) => api.alertNotifications(org, pageParam, signal),
@@ -63,6 +70,11 @@ export function AlertBell() {
   }));
   const newest = notifications[0];
   const unread = bell.summary?.unread;
+  const publicKey = push.data?.available ? push.data.public_key : null;
+  const registered = Boolean(here && push.data?.devices.some((device) => device.uuid === here));
+  const support = pushSupport();
+  // A browser that already said no is sent to My notifications, which explains how to allow it.
+  const offerPush = Boolean(publicKey) && !registered;
 
   return (
     <NotificationBell
@@ -114,9 +126,26 @@ export function AlertBell() {
         />
       }
       footer={
-        <Link to={`/organizations/${org}/alerts`} onClick={() => setOpen(false)} className="text-primary underline-offset-4 hover:underline">
-          All alerts
-        </Link>
+        <>
+          <Link to={`/organizations/${org}/alerts`} onClick={() => setOpen(false)} className="text-primary underline-offset-4 hover:underline">
+            All alerts
+          </Link>
+          {offerPush &&
+            (support === "supported" ? (
+              <Button variant="outline" size="xs" disabled={turnOn.pending} onClick={() => publicKey && turnOn.run(publicKey)}>
+                <BellRingIcon data-icon="inline-start" />
+                {turnOn.pending ? "Turning on…" : "Turn on push on this device"}
+              </Button>
+            ) : (
+              <Link
+                to={`/organizations/${org}/settings/my-notifications`}
+                onClick={() => setOpen(false)}
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Get alerts on your phone
+              </Link>
+            ))}
+        </>
       }
     />
   );

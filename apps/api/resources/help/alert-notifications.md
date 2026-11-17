@@ -21,7 +21,7 @@
     "devices.view",
     "devices.manage"
   ],
-  "revision": 4,
+  "revision": 5,
   "summary": "Notification settings control who receives supported workflow/alert updates in your organization.",
   "questions": [
     "How do I choose notification recipients?",
@@ -48,7 +48,7 @@ The configured recipients are used for subsequent eligible updates. Changing rec
 The panel above the workflows shows this organization's alerts this month and what is left of the billing account's alert allowance; SMS appears too where the platform can send it. An alert counts once, however many people or channels it reaches, and clears do not count. Alerts past the allowance still fire and notify, counted as overage. SMS stops once its allowance is used up. **Settings → Usage** shows the other allowances.
 
 ## Troubleshooting
-An alert existing does not prove an email was delivered. Check enabled settings, selected recipients, and recorded delivery errors. Ask the administrator when mail delivery configuration needs attention.
+An alert existing does not prove an email or push was delivered. Check enabled settings, selected recipients, and the delivery list on the alert, which shows each email and push with its channel, the devices it reached, and any error. Ask the administrator when mail delivery configuration needs attention. Each recipient chooses for themselves whether alerts also reach their phone; see [Get alerts on your phone](/help/phone-app).
 
 ## Related guides
-[Read the related guide](/help/alerts)
+[Review and respond to alerts](/help/alerts) · [Get alerts on your phone](/help/phone-app)

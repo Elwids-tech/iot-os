@@ -114,7 +114,7 @@ test("the user menu offers Billing accounts only to owners", async ({ page }) =>
   const { errors } = await setup(page, { owner: false })
   await page.goto(`/organizations/${shop.uuid}/home`)
   await userMenu(page).click()
-  await expect(page.getByRole("menuitem", { name: "Email preferences" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "My notifications" })).toBeVisible()
   await expect(page.getByRole("menuitem", { name: "Billing accounts" })).toHaveCount(0)
 
   await page.unrouteAll({ behavior: "ignoreErrors" })

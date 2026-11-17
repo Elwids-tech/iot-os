@@ -30,6 +30,7 @@ const personal = {
   "iot-os:last-dashboard:7:18b842d4-dbe9-44b7-a82f-8409bf31401a": "/organizations/x/dashboards/y",
   "iot-os.alert-bell.chimed.7": JSON.stringify({ id: 41, tab: "a" }),
   "iot-dashboard-status-display": JSON.stringify({ panel: "compact" }),
+  "iot-os.push-device": JSON.stringify({ user: 7, uuid: "d0000000-0000-4000-8000-000000000001", endpoint: "https://push.example.com/send/1" }),
 }
 const perBrowser = {
   "iot-os.alert-bell.sound": "off",

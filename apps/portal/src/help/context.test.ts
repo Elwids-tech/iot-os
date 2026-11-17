@@ -51,7 +51,8 @@ describe("Help context", () => {
     expect(
       helpContextForPath("/organizations/private-org/settings/notifications/private-workflow"),
     ).toBe("alerts.notifications.workflow");
-    expect(helpContextForPath("/organizations/private-org/settings/email")).toBe("alerts.preferences");
+    expect(helpContextForPath("/organizations/private-org/settings/my-notifications")).toBe("settings.my-notifications");
+    expect(helpContextForPath("/organizations/private-org/settings/email")).toBe("settings.my-notifications");
     expect(helpContextForPath("/organizations/private-org/settings/usage")).toBe("billing.usage");
   });
   it("uses section overviews for unsupported tabs and getting started outside a workspace", () => {

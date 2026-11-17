@@ -75,6 +75,8 @@ const domains = {
   delivery: {
     sent: { tone: "good", label: "Sent" },
     delivered: { tone: "good", label: "Delivered" },
+    /** Push (spec 033): carried by a burst summary instead of its own notification. */
+    summarised: { tone: "muted", label: "In summary" },
   },
   /** Support tickets (spec 015): open work is info, waiting on the reporter is a warning. */
   ticket: {

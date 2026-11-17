@@ -730,7 +730,9 @@ Things that have cost time before. Add to this list when something surprises you
   (`vite preview --port 4183 --strictPort`) and run with
   `STUDIO_BASE_URL=http://127.0.0.1:4183`. Use a build, as CI does, not the Vite dev
   server: dev builds print ECharts warnings that the dashboard and adapter specs count
-  as page errors. Leave out `studio.spec.ts`, which needs a live API.
+  as page errors, and URL mocks such as `**/assistant/**` and `**/dashboards/**` also
+  answer the dev server's `/src/assistant/…` and `/src/dashboards/…` modules with JSON,
+  so lazy pages fail to load. Leave out `studio.spec.ts`, which needs a live API.
 - **Day headings against the real clock fail just after midnight.** The admin
   activity spec dated its entries 4 to 90 minutes before `Date.now()` and expected
   "Today", so a release build that reached it at 00:02 UTC failed all three tries (the
@@ -1034,6 +1036,23 @@ The portal is a progressive web app (spec 033,
   `apps/portal/src/pwa/personal-state.ts` removes the `localStorage` keys listed as
   personal and keeps the per-browser ones (theme, skin, bell sound, table layout). A
   new key goes in one of its two lists.
+- **A service worker can't register a rotated push subscription.** Sanctum's SPA
+  routes need the `XSRF-TOKEN` cookie echoed as a header, which a worker can't read,
+  so `pushsubscriptionchange` in `src/sw.ts` only subscribes again. The page notices
+  the new endpoint at its next start (`sync()` in `src/pwa/push.ts`) and registers it.
+- **`navigator.serviceWorker.ready` never settles without a worker.** It waits for one
+  forever: in `vite dev` (the worker is built only for production), in Playwright's
+  default config (`serviceWorkers: "block"`) and in browsers that refuse it. Push
+  waits on it only while turning push on, with a timeout; sync and sign-out use
+  `getRegistration()`, so signing out never waits. Mocked specs stub both on
+  `ServiceWorkerContainer.prototype` (`e2e/push-settings.spec.ts`).
+- **Notification permission is asked from the click itself.** Safari grants
+  `Notification.requestPermission()` only during a user gesture, so `turnOn()` calls it
+  before any `await`, and its callers run it straight from `onClick` rather than
+  through a mutation, whose `mutationFn` starts a tick later.
+- **React runs effects twice in development.** A once-per-start side effect (the push
+  sync) keeps its own guard in module state instead of relying on the effect running
+  once; a `cancelled` flag in the cleanup would also swallow the result.
 
 ## Docs site
 
