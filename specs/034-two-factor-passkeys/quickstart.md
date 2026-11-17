@@ -30,8 +30,10 @@ it is reported done (constitution IX). Routes and payloads are in
    - **Expect**: eight recovery codes appear once, and an email reaches Mailpit.
    - **Expect**: an activity entry `person.two_step_enabled` is visible in the admin
      app's activity timeline for that person.
-2. Sign in on a second browser first, then turn two-step on. The second browser is
-   signed out on its next request.
+2. Sign in on a second browser first, with **Keep me signed in**, then turn two-step
+   on. The second browser is signed out on its next request. (The dev stack keeps
+   sessions in files, so a second browser without a kept sign-in stays signed in
+   there; the release's database sessions end too. See the local stack gotchas.)
 3. Sign out and sign in again. The password step answers `202`, and the code step
    appears.
    - A wrong code shows the attempts left.

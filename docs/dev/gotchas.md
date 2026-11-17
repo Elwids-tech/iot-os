@@ -335,6 +335,13 @@ Things that have cost time before. Add to this list when something surprises you
   shell's variables over `--env-file`, so an `OPENAI_API_KEY` exported in your
   profile silently replaces the one in `.env` on rebuild. Compare env hashes first and
   run compose with `env -u OPENAI_API_KEY` when they differ.
+- **The dev stack keeps sessions in files, so "sign out everywhere" is partial.** The
+  `api` service runs `SESSION_DRIVER=file` (`compose.app.yml`); the release uses
+  `database`. Ending a person's other sign-ins (password reset, turning two-step on
+  or off, new recovery codes, a two-step reset) deletes their `sessions` rows, which
+  only exist with the database driver. On the dev stack those changes end kept
+  sign-ins but leave a plain session in another browser signed in. Check "the other
+  browser is signed out" with a kept sign-in, or in a release-profile stack.
 - **A runtime built from an older branch silently drops newer runtime work.** A
   feature branch cut before a runtime change merged still builds and runs, but without
   it: after one rebuild the runtime stored readings and counted none, the usage pages

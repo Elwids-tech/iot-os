@@ -7904,7 +7904,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_131",
+        "operationId": "domain.devices.retention.show_138",
         "tags": [
           "Retention"
         ],
@@ -7953,7 +7953,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_132",
+        "operationId": "domain.devices.retention.update_139",
         "tags": [
           "Retention"
         ],
@@ -8291,7 +8291,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_129",
+        "operationId": "domain.devices.retention.show_136",
         "tags": [
           "Retention"
         ],
@@ -8323,7 +8323,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_130",
+        "operationId": "domain.devices.retention.update_137",
         "tags": [
           "Retention"
         ],
@@ -10076,6 +10076,63 @@
         "x-audience": "account"
       }
     },
+    "/v1/auth/confirm-password": {
+      "post": {
+        "operationId": "v1.auth.confirm-password",
+        "tags": [
+          "Confirmation"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Confirms the signed-in person's password (spec 034). Security changes answer `423`\nuntil this has been done in the last 15 minutes."
+      }
+    },
     "/v1/auth/forgot-password": {
       "post": {
         "operationId": "v1.auth.forgot-password",
@@ -10135,6 +10192,7 @@
     "/v1/auth/login": {
       "post": {
         "operationId": "v1.auth.login",
+        "summary": "The password step (spec 034). For a person with two-step on, a right password only\nstarts a pending sign-in in the session and answers `202`; the session starts at\n`POST auth/two-step`. Everyone else is signed in here, as before",
         "tags": [
           "Session"
         ],
@@ -10151,6 +10209,16 @@
         "responses": {
           "200": {
             "description": "`AuthenticatedUserResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Not described yet: this operation is on contracts/openapi/pending-schemas.json, so only its status codes are checked."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The password was right and a second step is due (spec 034): a code from the person's authenticator app or a recovery code. No session exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10185,7 +10253,7 @@
             "name": "login"
           }
         ],
-        "description": "Signs in on the first-party session. With `remember: true` (Keep me signed in,\nspec 033) it also starts a kept sign-in for this browser and sets the `iot_kept`\ncookie: HttpOnly, on the session's domain, Secure and SameSite as the session\ncookie, for a fixed 30 days that use never extends. While the kept sign-in is live,\na request from the portal or admin app that has lost its session signs the same\nperson back in without a password. Signing out on that browser or resetting the\npassword ends it. A missing or `false` `remember` behaves as before, and a new\nsign-in ends the kept sign-in the browser held.",
+        "description": "Signs in on the first-party session. With `remember: true` (Keep me signed in,\nspec 033) it also starts a kept sign-in for this browser and sets the `iot_kept`\ncookie: HttpOnly, on the session's domain, Secure and SameSite as the session\ncookie, for a fixed 30 days that use never extends. While the kept sign-in is live,\na request from the portal or admin app that has lost its session signs the same\nperson back in without a password. Signing out on that browser or resetting the\npassword ends it. A missing or `false` `remember` behaves as before, and a new\nsign-in ends the kept sign-in the browser held.\n\nFor a person with two-step sign-in on (spec 034), a right password answers `202`\nand only starts a pending sign-in, which lasts 5 minutes. The **Keep me signed\nin** choice is kept with it and applied when the second step completes.",
         "x-schema-status": "pending"
       }
     },
@@ -10272,6 +10340,68 @@
         ],
         "description": "Sets the new password, signs the person out everywhere, revokes their agent\nconnections and ends every kept sign-in they hold.",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/auth/two-step": {
+      "post": {
+        "operationId": "v1.auth.two-step",
+        "tags": [
+          "TwoStepChallenge"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepChallengeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoStepSignedIn"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "description": "A wrong code, invalid input, or no pending sign-in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoStepRefused"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 5,
+            "per": "minute",
+            "key": "email",
+            "name": "login"
+          },
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "ip",
+            "name": "login"
+          }
+        ],
+        "description": "The second step of sign-in (spec 034). Send exactly one of `code` (six digits from\nthe authenticator app) or `recovery_code`. A valid one starts the session, and the\nkept sign-in when **Keep me signed in** was ticked at the password step. A code\nthat already signed the person in is refused for the rest of its window, and a\nrecovery code works once. Five wrong codes, or 5 minutes, end the pending sign-in.\nAttempts count toward the same per-account and per-address limit as passwords."
       }
     },
     "/v1/billing-accounts": {
@@ -11386,6 +11516,219 @@
           }
         ],
         "x-audience": "account"
+      }
+    },
+    "/v1/me/security": {
+      "get": {
+        "operationId": "v1.me.security",
+        "tags": [
+          "Security"
+        ],
+        "responses": {
+          "200": {
+            "description": "The person's security settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SecuritySettings"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "The signed-in person's sign-in security (spec 034): whether two-step is on, how\nmany recovery codes remain, and whether two-step is required for them."
+      }
+    },
+    "/v1/me/two-step": {
+      "post": {
+        "operationId": "v1.me.two-step.store",
+        "summary": "Start (or restart) setup: a new secret replaces any unconfirmed one (FR-002)",
+        "tags": [
+          "TwoStep"
+        ],
+        "responses": {
+          "200": {
+            "description": "The setup secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoStepSetup"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "$ref": "#/components/responses/TwoStepConflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Starts two-step setup, or restarts it with a new secret while it is unconfirmed.\nNeeds a recently confirmed password."
+      },
+      "delete": {
+        "operationId": "v1.me.two-step.destroy",
+        "tags": [
+          "TwoStep"
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Turns two-step off, or discards an unconfirmed setup. Turning it off ends every\nother session and kept sign-in of the person. Needs a recently confirmed password."
+      }
+    },
+    "/v1/me/two-step/confirm": {
+      "post": {
+        "operationId": "v1.me.two-step.confirm",
+        "summary": "Confirm setup with a code. Two-step is on from here, and every other sign-in of the\nperson ends (FR-013)",
+        "tags": [
+          "TwoStep"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Two-step is on.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "$ref": "#/components/responses/TwoStepConflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Confirms setup with a code from the authenticator app. Two-step is on from here:\nthe response holds the recovery codes, shown only this once, and every other\nsession and kept sign-in of the person ends."
+      }
+    },
+    "/v1/me/two-step/recovery-codes": {
+      "post": {
+        "operationId": "v1.me.two-step.recovery-codes",
+        "tags": [
+          "TwoStep"
+        ],
+        "responses": {
+          "200": {
+            "description": "The new recovery codes, shown only this once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "$ref": "#/components/responses/TwoStepConflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Replaces the recovery codes. Every earlier code stops working, and every other\nsession and kept sign-in of the person ends. Needs a recently confirmed password."
       }
     },
     "/v1/notifications/events": {
@@ -31405,7 +31748,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_175",
+        "operationId": "domain.automation.dag.settings_182",
         "tags": [
           "Dag"
         ],
@@ -31480,7 +31823,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_176",
+        "operationId": "domain.automation.dag.settings_183",
         "tags": [
           "Dag"
         ],
@@ -32887,7 +33230,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_189",
+        "operationId": "domain.automation.scenario.save_196",
         "tags": [
           "Scenario"
         ],
@@ -33003,7 +33346,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_190",
+        "operationId": "domain.automation.scenario.save_197",
         "tags": [
           "Scenario"
         ],
@@ -33548,7 +33891,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_181",
+        "operationId": "domain.automation.dag.timeline_188",
         "tags": [
           "Dag"
         ],
@@ -33619,7 +33962,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_182",
+        "operationId": "domain.automation.dag.timeline_189",
         "tags": [
           "Dag"
         ],
@@ -33978,6 +34321,16 @@
           }
         }
       },
+      "PasswordConfirmationRequired": {
+        "description": "The password was not confirmed in the last 15 minutes. Confirm it with `POST /v1/auth/confirm-password` and retry.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorMessage"
+            }
+          }
+        }
+      },
       "RangeTimeout": {
         "description": "A range read took longer than the runtime's limit. Choose a shorter range.",
         "content": {
@@ -34048,6 +34401,16 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/ErrorMessage"
+            }
+          }
+        }
+      },
+      "TwoStepConflict": {
+        "description": "Two-step sign-in is already on (`two_step_already_on`), or is off where it must be on (`two_step_off`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
             }
           }
         }
@@ -35577,6 +35940,75 @@
         ],
         "title": "AssistantSettingsResource"
       },
+      "AuthenticatedUser": {
+        "type": "object",
+        "description": "The signed-in person, as `GET /v1/me` returns them.",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "email_verified_at",
+          "is_super_admin",
+          "capabilities",
+          "organizations"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "email_verified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "is_super_admin": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "type": "object",
+            "description": "What the person may open across the platform.",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "uuid",
+                "name",
+                "slug"
+              ],
+              "properties": {
+                "uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "capabilities": {
+                  "type": "object",
+                  "description": "What the person may do in this organization.",
+                  "additionalProperties": {}
+                }
+              }
+            }
+          }
+        }
+      },
       "AutomationTriggered": {
         "type": "object",
         "required": [
@@ -36328,6 +36760,22 @@
           "next_cursor"
         ],
         "title": "BulkOnboardingResource"
+      },
+      "CodedError": {
+        "type": "object",
+        "description": "An error with a stable code for clients.",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
       },
       "CompactPage": {
         "type": "object",
@@ -41163,6 +41611,24 @@
         ],
         "title": "RecordPaymentRequest"
       },
+      "RecoveryCodes": {
+        "type": "object",
+        "description": "Eight one-time recovery codes. Shown only in this response.",
+        "additionalProperties": false,
+        "required": [
+          "recovery_codes"
+        ],
+        "properties": {
+          "recovery_codes": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ReorderProfileParametersRequest": {
         "type": "object",
         "properties": {
@@ -41404,6 +41870,80 @@
           "name"
         ],
         "title": "RetentionOrganizationResource"
+      },
+      "SecuritySettings": {
+        "type": "object",
+        "description": "The person's sign-in security (spec 034). Never holds a secret or a recovery code.",
+        "additionalProperties": false,
+        "required": [
+          "two_step"
+        ],
+        "properties": {
+          "two_step": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "enabled",
+              "confirmed_at",
+              "recovery_codes_remaining",
+              "required",
+              "required_by",
+              "satisfied"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "confirmed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "recovery_codes_remaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Whether the person must use two-step sign-in."
+              },
+              "required_by": {
+                "type": "array",
+                "description": "Why two-step is required for the person.",
+                "items": {
+                  "oneOf": [
+                    {
+                      "const": "platform"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "organization",
+                        "name"
+                      ],
+                      "properties": {
+                        "organization": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "satisfied": {
+                "type": "boolean",
+                "description": "Whether the person has a second step set up."
+              }
+            }
+          }
+        }
       },
       "SetBillingAccountPlanRequest": {
         "type": "object",
@@ -43264,6 +43804,123 @@
           "ends_at"
         ],
         "title": "TrialRequest"
+      },
+      "TwoStepChallengeRequest": {
+        "type": "object",
+        "description": "The second step of sign-in (spec 034): exactly one of a six-digit code from the\nauthenticator app or an unused recovery code.",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recovery_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
+        },
+        "title": "TwoStepChallengeRequest"
+      },
+      "TwoStepRefused": {
+        "type": "object",
+        "description": "A wrong code (`errors.code` or `errors.recovery_code`, with `attempts_left`), or no pending sign-in to finish (`errors.pending`: start again with the password).",
+        "required": [
+          "message",
+          "errors"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "attempts_left": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "TwoStepRequired": {
+        "type": "object",
+        "description": "The password was right and a second step is due (spec 034). No session exists yet; finish with `POST /v1/auth/two-step` within `expires_in` seconds.",
+        "additionalProperties": false,
+        "required": [
+          "two_step_required",
+          "expires_in",
+          "methods"
+        ],
+        "properties": {
+          "two_step_required": {
+            "const": true
+          },
+          "expires_in": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "methods": {
+            "type": "array",
+            "description": "How the person may finish.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "code",
+                "recovery_code",
+                "passkey"
+              ]
+            }
+          }
+        }
+      },
+      "TwoStepSetup": {
+        "type": "object",
+        "description": "A new setup secret, shown to add the account to an authenticator app. Two-step is not on until `POST /v1/me/two-step/confirm` accepts a code from it.",
+        "additionalProperties": false,
+        "required": [
+          "qr_svg",
+          "setup_key",
+          "otpauth_url"
+        ],
+        "properties": {
+          "qr_svg": {
+            "type": "string",
+            "description": "The QR code as SVG markup. Show it as an image, never as HTML."
+          },
+          "setup_key": {
+            "type": "string",
+            "description": "The secret in groups of four, to type into the app."
+          },
+          "otpauth_url": {
+            "type": "string"
+          }
+        }
+      },
+      "TwoStepSignedIn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          },
+          "recovery_codes_remaining": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Present when a recovery code was used; how many remain."
+          }
+        }
       },
       "UpdateAssistantSettingsRequest": {
         "type": "object",

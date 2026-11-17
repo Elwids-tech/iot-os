@@ -55,6 +55,7 @@ import type {
   WaitingInvoice,
 } from "./billing"
 import { connection } from "./connection"
+import type { SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
@@ -71,6 +72,7 @@ export * from "./agents"
 export * from "./support"
 export * from "./billing"
 export * from "./activity"
+export type * from "./security"
 
 export type Organization = {
   uuid: string
@@ -538,6 +540,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The password was right and a second step is due (spec 034): finish with
+ * `twoStepChallenge` within `expiresIn` seconds. No session exists yet.
+ */
+export class TwoStepRequiredError extends ApiError {
+  constructor(
+    public readonly expiresIn: number,
+    public readonly methods: TwoStepMethod[],
+  ) {
+    super(202, { two_step_required: true, expires_in: expiresIn, methods })
+  }
+}
+
+/**
+ * A security change needs the password confirmed again (spec 034, `423`): confirm it with
+ * `confirmPassword` and retry the change.
+ */
+export class ConfirmationRequiredError extends ApiError {}
+
+/** A wrong code, with how many tries the pending sign-in has left (spec 034). */
+export type TwoStepRefusal = { message: string; errors: Record<string, string[]>; attempts_left?: number }
+
 type ApiResponse<T> = {
   data: T
 }
@@ -659,13 +683,65 @@ export class ApiClient {
     })
   }
 
+  /**
+   * Signs in with a password. Throws {@link TwoStepRequiredError} when the person has
+   * two-step sign-in on (spec 034): the session starts at `twoStepChallenge`.
+   */
   async login(credentials: LoginCredentials): Promise<AuthenticatedUser> {
     await this.csrf()
 
-    return this.request<ApiResponse<AuthenticatedUser>>("/api/v1/auth/login", {
+    const response = await this.request<ApiResponse<AuthenticatedUser> | { two_step_required: true; expires_in: number; methods: TwoStepMethod[] }>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify(credentials),
-    }).then((response) => response.data)
+    })
+    if ("two_step_required" in response) throw new TwoStepRequiredError(response.expires_in, response.methods)
+
+    return response.data
+  }
+
+  /**
+   * The second step of sign-in (spec 034). A wrong code rejects with an `ApiError` 422
+   * whose payload is a {@link TwoStepRefusal}; `errors.pending` means start again with
+   * the password. `recoveryCodesRemaining` is set when a recovery code was used.
+   */
+  async twoStepChallenge(answer: TwoStepAnswer): Promise<{ user: AuthenticatedUser; recoveryCodesRemaining: number | null }> {
+    const response = await this.request<ApiResponse<AuthenticatedUser> & { recovery_codes_remaining?: number }>("/api/v1/auth/two-step", {
+      method: "POST",
+      body: JSON.stringify("code" in answer ? { code: answer.code } : { recovery_code: answer.recoveryCode }),
+    })
+
+    return { user: response.data, recoveryCodesRemaining: response.recovery_codes_remaining ?? null }
+  }
+
+  /** Confirms the password before a security change (spec 034); lasts 15 minutes. */
+  async confirmPassword(password: string): Promise<void> {
+    await this.request("/api/v1/auth/confirm-password", { method: "POST", body: JSON.stringify({ password }) })
+  }
+
+  security(): Promise<SecuritySettings> {
+    return this.data<SecuritySettings>("/api/v1/me/security")
+  }
+
+  /** Starts (or restarts) two-step setup. Needs a confirmed password. */
+  startTwoStep(): Promise<TwoStepSetup> {
+    return this.request<TwoStepSetup>("/api/v1/me/two-step", { method: "POST" })
+  }
+
+  /** Turns two-step on with a code from the app; the recovery codes are shown only now. */
+  confirmTwoStep(code: string): Promise<string[]> {
+    return this.request<{ recovery_codes: string[] }>("/api/v1/me/two-step/confirm", { method: "POST", body: JSON.stringify({ code }) })
+      .then((response) => response.recovery_codes)
+  }
+
+  /** Replaces the recovery codes; every earlier code stops working. Needs a confirmed password. */
+  regenerateRecoveryCodes(): Promise<string[]> {
+    return this.request<{ recovery_codes: string[] }>("/api/v1/me/two-step/recovery-codes", { method: "POST" })
+      .then((response) => response.recovery_codes)
+  }
+
+  /** Turns two-step off. Needs a confirmed password. */
+  async disableTwoStep(): Promise<void> {
+    await this.request("/api/v1/me/two-step", { method: "DELETE" })
   }
 
   async requestPasswordReset(email: string): Promise<{ message: string }> {
@@ -2969,6 +3045,7 @@ export class ApiClient {
         typeof window !== "undefined"
       )
         window.dispatchEvent(new Event("iot-session-expired"))
+      if (response.status === 423) throw new ConfirmationRequiredError(response.status, payload)
       throw new ApiError(response.status, payload)
     }
 

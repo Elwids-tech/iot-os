@@ -7,6 +7,7 @@ namespace App\Domain\Authentication\Http\Controllers;
 use App\Domain\Authentication\Http\Requests\LoginRequest;
 use App\Domain\Authentication\Http\Resources\AuthenticatedUserResource;
 use App\Domain\Authentication\Models\KeptSignIn;
+use App\Domain\Authentication\Services\CompleteSignIn;
 use App\Domain\Authentication\Services\KeptSignInCookie;
 use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Shared\Models\User;
@@ -18,34 +19,48 @@ use Illuminate\Validation\ValidationException;
 
 final class SessionController
 {
-    public function __construct(private readonly KeptSignInCookie $kept) {}
+    public function __construct(
+        private readonly KeptSignInCookie $kept,
+        private readonly CompleteSignIn $complete,
+    ) {}
 
-    public function store(LoginRequest $request): AuthenticatedUserResource
+    /**
+     * The password step (spec 034). For a person with two-step on, a right password only
+     * starts a pending sign-in in the session and answers `202`; the session starts at
+     * `POST auth/two-step`. Everyone else is signed in here, as before.
+     */
+    public function store(LoginRequest $request): AuthenticatedUserResource|JsonResponse
     {
-        if (! Auth::guard('web')->attempt($request->safe()->only(['email', 'password']))) {
+        $credentials = $request->safe()->only(['email', 'password']);
+        $pending = null;
+
+        // The guard's timebox still covers the two-step case, so response timing does not
+        // tell who has two-step on. Its callback declines the login for those people.
+        $signedIn = Auth::guard('web')->attemptWhen($credentials, static function (User $user) use (&$pending): bool {
+            if ($user->hasEnabledTwoFactorAuthentication()) {
+                $pending = $user;
+
+                return false;
+            }
+
+            return true;
+        });
+
+        if ($pending instanceof User) {
+            return TwoStepChallengeController::begin($request, $pending, $request->boolean('remember'));
+        }
+
+        if (! $signedIn) {
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
         }
 
-        // A new sign-in replaces whatever this browser kept before.
-        $this->kept->record($request)?->end(KeptSignIn::SIGNED_OUT);
-        $request->session()->forget(KeptSignInCookie::SESSION_KEY);
-        $request->session()->regenerate();
-
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
-        if ($request->boolean('remember')) {
-            [$record, $secret] = KeptSignIn::issue($user, $this->kept->label($request->userAgent()));
-            $request->session()->put(KeptSignInCookie::SESSION_KEY, $record->getKey());
-            Cookie::queue($this->kept->make($record, $secret));
-        } elseif ($this->kept->present($request)) {
-            Cookie::queue($this->kept->forget());
-        }
-
         return AuthenticatedUserResource::make(
-            $user->load('organizations'),
+            ($this->complete)($user, $request->boolean('remember'), $request)->load('organizations'),
         );
     }
 

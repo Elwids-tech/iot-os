@@ -75,6 +75,158 @@ components:
               required: [label]
               properties:
                 label: {type: string}
+    AuthenticatedUser:
+      type: object
+      description: The signed-in person, as `GET /v1/me` returns them.
+      required: [id, name, email, email_verified_at, is_super_admin, capabilities, organizations]
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        email: {type: string}
+        email_verified_at: {type: [string, 'null'], format: date-time}
+        is_super_admin: {type: boolean}
+        capabilities:
+          type: object
+          description: What the person may open across the platform.
+          additionalProperties: {type: boolean}
+        organizations:
+          type: array
+          items:
+            type: object
+            required: [uuid, name, slug]
+            properties:
+              uuid: {type: string, format: uuid}
+              name: {type: string}
+              slug: {type: string}
+              capabilities:
+                type: object
+                description: What the person may do in this organization.
+                additionalProperties: {}
+    TwoStepRequired:
+      type: object
+      description: >-
+        The password was right and a second step is due (spec 034). No session exists
+        yet; finish with `POST /v1/auth/two-step` within `expires_in` seconds.
+      additionalProperties: false
+      required: [two_step_required, expires_in, methods]
+      properties:
+        two_step_required: {const: true}
+        expires_in: {type: integer, minimum: 1}
+        methods:
+          type: array
+          description: How the person may finish.
+          items:
+            type: string
+            enum: [code, recovery_code, passkey]
+    TwoStepSignedIn:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuthenticatedUser'
+        recovery_codes_remaining:
+          type: integer
+          minimum: 0
+          description: Present when a recovery code was used; how many remain.
+    TwoStepRefused:
+      type: object
+      description: >-
+        A wrong code (`errors.code` or `errors.recovery_code`, with `attempts_left`), or
+        no pending sign-in to finish (`errors.pending`: start again with the password).
+      required: [message, errors]
+      properties:
+        message: {type: string}
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: {type: string}
+        attempts_left: {type: integer, minimum: 1}
+    SecuritySettings:
+      type: object
+      description: >-
+        The person's sign-in security (spec 034). Never holds a secret or a recovery
+        code.
+      additionalProperties: false
+      required: [two_step]
+      properties:
+        two_step:
+          type: object
+          additionalProperties: false
+          required: [enabled, confirmed_at, recovery_codes_remaining, required, required_by, satisfied]
+          properties:
+            enabled: {type: boolean}
+            confirmed_at: {type: [string, 'null'], format: date-time}
+            recovery_codes_remaining: {type: integer, minimum: 0}
+            required:
+              type: boolean
+              description: Whether the person must use two-step sign-in.
+            required_by:
+              type: array
+              description: Why two-step is required for the person.
+              items:
+                oneOf:
+                  - const: platform
+                  - type: object
+                    additionalProperties: false
+                    required: [organization, name]
+                    properties:
+                      organization: {type: string, format: uuid}
+                      name: {type: string}
+            satisfied:
+              type: boolean
+              description: Whether the person has a second step set up.
+    TwoStepSetup:
+      type: object
+      description: >-
+        A new setup secret, shown to add the account to an authenticator app. Two-step
+        is not on until `POST /v1/me/two-step/confirm` accepts a code from it.
+      additionalProperties: false
+      required: [qr_svg, setup_key, otpauth_url]
+      properties:
+        qr_svg:
+          type: string
+          description: The QR code as SVG markup. Show it as an image, never as HTML.
+        setup_key:
+          type: string
+          description: The secret in groups of four, to type into the app.
+        otpauth_url: {type: string}
+    RecoveryCodes:
+      type: object
+      description: Eight one-time recovery codes. Shown only in this response.
+      additionalProperties: false
+      required: [recovery_codes]
+      properties:
+        recovery_codes:
+          type: array
+          minItems: 8
+          maxItems: 8
+          items: {type: string}
+    CodedError:
+      type: object
+      description: An error with a stable code for clients.
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
+  responses:
+    PasswordConfirmationRequired:
+      description: >-
+        The password was not confirmed in the last 15 minutes. Confirm it with
+        `POST /v1/auth/confirm-password` and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    TwoStepConflict:
+      description: >-
+        Two-step sign-in is already on (`two_step_already_on`), or is off where it must
+        be on (`two_step_off`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
 operations:
   POST /v1/auth/login:
     description: |-
@@ -86,6 +238,19 @@ operations:
       person back in without a password. Signing out on that browser or resetting the
       password ends it. A missing or `false` `remember` behaves as before, and a new
       sign-in ends the kept sign-in the browser held.
+
+      For a person with two-step sign-in on (spec 034), a right password answers `202`
+      and only starts a pending sign-in, which lasts 5 minutes. The **Keep me signed
+      in** choice is kept with it and applied when the second step completes.
+    responses:
+      '202':
+        description: >-
+          The password was right and a second step is due (spec 034): a code from the
+          person's authenticator app or a recovery code. No session exists yet.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoStepRequired'
   POST /v1/auth/logout:
     description: |-
       Ends the session and this browser's kept sign-in, and forgets the `iot_kept`
@@ -94,6 +259,98 @@ operations:
     description: |-
       Sets the new password, signs the person out everywhere, revokes their agent
       connections and ends every kept sign-in they hold.
+  POST /v1/auth/two-step:
+    description: |-
+      The second step of sign-in (spec 034). Send exactly one of `code` (six digits from
+      the authenticator app) or `recovery_code`. A valid one starts the session, and the
+      kept sign-in when **Keep me signed in** was ticked at the password step. A code
+      that already signed the person in is refused for the rest of its window, and a
+      recovery code works once. Five wrong codes, or 5 minutes, end the pending sign-in.
+      Attempts count toward the same per-account and per-address limit as passwords.
+    responses:
+      '200':
+        description: Signed in.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoStepSignedIn'
+      '422':
+        description: A wrong code, invalid input, or no pending sign-in.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoStepRefused'
+  POST /v1/auth/confirm-password:
+    description: |-
+      Confirms the signed-in person's password (spec 034). Security changes answer `423`
+      until this has been done in the last 15 minutes.
+  GET /v1/me/security:
+    description: |-
+      The signed-in person's sign-in security (spec 034): whether two-step is on, how
+      many recovery codes remain, and whether two-step is required for them.
+    responses:
+      '200':
+        description: The person's security settings.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/SecuritySettings'
+  POST /v1/me/two-step:
+    description: |-
+      Starts two-step setup, or restarts it with a new secret while it is unconfirmed.
+      Needs a recently confirmed password.
+    responses:
+      '200':
+        description: The setup secret.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoStepSetup'
+      '409':
+        $ref: '#/components/responses/TwoStepConflict'
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
+  POST /v1/me/two-step/confirm:
+    description: |-
+      Confirms setup with a code from the authenticator app. Two-step is on from here:
+      the response holds the recovery codes, shown only this once, and every other
+      session and kept sign-in of the person ends.
+    responses:
+      '200':
+        description: Two-step is on.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryCodes'
+      '409':
+        $ref: '#/components/responses/TwoStepConflict'
+  POST /v1/me/two-step/recovery-codes:
+    description: |-
+      Replaces the recovery codes. Every earlier code stops working, and every other
+      session and kept sign-in of the person ends. Needs a recently confirmed password.
+    responses:
+      '200':
+        description: The new recovery codes, shown only this once.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryCodes'
+      '409':
+        $ref: '#/components/responses/TwoStepConflict'
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
+  DELETE /v1/me/two-step:
+    description: |-
+      Turns two-step off, or discards an unconfirmed setup. Turning it off ends every
+      other session and kept sign-in of the person. Needs a recently confirmed password.
+    responses:
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
   PUT /v1/notifications/preferences:
     responses:
       '403':

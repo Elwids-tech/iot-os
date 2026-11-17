@@ -54,6 +54,54 @@ stays signed in for 30 days from sign-in, however long it sits idle
 - `auth:prune-kept-sign-ins` runs daily at 03:55 UTC and deletes records that ended or
   expired more than 30 days ago.
 
+### Two-step sign-in
+
+A person can turn on two-step sign-in, with codes from an authenticator app and
+one-time recovery codes. A right password then only starts a pending sign-in; the
+session begins after a valid code
+([spec 034](../../specs/034-two-factor-passkeys/spec.md),
+[ADR-048](../adr/ADR-048-two-step-sign-in-and-passkeys.md)). Fortify supplies the
+actions and the code check; its routes are off, and the `Authentication` domain's
+routes call them.
+
+- **Setup.** `POST /api/v1/me/two-step` returns a QR code (SVG), the setup key and the
+  `otpauth://` URL. Starting again replaces an unconfirmed secret. Two-step takes
+  effect only at `POST /api/v1/me/two-step/confirm` with a valid code. That response
+  holds eight recovery codes, shown once.
+- **Storage.** The secret and the recovery codes are encrypted with `APP_KEY` in
+  `users.two_factor_secret` and `users.two_factor_recovery_codes`;
+  `two_factor_confirmed_at` marks it on. A used recovery code is removed, not replaced.
+- **Sign-in.** For a person with two-step on, `POST /api/v1/auth/login` answers
+  `202 {"two_step_required": true, "expires_in": 300, "methods": [...]}` and stores
+  `two_step.pending` in the session (who, **Keep me signed in**, expiry, wrong codes).
+  `POST /api/v1/auth/two-step` takes `code` or `recovery_code`:
+  - a valid one starts the session through `CompleteSignIn`, the same path as a
+    password-only sign-in, which also issues the kept sign-in;
+  - codes from the previous and next 30-second step are accepted, and a code that
+    signed the person in is refused for the rest of its window
+    (`PerUserTwoFactorProvider` keys the replay check by secret, not by code alone);
+  - five wrong codes, or 5 minutes, end the pending sign-in (`422`, `errors.pending`);
+  - code attempts count toward the `login` limiter's per-account and per-address keys,
+    so a password and four codes use up a minute's five tries.
+- **Changes need the password again.** `POST /api/v1/auth/confirm-password` confirms
+  it for 15 minutes (`auth.password_timeout`). Starting setup, new recovery codes and
+  turning two-step off answer `423` without it.
+- **Other sign-ins end.** Turning two-step on or off and new recovery codes end the
+  person's other database sessions, kept sign-ins (`two_step_changed`) and their push
+  devices. The browser making the change stays signed in (`EndSignIns::elsewhere`).
+- **A password reset** never turns two-step off; the next sign-in still asks for a
+  code.
+- **Notices.** Each change, and each sign-in with a recovery code, emails the person
+  (`SecurityChanged`, on the `alerts` queue) and writes a `person.*` entry to the
+  [activity log](activity-log.md) with no organization, the person as subject and no
+  secret.
+- `GET /api/v1/me/security` reports whether two-step is on, when it was confirmed, how
+  many recovery codes remain and whether it is required. It never returns a secret
+  or a code.
+
+The portal and admin screens arrive in the next pull request of spec 034; until then
+two-step can be turned on only through the API.
+
 ### Password recovery
 
 Both sign-in pages link to **Forgot password?**, hosted by the portal at

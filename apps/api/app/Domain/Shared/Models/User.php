@@ -13,12 +13,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Fortify\Events\RecoveryCodeReplaced;
+use Laravel\Fortify\Fortify;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'is_super_admin'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 /**
  * People sign in to the portal with a session (Sanctum, stateful). Their AI agents
  * hold Passport tokens, so the token trait is Passport's: the two packages cannot
@@ -27,7 +30,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements OAuthenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
 
     /**
      * Roles and permissions always resolve on the web guard. Agent requests authenticate
@@ -69,6 +72,40 @@ class User extends Authenticatable implements OAuthenticatable
     }
 
     /**
+     * A used recovery code is removed, not replaced (spec 034, research R2): the person
+     * is told how many remain and regenerates the set when they run low.
+     *
+     * @param  string  $code
+     */
+    public function replaceRecoveryCode($code): void
+    {
+        $remaining = array_values(array_filter(
+            $this->recoveryCodes(),
+            static fn (string $stored): bool => ! hash_equals($stored, (string) $code),
+        ));
+
+        $this->forceFill([
+            'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt((string) json_encode($remaining)),
+        ])->save();
+
+        RecoveryCodeReplaced::dispatch($this, $code);
+    }
+
+    public function remainingRecoveryCodes(): int
+    {
+        return $this->two_factor_recovery_codes === null ? 0 : count($this->recoveryCodes());
+    }
+
+    /**
+     * Whether the person has a second step set up (spec 034): confirmed authenticator
+     * codes. Passkeys join this with spec 034's passkeys pull request.
+     */
+    public function twoStepSatisfied(): bool
+    {
+        return $this->hasEnabledTwoFactorAuthentication();
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -77,6 +114,7 @@ class User extends Authenticatable implements OAuthenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_super_admin' => 'boolean',
+            'two_factor_confirmed_at' => 'datetime',
         ];
     }
 }
