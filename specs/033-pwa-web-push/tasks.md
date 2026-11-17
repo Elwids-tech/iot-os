@@ -282,15 +282,15 @@ delivery row, one attempt row per device, and a push reach Chrome.
 
 ### Setup for pull request 5
 
-- [ ] T058 [US2] Spike:
+- [x] T058 [US2] Spike:
   - `composer require laravel-notification-channels/webpush:^13.0` in `apps/api`;
   - read `vendor/laravel-notification-channels/webpush/src/WebPushChannel.php` and its events, and decide whether each subscription's outcome (status code, expired or not) reaches us;
   - record the answer and the chosen path (the channel, or the package's configured `Minishlink\WebPush\WebPush` with `MessageSentReport`) in `specs/033-pwa-web-push/research.md` R12.
-- [ ] T059 [US2] Configuration:
+- [x] T059 [US2] Configuration:
   - publish and edit `apps/api/config/webpush.php` so `vapid.public_key`, `vapid.private_key` and `vapid.subject` read `WEBPUSH_VAPID_PUBLIC_KEY`, `WEBPUSH_VAPID_PRIVATE_KEY` and `WEBPUSH_VAPID_SUBJECT`;
   - add the three keys, empty, to `apps/api/.env.example`, to the `&api-environment` anchor in `deploy/compose/compose.app.yml`, and to `x-api-env` in `deploy/release/compose.yml`;
   - add `apps/api/app/Domain/Notifications/Services/WebPush.php` with `enabled()`, true only when both halves are filled.
-- [ ] T060 [P] [US2] Release tooling in `tooling/release/manage.py`:
+- [x] T060 [P] [US2] Release tooling in `tooling/release/manage.py`:
   - `webpush_keys()` makes an EC P-256 pair with `openssl` through `subprocess`, as `passport_keys()` does, and encodes both halves base64url without padding (public: uncompressed 65-byte point; private: 32-byte scalar);
   - `init` writes the pair plus `WEBPUSH_VAPID_SUBJECT=mailto:` and the ACME email;
   - a `webpush-keys` command adds the pair only when both halves are missing, and refuses if exactly one is present;
@@ -302,7 +302,7 @@ delivery row, one attempt row per device, and a push reach Chrome.
 
 ### Data for pull request 5
 
-- [ ] T061 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000100_create_push_devices.php`:
+- [x] T061 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000100_create_push_devices.php`:
   - `id` bigint PK;
   - `uuid` uuid unique;
   - `user_id` bigint FK `users`, cascade on delete, indexed;
@@ -319,12 +319,12 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - `last_reached_at` timestamptz null;
   - `last_failed_at` timestamptz null;
   - `last_failure` varchar(255) null.
-- [ ] T062 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000200_add_push_preferences.php` on `notification_preferences`: `push_enabled` boolean default false, `push_levels` jsonb null, `push_revision` integer default 0
-- [ ] T063 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000300_create_push_organization_mutes.php`: `user_id` FK `users` cascade, `organization_id` FK `organizations` cascade, `created_at` timestamptz, primary key (`user_id`, `organization_id`)
-- [ ] T064 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000400_add_push_delivery_columns.php`:
+- [x] T062 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000200_add_push_preferences.php` on `notification_preferences`: `push_enabled` boolean default false, `push_levels` jsonb null, `push_revision` integer default 0
+- [x] T063 [P] [US5] Migration `apps/api/database/migrations/2026_11_21_000300_create_push_organization_mutes.php`: `user_id` FK `users` cascade, `organization_id` FK `organizations` cascade, `created_at` timestamptz, primary key (`user_id`, `organization_id`)
+- [x] T064 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000400_add_push_delivery_columns.php`:
   - `automation_alert_deliveries` gains `devices_total` and `devices_reached` smallint null;
   - `automation_alert_delivery_attempts` gains `device_label` varchar(60) null and `response_status` smallint null.
-- [ ] T065 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000500_create_push_summaries.php`:
+- [x] T065 [P] [US2] Migration `apps/api/database/migrations/2026_11_21_000500_create_push_summaries.php`:
   - `id` bigint PK;
   - `uuid` uuid unique;
   - `user_id` FK `users` cascade;
@@ -341,7 +341,7 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - timestamps;
   - unique (`user_id`, `organization_id`, `window_started_at`);
   - in the same migration, after the table: `automation_alert_deliveries.push_summary_id` bigint null, FK `push_summaries`, null on delete, indexed.
-- [ ] T066 [US2] Models:
+- [x] T066 [US2] Models:
   - `apps/api/app/Domain/Notifications/Models/PushDevice.php`: encrypted casts on `endpoint`, `public_key`, `auth_token` and `session_id`; all four in `$hidden`; `forEndpoint(string)` by SHA-256.
   - `apps/api/app/Domain/Notifications/Models/PushSummary.php`.
   - In `apps/api/app/Domain/Automation/Models/AlertDelivery.php`: `PUSH = 'push'` and `SUMMARISED = 'summarised'`.
@@ -350,24 +350,24 @@ delivery row, one attempt row per device, and a push reach Chrome.
 
 ### Services for pull request 5
 
-- [ ] T067 [US5] `apps/api/app/Domain/Notifications/Services/Preferences.php`:
+- [x] T067 [US5] `apps/api/app/Domain/Notifications/Services/Preferences.php`:
   - `push(User)` returns `enabled`, `levels` and `revision`;
   - `enablePushDefaults(User)` creates the row if missing, sets `push_enabled` true and, when `push_levels` is null, `{"critical":true,"warning":true,"info":true,"recovery":false}`;
   - `pushAllows(User, Organization, string $level)` is `push_enabled && push_levels[level] && no mute row`.
-- [ ] T068 [US2] `apps/api/app/Domain/Notifications/Services/PushSender.php` (on the path chosen in T058):
+- [x] T068 [US2] `apps/api/app/Domain/Notifications/Services/PushSender.php` (on the path chosen in T058):
   - `send(PushDevice, array $payload, array $headers): PushResult` with `outcome` one of `accepted`, `gone` (404, 410, or 403 for a key mismatch), `rejected` (other 4xx) or `transport_failed` (5xx, 429 or no response), plus `status`;
   - headers `TTL: 86400`, `Urgency` and `Topic` per [contracts/push-payload.md](contracts/push-payload.md);
   - stamps `last_reached_at` or `last_failed_at` and `last_failure`, and deletes the device on `gone`.
-- [ ] T069 [P] [US2] Payload:
+- [x] T069 [P] [US2] Payload:
   - `apps/api/app/Domain/Notifications/Services/AlertPushPayload.php` with `activated`, `cleared`, `summary` and `test` builders per [contracts/push-payload.md](contracts/push-payload.md);
   - names are cut at 120 characters, the body stays under 2 KB, and `url` is `/organizations/{org}/alerts/{alert}`, or the Alerts list with `condition=active&acknowledged=0` for a summary;
-  - add `contracts/push/alert-push.v1.schema.json`, the fixtures `contracts/push/fixtures/{activated,cleared,summary,test}.json`, and an entry in `contracts/README.md`.
-- [ ] T070 [US2] `apps/api/app/Domain/Automation/Services/AlertRecipientCheck.php`:
+  - add `contracts/push/v1/alert-push.v1.schema.json`, `alert-push.v1.fixture.json` (an activation) and `alert-push.v1.cases.json` (activated, cleared, summary, test, no device, and invalid cases), following the repository's contract layout, and an entry in `contracts/README.md`.
+- [x] T070 [US2] `apps/api/app/Domain/Automation/Services/AlertRecipientCheck.php`:
   - move the checks from `apps/api/app/Domain/Automation/Jobs/DeliverAlertEmail.php` lines 49 to 89 (generation fence, terminal status, workflow alert, access, preferences, subscription, execution, cleared, pending release, replaced execution) into it, returning a verdict (`send`, `cancel` with reason, or `release` with delay);
   - `DeliverAlertEmail` uses it with no behaviour change, and every existing email test passes unchanged;
   - add `forPush()`: email preferences are replaced by `Preferences::pushAllows` (level `warning` for activations, `recovery` for clears), and it cancels when the person has no device.
-- [ ] T071 [US2] `apps/api/app/Domain/Automation/Services/AlertProjector.php`: inside the `$delivery->wasRecentlyCreated` branch that writes the bell row, for a recipient with `push_enabled` and at least one device, `AlertDelivery::firstOrCreate([..., 'channel' => AlertDelivery::PUSH])`. When it is new, `DeliverAlertPush::dispatch($push->uuid)->onConnection('alerts')->onQueue('alerts')`, in the same transaction
-- [ ] T072 [US2] `apps/api/app/Domain/Automation/Jobs/DeliverAlertPush.php`:
+- [x] T071 [US2] `apps/api/app/Domain/Automation/Services/AlertProjector.php`: inside the `$delivery->wasRecentlyCreated` branch that writes the bell row, for a recipient with `push_enabled` and at least one device, `AlertDelivery::firstOrCreate([..., 'channel' => AlertDelivery::PUSH])`. When it is new, `DeliverAlertPush::dispatch($push->uuid)->onConnection('alerts')->onQueue('alerts')`, in the same transaction
+- [x] T072 [US2] `apps/api/app/Domain/Automation/Jobs/DeliverAlertPush.php`:
   - **Settings**: `$tries = 0`, `$timeout = 30`, `retryUntil` 24 h, backoff `[10, 30, 120, 600]` as email.
   - **Checks**: lock the delivery, then run `AlertRecipientCheck::forPush()`.
   - **Bursts**: apply the rule from T073.
@@ -375,17 +375,17 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - **Records**: write one `automation_alert_delivery_attempts` row per device with `device_label` and `response_status`, and set `devices_total`, `devices_reached`, `attempts` and `cycle_attempts`.
   - **Outcome**: `sent` with `sent_at` when any device accepted. When none accepted and some failed transiently, retry until `cycle_attempts` reaches 5, then `failed`. When every device is gone, `failed` with *No devices left*.
   - **`failed()`**: mirrors email.
-- [ ] T073 [US2] Bursts (FR-024) in `DeliverAlertPush` and `apps/api/app/Domain/Notifications/Jobs/DeliverPushSummary.php`:
+- [x] T073 [US2] Bursts (FR-024) in `DeliverAlertPush` and `apps/api/app/Domain/Notifications/Jobs/DeliverPushSummary.php`:
   - **Lock first**: for an activation, inside the job's transaction, lock the person's `notification_preferences` row (`lockForUpdate`), so one person's deliveries are decided one at a time.
   - **Join an open summary**: if a `push_summaries` row for this person and the alert's organization has status `pending` and `window_ends_at` > now, set this delivery to `summarised` with `push_summary_id` and stop.
   - **Or open one**: otherwise, count this person's push deliveries for that organization with status `sent` and `sent_at` in the last 60 s. At 3 or more, create a summary with `window_started_at` = now and `window_ends_at` = now + 60 s, set this delivery to `summarised` with its `push_summary_id`, and dispatch `DeliverPushSummary` delayed to `window_ends_at`.
   - **Or send**: otherwise send it on its own.
   - **The summary job**: locks the summary and rechecks membership, verification, `Device.view`, `push_enabled` and the organization switch. It sets `alert_count` to the number of deliveries linked by `push_summary_id`, and cancels when that is 0 or every linked alert has cleared. Otherwise it sends the `summary` payload, with outcome rules as T072 (`failed` once `cycle_attempts` reaches 5).
-- [ ] T074 [US5] `apps/api/app/Domain/Notifications/Http/Controllers/PushSettingsController.php` and routes in `apps/api/app/Domain/Notifications/routes.php`, per [contracts/push-api.md](contracts/push-api.md):
+- [x] T074 [US5] `apps/api/app/Domain/Notifications/Http/Controllers/PushSettingsController.php` and routes in `apps/api/app/Domain/Notifications/routes.php`, per [contracts/push-api.md](contracts/push-api.md):
   - `GET v1/notifications/push`: `available`, `public_key`, `enabled`, `levels`, `revision`, the person's organizations with device view and their `enabled`, and devices without secrets;
   - `PUT v1/notifications/push`: 409 when `revision` is stale; 422 unless `levels` has exactly the four boolean keys; increments `push_revision`;
   - `PUT v1/notifications/push/organizations/{organization}` with `{enabled}`: 404 unless a member with device view; idempotent mute insert or delete.
-- [ ] T075 [US2] `apps/api/app/Domain/Notifications/Http/Controllers/PushDeviceController.php` and routes, per [contracts/push-api.md](contracts/push-api.md):
+- [x] T075 [US2] `apps/api/app/Domain/Notifications/Http/Controllers/PushDeviceController.php` and routes, per [contracts/push-api.md](contracts/push-api.md):
   - **`store`**:
     - validation: `endpoint` `https` and at most 2048 characters; `keys.p256dh` and `keys.auth` required; `content_encoding` in `aes128gcm|aesgcm`; `label` at most 60;
     - 409 `push_unavailable` unless `WebPush::enabled()`;
@@ -397,20 +397,20 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - **`sync`**: `mine` refreshes the links and `last_synced_at`; `released` deletes the other person's device; otherwise `unknown`.
   - **`destroy`**: 404 unless the owner; ends the linked kept sign-in (`device_removed`), destroys the linked session through `app('session')->getHandler()->destroy()`, deletes the device, and returns 204.
   - **`test`**: `throttle:6,1` per user; sends the `test` payload synchronously; returns `accepted`, `gone` or `failed`.
-- [ ] T076 [US2] Sign-out and reset remove devices:
+- [x] T076 [US2] Sign-out and reset remove devices:
   - `SessionController::destroy` deletes the person's devices whose `session_id` is the current session or whose `kept_sign_in_id` is the session's record;
-  - `PasswordRecoveryController::reset` deletes all of the person's devices, except one whose `session_id` is the requesting session.
-- [ ] T077 [US2] `apps/api/app/Domain/Automation/Http/Controllers/AlertController.php`:
+  - `PasswordRecoveryController::reset` deletes all of the person's devices (the reset signs them out everywhere).
+- [x] T077 [US2] `apps/api/app/Domain/Automation/Http/Controllers/AlertController.php`:
   - `deliveries` adds `channel`, `devices_total` and `devices_reached` to each item, and `device_label` and `response_status` to each `history` item;
   - `retry` dispatches `DeliverAlertEmail` or `DeliverAlertPush` by `channel`, with the same generation fence;
   - a `summarised` delivery cannot be retried (409).
-- [ ] T078 [P] [US2] Restore and retention:
+- [x] T078 [P] [US2] Restore and retention:
   - `apps/api/app/Console/Commands/QuarantineRestoredSideEffects.php` also marks pending `push_summaries` `failed` and deletes every `push_devices` row;
   - `apps/api/app/Domain/Automation/Console/PruneAlertNotifications.php` also deletes `push_summaries` older than 90 days.
 
 ### Tests for pull request 5
 
-- [ ] T079 [P] [US2] `apps/api/tests/Feature/Domain/Notifications/PushDeviceTest.php`:
+- [x] T079 [P] [US2] `apps/api/tests/Feature/Domain/Notifications/PushDeviceTest.php`:
   - store validation and the 409 when push is unavailable;
   - upsert by endpoint, and release from another person;
   - the 10-device limit with `replaced`;
@@ -420,34 +420,34 @@ delivery row, one attempt row per device, and a push reach Chrome.
   - **test** with `Http::fake()` for 201 and for 410 (device deleted);
   - no response ever contains `endpoint`, `p256dh`, `auth` or `session_id`;
   - sign-out and password reset remove the right devices.
-- [ ] T080 [P] [US5] `apps/api/tests/Feature/Domain/Notifications/PushSettingsTest.php`: GET shape with and without keys; PUT with a stale revision (409), invalid levels (422), and success; organization switch for a member, and 404 for a non-member and for a member without device view; mutes cascade when the organization is deleted
-- [ ] T081 [P] [US2] `apps/api/tests/Feature/Domain/Automation/AlertPushDeliveryTest.php`, using the internal transition endpoint as `AlertTest` does, with `Http::fake()`:
+- [x] T080 [P] [US5] `apps/api/tests/Feature/Domain/Notifications/PushSettingsTest.php`: GET shape with and without keys; PUT with a stale revision (409), invalid levels (422), and success; organization switch for a member, and 404 for a non-member and for a member without device view; mutes cascade when the organization is deleted
+- [x] T081 [P] [US2] `apps/api/tests/Feature/Domain/Automation/AlertPushDeliveryTest.php`, using the internal transition endpoint as `AlertTest` does, with `Http::fake()`:
   - **Writing**: one push delivery per recipient with push on and a device, beside the bell row; none without a device or with push off; a replay adds none; a projection rollback removes it with the bell row.
   - **Checks before sending**: each `AlertRecipientCheck` case cancels with its reason, including a removed member, lost view, a level turned off, a muted organization and a cleared activation.
   - **Results**: per-device attempt rows; `sent` when one of two devices accepts; retries on 500 and then `failed` after five; a 410 deletes the device and is never retried.
   - **Endpoint and retry**: the deliveries endpoint shows `channel` and the device counts; retry works for a failed push.
   - **Isolation**: a member of another organization never gets a delivery or a push.
-- [ ] T082 [P] [US2] `apps/api/tests/Feature/Domain/Automation/PushSummaryTest.php`:
+- [x] T082 [P] [US2] Burst cases in `apps/api/tests/Feature/Domain/Automation/AlertPushDeliveryTest.php`, which already holds the alert scenario:
   - five activations in one minute give three sends, two `summarised` deliveries linked to one summary, and `alert_count` 2, sent at the window's end;
   - 50 activations in one minute give at most 4 notifications (SC-007);
   - activations arriving after a window ends either send on their own or open a new summary; no delivery is ever linked to two summaries, and two summaries for one person and organization never overlap in time;
   - a second organization's alerts in the same minute make their own summary;
   - the summary is cancelled when every linked alert has cleared;
   - a duplicate dispatch of a delivery or a summary sends nothing twice.
-- [ ] T083 [P] [US2] `apps/api/tests/Unit/Domain/Notifications/AlertPushPayloadTest.php`: each builder's output equals `contracts/push/fixtures/*.json` (with fixed uuids and times) and validates against `alert-push.v1.schema.json` through `opis/json-schema`; names over 120 characters are cut
-- [ ] T084 [P] [US2] Quarantine and prune cases in the existing tests for `QuarantineRestoredSideEffects` and `PruneAlertNotifications`
+- [x] T083 [P] [US2] `apps/api/tests/Feature/Domain/Notifications/AlertPushPayloadTest.php`: an activation equals `contracts/push/v1/alert-push.v1.fixture.json`, every builder's output validates against `alert-push.v1.schema.json` (`AssertsContracts`), headers per kind, and names over 120 characters are cut
+- [x] T084 [P] [US2] Quarantine and prune cases in `apps/api/tests/Feature/Domain/Notifications/PushSettingsTest.php` (neither command had a test file of its own)
 
 ### Finishing pull request 5
 
-- [ ] T085 [US2] Contract and client:
+- [x] T085 [US2] Contract and client:
   - the push routes in `contracts/openapi/supplements/account.yaml` and the delivery fields in `automation.yaml`;
   - `php artisan contract:export`, then `contract:export --check` and `contract:check --base=origin/main` pass;
   - `packages/api-client/src/notifications.ts` types (`PushSettings`, `PushDevice`, `PushDeviceRegistration`, `PushSyncResult`) and methods in `packages/api-client/src/index.ts` (`pushSettings`, `updatePushSettings`, `setPushOrganization`, `registerPushDevice`, `syncPushDevice`, `removePushDevice`, `testPushDevice`);
   - delivery fields in `packages/api-client/src/alerts.ts`.
-- [ ] T086 [P] [US2] Docs and release checks:
+- [x] T086 [P] [US2] Docs and release checks:
   - `docs/features/alerts.md`: a **Push notifications** section, API part (who gets them, levels, organization switches, devices, bursts, payload, TTL) and the API table rows;
   - `deploy/release/checks.json`: the new tables (`kept_sign_ins` if not already listed, `push_devices`, `push_organization_mutes`, `push_summaries`) and the new columns.
-- [ ] T087 Verify pull request 5:
+- [x] T087 Verify pull request 5:
   - `./taskw lint`, `cd apps/api && php artisan test --compact` on PostgreSQL, and `rtk proxy python -m unittest discover -s tooling/release`;
   - put push keys from `php artisan webpush:vapid --show` in the root `.env`, rebuild the API-image services, and run `php artisan migrate --force` in `api`;
   - in desktop Chrome on the rebuilt portal, use DevTools on the registered worker to call `pushManager.subscribe` with the public key from `GET v1/notifications/push`, then post the subscription to `POST v1/notifications/push/devices`;

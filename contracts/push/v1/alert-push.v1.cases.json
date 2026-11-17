@@ -1,0 +1,166 @@
+[
+  {
+    "description": "an activation, as the golden fixture",
+    "valid": true,
+    "data": {
+      "v": 1,
+      "kind": "activated",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": {
+        "uuid": "6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44",
+        "severity": "warning",
+        "automation": "Freezer temperature",
+        "device": "Freezer 2"
+      },
+      "occurred_at": "2026-11-21T02:14:03Z",
+      "count": null,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts/6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44"
+    }
+  },
+  {
+    "description": "the clear of the same alert carries the same alert and replaces its notification",
+    "valid": true,
+    "data": {
+      "v": 1,
+      "kind": "cleared",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": {
+        "uuid": "6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44",
+        "severity": "warning",
+        "automation": "Freezer temperature",
+        "device": "Freezer 2"
+      },
+      "occurred_at": "2026-11-21T02:31:40Z",
+      "count": null,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts/6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44"
+    }
+  },
+  {
+    "description": "a summary counts the further alerts of one organization and opens the active, unacknowledged list",
+    "valid": true,
+    "data": {
+      "v": 1,
+      "kind": "summary",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": null,
+      "occurred_at": "2026-11-21T02:15:03Z",
+      "count": 7,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts?condition=active&acknowledged=0"
+    }
+  },
+  {
+    "description": "a test push names no organization or alert",
+    "valid": true,
+    "data": {
+      "v": 1,
+      "kind": "test",
+      "organization": null,
+      "alert": null,
+      "occurred_at": "2026-11-21T02:00:00Z",
+      "count": null,
+      "url": "/settings/my-notifications"
+    }
+  },
+  {
+    "description": "an automation alert without a known device",
+    "valid": true,
+    "data": {
+      "v": 1,
+      "kind": "activated",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": {
+        "uuid": "6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44",
+        "severity": "warning",
+        "automation": "Freezer temperature",
+        "device": null
+      },
+      "occurred_at": "2026-11-21T02:14:03Z",
+      "count": null,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts/6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44"
+    }
+  },
+  {
+    "description": "a summary must count at least one alert",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/count"
+    },
+    "data": {
+      "v": 1,
+      "kind": "summary",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": null,
+      "occurred_at": "2026-11-21T02:15:03Z",
+      "count": 0,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts?condition=active&acknowledged=0"
+    }
+  },
+  {
+    "description": "readings never travel in a push",
+    "valid": false,
+    "error": {
+      "keyword": "additionalProperties",
+      "instance_location": "/alert"
+    },
+    "data": {
+      "v": 1,
+      "kind": "activated",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": {
+        "uuid": "6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44",
+        "severity": "warning",
+        "automation": "Freezer temperature",
+        "device": "Freezer 2",
+        "reading": 21.4
+      },
+      "occurred_at": "2026-11-21T02:14:03Z",
+      "count": null,
+      "url": "/organizations/0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77/alerts/6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44"
+    },
+    "tolerant_valid": true
+  },
+  {
+    "description": "a link always stays on the portal's own origin",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/url"
+    },
+    "data": {
+      "v": 1,
+      "kind": "activated",
+      "organization": {
+        "uuid": "0f9c2a1e-5b7d-4c3a-9e21-6a8f0b4d1c77",
+        "name": "Workshop"
+      },
+      "alert": {
+        "uuid": "6a1e4b2c-8d9f-4e1a-b3c5-7f2d9e0a1b44",
+        "severity": "warning",
+        "automation": "Freezer temperature",
+        "device": "Freezer 2"
+      },
+      "occurred_at": "2026-11-21T02:14:03Z",
+      "count": null,
+      "url": "https://example.com/alerts"
+    }
+  }
+]

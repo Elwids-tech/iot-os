@@ -5,15 +5,15 @@ service worker. It crosses from PHP to TypeScript, so it lives as a JSON Schema 
 golden fixtures (principle IV):
 
 ```text
-contracts/push/alert-push.v1.schema.json
-contracts/push/fixtures/activated.json
-contracts/push/fixtures/cleared.json
-contracts/push/fixtures/summary.json
-contracts/push/fixtures/test.json
+contracts/push/v1/alert-push.v1.schema.json
+contracts/push/v1/alert-push.v1.fixture.json   # an activation, the golden example
+contracts/push/v1/alert-push.v1.cases.json     # activated, cleared, summary, test, no device, and invalid cases
 ```
 
-PHP tests build each fixture's payload and compare it to the file. Vitest renders each
-fixture through the worker's formatter.
+They follow the repository's contract layout (`contracts/README.md`) and are checked by
+`tooling/verify-devices-contracts.py`. PHP tests build the fixture's payload and
+validate every builder's output against the schema; Vitest renders each case through
+the worker's formatter.
 
 ## Shape
 

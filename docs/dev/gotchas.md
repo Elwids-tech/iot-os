@@ -204,6 +204,19 @@ Things that have cost time before. Add to this list when something surprises you
   permission for every guard in `config('auth.guards')`, including Sanctum's runtime
   `sanctum` guard. A new guard that carries no roles must be excluded there, as the
   agent guard `mcp` is.
+- **PostgreSQL `jsonb` reorders object keys.** It stores keys shortest first, so
+  `{"critical":…,"warning":…,"info":…,"recovery":…}` comes back as
+  `info, warning, critical, recovery`. Code that returns a JSON column as an API object
+  with a fixed order (push levels) rebuilds it in that order
+  (`Preferences::push()`); `json` columns keep the text as written.
+- **`Http::fake()` keeps the first stub that matches.** Calling it again with another
+  status for the same URL pattern changes nothing. Tests that vary a push service's
+  answer register one stub that reads a property (`Tests\Support\PushFixtures::fakePushService`).
+- **JSON test requests send no cookies unless `withCredentials()`.** `postJson()` and
+  friends drop `withCookie()` values otherwise, so a "stateful" test request starts a
+  new session each time while an in-memory guard keeps the person signed in, and code
+  that compares session ids (push devices on sign-out) looks broken. `withHeaders()` and
+  `withCredentials()` also stay on for the rest of the test.
 - **Laravel's remember token is one per user.** `users.remember_token` holds one value
   and `SessionGuard::logout()` cycles it, so Laravel's "remember me" cannot keep two
   browsers signed in on their own or end one alone: signing out on a laptop would end

@@ -204,6 +204,14 @@ alert detail alone below 1280 px, and the dashboard grid is one column below 768
   route. If it does not, `PushSender` calls the package's configured
   `Minishlink\WebPush\WebPush` and reads each `MessageSentReport`. Either way our own
   `push_devices` model holds the subscriptions (R13), not the package's morph table.
+- **Spike result (2026-11-17, T058)**: the channel cannot serve our devices. Its
+  `findSubscription()` returns the package's own `PushSubscription` model and its
+  report handler deletes those models, so it rejects any other model. `PushSender`
+  therefore builds the package's underlying `Minishlink\WebPush\WebPush` itself, as
+  the package's service provider does: the VAPID pair, payload padding and
+  `Http::timeout(...)->buildClient()`. `sendOneNotification()` returns one
+  `MessageSentReport` per device, and `Http::fake()` intercepts it in tests. The
+  package still supplies the config conventions and `php artisan webpush:vapid`.
 - **Rationale**: the protocol (VAPID JWT, aes128gcm encryption) stays in maintained
   libraries, following the project's preference for packages over in-house protocol
   code.
@@ -275,7 +283,7 @@ alert detail alone below 1280 px, and the dashboard grid is one column below 768
 
 ## R16. The push message
 
-- **Decision**: a versioned JSON payload, `contracts/push/alert-push.v1.schema.json`
+- **Decision**: a versioned JSON payload, `contracts/push/v1/alert-push.v1.schema.json`
   with golden fixtures (activated, cleared, summary, test), described in
   [contracts/push-payload.md](contracts/push-payload.md). It carries structured
   fields, not finished text: the worker formats the title and body, with the time in

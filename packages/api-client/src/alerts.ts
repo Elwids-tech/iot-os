@@ -94,10 +94,17 @@ export type AlertDelivery = {
   recipient_id: number;
   recipient_name: string;
   type: "activated" | "cleared";
+  /** Spec 033: email or push. */
+  channel: "email" | "push";
+  /** Push may also be `summarised`: carried by a burst summary instead (never retried). */
   status: string;
   attempts: number;
   retry_generation: number;
-  history: { attempt: number; status: string; created_at: string }[];
+  /** Push only: devices tried in the latest attempt and those whose push service accepted it. */
+  devices_total: number | null;
+  devices_reached: number | null;
+  /** Push rows have one entry per device, with its label and the push service status. */
+  history: { attempt: number; status: string; created_at: string; device_label: string | null; response_status: number | null }[];
   sent_at: string | null;
   diagnostic: string | null;
 };

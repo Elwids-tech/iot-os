@@ -49,6 +49,80 @@ final class Preferences
         return $prefs['email_enabled'] && ($prefs['grid'][$source][$severity] ?? false);
     }
 
+    /** Turning push on for the first time switches on every activation level, not Cleared (spec 033, FR-019). */
+    public static function pushDefaults(): array
+    {
+        return ['critical' => true, 'warning' => true, 'info' => true, 'recovery' => false];
+    }
+
+    /** @return array{enabled: bool, levels: array<string, bool>|null, revision: int} */
+    public static function push(User $user): array
+    {
+        $row = DB::table('notification_preferences')->where('user_id', $user->id)->first(['push_enabled', 'push_levels', 'push_revision']);
+
+        return [
+            'enabled' => (bool) ($row->push_enabled ?? false),
+            // jsonb reorders keys; answer in the levels' own order.
+            'levels' => isset($row->push_levels) ? self::orderedLevels(json_decode($row->push_levels, true)) : null,
+            'revision' => (int) ($row->push_revision ?? 0),
+        ];
+    }
+
+    /** @return array<string, bool> */
+    private static function orderedLevels(array $levels): array
+    {
+        return collect(self::LEVELS)->mapWithKeys(fn (string $level): array => [$level => (bool) ($levels[$level] ?? false)])->all();
+    }
+
+    /**
+     * The person's preferences row, locked for this transaction. A person without one gets
+     * it now, holding the defaults `view()` already reports, so nothing they see changes.
+     */
+    public static function row(User $user): object
+    {
+        $view = self::view($user);
+        DB::table('notification_preferences')->insertOrIgnore([
+            'user_id' => $user->id,
+            'email_enabled' => $view['email_enabled'],
+            'grid' => json_encode($view['grid']),
+            'ticket_email' => $view['ticket_email'],
+            'revision' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return DB::table('notification_preferences')->where('user_id', $user->id)->lockForUpdate()->first();
+    }
+
+    /**
+     * A device was registered: push is on, and a person who never had levels gets the
+     * defaults. Levels someone chose are kept.
+     */
+    public static function enablePushDefaults(User $user): void
+    {
+        $row = self::row($user);
+        if ($row->push_enabled && $row->push_levels !== null) {
+            return;
+        }
+        DB::table('notification_preferences')->where('user_id', $user->id)->update([
+            'push_enabled' => true,
+            'push_levels' => $row->push_levels ?? json_encode(self::pushDefaults()),
+            'push_revision' => $row->push_revision + 1,
+            'updated_at' => now(),
+        ]);
+    }
+
+    /** Push on, this level on, and the organization not switched off (FR-019, FR-025). */
+    public static function pushAllows(User $user, int $organizationId, string $level): bool
+    {
+        $push = self::push($user);
+        if (! $push['enabled'] || ! ($push['levels'][$level] ?? false)) {
+            return false;
+        }
+
+        return ! DB::table('push_organization_mutes')->where('user_id', $user->id)->where('organization_id', $organizationId)->exists();
+    }
+
     public static function operator(): ?User
     {
         $email = config('notifications.operator_email');

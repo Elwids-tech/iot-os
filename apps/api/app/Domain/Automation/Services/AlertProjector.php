@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Automation\Services;
 
 use App\Domain\Automation\Jobs\DeliverAlertEmail;
+use App\Domain\Automation\Jobs\DeliverAlertPush;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
@@ -16,9 +17,12 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Integrations\Services\EventJournal;
 use App\Domain\Notifications\Services\EventRecorder;
+use App\Domain\Notifications\Services\WebPush;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 final class AlertProjector
 {
@@ -55,6 +59,7 @@ final class AlertProjector
         }
         $recipients = User::whereIn('id', $settings['recipient_ids'] ?? [])->get()->keyBy('id');
         $bell = $this->bell($workflow, $device, $alert, $transition);
+        $pushing = $this->pushing($settings['recipient_ids'] ?? []);
         foreach ($settings['recipient_ids'] ?? [] as $recipient) {
             $delivery = AlertDelivery::firstOrCreate(['automation_alert_id' => $alert->id, 'recipient_id' => $recipient, 'type' => $transition['type'], 'channel' => AlertDelivery::EMAIL]);
             if ($delivery->wasRecentlyCreated) {
@@ -64,8 +69,34 @@ final class AlertProjector
                 // The bell's copy (spec 022), whatever the person's email preferences;
                 // one instance per person, as each carries its own id.
                 $recipients->get($recipient)?->notify(new AlertTransitionNotification($bell));
+                // Push follows the bell (spec 033, FR-018): the same people, written in the
+                // same transaction; the job applies their levels and switches.
+                if ($pushing->has($recipient)) {
+                    $push = AlertDelivery::firstOrCreate(['automation_alert_id' => $alert->id, 'recipient_id' => $recipient, 'type' => $transition['type'], 'channel' => AlertDelivery::PUSH]);
+                    if ($push->wasRecentlyCreated) {
+                        DeliverAlertPush::dispatch($push->uuid)->onConnection('alerts')->onQueue('alerts');
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Recipients with push on and at least one device, in one query. Empty when the
+     * deployment has no push key.
+     *
+     * @param  list<int>  $recipientIds
+     * @return Collection<int, int> keyed by user id
+     */
+    private function pushing(array $recipientIds): Collection
+    {
+        if ($recipientIds === [] || ! WebPush::enabled()) {
+            return collect();
+        }
+
+        return DB::table('notification_preferences')->whereIn('user_id', $recipientIds)->where('push_enabled', true)
+            ->whereExists(fn ($devices) => $devices->select(DB::raw(1))->from('push_devices')->whereColumn('push_devices.user_id', 'notification_preferences.user_id'))
+            ->pluck('user_id')->flip();
     }
 
     /**

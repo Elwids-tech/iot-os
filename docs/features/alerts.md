@@ -327,6 +327,50 @@ Code: [`AlertInbox`](../../apps/api/app/Domain/Automation/Services/AlertInbox.ph
 portal [`src/alerts/bell`](../../apps/portal/src/alerts/bell); kit
 [`NotificationBell`](../../packages/ui/src/components/notification-bell.tsx).
 
+## Push notifications
+
+Push puts an alert on a person's phone or computer even when the portal is closed
+([spec 033](../../specs/033-pwa-web-push/spec.md),
+[ADR-047](../adr/ADR-047-progressive-web-app-before-native-apps.md)). It works only
+while the deployment has a push key (`WEBPUSH_VAPID_*`,
+[release](../ops/release.md)); without one every push control is hidden.
+
+- **Who gets them**: exactly the bell's recipients. Each activation, and each clear
+  when recovery is on, adds a push delivery beside the bell row, in the same
+  transaction, for a recipient who has push on and at least one device. Managers have
+  no push setting; each person chooses.
+- **Levels and switches**: per person, across organizations: **Critical**,
+  **Warning**, **Info** and **Cleared**, and one on/off switch per organization. The
+  first device turns push on with every activation level and Cleared off. Workflow
+  alerts are all `warning` until [spec 011](../../specs/011-notification-channels/spec.md)
+  adds a severity per automation.
+- **Devices**: one per browser, at most ten per person; an eleventh replaces the one
+  unused longest. Endpoints and keys are encrypted and never returned. Registering an
+  endpoint another person held releases it. Signing out on a browser removes its
+  device; a password reset removes all of them; removing a device also ends its kept
+  sign-in and its session.
+- **Before each send** the job repeats the email checks (membership, verification,
+  device view, subscription, execution, an activation not already cleared), then the
+  person's push level and organization switch, through the shared
+  [`AlertRecipientCheck`](../../apps/api/app/Domain/Automation/Services/AlertRecipientCheck.php).
+- **Delivery**: one encrypted push per device through the browser vendor's push
+  service, on the `alerts` queue. `sent` means at least one push service accepted it;
+  per-device results are the delivery's history rows. No answer, 429 or 5xx is retried
+  with the email backoff; 404, 410 and 403 remove the device and are not retried. A
+  push undelivered after 24 hours expires (`TTL`).
+- **Bursts**: after three pushes to one person from one organization within a minute,
+  further activations join a summary (`summarised`), sent once at the end of its
+  minute as "{count} more alerts", opening the active, unacknowledged list. Each
+  alert is still in the bell.
+- **Message**: [`alert-push.v1`](../../contracts/push/v1/alert-push.v1.schema.json):
+  organization, severity, automation, device, transition and time; never readings.
+  `Topic` per alert (or organization for a summary) lets a push service replace an
+  undelivered push with the next one.
+
+Code: [`DeliverAlertPush`](../../apps/api/app/Domain/Automation/Jobs/DeliverAlertPush.php),
+[`DeliverPushSummary`](../../apps/api/app/Domain/Notifications/Jobs/DeliverPushSummary.php),
+[`PushSender`](../../apps/api/app/Domain/Notifications/Services/PushSender.php).
+
 ## Event log
 
 **Alerts → Event log** records, per organization, workflow alert transitions,
@@ -365,7 +409,7 @@ Under `/api/v1/organizations/{organization}`:
 | `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter; `uuid` is null for another organization's gateway that serves hosted devices), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
-| `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history, retry with `{retry_generation}` | `Device.manage` |
+| `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history by `channel` (`email` or `push`; push rows add `devices_total`, `devices_reached` and one history row per device with `device_label` and `response_status`), retry with `{retry_generation}` on the delivery's own channel | `Device.manage` |
 | `GET workflows?kind=all` | Geofence workflows and DAG automations, each with `kind` (`geofence` or `automation`); without `kind=all`, geofence workflows only | `Device.view` |
 | `GET/PUT workflows/{uuid}/notifications`, `GET workflows/{uuid}/notification-recipients` | Recipients and options (`{revision, enabled, notify_on_clear, recipient_ids}`; reads also return `workflow_kind`) | `Device.manage` |
 | `GET alert-notifications` | Your own alert notifications here, newest first, 20 per `page`, with `meta.unread` and each alert's condition now; each has the alert's `kind`, a `subject` (`{type, uuid, name}`, null for workflow alerts) and a `workflow` (null for other kinds) | Member with `Device.view` |
@@ -374,7 +418,12 @@ Under `/api/v1/organizations/{organization}`:
 
 `acknowledged_by`, `assigned_to` and `recipient_ids` are integer user ids
 ([ADR-013](../adr/ADR-013-integer-user-ids.md)). Personal preferences and the event
-log are under `/api/v1/notifications/*` (signed-in user, no organization prefix).
+log are under `/api/v1/notifications/*` (signed-in user, no organization prefix),
+and so is push: `GET/PUT notifications/push` (availability, public key, switch, levels
+and `revision`, organizations, devices), `PUT notifications/push/organizations/{org}`
+(`{enabled}`), `POST notifications/push/devices` (register), `POST
+notifications/push/devices/sync`, `DELETE notifications/push/devices/{uuid}` and
+`POST notifications/push/devices/{uuid}/test` (six a minute).
 A device's offline state is on `GET devices` (`offline_alert`) and `GET
 devices/{device}/connectivity` ([devices](devices.md#offline-detection)).
 

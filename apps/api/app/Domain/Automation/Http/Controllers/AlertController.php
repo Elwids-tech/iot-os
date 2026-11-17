@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Automation\Http\Controllers;
 
 use App\Domain\Automation\Jobs\DeliverAlertEmail;
+use App\Domain\Automation\Jobs\DeliverAlertPush;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Services\AlertQuery;
@@ -151,7 +152,8 @@ final class AlertController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $alert);
 
-        return ['data' => AlertDelivery::where('automation_alert_id', $alert->id)->with('recipient')->orderBy('id')->get()->map(fn ($d) => [...$d->only(['uuid', 'recipient_id', 'type', 'status', 'attempts', 'diagnostic', 'sent_at', 'retry_generation']), 'recipient_name' => $d->recipient->name, 'history' => DB::table('automation_alert_delivery_attempts')->where('automation_alert_delivery_id', $d->id)->orderBy('id')->get(['attempt', 'status', 'created_at'])])];
+        // Push rows (spec 033) add how many of the person's devices were reached, and one history row per device.
+        return ['data' => AlertDelivery::where('automation_alert_id', $alert->id)->with('recipient')->orderBy('id')->get()->map(fn ($d) => [...$d->only(['uuid', 'recipient_id', 'type', 'channel', 'status', 'attempts', 'diagnostic', 'sent_at', 'retry_generation', 'devices_total', 'devices_reached']), 'recipient_name' => $d->recipient->name, 'history' => DB::table('automation_alert_delivery_attempts')->where('automation_alert_delivery_id', $d->id)->orderBy('id')->get(['attempt', 'status', 'created_at', 'device_label', 'response_status'])])];
     }
 
     public function retry(Request $request, Organization $organization, Alert $alert, string $delivery)
@@ -162,7 +164,8 @@ final class AlertController
             $locked = AlertDelivery::where('automation_alert_id', $alert->id)->where('uuid', $delivery)->lockForUpdate()->firstOrFail();
             abort_unless($locked->status === 'failed' && (int) $locked->retry_generation === (int) $input['retry_generation'], 409, 'Delivery changed. Reload its status before retrying.');
             $locked->update(['status' => 'pending', 'diagnostic' => null, 'cycle_attempts' => 0, 'retry_generation' => $locked->retry_generation + 1]);
-            DeliverAlertEmail::dispatch($locked->uuid, (int) $locked->retry_generation)->onConnection('alerts')->onQueue('alerts');
+            $job = $locked->channel === AlertDelivery::PUSH ? DeliverAlertPush::class : DeliverAlertEmail::class;
+            $job::dispatch($locked->uuid, (int) $locked->retry_generation)->onConnection('alerts')->onQueue('alerts');
             DeviceAudit::record('alert.delivery_retried', $alert->organization_id, $request->user()->id, $alert->uuid, ['delivery_uuid' => $locked->uuid, 'retry_generation' => $locked->retry_generation]);
         });
 

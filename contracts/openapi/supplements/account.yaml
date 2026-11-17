@@ -4,6 +4,77 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    PushLevels:
+      type: object
+      description: Which alert levels a person receives by push; `recovery` is Cleared.
+      additionalProperties: false
+      required: [critical, warning, info, recovery]
+      properties:
+        critical: {type: boolean}
+        warning: {type: boolean}
+        info: {type: boolean}
+        recovery: {type: boolean}
+    PushDevice:
+      type: object
+      description: A browser where the person turned on push. Never its endpoint or keys.
+      additionalProperties: false
+      required: [uuid, label, created_at, last_reached_at, last_failed_at]
+      properties:
+        uuid: {type: string, format: uuid}
+        label: {type: string, maxLength: 60}
+        created_at: {type: string, format: date-time}
+        last_reached_at: {type: [string, 'null'], format: date-time}
+        last_failed_at: {type: [string, 'null'], format: date-time}
+    PushSettings:
+      type: object
+      additionalProperties: false
+      required: [available, public_key, enabled, levels, revision, organizations, devices]
+      properties:
+        available:
+          type: boolean
+          description: False when the deployment has no push key; hide every push control.
+        public_key:
+          type: [string, 'null']
+          description: The VAPID public key browsers subscribe with; null when unavailable.
+        enabled: {type: boolean}
+        levels:
+          description: Null until push was first turned on.
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/PushLevels'
+        revision: {type: integer, minimum: 0}
+        organizations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [uuid, name, enabled]
+            properties:
+              uuid: {type: string, format: uuid}
+              name: {type: string}
+              enabled: {type: boolean}
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/PushDevice'
+    PushDeviceRegistered:
+      type: object
+      additionalProperties: false
+      required: [uuid, label, replaced]
+      properties:
+        uuid: {type: string, format: uuid}
+        label: {type: string}
+        replaced:
+          description: The device removed to stay at ten, or null.
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required: [label]
+              properties:
+                label: {type: string}
 operations:
   POST /v1/auth/login:
     description: |-
@@ -29,3 +100,94 @@ operations:
         $ref: '#/components/responses/Forbidden'
       '409':
         $ref: '#/components/responses/Conflict'
+  GET /v1/notifications/push:
+    description: |-
+      The person's push settings (spec 033): whether this deployment can push and the
+      key browsers subscribe with, the switch and levels that apply across
+      organizations, one switch per organization they can view devices in, and their
+      devices. Endpoints and keys are never returned.
+    responses:
+      '200':
+        description: The person's push settings.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/PushSettings'
+  PUT /v1/notifications/push:
+    description: |-
+      Saves the switch and the four levels (critical, warning, info, recovery). Stale
+      `revision` gets 409; push has its own revision, separate from email's.
+    responses:
+      '200':
+        description: The saved settings.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/PushSettings'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  PUT /v1/notifications/push/organizations/{organization}:
+    description: |-
+      Turns one organization's pushes on or off for the person. 404 unless they are a
+      member who can view devices there.
+    responses:
+      '200':
+        description: The settings after the change.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/PushSettings'
+  POST /v1/notifications/push/devices:
+    description: |-
+      Registers this browser's push subscription, linked to the session and kept sign-in
+      it came from. An endpoint another person held is released to the caller. A person
+      has at most ten devices; an eleventh replaces the one unused longest and names it in
+      `replaced`. The first device turns push on with the default levels. 409 when the
+      deployment has no push key.
+    responses:
+      '200':
+        description: The browser was already registered to this person; its links were refreshed.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/PushDeviceRegistered'
+      '201':
+        description: The browser was registered.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/PushDeviceRegistered'
+  POST /v1/notifications/push/devices/sync:
+    description: |-
+      Called at every portal start by a browser that holds a subscription: `mine`
+      refreshes its links, `released` means another person's registration for it was
+      removed, `unknown` means the server has none. For the last two the browser
+      unsubscribes.
+  DELETE /v1/notifications/push/devices/{device}:
+    description: |-
+      Removes one of the person's devices, ends the kept sign-in it was linked to and
+      destroys its session, so that browser needs a password again.
+  POST /v1/notifications/push/devices/{device}/test:
+    description: |-
+      Sends a test push to that device now: `accepted`, `gone` (the push service no
+      longer knows it; the device is removed) or `failed`. Six a minute per person.

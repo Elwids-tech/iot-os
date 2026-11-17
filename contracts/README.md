@@ -15,6 +15,7 @@ valid and invalid examples.
 | [`rules/v1`](rules/v1) | Workflow v1, `geofence-rule.v1` definition, state, transition, deployment, simulation request and expected trace | Geofence rules |
 | [`rules/v2`](rules/v2) | `automation-workflow.v2` DAG schema and a reference graph | DAG automation |
 | [`dashboards/v1`](dashboards/v1) | Panel suggestion parity cases: the **Add panel** ranking with its reasons, every panel type's incompatibility, new-source defaults, panel placement and the band colours for named tones | `PanelSuggestionsContractTest` (PHP), `suggest.test.ts` and `model.test.ts` (portal) |
+| [`push/v1`](push/v1) | `alert-push.v1`: the encrypted body of every push alert (spec 033) | `AlertPushPayload` and its tests (PHP), the portal's service worker formatter |
 | [`location/v1`](location/v1) | `location-binding.v1`, `location-fix.v1`, 30 location scenarios | Location resolver, geofences, integration API |
 | [`adapters/v1`](adapters/v1) | Decoder input/output, adapter source settings, webhook routing file, receiver reports, tenant runtime events, Fetch now results (spec 020) | adapter services tests, Laravel adapter tests |
 | [`ingestion/v1`](ingestion/v1) | Canonical telemetry envelope family (`telemetry.envelope.v1`, `source.presence.v1`, `source.announcement.v1`, `ingestion.rejection.v1`), read strictly. Only the empty catalogue exists so far | Reference reader in the runtime, not wired into any live path |

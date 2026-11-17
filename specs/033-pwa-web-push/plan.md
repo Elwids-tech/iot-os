@@ -114,7 +114,7 @@ deviation from principle IX recorded under Complexity Tracking.*
 | I. Laravel owns intent | Pass. Laravel stores devices and preferences, decides recipients and sends every push. The runtime is untouched. The worker talks only to the portal's origin and the API. |
 | II. Immutable versions | Pass. Nothing versioned changes. |
 | III. Tenant isolation | Pass. Push follows the bell's recipients, and before each send `AlertRecipientCheck` re-confirms membership, verification and `Device.view` in the alert's organization. Organization switches go through membership. Devices and kept sign-ins are reachable only by their owner (404 otherwise). Summaries count one organization. Tests cover a member of another organization, a removed member, lost view access, another person's device, and summaries that never mix organizations. |
-| IV. Contracts first | Pass. `contracts/push/alert-push.v1.schema.json` with golden fixtures, checked by PHP and by the worker's Vitest suite. OpenAPI supplements and `packages/api-client` change in each pull request that changes a route. No new user reference. |
+| IV. Contracts first | Pass. `contracts/push/v1/alert-push.v1.schema.json` with golden fixtures, checked by PHP and by the worker's Vitest suite. OpenAPI supplements and `packages/api-client` change in each pull request that changes a route. No new user reference. |
 | V. AI proposes | Pass. No AI involvement. The assistant and agent tools do not read push settings. |
 | VI. Show uncertainty | Pass. No data is cached for offline use. The offline banner says values are from the time shown, and `Freshness` labels keep counting. Every push states when its alert happened. **Sent** is explained as accepted by the push service. |
 | VII. Durable, idempotent messaging | Pass. Push deliveries are written in the projector's transaction only when the bell row is new; the unique key (alert, recipient, type, channel) blocks duplicates. Summaries are unique per person, organization and window. Retries use the email backoff, and gone devices (404, 410, 403) are never retried. TTL is 24 h. Kept sign-ins and summaries are pruned, and restores quarantine pending pushes and devices. |
@@ -251,7 +251,7 @@ All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
 
   Stateless under Octane: no static state.
 - **`PasswordRecoveryController::reset`**: inside its transaction, ends all of the
-  person's records (`password_reset`) and deletes their push devices.
+  person's records (`password_reset`) and deletes all their push devices.
 - **`PruneKeptSignIns`** (daily): deletes rows ended or expired more than 30 days ago.
 - **`LoginRequest`**: `remember` is `sometimes|boolean`.
 - **Admin**: the admin app shares the session, so it is kept too. ADR-047 notes this.
@@ -299,7 +299,7 @@ All rules apply below 768 px (`max-md:`), so nothing changes at 1024 px and up.
   `devices_total`, `devices_reached`, and history `device_label`/`response_status`.
   **Retry** dispatches by channel.
 - **Payload**: `AlertPushPayload::fromDelivery()` and `summary()` against
-  `contracts/push/alert-push.v1.schema.json`, with fixtures.
+  `contracts/push/v1/alert-push.v1.schema.json`, with fixtures.
 - **Retention and restore**:
   - Summaries are pruned with `PruneAlertNotifications` (90 days).
   - `QuarantineRestoredSideEffects` also fails pending summaries and deletes every
@@ -439,7 +439,7 @@ apps/api/
 └── tests/Feature/Domain/Authentication/KeptSignInTest.php,
     tests/Feature/Domain/Notifications/PushDeviceTest.php, PushSettingsTest.php,
     tests/Feature/Domain/Automation/AlertPushDeliveryTest.php, PushSummaryTest.php  # new
-contracts/push/alert-push.v1.schema.json, contracts/push/fixtures/*.json        # new
+contracts/push/v1/alert-push.v1.schema.json, contracts/push/fixtures/*.json        # new
 contracts/openapi/supplements/account.yaml, automation.yaml, contracts/openapi/openapi.json
 packages/api-client/src/index.ts, notifications.ts, alerts.ts, connection.ts (new)
 packages/ui/src/components/page-header.tsx, notification-bell.tsx, button.tsx, input.tsx,

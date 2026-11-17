@@ -27,8 +27,9 @@ devices linked to this session or kept sign-in. Response unchanged.
 
 ### `POST v1/auth/reset-password` (changed behaviour)
 
-Also ends every kept sign-in of the person (`password_reset`) and deletes their push
-devices, except one synced from the requesting session. Response unchanged.
+Also ends every kept sign-in of the person (`password_reset`) and deletes all their
+push devices; the reset already signs them out everywhere, so each device turns push on
+again after signing in. Response unchanged.
 
 ## Push settings
 

@@ -63,7 +63,7 @@ One per browser where a person turned on push (FR-020, FR-028).
   - the owner removes it, which also ends its kept sign-in and destroys its session;
   - the person signs out on that browser (matched by the current session or kept
     sign-in);
-  - a password reset happens (every device except the one in the requesting session);
+  - a password reset happens (every device: the reset signs the person out everywhere);
   - the push service answers 404 or 410, or 403 for a key mismatch;
   - a restored database is quarantined;
   - the user is deleted.

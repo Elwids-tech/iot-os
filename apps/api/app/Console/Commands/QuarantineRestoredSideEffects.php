@@ -23,6 +23,9 @@ final class QuarantineRestoredSideEffects extends Command
             DB::table('device_commands')->whereNotNull('outstanding_key')->update(['status' => 'uncertain', 'outstanding_key' => null, 'completed_at' => now(), 'expires_at' => now(), 'diagnostic' => 'Cancelled by isolated backup recovery; never replay automatically.']);
             DB::table('device_outbox')->where('type', 'device.command.v1')->whereNull('published_at')->update(['published_at' => now()]);
             DB::table('automation_alert_deliveries')->where('status', 'pending')->update(['status' => 'failed', 'diagnostic' => 'Suppressed by isolated backup recovery.']);
+            // A restored copy must never push to real phones (spec 033).
+            DB::table('push_summaries')->where('status', 'pending')->update(['status' => 'failed', 'diagnostic' => 'Suppressed by isolated backup recovery.']);
+            DB::table('push_devices')->delete();
             DB::table('integration_webhooks')->update(['enabled' => false]);
             DB::table('integration_webhook_deliveries')->where('status', 'pending')->update(['status' => 'cancelled', 'diagnostic' => 'Suppressed by isolated backup recovery.']);
             if (DB::getDriverName() === 'pgsql') {

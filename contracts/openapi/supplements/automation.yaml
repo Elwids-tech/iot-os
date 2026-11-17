@@ -9,7 +9,16 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/alerts/{alert}/deliveries:
+    description: |-
+      Each email and push delivery of the alert. Push rows (spec 033) carry how many of
+      the person's devices were tried and reached, a `summarised` status when a burst
+      summary carried them, and one history row per device with its label and the push
+      service's status.
   POST /v1/organizations/{organization}/alerts/{alert}/deliveries/{delivery}/retry:
+    description: |-
+      Retries a failed delivery on its own channel, email or push. A summarised push is
+      never retried.
     responses:
       '409':
         $ref: '#/components/responses/Conflict'

@@ -8,6 +8,7 @@ use App\Domain\Authentication\Http\Requests\LoginRequest;
 use App\Domain\Authentication\Http\Resources\AuthenticatedUserResource;
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Services\KeptSignInCookie;
+use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -71,6 +72,11 @@ final class SessionController
         if ($keptId !== null || $this->kept->present($request)) {
             Cookie::queue($this->kept->forget());
         }
+        // This browser stops getting pushes (spec 033, FR-028); the person's other devices keep them.
+        $sessionId = $request->session()->getId();
+        PushDevice::query()->where('user_id', $request->user()?->getKey())->get()
+            ->filter(fn (PushDevice $device): bool => $device->session_id === $sessionId || ($keptId !== null && $device->kept_sign_in_id === (int) $keptId))
+            ->each->delete();
 
         Auth::guard('web')->logout();
         Auth::guard('sanctum')->forgetUser();

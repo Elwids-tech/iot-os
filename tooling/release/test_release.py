@@ -1,3 +1,4 @@
+import base64
 import fcntl
 import importlib.util
 import json
@@ -375,6 +376,64 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Only one Passport key"):
                 release.add_passport_keys(path)
 
+    def test_push_keys_are_a_base64url_p256_pair(self):
+        keys = release.webpush_keys("ops@example.com")
+        self.assertRegex(keys["WEBPUSH_VAPID_PUBLIC_KEY"], r"^[A-Za-z0-9_-]{87}$")
+        self.assertRegex(keys["WEBPUSH_VAPID_PRIVATE_KEY"], r"^[A-Za-z0-9_-]{43}$")
+        # The public half is an uncompressed point: 0x04 then 64 bytes.
+        public = base64.urlsafe_b64decode(keys["WEBPUSH_VAPID_PUBLIC_KEY"] + "=")
+        self.assertEqual((65, 4), (len(public), public[0]))
+        self.assertEqual("mailto:ops@example.com", keys["WEBPUSH_VAPID_SUBJECT"])
+        self.assertEqual("", release.webpush_keys()["WEBPUSH_VAPID_SUBJECT"])
+        self.assertNotEqual(keys["WEBPUSH_VAPID_PRIVATE_KEY"], release.webpush_keys()["WEBPUSH_VAPID_PRIVATE_KEY"])
+
+    def test_push_keys_are_added_once_and_never_replaced(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/"env"
+            # environment.example leaves the keys empty; the command fills those lines.
+            release.private_write(path, 'DOMAIN=example.com\nACME_EMAIL=ops@example.com\nWEBPUSH_VAPID_PUBLIC_KEY=\nWEBPUSH_VAPID_PRIVATE_KEY=\nWEBPUSH_VAPID_SUBJECT=\n')
+            self.assertTrue(release.add_webpush_keys(path))
+            first = release.read_env(path)
+            self.assertRegex(first["WEBPUSH_VAPID_PUBLIC_KEY"], r"^[A-Za-z0-9_-]{87}$")
+            self.assertEqual("mailto:ops@example.com", first["WEBPUSH_VAPID_SUBJECT"])
+            self.assertEqual("example.com", first["DOMAIN"])
+            self.assertEqual(1, path.read_text().count("WEBPUSH_VAPID_PUBLIC_KEY="))
+            self.assertFalse(release.add_webpush_keys(path))
+            self.assertEqual(release.read_env(path), first)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_push_keys_keep_a_subject_the_operator_set(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/"env"
+            release.private_write(path, 'ACME_EMAIL=ops@example.com\nWEBPUSH_VAPID_SUBJECT="mailto:alerts@example.com"\n')
+            self.assertTrue(release.add_webpush_keys(path))
+            self.assertEqual("mailto:alerts@example.com", release.read_env(path)["WEBPUSH_VAPID_SUBJECT"])
+
+    def test_a_lone_push_key_is_never_regenerated(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/"env"
+            release.private_write(path, 'WEBPUSH_VAPID_PUBLIC_KEY="kept"\n')
+            with self.assertRaisesRegex(ValueError, "Only one push key"):
+                release.add_webpush_keys(path)
+
+    def test_push_keys_are_both_or_neither(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['APP_KEY'] = 'base64:'+'a'*44
+            # Without keys push is only off: validation goes on to the missing manifest.
+            with self.assertRaisesRegex(ValueError, 'release manifest'):
+                deployment.validate()
+            keys = release.webpush_keys()
+            deployment.env['WEBPUSH_VAPID_PUBLIC_KEY'] = keys['WEBPUSH_VAPID_PUBLIC_KEY']
+            with self.assertRaisesRegex(ValueError, 'Only one push key'):
+                deployment.validate()
+            deployment.env['WEBPUSH_VAPID_PRIVATE_KEY'] = 'not-a-key'
+            with self.assertRaisesRegex(ValueError, 'base64url P-256 pair'):
+                deployment.validate()
+            deployment.env.update(keys)
+            with self.assertRaisesRegex(ValueError, 'release manifest'):
+                deployment.validate()
+
     def test_agent_access_needs_passport_keys(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
@@ -399,12 +458,15 @@ class ReleaseTests(unittest.TestCase):
             status = 200
             def __enter__(self): return self
             def __exit__(self, *args): return False
+            def read(self): return b'{"name": "IoT OS"}'
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
             discovery = 'https://api.staging.example.test/.well-known/oauth-protected-resource/mcp'
             with patch.object(release.urllib.request, 'urlopen', return_value=Ok()) as opened:
                 deployment.smoke()
                 self.assertNotIn(discovery, [call.args[0] for call in opened.call_args_list])
+                # The installed app's manifest (spec 033) is always checked.
+                self.assertIn('https://app.staging.example.test/manifest.webmanifest', [call.args[0] for call in opened.call_args_list])
                 deployment.env['IOT_AGENTS_ENABLED'] = 'true'
                 deployment.smoke()
                 self.assertIn(discovery, [call.args[0] for call in opened.call_args_list])
@@ -484,6 +546,9 @@ class ReleaseTests(unittest.TestCase):
             for key in release.BROKER_KEYS:
                 self.assertRegex(values[key], r'^[a-f0-9]{64}$')
             self.assertFalse(any('EMQX' in key or key == 'DEVICE_BROKER_PROVIDER' for key in values))
+            # Push alerts (spec 033) are on from the first deploy.
+            self.assertRegex(values['WEBPUSH_VAPID_PUBLIC_KEY'], r'^[A-Za-z0-9_-]{87}$')
+            self.assertRegex(values['WEBPUSH_VAPID_PRIVATE_KEY'], r'^[A-Za-z0-9_-]{43}$')
 
     def test_an_environment_still_on_emqx_is_refused(self):
         # ADR-019: deploying over EMQX would start an empty Mosquitto and drop every device.
