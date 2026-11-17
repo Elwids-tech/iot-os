@@ -78,6 +78,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Security
 
+- **Two-step sign-in and passkeys** ([spec 034](../specs/034-two-factor-passkeys/spec.md),
+  [ADR-048](adr/ADR-048-two-step-sign-in-and-passkeys.md)): authenticator codes,
+  recovery codes and passkeys for people, required for platform staff and optionally
+  per organization, built with Laravel's packages and no hosted identity service.
 - **Adapter manager privileges.** Replace the read-write Docker socket mount with a
   restricted proxy or rootless runtime, and put tenant runtimes on a dedicated network
   that reaches only the broker ([ADR-010](adr/ADR-010-per-tenant-adapter-runtimes.md)).
