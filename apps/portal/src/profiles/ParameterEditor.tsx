@@ -250,8 +250,8 @@ export function ParameterEditor({
           onValueChange={setTab}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
-          <div className="overflow-x-auto scrollbar-none border-b px-6 py-3">
-            <TabsList>
+          <div className="overflow-x-auto scrollbar-none border-b px-6 pt-2">
+            <TabsList variant="line" aria-label="Parameter sections" className="justify-start *:flex-none">
               <TabsTrigger value="basics">Basics</TabsTrigger>
               <TabsTrigger value="behavior">Behavior</TabsTrigger>
               <TabsTrigger value="validation">Validation</TabsTrigger>

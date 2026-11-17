@@ -46,7 +46,7 @@ export const Disabled: StoryObj = {
   ),
 }
 
-/** The three roles side by side: sections of a page, a mode inside a panel, one of a few. */
+/** The two looks: an underline swaps what you see; a filled segment picks a value. The panel switch in the middle is tabs drawn as segments. */
 export const Roles: StoryObj = {
   render: () => (
     <div className="flex flex-col items-start gap-6">
