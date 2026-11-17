@@ -46,6 +46,12 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting()
+  // A page starting while this version waits (a reload, FR-014): take over only when it is
+  // the one window open, so no other window ends up running two versions at once.
+  if (event.data?.type === "SKIP_WAITING_IF_ALONE")
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => (windows.length <= 1 ? self.skipWaiting() : undefined)),
+    )
 })
 
 // Push alerts. Every push shows a notification, as browsers require: one this version

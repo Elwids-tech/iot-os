@@ -9,8 +9,9 @@ namespace App\Domain\Notifications\Services;
  *
  * - `accepted`: the push service took it (2xx). Not proof the phone showed it.
  * - `gone`: the subscription no longer exists (404, 410) or belongs to another key
- *   (403); the device is deleted and never tried again.
- * - `rejected`: refused for another reason (other 4xx); retrying will not help.
+ *   (403 naming a key mismatch); the device is deleted and never tried again.
+ * - `rejected`: refused for another reason (other 4xx, or a key the package can't
+ *   encrypt to); retrying will not help.
  * - `transport_failed`: no answer, 429 or 5xx; worth retrying.
  */
 final readonly class PushResult

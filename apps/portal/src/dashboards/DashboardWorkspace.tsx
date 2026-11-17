@@ -1016,7 +1016,8 @@ export function DashboardWorkspace({
                       <HistoryIcon />
                       Version history
                     </DropdownMenuItem>
-                    {canEdit && (
+                    {/* Editing, its settings included, needs a larger screen (FR-006). */}
+                    {canEdit && !phone && (
                       <DropdownMenuItem onSelect={() => setDialog("settings")}>
                         <Settings2Icon />
                         Settings

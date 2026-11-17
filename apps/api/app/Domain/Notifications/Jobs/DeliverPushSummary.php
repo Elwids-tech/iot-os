@@ -31,7 +31,11 @@ final class DeliverPushSummary implements ShouldQueue
 
     public int $tries = 0;
 
-    public int $timeout = 30;
+    /**
+     * Up to ten devices at PushSender's 8 seconds each, and still under the alerts
+     * queue's `retry_after` (120), so a slow push service never cuts a send short.
+     */
+    public int $timeout = 100;
 
     public function __construct(public readonly string $summaryUuid) {}
 

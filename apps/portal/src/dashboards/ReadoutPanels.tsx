@@ -299,9 +299,10 @@ export function TablePanel({ org, widget, view }: PanelProps) {
       <TableBody>
         {rows.map(({ source, query, reading, band, precision, state }) => (
           <TableRow key={sourceKey(source)}>
-            <TableCell className="max-w-40 truncate">
+            {/* The link truncates itself, so its phone hit area isn't clipped by the cell. */}
+            <TableCell className="max-w-40">
               <Link
-                className="hover:underline"
+                className="inline-block max-w-full truncate align-bottom hover:underline block-link-target"
                 to={devicePath(org, source.device_uuid)}
               >
                 {source.device_name ?? "Device"}
@@ -383,7 +384,7 @@ export function DeviceHealthPanel({ org, widget, view }: PanelProps) {
               className="flex h-(--row-h) items-center gap-3 border-b text-sm last:border-b-0"
             >
               <Link
-                className="min-w-0 flex-1 truncate hover:underline"
+                className="min-w-0 flex-1 truncate hover:underline block-link-target"
                 to={devicePath(org, entry.device_uuid)}
               >
                 {device?.name ?? entry.device_name ?? "Device"}

@@ -293,7 +293,7 @@ export function DashboardLibrary({
     { id: "panels", header: "Panels", align: "end", mobile: "hidden", value: (d) => d.widgets.length, cell: (d) => <span className="tabular-nums">{d.widgets.length}</span> },
     { id: "devices", header: "Devices", align: "end", mobile: "hidden", value: (d) => devicesOf(d).size, cell: (d) => <span className="tabular-nums">{devicesOf(d).size}</span> },
     { id: "owner", header: "Owner", hidden: true, mobile: "hidden", value: (d) => d.created_by_name, cell: (d) => <span className="text-muted-foreground">{d.created_by_name}</span> },
-    { id: "updated", header: "Updated", sortable: true, mobile: "hidden", value: (d) => d.updated_at, cell: (d) => <RelativeTime at={d.updated_at} className="text-muted-foreground" /> },
+    { id: "updated", header: "Updated", sortable: true, value: (d) => d.updated_at, cell: (d) => <RelativeTime at={d.updated_at} className="text-muted-foreground" /> },
     { id: "viewed", header: "Last viewed", sortable: true, value: (d) => d.last_viewed_at, cell: (d) => <RelativeTime at={d.last_viewed_at} className="text-muted-foreground" /> },
   ]
   const emptyTitle = !everything.length

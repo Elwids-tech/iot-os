@@ -26,7 +26,7 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 1,
+  "revision": 2,
   "summary": "Install the app on your phone, turn on push, and get the alerts from your bell as notifications, even while the app is closed. Choose which levels and organizations reach your devices.",
   "questions": [
     "How do I get alerts on my phone?",
@@ -57,7 +57,7 @@ New alerts that reach your bell arrive as notifications on every device with pus
 ## Troubleshooting
 - **No push option on iPhone or iPad.** Push works only in the app opened from the Home Screen. Add it to the Home Screen, open it from there, sign in and turn on push in **My notifications**.
 - **Notifications are blocked.** If you chose **Don't Allow**, the page can't ask again. Allow notifications for the site in the browser's site settings, or on a phone in **Settings → Notifications** for the app, then reload and turn on push.
-- **Notifications don't show their text on the lock screen.** The phone decides what the lock screen shows. Check the notification preview setting for the app in the phone's settings.
+- **Notifications don't show their text on the lock screen.** The phone decides what the lock screen shows. On iPhone and iPad, open **Settings → Notifications**, select the app and set **Show Previews** to **Always**. On Android, open **Settings → Notifications → Notifications on lock screen** (the names vary between phone makers) and choose to show all notification content.
 - **Push stopped on this device.** A browser can end its push registration, for example after its data was cleared. The app tells you on the next start; select **Turn on again**.
 - **A push didn't arrive.** Check that the alert is in your bell, that its level and organization are switched on under **What gets pushed**, and that **Send test** reaches the device. A phone that stays offline for more than a day misses pushes from that time; the bell still has them.
 

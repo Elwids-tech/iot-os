@@ -274,7 +274,7 @@ export function RefLink({ className, ...props }: LinkProps) {
   return (
     <Link
       className={cn(
-        "relative z-10 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline",
+        "relative z-10 text-muted-foreground underline-offset-4 link-target hover:text-foreground hover:underline",
         className,
       )}
       {...props}

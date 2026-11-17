@@ -356,12 +356,13 @@ while the deployment has a push key (`WEBPUSH_VAPID_*`,
 - **Delivery**: one encrypted push per device through the browser vendor's push
   service, on the `alerts` queue. `sent` means at least one push service accepted it;
   per-device results are the delivery's history rows. No answer, 429 or 5xx is retried
-  with the email backoff; 404, 410 and 403 remove the device and are not retried. A
-  push undelivered after 24 hours expires (`TTL`).
-- **Bursts**: after three pushes to one person from one organization within a minute,
-  further activations join a summary (`summarised`), sent once at the end of its
-  minute as "{count} more alerts", opening the active, unacknowledged list. Each
-  alert is still in the bell.
+  with the email backoff. 404, 410, and a 403 that names a key mismatch remove the
+  device and are not retried; any other 4xx, or keys the server can't encrypt to, fail
+  that device only. A push undelivered after 24 hours expires (`TTL`).
+- **Bursts**: after three activation pushes to one person from one organization
+  within a minute, further activations join a summary (`summarised`), sent once at the
+  end of its minute as "{count} more alerts", opening the active, unacknowledged list.
+  Cleared pushes don't count toward the three. Each alert is still in the bell.
 - **Message**: [`alert-push.v1`](../../contracts/push/v1/alert-push.v1.schema.json):
   organization, severity, automation, device, transition and time; never readings.
   `Topic` per alert (or organization for a summary) lets a push service replace an

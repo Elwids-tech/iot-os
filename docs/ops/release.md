@@ -63,8 +63,8 @@ environment label).
   environment still on EMQX ([broker](broker.md#environments-still-on-emqx)).
 - Push alerts ([spec 033](../../specs/033-pwa-web-push/spec.md)): `init` generates
   the VAPID pair `WEBPUSH_VAPID_PUBLIC_KEY` and `WEBPUSH_VAPID_PRIVATE_KEY`; an
-  existing environment adds it once with `manage.py webpush-keys` (subject `mailto:`
-  the `ACME_EMAIL` unless `WEBPUSH_VAPID_SUBJECT` is already set). Push is off while
+  existing environment adds it once with `manage.py webpush-keys`. An empty
+  `WEBPUSH_VAPID_SUBJECT` becomes `mailto:` the `ACME_EMAIL` at deploy. Push is off while
   both are empty (`validate` warns), and one half alone is refused. Keep the pair:
   `restore` refuses a backup whose pair differs, and a replaced pair makes every
   browser register again the next time its person opens the portal. Push needs

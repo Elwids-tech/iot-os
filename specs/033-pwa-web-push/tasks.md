@@ -531,7 +531,7 @@ bell still update while the phone stays quiet.
 
 ## Phase 10: Polish and cross-cutting concerns
 
-- [ ] T101 Run `/speckit-converge` after pull request 6 merges; implement any gap it appends, in a new pull request based on `main`
+- [x] T101 Run `/speckit-converge` after pull request 6 merges; implement any gap it appends, in a new pull request based on `main` *Built*: run on main 407ece3b; it appended Phase 11 (T105–T126), built in the convergence pull request
 - [ ] T102 Release:
   - before deploying the release that contains pull request 5 to the pilot, run `manage.py webpush-keys --env <private env file>` once and check that `manage.py validate` shows no push warning;
   - after the release, on a real iPhone, install the app from `https://app.<domain>`, turn on push and check activation, clear, summary and tap-to-open (SC-003, Complexity Tracking in the plan);
@@ -613,3 +613,28 @@ increment: alert email links work on phones for every user, with nothing to inst
 5. PR6: people turn push on and manage it (US2, US5). The headline feature is complete.
 6. After release: the real-iPhone check, then the 30-day adoption measure that informs
    the native-app decision.
+
+## Phase 11: Convergence
+
+- [x] T105 Add push cancel tests to `AlertPushDeliveryTest` for every FR-025 check not yet covered: unverified email, lost `Device.view`, the person dropped from the workflow's recipients, execution replaced, push turned off everywhere, and no device left at send time; a person of another organization listed as a recipient gets a cancelled push; `PushSettingsTest` covers a member without device view getting 404 per SC-004 (partial)
+- [x] T106 Apply the push defaults only at a person's first registration, so registering a rotated subscription or another device never undoes **Turn off push everywhere**; when push is off everywhere after turning on a device, the portal's toast says so per FR-019 and contracts/push-api.md (contradicts) *Built*: when push was off everywhere, the portal's turn-on toast says *This device is ready, but push is off everywhere*
+- [x] T107 Reject registrations whose `p256dh` is not a 65-byte P-256 point or whose `auth` is not 16 bytes, and record a send that throws as `rejected` for that device only, so one bad device never fails the delivery per FR-026 (partial) *Built*: a 422 names `keys.p256dh` or `keys.auth`; a send the package can't encrypt is `rejected` with *Could not encrypt for this browser*
+- [x] T108 Treat a 403 from a push service as gone only when it reports a key mismatch, and as `rejected` otherwise, so a signing problem never deletes every device per data-model (contradicts) *Built*: `PushSender::keyMismatch()` reads the push service's answer (Apple's `VapidPkHashMismatch`, Google's "does not correspond")
+- [x] T109 Add burst tests: a second organization's alerts open their own summary, a duplicate dispatch of a delivery sends once, and a projection rollback removes the push row with the bell row per FR-024 and SC-007 (partial)
+- [x] T110 Describe the `alert.deliveries` and `alert.retry` responses (channel, devices, history device label and response status) in the OpenAPI description and take them off the pending list per FR-031 (partial)
+- [x] T111 On a 419 for a signed-in request, call `GET /api/v1/me` once and retry the rejected request once before showing the session-expired dialog, so a kept sign-in whose session lapsed resumes without a password; cover it with an API test that keeps CSRF checking on per FR-011a (partial) *Built*: `packages/api-client` `resume()`; `KeptSignInTest` swaps in a CSRF check that runs in tests
+- [x] T112 Make the dashboard's **Live** status labels leave the live state while the connection store says offline per FR-013 and US3/AC5 (partial)
+- [x] T113 Add phone-width tests (320, 360, 390) for the new-password form, invitation acceptance and My notifications with the push panels per SC-002 and FR-001 (partial)
+- [x] T114 Measure standalone links in `expectPhoneFit` and fix the links it flags per FR-004 and SC-002 (partial) *Built*: `link-target` and `block-link-target` in the kit (docs/dev/design-system.md, Phones), `RefLink` and `ViewsRail` rows grown, and `expectPhoneFit` measures a pseudo-element against its containing block, so a `RowLink` covering its card counts
+- [x] T115 Give `turnOn()`'s push subscription a time limit with a message saying the device's push service didn't answer, instead of waiting forever per US2/AC1 and FR-017 (partial) *Built*: `within()` in `src/pwa/push.ts`: 20 s to turn on; sign-out waits 3 s at most and start-up sync is limited too, because the iOS Simulator showed sign-out hanging behind `getSubscription()`
+- [ ] T116 Finish T100's device checks on the pilot with T102 (quickstart US2 and US5 on Android, SC-003 over 20 alerts on Android and on an installed iPhone, SC-001 from a tapped push), and record in `docs/dev/gotchas.md` that the iOS Simulator here cannot subscribe to web push per SC-001 and SC-003 (partial) *Gotcha recorded; the phone checks wait for the pilot release (T102).*
+- [x] T117 Count only activation pushes toward the three-a-minute burst rule per FR-024 (contradicts)
+- [x] T118 Give `DeliverAlertPush` and `DeliverPushSummary` enough time to reach ten devices, within the alerts queue's `retry_after`, per FR-026 (partial) *Built*: each push request 3 s to connect and 8 s in all; both jobs 100 s, under `retry_after` 120
+- [x] T119 Use `mailto:` plus the ACME email as the push subject when none is set per plan: Release tooling (partial) *Built*: `Deployment` fills an empty subject from `ACME_EMAIL` when it reads the environment
+- [x] T120 Limit the installed app's safe-area padding to phone widths so layouts at 1024 pixels and wider keep their padding per FR-008 (contradicts) *Built*: only the bottom-bar rule changed (touch screens and phone widths); the page header keeps its padding on an inner element, so its rule moves nothing
+- [x] T121 Hide the dashboard's **Settings** action at phone width per FR-006 (contradicts)
+- [x] T122 Show when each dashboard was updated on the Dashboards list's phone cards per FR-003 (partial)
+- [x] T123 Run a waiting new version when the page starts, so the browser's own reload also gets the new release per FR-014 (partial) *Built*: a page that starts while a version waits asks it to take over (`SKIP_WAITING_IF_ALONE`); the worker does so only when that is the one window open
+- [x] T124 Close the app's notifications on screen when the person signs out per FR-015 and the shared-phone edge case (partial)
+- [x] T125 Send `Cache-Control: no-store` on signed-in API responses so organization data does not stay in the browser's HTTP cache per SC-005 (partial) *Built*: `App\Http\Middleware\NoStorePrivateResponses` on the API group; a response with its own `max-age` keeps it
+- [x] T126 Say where the lock-screen preview setting is on iPhone and on Android in the `phone-app` help guide per FR-021 (partial)

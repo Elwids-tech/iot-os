@@ -116,8 +116,9 @@ After a release:
   it becomes visible again. When one is ready it shows *A new version is available*
   with **Reload**.
 - Without **Reload**, the new version runs the next time the app starts, once every
-  window of it has closed. An open page never switches versions underneath itself:
-  the worker keeps serving the version it started with until then.
+  window of it has closed, or when the browser's own reload restarts the only window
+  open. An open page never switches versions underneath itself: the worker keeps
+  serving the version it started with until then.
 - `<meta name="build-id">` names the running build (`BUILD_ID`, else the git commit,
   else the build time).
 
@@ -144,9 +145,11 @@ last organization, last dashboard, the bell's last chime, dashboard panel displa
 push device this browser registered). The registry is
 `apps/portal/src/pwa/personal-state.ts`. Display choices that are not about anyone
 stay: theme, skin, palette, the bell's sound switch and table layouts. The app shell in
-Cache Storage holds no one's data and stays. Signing out also unsubscribes the browser
-from push, and the API forgets its device with the session, so the next person never
-inherits it.
+Cache Storage holds no one's data and stays. Signing out also closes the app's
+notifications still on screen and unsubscribes the browser from push, and the API
+forgets its device with the session, so the next person never inherits it. It waits on
+the browser's push service for 3 seconds at most. Signed-in API responses are sent
+`Cache-Control: no-store`, so the browser's HTTP cache keeps none of them.
 
 ## Testing
 

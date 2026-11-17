@@ -37,6 +37,7 @@ import {
   showBand,
 } from "./ReadoutPanels"
 import type { PanelProps } from "./registry"
+import { useConnection } from "../pwa/connection"
 
 export function StatusPanel({
   org,
@@ -371,6 +372,8 @@ function Freshness({
   now: number
   timezone: "browser" | "utc"
 }) {
+  // While the API can't be reached nothing updates, so nothing reads as live (FR-013).
+  const disconnected = useConnection().state === "offline"
   const live = rows.filter((row) => row.measurement && !row.simulated)
   if (!live.length) return null
   const newest = live
@@ -380,7 +383,7 @@ function Freshness({
   const stale = live.filter((row) => row.measurement!.quality !== "good")
   const offline = live.some((row) => row.presence && row.presence !== "online")
   const diagnostics = [...new Set(stale.map((row) => row.measurement!.diagnostic).filter(Boolean))]
-  const healthy = !stale.length && !offline
+  const healthy = !stale.length && !offline && !disconnected
   // Invalid readings keep showing the last valid value; say so plainly.
   const retained =
     stale.length > 0 &&
@@ -388,7 +391,13 @@ function Freshness({
   return (
     <p className="flex flex-wrap items-center gap-x-2 border-b px-2.5 py-1.5 text-xs text-muted-foreground">
       <StatusMark tone={healthy ? "good" : "muted"}>
-        {healthy ? "Live" : stale.length === live.length ? "Stale" : `${stale.length} of ${live.length} stale`}
+        {disconnected
+          ? "Not updating"
+          : healthy
+            ? "Live"
+            : stale.length === live.length
+              ? "Stale"
+              : `${stale.length} of ${live.length} stale`}
       </StatusMark>
       <span>
         {healthy ? "updated " : retained ? "last valid value received " : "last reading "}

@@ -409,6 +409,14 @@ class ReleaseTests(unittest.TestCase):
             self.assertTrue(release.add_webpush_keys(path))
             self.assertEqual("mailto:alerts@example.com", release.read_env(path)["WEBPUSH_VAPID_SUBJECT"])
 
+    def test_an_empty_push_subject_names_the_acme_contact_at_deploy(self):
+        with tempfile.TemporaryDirectory() as temp:
+            # `init` writes an empty subject; the operator fills ACME_EMAIL afterwards.
+            self.assertEqual('mailto:operator@example.test', self.deployment(temp).env['WEBPUSH_VAPID_SUBJECT'])
+            path = Path(temp)/'environment'
+            path.write_text(path.read_text()+'WEBPUSH_VAPID_SUBJECT="mailto:alerts@example.test"\n')
+            self.assertEqual('mailto:alerts@example.test', release.Deployment(path, None).env['WEBPUSH_VAPID_SUBJECT'])
+
     def test_a_lone_push_key_is_never_regenerated(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/"env"

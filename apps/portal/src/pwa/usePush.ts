@@ -36,6 +36,9 @@ export function useTurnOnPush(user: number | undefined) {
   const run = (publicKey: string) => {
     if (user === undefined || pending) return
     setPending(true)
+    // Push turned off everywhere stays off: a new device never undoes it (FR-019).
+    const before = cache.getQueryData<Awaited<ReturnType<typeof api.pushSettings>>>(pushSettingsKey)
+    const offEverywhere = Boolean(before?.levels) && before?.enabled === false
     turnOn(publicKey, user)
       .then((result) => {
         if (result.status === "blocked")
@@ -48,7 +51,11 @@ export function useTurnOnPush(user: number | undefined) {
             toast(`${result.device.replaced.label} was removed to make room`, {
               description: "Push works on up to 10 devices; the one unused longest made way for this one.",
             })
-          if (result.test === "accepted")
+          if (offEverywhere)
+            toast("This device is ready, but push is off everywhere", {
+              description: "Switch on Push notifications under What gets pushed to get alerts here.",
+            })
+          else if (result.test === "accepted")
             toast.success("Push is on for this device", { description: "Test sent. It arrives in a few seconds." })
           else
             toast.warning("Push is on, but the test didn't get through", {

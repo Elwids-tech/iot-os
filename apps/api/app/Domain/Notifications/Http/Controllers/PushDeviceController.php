@@ -32,8 +32,8 @@ final class PushDeviceController
         $input = $request->validate([
             'endpoint' => ['required', 'string', 'url:https', 'max:2048'],
             'keys' => ['required', 'array'],
-            'keys.p256dh' => ['required', 'string', 'max:255'],
-            'keys.auth' => ['required', 'string', 'max:255'],
+            'keys.p256dh' => ['required', 'string', 'max:255', self::key(65, "\x04")],
+            'keys.auth' => ['required', 'string', 'max:255', self::key(16)],
             'content_encoding' => ['nullable', 'in:aes128gcm,aesgcm'],
             'label' => ['nullable', 'string', 'max:60'],
         ]);
@@ -142,5 +142,20 @@ final class PushDeviceController
             'session_id' => $session?->getId(),
             'kept_sign_in_id' => $session?->get(KeptSignInCookie::SESSION_KEY),
         ];
+    }
+
+    /**
+     * A browser's key, base64url: the P-256 point (65 bytes, uncompressed) or the 16-byte
+     * auth secret. Anything else can't be encrypted to, so it is refused here rather than
+     * failing every push later (FR-026).
+     */
+    private static function key(int $bytes, string $prefix = ''): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($bytes, $prefix): void {
+            $raw = is_string($value) ? base64_decode(strtr($value, '-_', '+/'), true) : false;
+            if ($raw === false || strlen($raw) !== $bytes || ! str_starts_with($raw, $prefix)) {
+                $fail('The :attribute is not a browser push key.');
+            }
+        };
     }
 }

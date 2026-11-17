@@ -62,15 +62,30 @@ export function subscribeDevice(listener: () => void): () => void {
 
 export class PushUnavailable extends Error {}
 
+/**
+ * The browser's push calls can wait forever: a phone whose push service is down never
+ * settles `subscribe()` or even `getSubscription()`. Nothing here waits longer than `ms`.
+ */
+export function within<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new PushUnavailable(message)), ms)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+/** How long turning on waits for this device's push service before saying so. */
+export const SUBSCRIBE_TIMEOUT = 20_000
+/** Signing out never waits longer than this on push. */
+export const SIGN_OUT_TIMEOUT = 3_000
+const NO_ANSWER = "This device's push service didn't answer. Check the connection and try again."
+
 /** The registered worker. The portal registers it at start; it is missing in `vite dev`. */
 async function worker(timeout = 10_000): Promise<ServiceWorkerRegistration> {
   if (!("serviceWorker" in navigator)) throw new PushUnavailable("This browser has no service worker.")
-  return Promise.race([
-    navigator.serviceWorker.ready,
-    new Promise<never>((_, reject) =>
-      window.setTimeout(() => reject(new PushUnavailable("The app's background worker did not start. Reload and try again.")), timeout),
-    ),
-  ])
+  return within(navigator.serviceWorker.ready, timeout, "The app's background worker did not start. Reload and try again.")
 }
 
 /** The worker if it is registered already, without waiting for one that never starts. */
@@ -110,12 +125,16 @@ export async function turnOn(publicKey: string, user: number): Promise<TurnOnRes
   if (permission === "denied") return { status: "blocked" }
   if (permission !== "granted") return { status: "dismissed" }
   const { pushManager } = await worker()
-  let subscription = await pushManager.getSubscription()
-  if (subscription && !sameKey(subscription, publicKey)) {
-    await subscription.unsubscribe().catch(() => false)
-    subscription = null
-  }
-  subscription ??= await pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(publicKey) })
+  const subscription = await within(
+    (async () => {
+      const current = await pushManager.getSubscription()
+      if (current && sameKey(current, publicKey)) return current
+      await current?.unsubscribe().catch(() => false)
+      return pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(publicKey) })
+    })(),
+    SUBSCRIBE_TIMEOUT,
+    NO_ANSWER,
+  )
   const device = await register(subscription, user)
   const test = await api
     .testPushDevice(device.uuid)
@@ -146,7 +165,7 @@ export async function sync(user: number, publicKey: () => Promise<string | null>
   if (syncedFor === user) return "none"
   syncedFor = user
   const ready = await existingWorker()
-  const subscription = await ready?.pushManager.getSubscription()
+  const subscription = ready ? await within(ready.pushManager.getSubscription(), SUBSCRIBE_TIMEOUT, NO_ANSWER).catch(() => null) : null
   const stored = read()
   const mine = stored?.user === user ? stored : null
   if (!ready || !subscription) {
@@ -189,15 +208,24 @@ export async function sync(user: number, publicKey: () => Promise<string | null>
 }
 
 /**
- * Stops push in this browser and forgets the device here. Signing out calls it first;
- * the API then removes the device with the session.
+ * Stops push in this browser, closes this app's notifications still on screen (the next
+ * person on a shared phone sees none of them) and forgets the device here. Signing out
+ * calls it; the API removes the device with the session. It never holds sign-out up for
+ * longer than SIGN_OUT_TIMEOUT, even where the push service never answers.
  */
 export async function unsubscribeHere(): Promise<void> {
   syncedFor = null
-  const ready = await existingWorker()
-  const subscription = await ready?.pushManager.getSubscription().catch(() => null)
-  await subscription?.unsubscribe().catch(() => false)
   if (read()) save(null)
+  const ready = await existingWorker()
+  if (!ready) return
+  await within(
+    Promise.all([
+      (async () => (await ready.getNotifications()).forEach((notification) => notification.close()))().catch(() => undefined),
+      (async () => void (await (await ready.pushManager.getSubscription())?.unsubscribe()))(),
+    ]),
+    SIGN_OUT_TIMEOUT,
+    "Push did not stop in time.",
+  ).catch(() => undefined)
 }
 
 /** Dispatched on `window` once this browser's own device was removed: App.tsx signs out here. */

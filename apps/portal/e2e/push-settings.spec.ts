@@ -36,12 +36,17 @@ type Stub = {
   /** The device this browser registered earlier, as pwa/push.ts stores it. */
   stored: string | null
   key: number[]
+  /** The push service never answers: getSubscription and subscribe never settle. */
+  stall: boolean
+  /** This app's notifications on screen. */
+  shown: number
 }
 
 /** Runs in the page before the app: fake permission, worker registration and PushManager. */
 function stubPush(stub: Stub) {
   type Fake = { endpoint: string; options: { applicationServerKey: ArrayBuffer }; toJSON(): unknown; unsubscribe(): Promise<boolean> }
-  const state = { ...stub, requests: 0, subscribed: 0, unsubscribed: 0, subscription: null as Fake | null }
+  const state = { ...stub, requests: 0, subscribed: 0, unsubscribed: 0, closed: 0, subscription: null as Fake | null }
+  const never = () => new Promise<never>(() => {})
   ;(window as unknown as { __push: typeof state }).__push = state
   if (stub.stored && !sessionStorage.getItem("push-seeded")) {
     localStorage.setItem("iot-os.push-device", stub.stored)
@@ -60,9 +65,11 @@ function stubPush(stub: Stub) {
   })
   state.subscription = stub.endpoint ? subscription(stub.endpoint) : null
   const registration = {
+    getNotifications: () => Promise.resolve(Array.from({ length: state.shown }, () => ({ close: () => void state.closed++ }))),
     pushManager: {
-      getSubscription: () => Promise.resolve(state.subscription),
+      getSubscription: () => (state.stall ? never() : Promise.resolve(state.subscription)),
       subscribe: () => {
+        if (state.stall) return never()
         state.subscribed++
         state.subscription = subscription(`https://push.example.test/send/${state.subscribed}`)
         return Promise.resolve(state.subscription)
@@ -91,7 +98,7 @@ function stubPush(stub: Stub) {
   })
 }
 const pushState = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __push: { requests: number; subscribed: number; unsubscribed: number } }).__push)
+  page.evaluate(() => (window as unknown as { __push: { requests: number; subscribed: number; unsubscribed: number; closed: number } }).__push)
 
 const defaults = { critical: true, warning: true, info: true, recovery: false }
 
@@ -125,6 +132,7 @@ async function setup(
     removed: [] as string[],
     syncs: [] as string[],
     errors: [] as string[],
+    signedOut: false,
   }
   page.on("pageerror", (error) => state.errors.push(error.message))
   await page.addInitScript(stubPush, {
@@ -134,6 +142,8 @@ async function setup(
     endpoint: null,
     stored: null,
     key: [...Buffer.from(KEY, "base64url")],
+    stall: false,
+    shown: 0,
     ...stub,
   })
   await page.route("**/api/**", async (route) => {
@@ -149,6 +159,11 @@ async function setup(
       slug: "test",
       capabilities: { devices: { view: true, manage: true, activate: true, connections: false, command: false } },
     }
+    if (url.pathname === "/api/v1/auth/logout") {
+      state.signedOut = true
+      return route.fulfill({ status: 204 })
+    }
+    if (url.pathname === "/api/v1/me" && state.signedOut) return reply({ message: "Unauthenticated." }, 401)
     if (url.pathname === "/api/v1/me")
       return reply({
         data: {
@@ -297,6 +312,26 @@ test("a replaced device and a refused permission are explained", async ({ page }
   expect(refused.registrations).toEqual([])
 })
 
+test("a push service that never answers: turning on says so, and signing out neither waits nor leaves notifications", async ({ page }) => {
+  const state = await setup(page, { stub: { stall: true, shown: 2 } })
+  await page.clock.install()
+  await page.goto(myNotifications)
+  await page.getByRole("button", { name: "Turn on push on this device" }).click()
+  await expect(page.getByRole("button", { name: /Turning on/ })).toBeVisible()
+  await page.clock.fastForward(21_000)
+  await expect(toast(page, "Push couldn't be turned on")).toContainText("push service didn't answer")
+  await expect(page.getByRole("button", { name: "Turn on push on this device" })).toBeEnabled()
+  expect(state.registrations).toEqual([])
+
+  // A shared phone: the next person must not see this person's alerts in the tray.
+  await page.getByRole("button", { name: "Operator" }).click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
+  await page.clock.fastForward(3_500)
+  await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
+  expect((await pushState(page)).closed).toBe(2)
+  expect(state.errors).toEqual([])
+})
+
 test("levels, the switch and organizations save together; tests and removal ask the API", async ({ page }) => {
   const state = await setup(page, {
     settings: {
@@ -436,20 +471,22 @@ test("an alert's deliveries show the channel and the devices reached", async ({ 
   expect(state.errors).toEqual([])
 })
 
-test("My notifications fits a 360 px phone", async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 780 })
-  await setup(page, {
-    settings: {
-      enabled: true,
-      levels: defaults,
-      revision: 1,
-      devices: [
-        { uuid: deviceId(2), label: "Samsung Internet on Android", created_at: ago(60 * 24 * 30), last_reached_at: ago(5), last_failed_at: null },
-        { uuid: deviceId(3), label: "Safari on iPad", created_at: ago(60 * 24 * 2), last_reached_at: null, last_failed_at: null },
-      ],
-    },
+for (const width of [320, 360, 390]) {
+  test(`My notifications fits a ${width} px phone`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 780 })
+    await setup(page, {
+      settings: {
+        enabled: true,
+        levels: defaults,
+        revision: 1,
+        devices: [
+          { uuid: deviceId(2), label: "Samsung Internet on Android", created_at: ago(60 * 24 * 30), last_reached_at: ago(5), last_failed_at: null },
+          { uuid: deviceId(3), label: "Safari on iPad", created_at: ago(60 * 24 * 2), last_reached_at: null, last_failed_at: null },
+        ],
+      },
+    })
+    await page.goto(myNotifications)
+    await expect(page.getByRole("heading", { name: "What gets pushed" })).toBeVisible()
+    await expectPhoneFit(page)
   })
-  await page.goto(myNotifications)
-  await expect(page.getByRole("heading", { name: "What gets pushed" })).toBeVisible()
-  await expectPhoneFit(page)
-})
+}

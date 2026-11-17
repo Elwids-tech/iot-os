@@ -207,6 +207,16 @@ async function setup(page: Page, options: Options = {}) {
     }
     if (url.pathname === "/api/v1/me")
       return state.signedIn ? json({ data: user }) : json({ message: "Unauthenticated." }, 401)
+    if (url.pathname.startsWith("/api/v1/invitations/"))
+      return json({
+        data: {
+          grants_super_admin: false,
+          organization: { uuid: org, name: "Acme Plant Operations" },
+          email: "new.operator@example.test",
+          expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+          acceptance_mode: "create_account",
+        },
+      })
     if (path === "/context") return json({ data: context })
     if (path === "/runtime-status")
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: ago(5) } })
@@ -427,6 +437,17 @@ for (const viewport of viewports) {
           document.addEventListener("DOMContentLoaded", enlarge)
         })
       })
+
+    test("the new-password form and an invitation fit too", async ({ page }) => {
+      const state = await setup(page, { signedOut: true })
+      await page.goto(`/reset-password#token=${"c".repeat(64)}&email=manager%40example.test`)
+      await expect(page.getByLabel("New password", { exact: true })).toBeVisible()
+      await expectPhoneFit(page)
+      await page.goto(`/accept-invitation?token=${"a".repeat(64)}`)
+      await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible()
+      await expectPhoneFit(page)
+      expect(state.errors).toEqual([])
+    })
 
     test("a signed-out alert link signs in on the same path and opens the alert", async ({ page }) => {
       const state = await setup(page, { signedOut: true })
