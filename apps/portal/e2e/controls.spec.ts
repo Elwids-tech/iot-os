@@ -225,7 +225,7 @@ test("direct controls preserve actual state, deduplicate edits, and receive loca
     })
   await expect.poll(() => controls.state.mode).toBe("blink")
   const selectedMode = page.locator(
-    '[data-slot="toggle-group-item"][data-state="on"]',
+    '[data-slot="segmented-control-item"][data-state="on"]',
   )
   await expect(selectedMode).toHaveCount(1)
   expect(

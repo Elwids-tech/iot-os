@@ -73,7 +73,7 @@ export function ExecutionTimeline({ org, workflowId, registry, evidenceTarget, r
         <div className="flex min-w-0 flex-col gap-3">
           <div className="text-xs text-muted-foreground">{before ? "Browsing older evaluations" : paused ? "Updates paused" : "Latest evaluations · updates every 5 seconds"}</div>
           <ol aria-label="Workflow evaluations" className="flex max-h-[36rem] flex-col gap-2 overflow-y-auto">
-            {list.data?.data.map(row => <li key={row.id}><Button variant={selectedId === row.id ? "secondary" : "outline"} aria-pressed={selectedId === row.id} className="h-auto w-full justify-start whitespace-normal p-3 text-left" onClick={() => setSelected(row.id)}>
+            {list.data?.data.map(row => <li key={row.id}><Button variant={selectedId === row.id ? "secondary" : "outline"} aria-pressed={selectedId === row.id} className="h-auto w-full justify-start whitespace-normal p-3 text-left aria-pressed:border-primary" onClick={() => setSelected(row.id)}>
               {row.trigger === "timer" ? <ClockIcon data-icon="inline-start" /> : <ActivityIcon data-icon="inline-start" />}
               <span className="flex min-w-0 flex-col gap-1"><span>{outcomeLabels[row.outcome] ?? row.outcome}</span><span className="text-xs text-muted-foreground">{timestamp(row.at)}</span><span className="text-xs text-muted-foreground">{row.source?.device_name ?? (row.trigger === "timer" ? "Timer evaluation" : "Telemetry evaluation")} · deployment {row.generation}</span></span>
             </Button></li>)}

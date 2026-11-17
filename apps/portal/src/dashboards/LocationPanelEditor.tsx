@@ -4,7 +4,7 @@ import type { DashboardWidget, DeviceDetail, LocationBinding, TrailWindow } from
 import { Button } from "@iot-os/ui/components/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@iot-os/ui/components/field"
 import { Switch } from "@iot-os/ui/components/switch"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { SearchableMultiSelect, SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Loader2Icon } from "lucide-react"
 import { RequestError } from "../components/forms"
@@ -36,10 +36,10 @@ export function LocationSettings({ org, widget, onChange }: {
       search={search} onSearchChange={setSearch}
       onChange={(geofence_uuid) => patch({ geofence_uuid: geofence_uuid || undefined })} />
     <Field><FieldLabel>Trail window</FieldLabel>
-      <ToggleGroup type="single" variant="outline" value={widget.config.trail_window ?? "24h"}
+      <SegmentedControl value={widget.config.trail_window ?? "24h"}
         onValueChange={(value) => value && patch({ trail_window: value as TrailWindow })}>
-        {(["1h", "6h", "24h", "7d"] as const).map((value) => <ToggleGroupItem key={value} value={value}>{value}</ToggleGroupItem>)}
-      </ToggleGroup>
+        {(["1h", "6h", "24h", "7d"] as const).map((value) => <SegmentedControlItem key={value} value={value}>{value}</SegmentedControlItem>)}
+      </SegmentedControl>
     </Field>
     <Field orientation="horizontal"><Switch id="show-trails" checked={widget.config.show_trails ?? true} onCheckedChange={(show_trails) => patch({ show_trails })} /><FieldLabel htmlFor="show-trails">Show movement trails</FieldLabel></Field>
     <Field orientation="horizontal"><Switch id="show-labels" checked={widget.config.show_labels ?? true} onCheckedChange={(show_labels) => patch({ show_labels })} /><FieldLabel htmlFor="show-labels">Show device labels</FieldLabel></Field>

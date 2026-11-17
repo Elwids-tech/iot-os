@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { StatusMark } from "@iot-os/ui/components/status-mark";
 import { DataTable } from "@iot-os/ui/components/data-table";
 import { EmptyState } from "@iot-os/ui/components/empty-state";
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group";
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control";
 import { formatDateTime } from "@iot-os/ui/lib/format";
 import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
@@ -59,51 +59,39 @@ export function EventLogPage() {
       tab="events"
       filters={
         <FilterBar>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            spacing={0}
+          <SegmentedControl
             aria-label="Event state"
             value={status}
             onValueChange={(value) => value && filter({ status: value })}
           >
-            <ToggleGroupItem value="all">All</ToggleGroupItem>
-            <ToggleGroupItem value="active">Active</ToggleGroupItem>
-            <ToggleGroupItem value="cleared">Cleared</ToggleGroupItem>
-          </ToggleGroup>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            spacing={0}
+            <SegmentedControlItem value="all">All</SegmentedControlItem>
+            <SegmentedControlItem value="active">Active</SegmentedControlItem>
+            <SegmentedControlItem value="cleared">Cleared</SegmentedControlItem>
+          </SegmentedControl>
+          <SegmentedControl
             aria-label="Event type"
             value={source}
             onValueChange={(value) => value && filter({ source: value })}
           >
-            <ToggleGroupItem value="all">All types</ToggleGroupItem>
+            <SegmentedControlItem value="all">All types</SegmentedControlItem>
             {(Object.keys(sources) as NotificationSource[]).map((key) => (
-              <ToggleGroupItem key={key} value={key}>
+              <SegmentedControlItem key={key} value={key}>
                 {sources[key].label}
-              </ToggleGroupItem>
+              </SegmentedControlItem>
             ))}
-          </ToggleGroup>
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            spacing={0}
+          </SegmentedControl>
+          <SegmentedControl
             aria-label="Severity"
             value={severity}
             onValueChange={(value) => value && filter({ severity: value })}
           >
-            <ToggleGroupItem value="all">All severities</ToggleGroupItem>
+            <SegmentedControlItem value="all">All severities</SegmentedControlItem>
             {severities.map((level) => (
-              <ToggleGroupItem key={level} value={level}>
+              <SegmentedControlItem key={level} value={level}>
                 {labels[level]}
-              </ToggleGroupItem>
+              </SegmentedControlItem>
             ))}
-          </ToggleGroup>
+          </SegmentedControl>
           <FilterSearch
             label="Search events"
             placeholder="Search events or services…"

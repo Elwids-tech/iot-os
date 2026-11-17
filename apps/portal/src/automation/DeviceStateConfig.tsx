@@ -9,7 +9,7 @@ import { Input } from "@iot-os/ui/components/input"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Slider } from "@iot-os/ui/components/slider"
 import { Switch } from "@iot-os/ui/components/switch"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
@@ -79,7 +79,7 @@ function SettingValue({ parameter, value, onChange }: { parameter: DeviceProfile
       <FieldLabel htmlFor={id}>{label}</FieldLabel>}
     {spec.kind === "switch" && <div className="flex items-center gap-3"><Switch id={id} checked={value === true} onCheckedChange={onChange} /><span>{value === true ? "On" : "Off"}</span></div>}
     {spec.kind === "options" && !searchable &&
-      <ToggleGroup type="single" variant="outline" aria-label={parameter.label} value={text} onValueChange={next => { if (next) edit(next) }} className="flex-wrap">{spec.options!.map(o => <ToggleGroupItem key={String(o)} value={String(o)} aria-label={String(o)}>{String(o)}</ToggleGroupItem>)}</ToggleGroup>}
+      <SegmentedControl aria-label={parameter.label} value={text} onValueChange={next => { if (next) edit(next) }} wrap>{spec.options!.map(o => <SegmentedControlItem key={String(o)} value={String(o)} aria-label={String(o)}>{String(o)}</SegmentedControlItem>)}</SegmentedControl>}
     {spec.kind === "slider" && <Slider aria-label={`${parameter.label} slider`} min={spec.min} max={spec.max} step={spec.step} value={[typeof value === "number" ? value : spec.min!]} onValueChange={([next]) => onChange(next)} />}
     {spec.kind === "color" && <Input type="color" aria-label={`${parameter.label} picker`} value={/^#[0-9a-f]{6}$/i.test(text) ? text : "#000000"} onChange={e => edit(e.target.value.toUpperCase())} />}
     {["slider", "number", "color", "text"].includes(spec.kind) && <Input id={id} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} type={["slider", "number"].includes(spec.kind) ? "number" : "text"} min={spec.min} max={spec.max} step={spec.step ?? "any"} value={text} onChange={e => edit(e.target.value)} />}

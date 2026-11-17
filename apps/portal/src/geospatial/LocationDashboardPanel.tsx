@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type { TrailWindow } from "@iot-os/api-client"
 import { Switch } from "@iot-os/ui/components/switch"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { Field, FieldLabel } from "@iot-os/ui/components/field"
 import { trailColors } from "./presentation"
 import { Badge } from "@iot-os/ui/components/badge"
@@ -58,9 +58,9 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
     </div>
     <div className="flex flex-wrap items-center gap-4">
       <Field orientation="horizontal" className="w-auto"><Switch id={controlId} checked={showTrails} onCheckedChange={setShowTrails} /><FieldLabel htmlFor={controlId}>Movement trails</FieldLabel></Field>
-      <ToggleGroup type="single" variant="outline" size="sm" aria-label="Movement trail time limit" value={trailWindow} disabled={!showTrails} onValueChange={(value) => value && setTrailWindow(value as TrailWindow)}>
-        {(["1h", "6h", "24h", "7d"] as const).map((value) => <ToggleGroupItem key={value} value={value} aria-label={`Last ${value} of movement`}>{value}</ToggleGroupItem>)}
-      </ToggleGroup>
+      <SegmentedControl aria-label="Movement trail time limit" value={trailWindow} disabled={!showTrails} onValueChange={(value) => value && setTrailWindow(value as TrailWindow)}>
+        {(["1h", "6h", "24h", "7d"] as const).map((value) => <SegmentedControlItem key={value} value={value} aria-label={`Last ${value} of movement`}>{value}</SegmentedControlItem>)}
+      </SegmentedControl>
       <span className="text-sm text-muted-foreground">{query.data.geofence?.name ?? "Watch only · no fence selected"}</span>
     </div>
     <p className="text-xs text-muted-foreground">Green: inside · Red: outside · Grey: stale or unknown · Dashed lines: movement trails</p>

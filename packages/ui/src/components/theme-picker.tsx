@@ -13,7 +13,7 @@ import {
 } from "@iot-os/ui/components/dropdown-menu"
 import { isSkin, skins, useSkin } from "@iot-os/ui/components/skin"
 import { isPalette, palettes, usePalette } from "@iot-os/ui/components/palette"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 
 const themes = [
   { value: "light", label: "Light" },
@@ -86,10 +86,6 @@ export function ThemePicker() {
   )
 }
 
-const segmentGroup = "gap-0 rounded-lg bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]"
-const segmentItem =
-  "rounded-md! px-3 text-muted-foreground hover:bg-transparent data-[state=on]:border-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-panel data-[state=on]:hover:bg-card data-[state=on]:hover:text-foreground"
-
 /** Theme, dark palette and skin as labelled segmented controls, for a Settings page. */
 export function AppearanceSettings() {
   const { theme = "system", setTheme } = useTheme()
@@ -109,35 +105,35 @@ export function AppearanceSettings() {
       {row(
         "Theme",
         "Light, dark, or follow this device.",
-        <ToggleGroup type="single" size="sm" spacing={0} aria-label="Theme" value={theme} onValueChange={(value) => value && setTheme(value)} className={segmentGroup}>
+        <SegmentedControl aria-label="Theme" value={theme} onValueChange={(value) => value && setTheme(value)}>
           {themes.map((item) => (
-            <ToggleGroupItem key={item.value} value={item.value} className={segmentItem}>
+            <SegmentedControlItem key={item.value} value={item.value} className="px-3">
               {item.label}
-            </ToggleGroupItem>
+            </SegmentedControlItem>
           ))}
-        </ToggleGroup>,
+        </SegmentedControl>,
       )}
       {row(
         "Dark palette",
         "Dusk is softer; Ink is pure black for OLED screens.",
-        <ToggleGroup type="single" size="sm" spacing={0} aria-label="Dark palette" value={palette} onValueChange={(value) => isPalette(value) && setPalette(value)} className={segmentGroup}>
+        <SegmentedControl aria-label="Dark palette" value={palette} onValueChange={(value) => isPalette(value) && setPalette(value)}>
           {palettes.map((item) => (
-            <ToggleGroupItem key={item.value} value={item.value} className={segmentItem}>
+            <SegmentedControlItem key={item.value} value={item.value} className="px-3">
               {item.label}
-            </ToggleGroupItem>
+            </SegmentedControlItem>
           ))}
-        </ToggleGroup>,
+        </SegmentedControl>,
       )}
       {row(
         "Skin",
         "Type, corners and density across the product.",
-        <ToggleGroup type="single" size="sm" spacing={0} aria-label="Skin" value={skin} onValueChange={(value) => isSkin(value) && setSkin(value)} className={segmentGroup}>
+        <SegmentedControl aria-label="Skin" value={skin} onValueChange={(value) => isSkin(value) && setSkin(value)}>
           {skins.map((item) => (
-            <ToggleGroupItem key={item.value} value={item.value} className={segmentItem}>
+            <SegmentedControlItem key={item.value} value={item.value} className="px-3">
               {item.label}
-            </ToggleGroupItem>
+            </SegmentedControlItem>
           ))}
-        </ToggleGroup>,
+        </SegmentedControl>,
       )}
     </div>
   )

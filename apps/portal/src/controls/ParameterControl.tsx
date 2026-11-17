@@ -10,9 +10,9 @@ import { Input } from "@iot-os/ui/components/input"
 import { Switch } from "@iot-os/ui/components/switch"
 import { Slider } from "@iot-os/ui/components/slider"
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@iot-os/ui/components/toggle-group"
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@iot-os/ui/components/segmented-control"
 import { SearchableSelect } from "@iot-os/ui/components/searchable-select"
 import { Button } from "@iot-os/ui/components/button"
 import { controlSpec, parseControlValue, type ControlValue } from "./model"
@@ -122,9 +122,7 @@ export function ParameterControl({
         {spec.kind === "options" &&
           (spec.optionControl === "toggle_group" ||
           (spec.optionControl === "automatic" && spec.options!.length <= 7) ? (
-            <ToggleGroup
-              type="single"
-              variant="outline"
+            <SegmentedControl
               aria-label={parameter.label}
               value={JSON.stringify(parseOption(value))}
               disabled={blocked}
@@ -134,18 +132,18 @@ export function ParameterControl({
                   void commit(String(JSON.parse(next)))
                 }
               }}
-              className="flex-wrap"
+              wrap
             >
               {spec.options!.map((option) => (
-                <ToggleGroupItem
+                <SegmentedControlItem
                   key={JSON.stringify(option)}
                   value={JSON.stringify(option)}
                   aria-label={String(option)}
                 >
                   {String(option)}
-                </ToggleGroupItem>
+                </SegmentedControlItem>
               ))}
-            </ToggleGroup>
+            </SegmentedControl>
           ) : (
             <SearchableSelect
               label={parameter.label}

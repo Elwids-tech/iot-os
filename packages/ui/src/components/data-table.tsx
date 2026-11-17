@@ -74,7 +74,7 @@ import {
   TableHeader,
   TableRow,
 } from "@iot-os/ui/components/table"
-import { ToggleGroup, ToggleGroupItem } from "@iot-os/ui/components/toggle-group"
+import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@iot-os/ui/components/tooltip"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { FilterSheet } from "@iot-os/ui/components/filter-sheet"
@@ -1073,30 +1073,21 @@ function Toolbar<T>({
     <div data-slot="data-table-toolbar" className="flex flex-wrap items-center gap-2">
       {views && (
         <div className="max-w-full overflow-x-auto scrollbar-none">
-          <ToggleGroup
-            type="single"
-            size="sm"
-            spacing={0}
+          <SegmentedControl
             aria-label={views.label}
             value={views.value}
             onValueChange={(value) => value && views.onChange(value)}
-            className="gap-0 rounded-lg bg-sunken p-0.5 shadow-[inset_0_0_0_1px_var(--border)]"
           >
             {views.options.map((option) => (
-              <ToggleGroupItem
+              <SegmentedControlItem
                 key={option.value}
                 value={option.value}
-                className="gap-1.5 rounded-md! px-2.5 text-muted-foreground hover:bg-transparent data-[state=on]:border-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-panel data-[state=on]:hover:bg-card data-[state=on]:hover:text-foreground"
+                count={option.count}
               >
                 {option.label}
-                {option.count !== undefined && (
-                  <span className="font-normal text-muted-foreground tabular-nums">
-                    {option.count.toLocaleString()}
-                  </span>
-                )}
-              </ToggleGroupItem>
+              </SegmentedControlItem>
             ))}
-          </ToggleGroup>
+          </SegmentedControl>
         </div>
       )}
       {search && (
