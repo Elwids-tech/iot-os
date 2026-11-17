@@ -1,6 +1,6 @@
 # ADR-008: Laravel Sanctum Authentication
 
-**Status:** Accepted; amended by [ADR-018](ADR-018-agent-access-oauth.md)
+**Status:** Accepted; amended by [ADR-018](ADR-018-agent-access-oauth.md) and [ADR-048](ADR-048-two-step-sign-in-and-passkeys.md)
 **Date:** 2026-08-23
 
 ## Context
