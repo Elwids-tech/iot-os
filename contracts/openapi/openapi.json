@@ -7904,7 +7904,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_146",
+        "operationId": "domain.devices.retention.show_148",
         "tags": [
           "Retention"
         ],
@@ -7953,7 +7953,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_147",
+        "operationId": "domain.devices.retention.update_149",
         "tags": [
           "Retention"
         ],
@@ -8291,7 +8291,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_144",
+        "operationId": "domain.devices.retention.show_146",
         "tags": [
           "Retention"
         ],
@@ -8323,7 +8323,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_145",
+        "operationId": "domain.devices.retention.update_147",
         "tags": [
           "Retention"
         ],
@@ -9887,45 +9887,7 @@
             "$ref": "#/components/responses/Unauthenticated"
           },
           "403": {
-            "description": "An error\n\nAn error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "message": {
-                          "type": "string",
-                          "description": "Error overview.",
-                          "examples": [
-                            "You are not a member of this organization."
-                          ]
-                        }
-                      },
-                      "required": [
-                        "message"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "message": {
-                          "type": "string",
-                          "description": "Error overview.",
-                          "examples": [
-                            "Agent access is switched off for this organization."
-                          ]
-                        }
-                      },
-                      "required": [
-                        "message"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -10053,6 +10015,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -10122,6 +10087,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -10708,6 +10676,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -10772,6 +10743,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -10839,6 +10813,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -10910,6 +10887,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -10971,6 +10951,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11039,6 +11022,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -11105,6 +11091,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11176,6 +11165,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11258,6 +11250,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -11326,6 +11321,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -11368,6 +11366,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11432,6 +11433,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11501,6 +11505,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11741,6 +11748,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -11776,6 +11786,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -12027,6 +12040,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "409": {
+            "$ref": "#/components/responses/TwoStepConflict"
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
@@ -12040,7 +12056,7 @@
           }
         ],
         "x-audience": "account",
-        "description": "Turns two-step off, or discards an unconfirmed setup. Turning it off ends every\nother session and kept sign-in of the person. Needs a recently confirmed password."
+        "description": "Turns two-step off, or discards an unconfirmed setup. Turning it off ends every\nother session and kept sign-in of the person. Needs a recently confirmed password.\nRefused while two-step is required for the person (`409 two_step_required`)."
       }
     },
     "/v1/me/two-step/confirm": {
@@ -12234,6 +12250,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
           }
@@ -12266,6 +12285,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -12390,6 +12412,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -12473,6 +12498,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -12594,6 +12622,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "description": "An error",
@@ -12729,6 +12760,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
@@ -12767,6 +12801,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -12834,6 +12871,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -12939,6 +12979,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -29530,6 +29573,154 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/security": {
+      "get": {
+        "operationId": "v1.organizations.security.show",
+        "tags": [
+          "OrganizationSecurity"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's sign-in security.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationSecurity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "The organization's sign-in security (spec 034): whether two-step sign-in is\nrequired for every member, and how many members have not set it up."
+      },
+      "put": {
+        "operationId": "v1.organizations.security.update",
+        "tags": [
+          "OrganizationSecurity"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "two_step_required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "two_step_required"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved setting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationSecurity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The viewer has no second step set up (`two_step_setup_required`) and must set up their own first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodedError"
+                }
+              }
+            }
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Requires two-step sign-in for every member, or stops requiring it (spec 034,\nFR-021). The change is recorded in the organization's activity. Members without\ntwo-step are sent to setup on their next request; turning it off turns nobody's\ntwo-step off."
+      }
+    },
     "/v1/organizations/{organization}/settings/timezone": {
       "put": {
         "operationId": "site.updateOrganizationTimezone",
@@ -32167,7 +32358,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_190",
+        "operationId": "domain.automation.dag.settings_192",
         "tags": [
           "Dag"
         ],
@@ -32242,7 +32433,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_191",
+        "operationId": "domain.automation.dag.settings_193",
         "tags": [
           "Dag"
         ],
@@ -33649,7 +33840,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_204",
+        "operationId": "domain.automation.scenario.save_206",
         "tags": [
           "Scenario"
         ],
@@ -33765,7 +33956,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_205",
+        "operationId": "domain.automation.scenario.save_207",
         "tags": [
           "Scenario"
         ],
@@ -34310,7 +34501,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_196",
+        "operationId": "domain.automation.dag.timeline_198",
         "tags": [
           "Dag"
         ],
@@ -34381,7 +34572,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_197",
+        "operationId": "domain.automation.dag.timeline_199",
         "tags": [
           "Dag"
         ],
@@ -34560,6 +34751,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -34701,7 +34895,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller is not allowed: not a member of the organization, missing a tenant or platform permission, or (integration API) an ability not granted on both the application and the token.",
+        "description": "The caller is not allowed: not a member of the organization, missing a tenant or platform permission, or (integration API) an ability not granted on both the application and the token. On session routes, a person for whom two-step sign-in is required and not set up gets `code: two_step_setup_required` until they set it up (spec 034).",
         "content": {
           "application/json": {
             "schema": {
@@ -34825,7 +35019,7 @@
         }
       },
       "TwoStepConflict": {
-        "description": "Two-step sign-in is already on (`two_step_already_on`), or is off where it must be on (`two_step_off`).",
+        "description": "Two-step sign-in is already on (`two_step_already_on`), is off where it must be on (`two_step_off`), or is required for the person and cannot be turned off (`two_step_required`).",
         "content": {
           "application/json": {
             "schema": {
@@ -36414,6 +36608,7 @@
           "email",
           "email_verified_at",
           "is_super_admin",
+          "two_step_setup_required",
           "capabilities",
           "organizations"
         ],
@@ -36436,6 +36631,10 @@
           },
           "is_super_admin": {
             "type": "boolean"
+          },
+          "two_step_setup_required": {
+            "type": "boolean",
+            "description": "Two-step sign-in is required for the person and not set up (spec 034): every other session route answers `403 two_step_setup_required`, so the apps open setup straight away."
           },
           "capabilities": {
             "type": "object",
@@ -40812,6 +41011,30 @@
             "items": {
               "$ref": "#/components/schemas/OrganizationDeletionEntryResource"
             }
+          }
+        }
+      },
+      "OrganizationSecurity": {
+        "type": "object",
+        "description": "Whether every member of the organization must use two-step sign-in (spec 034, FR-021). Seen and changed by people with `Organization.update`.",
+        "additionalProperties": false,
+        "required": [
+          "two_step_required",
+          "members_without_two_step",
+          "can_change"
+        ],
+        "properties": {
+          "two_step_required": {
+            "type": "boolean"
+          },
+          "members_without_two_step": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Members who have no second step set up."
+          },
+          "can_change": {
+            "type": "boolean",
+            "description": "Whether the viewer has their own second step set up, which changing it needs."
           }
         }
       },

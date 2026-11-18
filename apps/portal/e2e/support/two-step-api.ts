@@ -10,8 +10,29 @@ export type FakeAccount = ReturnType<typeof fakeAccount>
 
 export const PASSWORD = "correct-horse-battery"
 
-export function fakeAccount() {
-  return {
+type Requirement = "platform" | { organization: string; name: string }
+
+/** An organization several fake people share: whether it requires two-step (spec 034, US3). */
+export type FakeOrganization = { twoStepRequired: boolean; members: FakeAccount[] }
+
+export function fakeOrganization(): FakeOrganization {
+  return { twoStepRequired: false, members: [] }
+}
+
+/**
+ * One person. `platform` makes them platform staff, and `organization` makes them a member
+ * of a shared organization; either can require two-step for them.
+ */
+export function fakeAccount(options: { user?: typeof me; platform?: boolean; organization?: FakeOrganization } = {}) {
+  const account = {
+    user: options.user ?? me,
+    organization: options.organization ?? null,
+    requiredBy(): Requirement[] {
+      return [
+        ...(options.platform ? (["platform"] as const) : []),
+        ...(options.organization?.twoStepRequired ? [{ organization: acme.uuid, name: acme.name }] : []),
+      ]
+    },
     secret: null as string | null,
     enabled: false,
     confirmedAt: null as string | null,
@@ -31,6 +52,8 @@ export function fakeAccount() {
     /** The last WebAuthn challenge each browser was given. */
     challenges: new Map<string, string>(),
   }
+  options.organization?.members.push(account)
+  return account
 }
 
 export type FakePasskey = { id: number; credentialId: string; name: string; created_at: string; last_used_at: string | null }
@@ -54,13 +77,20 @@ export const codeFor = (setupKey: string, offset = 0) =>
   totp(setupKey.replace(/\s+/g, "")).generate({ timestamp: Date.now() + offset * 30_000 })
 
 const organization = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
-const acme = {
+export const acme = {
   uuid: organization,
   name: "Acme",
   slug: "acme",
   capabilities: { devices: { view: true, manage: true, command: true } },
 }
-export const me = {
+export const me: {
+  id: number
+  name: string
+  email: string
+  email_verified_at: string
+  capabilities: { platform_administration: boolean }
+  organizations: Array<typeof acme & { capabilities: Record<string, unknown> }>
+} = {
   id: 1,
   name: "Operator",
   email: "operator@example.test",
@@ -95,6 +125,13 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
     const json = (data: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) })
     const signedInHere = () => account.sessions.has(name)
+    // As the API's AuthenticatedUserResource reports it (spec 034).
+    // A second step is set up: the app, or a passkey the deployment can use (as the API's twoStepSatisfied()).
+    const passkeysUsable = () => account.passkeys.length > 0 && !account.passkeysUnavailable
+    const satisfied = () => account.enabled || passkeysUsable()
+    const required = () => account.requiredBy().length > 0
+    // As the API's AuthenticatedUserResource reports it (spec 034).
+    const user = () => ({ ...account.user, two_step_setup_required: required() && !satisfied() })
     const signIn = (remember: boolean) => {
       account.sessions.add(name)
       if (remember) account.kept.add(name)
@@ -104,13 +141,14 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       account.logins.push(body)
       if (body.password !== PASSWORD)
         return json({ message: "These credentials do not match.", errors: { email: ["These credentials do not match our records."] } }, 422)
-      if (account.enabled) {
+      // Required with only a passkey: the password alone never starts the session (FR-022).
+      if (account.enabled || (required() && passkeysUsable())) {
         account.pending.set(name, { remember: body.remember === true, attempts: 0 })
-        const methods = ["code", "recovery_code", ...(account.passkeys.length && !account.passkeysUnavailable ? ["passkey"] : [])]
+        const methods = account.enabled ? ["code", "recovery_code", ...(passkeysUsable() ? ["passkey"] : [])] : ["passkey"]
         return json({ two_step_required: true, expires_in: 300, methods }, 202)
       }
       signIn(body.remember === true)
-      return json({ data: me })
+      return json({ data: user() })
     }
     if (path === "/api/v1/auth/two-step" && method === "POST") {
       const pending = account.pending.get(name)
@@ -138,7 +176,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       }
       account.pending.delete(name)
       signIn(pending.remember)
-      return json(recovery !== null ? { data: me, recovery_codes_remaining: account.recoveryCodes.length } : { data: me })
+      return json(recovery !== null ? { data: user(), recovery_codes_remaining: account.recoveryCodes.length } : { data: user() })
     }
     // Passkey sign-in counts as both steps and replaces a pending sign-in.
     if (path === "/api/v1/auth/passkeys/options") {
@@ -164,11 +202,28 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       account.kept.delete(name)
       return route.fulfill({ status: 204 })
     }
+    // An invitation for a new person (spec 034, US3): accepting it signs them in.
+    if (path === "/api/v1/invitations/invite-token" && method === "GET")
+      return json({ data: { grants_super_admin: false, organization: { uuid: acme.uuid, name: acme.name }, email: account.user.email, expires_at: "2099-01-01T00:00:00Z", acceptance_mode: "create_account" } })
+    if (path === "/api/v1/invitations/invite-token/accept" && method === "POST") {
+      signIn(false)
+      return json({ data: user() })
+    }
     // A kept sign-in brings the session back in a new context of the same browser (spec 033).
     if (!signedInHere() && account.kept.has(name)) account.sessions.add(name)
     if (!signedInHere()) return json({ message: "Unauthenticated." }, 401)
 
-    if (path === "/api/v1/me") return json({ data: me })
+    // Required two-step that is not set up: only setup and sign-out (spec 034, FR-022).
+    const setupRoute =
+      path === "/api/v1/me" ||
+      path === "/api/v1/me/security" ||
+      path.startsWith("/api/v1/me/two-step") ||
+      path.startsWith("/api/v1/me/passkeys") ||
+      path.startsWith("/api/v1/auth/confirm-p")
+    if (required() && !satisfied() && !setupRoute)
+      return json({ code: "two_step_setup_required", message: "Set up two-step sign-in to continue." }, 403)
+
+    if (path === "/api/v1/me") return json({ data: user() })
     if (path === "/api/v1/auth/confirm-password" && method === "POST") {
       if (body.password !== PASSWORD) return json({ message: "Wrong.", errors: { password: ["The provided password is incorrect."] } }, 422)
       account.passwordConfirmed.add(name)
@@ -234,9 +289,9 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
             enabled: account.enabled,
             confirmed_at: account.confirmedAt,
             recovery_codes_remaining: account.recoveryCodes.length,
-            required: false,
-            required_by: [],
-            satisfied: account.enabled || (account.passkeys.length > 0 && !account.passkeysUnavailable),
+            required: account.requiredBy().length > 0,
+            required_by: account.requiredBy(),
+            satisfied: satisfied(),
           },
           passkeys: {
             available: !account.passkeysUnavailable,
@@ -277,6 +332,8 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
         return json({ recovery_codes: account.recoveryCodes })
       }
       if (path === "/api/v1/me/two-step" && method === "DELETE") {
+        if (account.enabled && required())
+          return json({ code: "two_step_required", message: "Two-step sign-in is required for your account, so it cannot be turned off." }, 409)
         account.enabled = false
         account.secret = null
         account.confirmedAt = null
@@ -285,7 +342,33 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
         return route.fulfill({ status: 204 })
       }
     }
-    if (path.endsWith("/context")) return json({ data: acme })
+    const shared = account.organization
+    if (shared && path === `/api/v1/organizations/${organization}/security`) {
+      const settings = () => ({
+        two_step_required: shared.twoStepRequired,
+        members_without_two_step: shared.members.filter((member) => !member.enabled).length,
+        can_change: satisfied(),
+      })
+      if (method === "PUT") {
+        if (!satisfied()) return json({ code: "two_step_setup_required", message: "Set up two-step sign-in for your own account first." }, 409)
+        shared.twoStepRequired = body.two_step_required === true
+      }
+      return json({ data: settings() })
+    }
+    if (shared && path === `/api/v1/organizations/${organization}/members`)
+      return json({
+        data: shared.members.map((member) => ({
+          id: member.user.id,
+          name: member.user.name,
+          email: member.user.email,
+          is_current_user: member === account,
+          two_step_enabled: member.enabled,
+          manageable: false,
+          roles: [],
+        })),
+        meta: { current_page: 1, last_page: 1, total: shared.members.length, per_page: 25, from: 1, to: shared.members.length },
+      })
+    if (path.endsWith("/context")) return json({ data: { ...acme, two_step_required: shared?.twoStepRequired ?? false } })
     if (path.endsWith("/overview")) return json({ data: overview })
     if (path.endsWith("/runtime-status"))
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: "2026-10-09T00:00:00Z" } })

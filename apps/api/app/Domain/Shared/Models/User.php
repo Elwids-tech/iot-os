@@ -6,6 +6,7 @@ namespace App\Domain\Shared\Models;
 
 use App\Domain\Authentication\Services\PasskeyAvailability;
 use App\Domain\Authorization\Models\PlatformRole;
+use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Billing\Models\BillingAccount;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -107,6 +108,37 @@ class User extends Authenticatable implements OAuthenticatable, PasskeyUser
     {
         return $this->hasEnabledTwoFactorAuthentication()
             || (app(PasskeyAvailability::class)->available() && $this->hasPasskeysEnabled());
+    }
+
+    /**
+     * Who requires this person to use two-step sign-in (spec 034, FR-020, FR-021):
+     * `"platform"` for super administrators and platform staff, and each organization
+     * they belong to that requires it. Empty when nobody does. Read fresh on every call,
+     * so a change made earlier in the same request is seen.
+     *
+     * @return list<'platform'|array{organization: string, name: string}>
+     */
+    public function twoStepRequirement(): array
+    {
+        $requiredBy = [];
+        if ($this->is_super_admin || app(PlatformAuthorization::class)->canAccessAdministration($this)) {
+            $requiredBy[] = 'platform';
+        }
+
+        $organizations = $this->organizations()
+            ->where('two_step_required', true)
+            ->orderBy('name')
+            ->get(['organizations.id', 'organizations.uuid', 'organizations.name']);
+        foreach ($organizations as $organization) {
+            $requiredBy[] = ['organization' => (string) $organization->uuid, 'name' => (string) $organization->name];
+        }
+
+        return $requiredBy;
+    }
+
+    public function twoStepRequired(): bool
+    {
+        return $this->twoStepRequirement() !== [];
     }
 
     /**

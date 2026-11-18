@@ -55,7 +55,7 @@ import type {
   WaitingInvoice,
 } from "./billing"
 import { connection } from "./connection"
-import type { PasskeyEndpoints, SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
+import type { OrganizationSecurity, PasskeyEndpoints, SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
@@ -83,6 +83,8 @@ export type Organization = {
   devices_count?: number
   /** Admin directory and admin writes only; members never see it (spec 023). */
   billing_account?: { uuid: string; name: string }
+  /** Every member must use two-step sign-in (spec 034). Older payloads omit it. */
+  two_step_required?: boolean
   capabilities?: {
     manage_administration: boolean
     /** Member, invitation and role screens. Older payloads omit it. */
@@ -166,6 +168,8 @@ export type OrganizationMember = {
   name: string
   email: string
   is_current_user?: boolean
+  /** Whether the member has a second step set up (spec 034). Older payloads omit it. */
+  two_step_enabled?: boolean
   /** Whether the acting user could change or remove this member without escalating. */
   manageable?: boolean
   roles: Pick<OrganizationRole, "id" | "key" | "display_name" | "is_default">[]
@@ -280,6 +284,8 @@ export type AuthenticatedUser = {
   email: string
   email_verified_at: string | null
   is_super_admin: boolean
+  /** Two-step sign-in is required and not set up (spec 034): open setup. Older payloads omit it. */
+  two_step_setup_required?: boolean
   capabilities: {
     platform_administration: boolean
     /** Organizations, users, roles, activity and the billing pages (`PlatformAdministration.manage-organizations`). */
@@ -565,6 +571,15 @@ export class TwoStepRequiredError extends ApiError {
  */
 export class ConfirmationRequiredError extends ApiError {}
 
+/**
+ * Two-step sign-in is required for the signed-in person and not set up (spec 034, `403
+ * two_step_setup_required`). Every such response also fires `iot-two-step-setup-required`
+ * on `window`, so the app can open setup wherever the request came from.
+ */
+export class TwoStepSetupRequiredError extends ApiError {}
+
+export const TWO_STEP_SETUP_REQUIRED_EVENT = "iot-two-step-setup-required"
+
 /** A wrong code, with how many tries the pending sign-in has left (spec 034). */
 export type TwoStepRefusal = { message: string; errors: Record<string, string[]>; attempts_left?: number }
 
@@ -745,9 +760,19 @@ export class ApiClient {
       .then((response) => response.recovery_codes)
   }
 
-  /** Turns two-step off. Needs a confirmed password. */
+  /** Turns two-step off. Needs a confirmed password. Refused (`409 two_step_required`) while it is required. */
   async disableTwoStep(): Promise<void> {
     await this.request("/api/v1/me/two-step", { method: "DELETE" })
+  }
+
+  /** Whether the organization requires two-step sign-in for every member (spec 034). Needs `Organization.update`. */
+  organizationSecurity(org: string): Promise<OrganizationSecurity> {
+    return this.data<OrganizationSecurity>(`/api/v1/organizations/${encodeURIComponent(org)}/security`)
+  }
+
+  /** Requires two-step sign-in for every member, or stops. Refused (`409`) until the viewer has their own set up. */
+  setOrganizationTwoStep(org: string, required: boolean): Promise<OrganizationSecurity> {
+    return this.data<OrganizationSecurity>(`/api/v1/organizations/${encodeURIComponent(org)}/security`, "PUT", { two_step_required: required })
   }
 
   /**
@@ -3083,6 +3108,10 @@ export class ApiClient {
       )
         window.dispatchEvent(new Event("iot-session-expired"))
       if (response.status === 423) throw new ConfirmationRequiredError(response.status, payload)
+      if (response.status === 403 && (payload as { code?: unknown } | null)?.code === "two_step_setup_required") {
+        if (typeof window !== "undefined") window.dispatchEvent(new Event(TWO_STEP_SETUP_REQUIRED_EVENT))
+        throw new TwoStepSetupRequiredError(response.status, payload)
+      }
       throw new ApiError(response.status, payload)
     }
 

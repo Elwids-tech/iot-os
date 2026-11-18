@@ -173,6 +173,69 @@ browser's prompt shows no error. The portal's **Account → Security** page has 
 name, **Remove** with a confirmation, and the reason when passkeys can't be used here
 (no HTTPS, or a browser without passkeys).
 
+### Required two-step
+
+Two-step sign-in is required for every super administrator and every person with
+`PlatformAdministration.access`, and for every member of an organization that
+requires it (spec 034, FR-020 to FR-023). A person in several organizations is
+required everywhere if any one of them requires it.
+
+- **Who.** `User::twoStepRequirement()` lists the reasons: `"platform"`, and each
+  requiring organization by UUID and name. `GET /api/v1/me/security` reports them as
+  `required` and `required_by`. It is read on every call, with no caching, so a change
+  takes effect on the person's next request.
+- **The gate.** `RequireTwoStep` runs in the `api` group after `auth:sanctum`. A
+  person who is required and has no second step set up gets
+  `403 {"code": "two_step_setup_required"}` from every session route except `me`,
+  `me/security`, `me/two-step*`, `me/passkeys*`, `auth/confirm-password`,
+  `auth/confirm-passkey*` and `auth/logout`.
+  - It checks only browser sessions. Agent (`mcp`) tokens, application tokens and
+    public routes never get this response.
+  - It reads the person's own two-step columns first, so people who have two-step set
+    up cost no extra query.
+  - Passport's authorize page (an agent connecting) redirects to the portal's setup
+    instead.
+  - The contract lists the `403` on every session operation outside that list
+    (`SecurityTransformer`).
+- **It stays on.** `DELETE /api/v1/me/two-step` answers `409 two_step_required` while
+  the person is required. An unconfirmed setup can still be discarded. When nobody
+  requires it any more, the person may turn it off; nothing is turned off for them.
+- **The organization setting.** `organizations.two_step_required` (off by default) is
+  read by `GET /api/v1/organizations/{organization}/security` and changed by `PUT`.
+  - Both need `Organization.update`. Someone outside the organization gets `404`.
+  - The response holds `two_step_required`, `members_without_two_step` and
+    `can_change`.
+  - Changing it needs the actor's own second step (`409 two_step_setup_required`
+    otherwise).
+  - Each change records `organization.two_step_required_changed` in that
+    organization's [activity log](activity-log.md), with the old and new value.
+  - The organization context returns `two_step_required`, and each member in the
+    member list returns `two_step_enabled`. Neither returns a secret.
+- **Screens.**
+  - `GET /api/v1/me` and the sign-in response carry `two_step_setup_required`, so both
+    apps open setup straight after the password, even on a page that makes no other
+    request.
+  - The api-client turns the `403` into `TwoStepSetupRequiredError` and fires
+    `iot-two-step-setup-required` on `window`.
+  - The portal answers it by opening `/account/security/setup?return=<page>`, a
+    full-page screen that has only setup and **Sign out**. Setup returns to the
+    refused page, the admin app or the agent consent page; any other `return` goes to
+    the portal's start.
+  - The admin app sends the person to that portal page with its own address as
+    `return`.
+  - Organization settings → **Security** has the **Require two-step sign-in** switch
+    and the count of members without it. It is disabled, with a link to the person's
+    own security page, until the viewer has two-step set up.
+  - The members table has a **Two-step** column.
+  - On the person's own security page, a sentence says who requires it, and **Turn
+    off** is not offered.
+- **Passkeys count, when used.** A passkey satisfies the requirement while the
+  deployment can offer passkeys (`twoStepSatisfied()`). A required person whose only
+  second step is a passkey gets `202` with `methods: ["passkey"]` from a right password
+  and no session, and finishes with the passkey (FR-022). If passkeys stop being
+  available, they are sent to set up an authenticator app instead. The setup screen
+  offers **Add a passkey instead** where passkeys can be used.
+
 ### Password recovery
 
 Both sign-in pages link to **Forgot password?**, hosted by the portal at

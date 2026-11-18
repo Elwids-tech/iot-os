@@ -53,6 +53,8 @@ describe("Help context", () => {
     ).toBe("alerts.notifications.workflow");
     expect(helpContextForPath("/organizations/private-org/settings/my-notifications")).toBe("settings.my-notifications");
     expect(helpContextForPath("/account/security")).toBe("account.security");
+    expect(helpContextForPath("/account/security/setup")).toBe("account.security");
+    expect(helpContextForPath("/organizations/private-org/settings/security")).toBe("account.security");
     expect(helpContextForPath("/organizations/private-org/settings/email")).toBe("settings.my-notifications");
     expect(helpContextForPath("/organizations/private-org/settings/usage")).toBe("billing.usage");
   });

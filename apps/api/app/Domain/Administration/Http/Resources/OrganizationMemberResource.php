@@ -22,6 +22,8 @@ final class OrganizationMemberResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'is_current_user' => $request->user()?->is($this->resource) ?? false,
+            // Whether the member has a second step set up (spec 034, FR-021); never a secret.
+            'two_step_enabled' => $this->resource->twoStepSatisfied(),
             'manageable' => $this->when($this->grantable !== null && $this->relationLoaded('roles'), fn (): bool => $this->roles
                 ->flatMap(fn ($role) => $role->permissions->pluck('name'))
                 ->diff($this->grantable)

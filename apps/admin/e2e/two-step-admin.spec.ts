@@ -99,3 +99,21 @@ test("the six code boxes fit a 320 px phone", async ({ page }) => {
   expect(last!.height).toBeGreaterThanOrEqual(44)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+test("a person who must set up two-step is sent to the portal's setup page, which returns here", async ({ page }) => {
+  await page.route("**/sanctum/csrf-cookie", (route) => route.fulfill({ status: 204 }))
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === "/api/v1/me") return route.fulfill({ status: 200, json: { data: admin } })
+    return route.fulfill({ status: 403, json: { code: "two_step_setup_required", message: "Set up two-step sign-in to continue." } })
+  })
+  // The portal's page itself is not under test here.
+  await page.route("**/account/security/setup**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Portal setup</h1>" }))
+
+  await page.goto("/organizations")
+
+  await expect(page.getByRole("heading", { name: "Portal setup" })).toBeVisible()
+  const url = new URL(page.url())
+  expect(url.pathname).toBe("/account/security/setup")
+  expect(new URL(url.searchParams.get("return")!).pathname).toBe("/organizations")
+})

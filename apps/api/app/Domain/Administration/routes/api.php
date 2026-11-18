@@ -6,6 +6,7 @@ use App\Domain\Administration\Http\Controllers\OrganizationAdministrationControl
 use App\Domain\Administration\Http\Controllers\OrganizationInvitationController;
 use App\Domain\Administration\Http\Controllers\OrganizationMemberController;
 use App\Domain\Administration\Http\Controllers\OrganizationRoleController;
+use App\Domain\Administration\Http\Controllers\OrganizationSecurityController;
 use App\Domain\Administration\Http\Controllers\PlatformInvitationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationDeletionController;
@@ -109,6 +110,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::post('roles', [OrganizationRoleController::class, 'store'])->name('roles.store');
             Route::patch('roles/{role}', [OrganizationRoleController::class, 'update'])->whereNumber('role')->name('roles.update');
             Route::delete('roles/{role}', [OrganizationRoleController::class, 'destroy'])->whereNumber('role')->name('roles.destroy');
+
+            // Required two-step sign-in for every member (spec 034, FR-021).
+            Route::get('security', [OrganizationSecurityController::class, 'show'])->name('security.show');
+            Route::put('security', [OrganizationSecurityController::class, 'update'])->name('security.update');
 
             Route::get('members', [OrganizationMemberController::class, 'index'])->name('members.index');
             Route::put('members/{member}', [OrganizationMemberController::class, 'update'])->whereNumber('member')->name('members.update');

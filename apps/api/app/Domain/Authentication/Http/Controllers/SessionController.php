@@ -37,7 +37,9 @@ final class SessionController
         // The guard's timebox still covers the two-step case, so response timing does not
         // tell who has two-step on. Its callback declines the login for those people.
         $signedIn = Auth::guard('web')->attemptWhen($credentials, static function (User $user) use (&$pending): bool {
-            if ($user->hasEnabledTwoFactorAuthentication()) {
+            // A required person whose only second step is a passkey finishes with it: the
+            // password alone never starts their session (FR-022).
+            if ($user->hasEnabledTwoFactorAuthentication() || ($user->twoStepSatisfied() && $user->twoStepRequired())) {
                 $pending = $user;
 
                 return false;

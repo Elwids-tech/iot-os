@@ -271,6 +271,14 @@ Things that have cost time before. Add to this list when something surprises you
   `'status' => 'applied'`, which a real one never has, so a query that filters on it
   passes its tests and finds nothing on a real database (the integration location
   bindings did until this was fixed). Seed `succeeded` in new tests.
+- **Switching people inside one feature test keeps the first one on `sanctum`.** The
+  test application lives for the whole test, and Sanctum's request guard caches the
+  user it resolved. After `actingAs($first, 'web')`, a later `actingAs($second, 'web')`
+  sets the session guard, but routes behind `auth:sanctum` still see `$first` as
+  `$request->user()`. Sanctum's session hash check can also sign the second person out
+  (`401`). Before a request as someone else, call `$this->flushSession()` and
+  `$this->app['auth']->forgetGuards()`, as the `as()` helper in `RequireTwoStepTest`
+  does. In production every request gets a fresh guard.
 
 ## Billing
 

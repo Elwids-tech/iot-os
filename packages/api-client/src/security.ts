@@ -51,3 +51,13 @@ export type TwoStepSetup = {
 
 /** Either a six-digit code from the authenticator app, or a recovery code. */
 export type TwoStepAnswer = { code: string } | { recoveryCode: string }
+
+/** An organization's sign-in security (spec 034, FR-021). */
+export type OrganizationSecurity = {
+  /** Every member must use two-step sign-in. */
+  two_step_required: boolean
+  /** Members who have no second step set up. */
+  members_without_two_step: number
+  /** Whether the viewer may change it: their own second step is set up. */
+  can_change: boolean
+}

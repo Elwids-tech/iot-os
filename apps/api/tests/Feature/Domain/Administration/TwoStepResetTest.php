@@ -39,6 +39,8 @@ final class TwoStepResetTest extends TestCase
             PlatformAdministrationPermission::MANAGE_ORGANIZATIONS,
             PlatformAdministrationPermission::RESET_TWO_STEP,
         ], ['email' => 'platform-staff@example.test']);
+        // Platform staff must have two-step to use the admin API at all (spec 034, FR-020).
+        $this->turnOnTwoStep($this->administrator);
         $this->member = User::factory()->create(['email' => 'member@example.test']);
     }
 
@@ -136,6 +138,7 @@ final class TwoStepResetTest extends TestCase
         $this->assertTrue($superAdministrator->refresh()->hasEnabledTwoFactorAuthentication());
 
         $otherSuperAdministrator = User::factory()->create(['is_super_admin' => true]);
+        $this->turnOnTwoStep($otherSuperAdministrator);
         $this->as($otherSuperAdministrator)->postJson($this->url($superAdministrator), ['reason' => 'Locked out'])->assertNoContent();
         $this->assertFalse($superAdministrator->refresh()->hasEnabledTwoFactorAuthentication());
     }
@@ -155,7 +158,8 @@ final class TwoStepResetTest extends TestCase
             ->assertJsonPath('data.0.email', 'member@example.test')
             ->assertJsonPath('data.0.two_step_enabled', true)
             ->assertJsonPath('data.0.passkey_count', 2);
-        $this->as($this->administrator)->getJson('/api/v1/admin/users?search=platform-staff@example.test')->assertOk()
+        User::factory()->create(['email' => 'no-two-step@example.test']);
+        $this->as($this->administrator)->getJson('/api/v1/admin/users?search=no-two-step@example.test')->assertOk()
             ->assertJsonPath('data.0.two_step_enabled', false)
             ->assertJsonPath('data.0.passkey_count', 0);
     }

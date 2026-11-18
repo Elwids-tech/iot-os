@@ -96,9 +96,9 @@ final class TwoStepSignInTest extends TestCase
         $this->getJson('/api/v1/me')->assertOk();
 
         $this->loseSession();
-        $this->travel(31)->seconds();
+        // The next step's code: the one that just signed in is refused for the rest of its window.
         $this->password($user, remember: false)->assertStatus(202);
-        $this->challenge(['code' => $this->totp($secret)])->assertOk()->assertCookieMissing(KeptSignInCookie::NAME);
+        $this->challenge(['code' => $this->totp($secret, steps: 1)])->assertOk()->assertCookieMissing(KeptSignInCookie::NAME);
         $this->assertSame(1, KeptSignIn::query()->count());
     }
 

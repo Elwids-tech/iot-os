@@ -324,7 +324,7 @@ apps until they have two-step or a passkey (FR-020 to FR-023).
 
 ### Tests for User Story 3
 
-- [ ] T057 [P] [US3] Write `apps/api/tests/Feature/Domain/Authentication/RequireTwoStepTest.php` covering:
+- [x] T057 [P] [US3] Write `apps/api/tests/Feature/Domain/Authentication/RequireTwoStepTest.php` covering:
   - a super administrator, and a person with `PlatformAdministration.access`, without two-step get `403 {"code": "two_step_setup_required"}` on an ordinary route, but `200` on `me`, `me/security`, `me/two-step*`, `me/passkeys*`, `auth/confirm-password`, `auth/confirm-passkey` and `auth/logout`;
   - after confirming two-step, or adding a passkey, the routes open;
   - a required person with a passkey and no authenticator gets `202` with `methods: ["passkey"]` from a right password and no session, and a passkey sign-in then opens the routes (FR-022). If pull request 4 has not merged yet, pull request 4 adds this case;
@@ -332,7 +332,7 @@ apps until they have two-step or a passkey (FR-020 to FR-023).
   - an agent `mcp` token and an integration application token for a required person are not affected;
   - Passport's authorize route redirects a required, unsatisfied person to setup;
   - a new person accepting an invitation to an organization that requires it is gated
-- [ ] T058 [P] [US3] Write `apps/api/tests/Feature/Domain/Administration/OrganizationTwoStepTest.php` covering:
+- [x] T058 [P] [US3] Write `apps/api/tests/Feature/Domain/Administration/OrganizationTwoStepTest.php` covering:
   - `PUT organizations/{organization}/security` needs `Organization.update`;
   - `409` when the actor is not satisfied;
   - the change is recorded in that organization's activity log with `attribute_changes`;
@@ -343,43 +343,81 @@ apps until they have two-step or a passkey (FR-020 to FR-023).
 
 ### Implementation for User Story 3
 
-- [ ] T059 [US3] Add the migration `apps/api/database/migrations/2026_11_17_000003_add_two_step_required_to_organizations_table.php` (`two_step_required` boolean, default false), and add the cast to the organization model in `apps/api/app/Domain/Shared/Models/`
-- [ ] T060 [US3] Add `twoStepRequirement(): array` to `apps/api/app/Domain/Shared/Models/User.php`. It returns `required_by`: `"platform"` when `is_super_admin` or `PlatformAuthorization::canAccessAdministration()`, plus `{organization, name}` for each organization with `two_step_required`. It is memoised per request. Fill `required`, `required_by` and `satisfied` in `SecurityController`. In `SessionController::store`, a required person satisfied only by passkeys gets the pending sign-in with `methods: ["passkey"]` instead of a session; `twoStepSatisfied()` counts passkeys only while `PasskeyAvailability` allows them (both only once T045 is merged)
-- [ ] T061 [US3] Create `apps/api/app/Domain/Authentication/Http/Middleware/RequireTwoStep.php` and register it in `apps/api/bootstrap/app.php`:
+- [x] T059 [US3] Add the migration `apps/api/database/migrations/2026_11_17_000003_add_two_step_required_to_organizations_table.php` (`two_step_required` boolean, default false), and add the cast to the organization model in `apps/api/app/Domain/Shared/Models/`
+- [x] T060 [US3] Add `twoStepRequirement(): array` to `apps/api/app/Domain/Shared/Models/User.php`. It returns `required_by`: `"platform"` when `is_super_admin` or `PlatformAuthorization::canAccessAdministration()`, plus `{organization, name}` for each organization with `two_step_required`. It is memoised per request. Fill `required`, `required_by` and `satisfied` in `SecurityController`. In `SessionController::store`, a required person satisfied only by passkeys gets the pending sign-in with `methods: ["passkey"]` instead of a session; `twoStepSatisfied()` counts passkeys only while `PasskeyAvailability` allows them (both only once T045 is merged)
+- [x] T061 [US3] Create `apps/api/app/Domain/Authentication/Http/Middleware/RequireTwoStep.php` and register it in `apps/api/bootstrap/app.php`:
   - append it to the `api` group and place it after `AuthenticatesRequests` with `appendToPriorityList`, so it runs after `auth:sanctum` (see how `ResumeKeptSignIn` is placed); add it to the `oauth/authorize` route's middleware in `apps/api/routes/ai.php`, not to the whole `web` group;
   - act only when the request's user came from the `web` session guard (skip bearer tokens and the `mcp` guard);
   - skip the allowlisted route names;
   - answer `403 {"code": "two_step_setup_required", "message": "Set up two-step sign-in to continue."}` when required and not satisfied, or redirect to the portal's `/account/security/setup` for the authorize route
-- [ ] T062 [US3] Add the `409 {"code": "two_step_required"}` guard to `TwoStepController::destroy`
-- [ ] T063 [US3] Create `apps/api/app/Domain/Administration/Http/Controllers/OrganizationSecurityController.php` (`PUT organizations/{organization}/security`, `ResolveOrganizationContext`, `Organization.update`):
+- [x] T062 [US3] Add the `409 {"code": "two_step_required"}` guard to `TwoStepController::destroy`
+- [x] T063 [US3] Create `apps/api/app/Domain/Administration/Http/Controllers/OrganizationSecurityController.php` (`PUT organizations/{organization}/security`, `ResolveOrganizationContext`, `Organization.update`):
   - validate `two_step_required` as a boolean;
   - `409` when the actor is not satisfied;
   - otherwise save and record `organization.two_step_required_changed` in that organization.
 
   Add `two_step_required` to the organization context resource returned by `apps/api/app/Domain/Authorization/Http/Controllers/OrganizationContextController.php`, and `two_step_enabled` (satisfied) to `apps/api/app/Domain/Administration/Http/Resources/OrganizationMemberResource.php`
-- [ ] T064 [P] [US3] Update the OpenAPI supplements in `contracts/openapi/supplements/` (the `403 two_step_setup_required` response on session routes, the organization security route, and the new context and member fields), regenerate `contracts/openapi/openapi.json`, and pass the drift check. In `packages/api-client/src/index.ts`:
+- [x] T064 [P] [US3] Update the OpenAPI supplements in `contracts/openapi/supplements/` (the `403 two_step_setup_required` response on session routes, the organization security route, and the new context and member fields), regenerate `contracts/openapi/openapi.json`, and pass the drift check. In `packages/api-client/src/index.ts`:
   - map that `403` to a typed `TwoStepSetupRequiredError`, emitted on a client event;
   - add `setOrganizationTwoStep()`;
   - add the new fields
-- [ ] T065 [US3] Create `apps/portal/src/account/SetupRequiredPage.tsx` at `/account/security/setup`: a full-page shell with an explanation (who requires it, from `required_by`), `TwoStepSetup`, an **Add a passkey instead** option when available, and **Sign out**. In `apps/portal/src/App.tsx`, route every `TwoStepSetupRequiredError` there, remembering the original location, and return to it after setup
-- [ ] T066 [US3] In `apps/admin/src/App.tsx` (or its query client setup), send `TwoStepSetupRequiredError` to the portal's `/account/security/setup?return=<admin url>` through `apps/admin/src/lib/portal.ts`
-- [ ] T067 [US3] Add a **Security** route to `apps/portal/src/settings/Settings.tsx` (`security`) with a `Panel` holding:
+- [x] T065 [US3] Create `apps/portal/src/account/SetupRequiredPage.tsx` at `/account/security/setup`: a full-page shell with an explanation (who requires it, from `required_by`), `TwoStepSetup`, an **Add a passkey instead** option when available, and **Sign out**. In `apps/portal/src/App.tsx`, route every `TwoStepSetupRequiredError` there, remembering the original location, and return to it after setup
+- [x] T066 [US3] In `apps/admin/src/App.tsx` (or its query client setup), send `TwoStepSetupRequiredError` to the portal's `/account/security/setup?return=<admin url>` through `apps/admin/src/lib/portal.ts`
+- [x] T067 [US3] Add a **Security** route to `apps/portal/src/settings/Settings.tsx` (`security`) with a `Panel` holding:
   - a **Require two-step sign-in** switch, disabled with an explanation when the viewer is not satisfied;
   - the count of members without it.
 
   Add a **Two-step** `Status` column (`enabled` / `not_set_up`) to `apps/portal/src/members/Members.tsx`
-- [ ] T068 [P] [US3] Write `apps/portal/e2e/two-step-required.spec.ts`:
+- [x] T068 [P] [US3] Write `apps/portal/e2e/two-step-required.spec.ts`:
   - a platform administrator without two-step lands on setup and then reaches the app;
   - an organization administrator requires it, and a signed-in member is sent to setup on the next click;
   - an invited new member sets up before reaching the app
-- [ ] T069 [P] [US3] Add a **Required two-step** section to `docs/features/access.md`, and a release-notes line to `docs/ops/release.md`: platform staff will be asked to set up two-step at their next sign-in
-- [ ] T070 [US3] Verify pull request 5:
+- [x] T069 [P] [US3] Add a **Required two-step** section to `docs/features/access.md`, and a release-notes line to `docs/ops/release.md`: platform staff will be asked to set up two-step at their next sign-in
+- [x] T070 [US3] Verify pull request 5:
   - run the API suite on PostgreSQL, both lints, and `two-step-required.spec.ts`;
   - rebuild the API family, `portal` and `admin`;
   - run `quickstart.md` US3 steps 1 to 6, including the agent and application token check;
   - take designer screenshots of the setup-required page and the organization Security section.
 
   Then open pull request 5. It must not ship before pull request 3
+
+Pull request 5 notes (deviations from the tasks above):
+
+- T057: pull request 4 merged first, so this pull request adds the passkey cases:
+  `SessionController::store` starts a pending sign-in for a required person whose only
+  second step is a passkey, and `TwoStepChallengeController::begin` offers them
+  `methods: ["passkey"]` alone (FR-022). `RequireTwoStepTest` covers both.
+- T059: the migration is `2026_11_23_000300_add_two_step_required_to_organizations.php`,
+  after pull request 2's two-factor columns.
+- T060: `twoStepRequirement()` is read fresh on each call rather than memoised: a
+  request that changes a membership or the setting sees the change, and only people
+  without a second step pay for it.
+- T061: `RequireTwoStep` checks only routes behind `auth:sanctum` and the authorize
+  route, signed in by a browser session; public routes are never refused.
+- T063: the organization setting also has `GET organizations/{organization}/security`
+  (`two_step_required`, `members_without_two_step`, `can_change`) for the settings
+  screen. A non-member gets `404` from both. The `409` uses the contract's code
+  `two_step_setup_required`.
+- T064: the contract's `SecurityTransformer` adds the shared `403` to every session
+  operation outside the allowlist, recorded in the spec 001 drift log.
+- T065: **Add a passkey instead** reuses the security page's `AddPasskeyDialog`, shown
+  where the deployment and browser can use passkeys.
+- T070 (verified 2026-11-18 on the rebuilt dev stack):
+  - Quickstart US3 steps 1, 2, 3 and 6 passed live:
+    - the platform administrator was sent to setup straight after the password, in
+      the portal and from the admin app, and returned to the admin app after setup;
+    - after an organization administrator required two-step, a member already signed
+      in got `two_step_setup_required` on their next request, and the activity
+      entry was written;
+    - an administrator without two-step was refused (`409`);
+    - another organization's administrator got `404`.
+  - Steps 4 (invitation) and 5 (agent and application tokens) are covered by
+    `RequireTwoStepTest` and `two-step-required.spec.ts`.
+  - The live run found three problems, fixed here:
+    - a person with no organization opened no refused page, so `me` now carries
+      `two_step_setup_required`;
+    - the dev admin address used `127.0.0.1` against `localhost`;
+    - the setup heading said two-step was on before the recovery codes were saved.
 
 **Checkpoint**: User Story 3 is complete.
 

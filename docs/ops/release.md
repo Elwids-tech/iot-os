@@ -134,6 +134,15 @@ restore a checkpoint onto a replacement host.
 Never run `migrate:fresh`, demo seeders or `docker compose down -v` on a deployed
 environment.
 
+### Changes people notice
+
+- **Required two-step sign-in** (spec 034, from the release with its required
+  two-step pull request). Super administrators and platform administrators without
+  two-step are sent to set it up on their next request, in the portal and the admin
+  app. Tell them before the release, and ship it with or after the two-step screens
+  (spec 034 pull request 3). A platform administrator who loses their phone and
+  recovery codes needs a reset (spec 034's lock-out pull request).
+
 ## Shipping an upgrade
 
 [`tooling/release/ship.py`](../../tooling/release/ship.py) upgrades a running

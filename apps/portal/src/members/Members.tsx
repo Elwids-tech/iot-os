@@ -20,7 +20,7 @@ import {
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
-import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
 import { formatDateTime } from "@iot-os/ui/lib/format"
 import { Alert, AlertDescription } from "@iot-os/ui/components/alert"
@@ -167,6 +167,14 @@ function MemberDirectory({ org, roles, organizationName }: { org: string; roles:
         header: "Roles",
         value: (member) => member.roles.map((role) => role.display_name).join(", "),
         cell: (member) => <RoleBadges roles={member.roles} />,
+      },
+      {
+        // Whether the member has a second step set up (spec 034, FR-021); never a secret.
+        id: "two-step",
+        header: "Two-step",
+        value: (member) => (member.two_step_enabled ? "On" : "Not set up"),
+        cell: (member) =>
+          member.two_step_enabled === undefined ? null : <Status value={member.two_step_enabled ? "enabled" : "not_set_up"} />,
       },
     ],
     [],

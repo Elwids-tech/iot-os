@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react"
-import type { AuthenticatedUser } from "@iot-os/api-client"
+import { TWO_STEP_SETUP_REQUIRED_EVENT, type AuthenticatedUser } from "@iot-os/api-client"
 import { RouteError } from "@iot-os/ui/components/error-boundary"
 import { Toaster } from "@iot-os/ui/components/sonner"
 import { Navigate, Route, RouterProvider, Routes, createBrowserRouter } from "react-router-dom"
@@ -9,7 +9,7 @@ import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
 import { homePath } from "./lib/access"
 import { apiClient } from "./lib/api-client"
-import { portalUrl } from "./lib/portal"
+import { portalUrl, twoStepSetupUrl } from "./lib/portal"
 import { ActivityPage } from "./pages/ActivityPage"
 import { NewRolePage } from "./pages/NewRolePage"
 import { BillingAccountPage } from "./pages/BillingAccountPage"
@@ -68,6 +68,11 @@ function PlatformAdministrationApp() {
   const [screen, setScreen] = useState<ScreenState>({ status: "loading" })
 
   function showAuthenticatedUser(user: AuthenticatedUser) {
+    // Required two-step that is not set up (spec 034): setup opens in the portal at once.
+    if (user.two_step_setup_required) {
+      window.location.assign(twoStepSetupUrl(window.location.href))
+      return
+    }
     apiClient.setSelectedOrganizationUuid(null)
     setScreen({ status: "signed-in", user })
   }
@@ -80,6 +85,14 @@ function PlatformAdministrationApp() {
       setScreen({ status: "signed-out" })
     }
   }
+
+  // Two-step sign-in is required and not set up (spec 034): the API refuses every admin
+  // request until it is, so setup opens in the portal and returns here.
+  useEffect(() => {
+    const setUp = () => window.location.assign(twoStepSetupUrl(window.location.href))
+    window.addEventListener(TWO_STEP_SETUP_REQUIRED_EVENT, setUp)
+    return () => window.removeEventListener(TWO_STEP_SETUP_REQUIRED_EVENT, setUp)
+  }, [])
 
   useEffect(() => {
     let active = true

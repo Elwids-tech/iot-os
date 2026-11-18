@@ -30,11 +30,17 @@ trait TwoStepFixtures
         return [$secret, $codes];
     }
 
-    /** The authenticator app's code for the secret at the current (test) time. */
-    protected function totp(string $secret): string
+    /**
+     * The authenticator app's code for the secret, `$steps` 30-second steps from now.
+     *
+     * The server checks codes against the real clock (Google2FA reads `microtime()`, not
+     * the test's travelled time), so codes come from the same clock. A code one step
+     * ahead is a fresh code the server still accepts (its window is one step either side).
+     */
+    protected function totp(string $secret, int $steps = 0): string
     {
         $engine = new Google2FA;
 
-        return $engine->oathTotp($secret, (int) floor(now()->getTimestamp() / $engine->getKeyRegeneration()));
+        return $engine->oathTotp($secret, (int) floor(microtime(true) / $engine->getKeyRegeneration()) + $steps);
     }
 }

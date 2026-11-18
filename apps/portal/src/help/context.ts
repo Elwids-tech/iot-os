@@ -43,7 +43,9 @@ export function helpContextForPath(pathname: string): string {
               ? "settings.my-notifications"
               : resource === "usage"
                 ? "billing.usage"
-                : "getting-started";
+                : resource === "security"
+                  ? "account.security"
+                  : "getting-started";
     case "connections":
       return "gateways";
     case "dashboards":
