@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react"
 import { ApiError, TwoStepRequiredError, type AuthenticatedUser } from "@iot-os/api-client"
+import { PasskeySignInButton } from "@iot-os/auth/PasskeySignInButton"
 import { TwoStepChallenge } from "@iot-os/auth/TwoStepChallenge"
 import { Button } from "@iot-os/ui/components/button"
 import {
@@ -95,7 +96,7 @@ export function LoginPage({
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="email webauthn"
                   spellCheck={false}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
@@ -125,10 +126,12 @@ export function LoginPage({
               <a href={`${portalUrl.replace(/\/$/, "")}/forgot-password`} className="text-sm text-primary underline underline-offset-4">Forgot password?</a>
             </FieldGroup>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col items-stretch gap-3">
             <Button className="w-full" type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
+            {/* Passkeys (spec 034): a passkey alone signs in, and the email field lists them. */}
+            <PasskeySignInButton apiClient={apiClient} remember={() => false} onSignedIn={onAuthenticated} autofill divider />
           </CardFooter>
         </form>
         </>

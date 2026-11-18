@@ -8,6 +8,7 @@ use App\Domain\Authentication\Http\Requests\TwoStepChallengeRequest;
 use App\Domain\Authentication\Http\Resources\AuthenticatedUserResource;
 use App\Domain\Authentication\Notifications\SecurityChanged;
 use App\Domain\Authentication\Services\CompleteSignIn;
+use App\Domain\Authentication\Services\PasskeyAvailability;
 use App\Domain\Authentication\Services\SecurityAudit;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -45,6 +46,10 @@ final class TwoStepChallengeController
     public static function begin(Request $request, User $user, bool $remember): JsonResponse
     {
         $methods = ['code', 'recovery_code'];
+        // A passkey also finishes the sign-in, and counts as both steps (FR-017).
+        if (app(PasskeyAvailability::class)->available() && $user->hasPasskeysEnabled()) {
+            $methods[] = 'passkey';
+        }
 
         $request->session()->put(self::SESSION_KEY, [
             'user_id' => $user->getKey(),

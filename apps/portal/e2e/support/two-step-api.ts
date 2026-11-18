@@ -24,7 +24,27 @@ export function fakeAccount() {
     pending: new Map<string, { remember: boolean; attempts: number }>(),
     logins: [] as unknown[],
     mails: [] as string[],
+    /** Passkeys (spec 034, US2), by the credential id the browser reports. */
+    passkeys: [] as FakePasskey[],
+    /** The deployment cannot offer passkeys (its front ends are not on HTTPS). */
+    passkeysUnavailable: false,
+    /** The last WebAuthn challenge each browser was given. */
+    challenges: new Map<string, string>(),
   }
+}
+
+export type FakePasskey = { id: number; credentialId: string; name: string; created_at: string; last_used_at: string | null }
+
+const base64url = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url")
+const challenge = () => base64url(crypto.getRandomValues(new Uint8Array(32)))
+
+/** Checks a browser's WebAuthn answer the way the API would, apart from the signature. */
+function answers(account: FakeAccount, name: string, credential: Record<string, unknown> | undefined, type: "webauthn.create" | "webauthn.get") {
+  const response = (credential?.response ?? {}) as Record<string, string>
+  const client = JSON.parse(Buffer.from(response.clientDataJSON ?? "", "base64url").toString() || "{}") as Record<string, string>
+  const expected = account.challenges.get(name)
+  account.challenges.delete(name)
+  return client.type === type && expected !== undefined && client.challenge === expected && /^https?:\/\/localhost(:\d+)?$/.test(client.origin ?? "")
 }
 
 export const totp = (secret: string) => new TOTP({ secret: Secret.fromBase32(secret), digits: 6, period: 30 })
@@ -86,7 +106,8 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
         return json({ message: "These credentials do not match.", errors: { email: ["These credentials do not match our records."] } }, 422)
       if (account.enabled) {
         account.pending.set(name, { remember: body.remember === true, attempts: 0 })
-        return json({ two_step_required: true, expires_in: 300, methods: ["code", "recovery_code"] }, 202)
+        const methods = ["code", "recovery_code", ...(account.passkeys.length && !account.passkeysUnavailable ? ["passkey"] : [])]
+        return json({ two_step_required: true, expires_in: 300, methods }, 202)
       }
       signIn(body.remember === true)
       return json({ data: me })
@@ -119,6 +140,25 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       signIn(pending.remember)
       return json(recovery !== null ? { data: me, recovery_codes_remaining: account.recoveryCodes.length } : { data: me })
     }
+    // Passkey sign-in counts as both steps and replaces a pending sign-in.
+    if (path === "/api/v1/auth/passkeys/options") {
+      if (account.passkeysUnavailable) return json({ message: "Not Found" }, 404)
+      account.challenges.set(name, challenge())
+      return json({ options: { challenge: account.challenges.get(name), rpId: "localhost", allowCredentials: [], userVerification: "required", timeout: 60000 } })
+    }
+    if (path === "/api/v1/auth/passkeys" && method === "POST") {
+      if (account.passkeysUnavailable) return json({ message: "Not Found" }, 404)
+      const credential = body.credential as Record<string, unknown> | undefined
+      const passkey = account.passkeys.find((each) => each.credentialId === credential?.id)
+      if (!answers(account, name, credential, "webauthn.get") || !passkey) {
+        const message = "Passkey not recognized. It may have been removed from your account."
+        return json({ message, errors: { credential: [message] } }, 422)
+      }
+      passkey.last_used_at = new Date().toISOString()
+      account.pending.delete(name)
+      signIn(body.remember === true)
+      return json({ data: me })
+    }
     if (path === "/api/v1/auth/logout") {
       account.sessions.delete(name)
       account.kept.delete(name)
@@ -134,6 +174,59 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       account.passwordConfirmed.add(name)
       return route.fulfill({ status: 204 })
     }
+    if (path === "/api/v1/auth/confirm-passkey/options") {
+      if (account.passkeysUnavailable) return json({ message: "Not Found" }, 404)
+      account.challenges.set(name, challenge())
+      return json({ options: { challenge: account.challenges.get(name), rpId: "localhost", allowCredentials: account.passkeys.map((each) => ({ type: "public-key", id: each.credentialId })), userVerification: "required", timeout: 60000 } })
+    }
+    if (path === "/api/v1/auth/confirm-passkey" && method === "POST") {
+      const credential = body.credential as Record<string, unknown> | undefined
+      const passkey = account.passkeys.find((each) => each.credentialId === credential?.id)
+      if (!answers(account, name, credential, "webauthn.get") || !passkey)
+        return json({ message: "Unable to verify passkey. Please try again.", errors: { credential: ["Unable to verify passkey. Please try again."] } }, 422)
+      passkey.last_used_at = new Date().toISOString()
+      account.passwordConfirmed.add(name)
+      return json({ confirmed: true })
+    }
+    if (path.startsWith("/api/v1/me/passkeys")) {
+      if (!account.passwordConfirmed.has(name)) return json({ message: "Password confirmation required." }, 423)
+      if (path === "/api/v1/me/passkeys/options") {
+        if (account.passkeysUnavailable) return json({ message: "Not Found" }, 404)
+        account.challenges.set(name, challenge())
+        return json({
+          options: {
+            rp: { name: "localhost", id: "localhost" },
+            user: { name: me.email, id: base64url(new TextEncoder().encode(`user-${me.id}`)), displayName: me.name },
+            challenge: account.challenges.get(name),
+            pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+            timeout: 60000,
+            excludeCredentials: account.passkeys.map((each) => ({ type: "public-key", id: each.credentialId })),
+            authenticatorSelection: { authenticatorAttachment: undefined, residentKey: "required", userVerification: "required" },
+            attestation: "none",
+          },
+        })
+      }
+      if (path === "/api/v1/me/passkeys" && method === "POST") {
+        const credential = body.credential as Record<string, unknown> | undefined
+        const label = String(body.name ?? "").trim()
+        if (label.length < 1 || label.length > 60)
+          return json({ message: "Give the passkey a name of 1 to 60 characters.", errors: { name: ["Give the passkey a name of 1 to 60 characters."] } }, 422)
+        if (!answers(account, name, credential, "webauthn.create") || account.passkeys.some((each) => each.credentialId === credential?.id))
+          return json({ message: "Unable to register this passkey.", errors: { credential: ["Unable to register this passkey."] } }, 422)
+        const passkey: FakePasskey = { id: account.passkeys.length + 1, credentialId: String(credential?.id), name: label, created_at: new Date().toISOString(), last_used_at: null }
+        account.passkeys.push(passkey)
+        account.mails.push(`passkey_added:${label}`)
+        return json({ data: { id: passkey.id, name: passkey.name, created_at: passkey.created_at, last_used_at: null } }, 201)
+      }
+      const removing = /^\/api\/v1\/me\/passkeys\/(\d+)$/.exec(path)
+      if (removing && method === "DELETE") {
+        const passkey = account.passkeys.find((each) => each.id === Number(removing[1]))
+        if (!passkey) return json({ message: "Not Found" }, 404)
+        account.passkeys = account.passkeys.filter((each) => each !== passkey)
+        account.mails.push(`passkey_removed:${passkey.name}`)
+        return route.fulfill({ status: 204 })
+      }
+    }
     if (path === "/api/v1/me/security")
       return json({
         data: {
@@ -143,7 +236,12 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
             recovery_codes_remaining: account.recoveryCodes.length,
             required: false,
             required_by: [],
-            satisfied: account.enabled,
+            satisfied: account.enabled || (account.passkeys.length > 0 && !account.passkeysUnavailable),
+          },
+          passkeys: {
+            available: !account.passkeysUnavailable,
+            unavailable_reason: account.passkeysUnavailable ? "not_https" : null,
+            items: account.passkeys.map(({ id, name: label, created_at, last_used_at }) => ({ id, name: label, created_at, last_used_at })),
           },
         },
       })

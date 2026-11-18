@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Schema;
 
 final class PlatformUserController
 {
@@ -25,10 +24,7 @@ final class PlatformUserController
 
         $users = User::query()
             ->select('users.*')
-            // Passkeys arrive with spec 034 pull request 4; until its table exists everyone has none.
-            ->addSelect(['passkey_count' => Schema::hasTable('passkeys')
-                ? DB::table('passkeys')->selectRaw('count(*)')->whereColumn('passkeys.user_id', 'users.id')
-                : DB::query()->selectRaw('0')])
+            ->addSelect(['passkey_count' => DB::table('passkeys')->selectRaw('count(*)')->whereColumn('passkeys.user_id', 'users.id')])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")

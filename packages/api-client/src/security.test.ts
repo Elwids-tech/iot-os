@@ -90,4 +90,20 @@ describe("ApiClient two-step sign-in", () => {
     await client.disableTwoStep()
     expect(calls.at(-1)).toBe("DELETE /api/v1/me/two-step")
   })
+
+  it("points the passkey ceremonies at the API and removes a passkey", async () => {
+    const { client, calls } = api((method, path) => {
+      if (path === "/api/v1/me/passkeys/12" && method === "DELETE") return new Response(null, { status: 204 })
+      return json(423, { message: "Password confirmation required." })
+    })
+
+    expect(client.passkeyEndpoints()).toEqual({
+      signIn: { options: "https://api.example.test/api/v1/auth/passkeys/options", submit: "https://api.example.test/api/v1/auth/passkeys" },
+      confirm: { options: "https://api.example.test/api/v1/auth/confirm-passkey/options", submit: "https://api.example.test/api/v1/auth/confirm-passkey" },
+      register: { options: "https://api.example.test/api/v1/me/passkeys/options", submit: "https://api.example.test/api/v1/me/passkeys" },
+    })
+    await client.removePasskey(12)
+    expect(calls).toEqual(["DELETE /api/v1/me/passkeys/12"])
+    await expect(client.removePasskey(13)).rejects.toBeInstanceOf(ConfirmationRequiredError)
+  })
 })

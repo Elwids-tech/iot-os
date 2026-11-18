@@ -60,6 +60,11 @@ STRIPE_WEBHOOK_SECRET=
 WEBPUSH_VAPID_PUBLIC_KEY=
 WEBPUSH_VAPID_PRIVATE_KEY=
 WEBPUSH_VAPID_SUBJECT=
+# Passkeys (spec 034). They are bound to DOMAIN (the parent of app., admin. and
+# api.), so changing DOMAIN makes every passkey stop working and people sign in with
+# their password and code. `manage.py init` writes the secret; the first deploy adds
+# it to an older environment. Keep it across upgrades and restores.
+PASSKEYS_USER_HANDLE_SECRET=
 BILLING_CURRENCY=USD
 PUBLIC_MAP_STYLE_URL=
 # Images are provided by the digest-pinned release manifest, never mutable tags.

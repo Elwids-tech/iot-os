@@ -7,9 +7,7 @@ namespace Tests\Support;
 use App\Domain\Authorization\Models\PlatformRole;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Shared\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
@@ -35,22 +33,10 @@ trait TwoStepResetFixtures
     }
 
     /**
-     * Gives the person passkeys. Until spec 034 pull request 4 adds the `passkeys` table, a
-     * table with the same columns stands in for it.
+     * Gives the person passkeys (rows only: these tests never sign in with them).
      */
     protected function givePasskeys(User $user, int $count): void
     {
-        if (! Schema::hasTable('passkeys')) {
-            Schema::create('passkeys', function (Blueprint $table): void {
-                $table->id();
-                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-                $table->string('name');
-                $table->string('credential_id')->unique();
-                $table->json('credential');
-                $table->timestamp('last_used_at')->nullable();
-                $table->timestamps();
-            });
-        }
         for ($i = 0; $i < $count; $i++) {
             DB::table('passkeys')->insert([
                 'user_id' => $user->getKey(),

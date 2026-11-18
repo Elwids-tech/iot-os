@@ -14,7 +14,6 @@ use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\TestResponse;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\TwoStepFixtures;
@@ -158,16 +157,6 @@ final class TwoStepResetTest extends TestCase
             ->assertJsonPath('data.0.passkey_count', 2);
         $this->as($this->administrator)->getJson('/api/v1/admin/users?search=platform-staff@example.test')->assertOk()
             ->assertJsonPath('data.0.two_step_enabled', false)
-            ->assertJsonPath('data.0.passkey_count', 0);
-    }
-
-    public function test_the_users_list_counts_no_passkeys_before_their_table_exists(): void
-    {
-        if (Schema::hasTable('passkeys')) {
-            $this->markTestSkipped('The passkeys table exists (spec 034 pull request 4).');
-        }
-
-        $this->as($this->administrator)->getJson('/api/v1/admin/users?search=member@example.test')->assertOk()
             ->assertJsonPath('data.0.passkey_count', 0);
     }
 

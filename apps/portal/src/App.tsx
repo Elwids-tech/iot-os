@@ -22,6 +22,7 @@ import {
 import { Controller, useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
+import { PasskeySignInButton } from "@iot-os/auth/PasskeySignInButton"
 import { TwoStepChallenge } from "@iot-os/auth/TwoStepChallenge"
 import { Button } from "@iot-os/ui/components/button"
 import { ErrorBoundary } from "@iot-os/ui/components/error-boundary"
@@ -216,6 +217,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
             methods={twoStep.methods}
             securityHref={SECURITY_PATH}
             top={top}
+            remember={form.getValues("remember")}
             onSignedIn={signedIn}
             onStartAgain={() => {
               form.setValue("password", "")
@@ -255,7 +257,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
               <TextField
                 label="Email address"
                 type="email"
-                autoComplete="username"
+                autoComplete="username webauthn"
                 required
                 {...form.register("email")}
               />
@@ -281,10 +283,18 @@ function Login({ recovered = false }: { recovered?: boolean }) {
               <Link to="/forgot-password" className="w-fit text-sm text-primary underline underline-offset-4 max-md:inline-flex max-md:min-h-11 max-md:items-center">Forgot password?</Link>
             </FieldGroup>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col items-stretch gap-3">
             <Button className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
+            {/* Passkeys (spec 034): a passkey alone signs in, and the email field lists them. */}
+            <PasskeySignInButton
+              apiClient={api}
+              remember={() => form.getValues("remember")}
+              onSignedIn={signedIn}
+              autofill
+              divider
+            />
           </CardFooter>
         </form>
         </>
@@ -1208,6 +1218,7 @@ function SessionRecovery({
             methods={twoStep.methods}
             securityHref={SECURITY_PATH}
             variant="dialog"
+            remember={remember}
             onSignedIn={() => void onRecovered()}
             onStartAgain={() => {
               setPassword("")

@@ -8,7 +8,7 @@ async function signIn(page: Page, { keep = false } = {}) {
   await page.getByLabel("Email address").fill(me.email)
   await page.getByLabel("Password").fill(PASSWORD)
   if (keep) await page.getByRole("checkbox", { name: "Keep me signed in" }).check()
-  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
 }
 
 async function enterCode(page: Page, code: string) {
@@ -18,7 +18,7 @@ async function enterCode(page: Page, code: string) {
 async function signOut(page: Page) {
   await page.getByRole("button", { name: me.name }).click()
   await page.getByRole("menuitem", { name: "Sign out" }).click()
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible()
 }
 
 /** Sets up two-step from the security page and returns the setup key and recovery codes. */
@@ -141,7 +141,7 @@ test("Keep me signed in on the password step keeps a new window signed in after 
   await serve(again, account, "laptop")
   await again.goto("/")
   await expect(again).toHaveURL(/\/organizations\//)
-  await expect(again.getByRole("button", { name: "Sign in" })).toHaveCount(0)
+  await expect(again.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0)
   await reopened.close()
 })
 
@@ -159,7 +159,7 @@ test("turning two-step on signs out the person's other browsers", async ({ brows
   await setUp(laptop, account)
 
   await phone.reload()
-  await expect(phone.getByRole("button", { name: "Sign in" })).toBeVisible()
+  await expect(phone.getByRole("button", { name: "Sign in", exact: true })).toBeVisible()
   await laptop.reload()
   await expect(laptop.getByRole("heading", { name: "Security" })).toBeVisible()
   await phoneContext.close()

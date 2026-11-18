@@ -881,8 +881,13 @@ const test = base.extend<{ consoleMessages: string[] }>({
         message.type() === "error" &&
         message.location().url.includes("/api/v1/me") &&
         message.text().includes("401 (Unauthorized)")
+      // The sign-in page asks for passkey suggestions; this mock offers no passkeys (spec 034).
+      const isPasskeysUnavailable =
+        message.type() === "error" &&
+        message.location().url.includes("/api/v1/auth/passkeys/options") &&
+        message.text().includes("404 (Not Found)")
 
-      if (["error", "warning"].includes(message.type()) && !isExpectedUnauthenticatedResponse) {
+      if (["error", "warning"].includes(message.type()) && !isExpectedUnauthenticatedResponse && !isPasskeysUnavailable) {
         messages.push(`${message.type()}: ${message.text()}`)
       }
       })
@@ -903,7 +908,7 @@ for (const account of [superAdmin, platformAdmin]) {
     await expect(page.getByRole("heading", { name: "Sign in to IoT OS" })).toBeVisible()
     await page.getByRole("textbox", { name: "Email" }).fill(account.email)
     await page.getByRole("textbox", { name: "Password" }).fill("password")
-    await page.getByRole("button", { name: "Sign in" }).click()
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
     await expect(page).toHaveURL(/\/organizations$/)
     await expect(page.getByRole("row", { name: /Acme Manufacturing/ })).toBeVisible()

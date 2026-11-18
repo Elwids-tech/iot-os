@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./passkeys": "./src/passkeys.ts",
     "./*": "./src/*.tsx"
   },
   "dependencies": {
     "@iot-os/api-client": "workspace:*",
     "@iot-os/ui": "workspace:*",
+    "@laravel/passkeys": "^0.4.1",
     "lucide-react": "^0.468.0",
     "react-router-dom": "^7.18.2"
   },

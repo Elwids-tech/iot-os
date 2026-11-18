@@ -462,7 +462,7 @@ for (const viewport of viewports) {
       await expect(page.getByRole("heading", { name: "Welcome to your workspace" })).toBeVisible()
       await page.getByLabel("Email address").fill("manager@example.test")
       await page.getByLabel("Password").fill("correct horse battery staple")
-      await page.getByRole("button", { name: "Sign in" }).click()
+      await page.getByRole("button", { name: "Sign in", exact: true }).click()
       await expect(page).toHaveURL(`${alertsPath}/${alertIds.latest}`)
       await expect(page.getByRole("heading", { level: 1, name: /Phase voltage band/ })).toBeVisible()
       await expectPhoneFit(page)
