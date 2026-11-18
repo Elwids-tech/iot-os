@@ -23,16 +23,21 @@
     "new phone",
     "security",
     "sign in",
-    "turn off"
+    "turn off",
+    "required",
+    "require two-step",
+    "organization security"
   ],
   "required_capabilities": [],
-  "revision": 1,
+  "revision": 2,
   "summary": "Turn on two-step sign-in so that, after your password, signing in also asks for a code from an authenticator app on your phone. Save recovery codes for the day you can't use your phone.",
   "questions": [
     "How do I turn on two-step sign-in?",
     "What do I do if I lose my phone?",
     "How do I get new recovery codes?",
-    "How do I turn off two-step sign-in?"
+    "How do I turn off two-step sign-in?",
+    "Why am I asked to set up two-step sign-in?",
+    "How do I require two-step sign-in for my organization?"
   ]
 }
 ---
@@ -50,15 +55,17 @@ Install an authenticator app on your phone, such as Google Authenticator, Micros
 5. **Sign in with a code.** Next time, after your password, enter the code your app shows. **Keep me signed in** on the password step still keeps this browser signed in for 30 days.
 6. **Use a recovery code.** If you can't use your phone, select **Use a recovery code** on the code step and enter one of your saved codes. Each recovery code works once, and you are told how many are left.
 7. **Make new recovery codes.** On the security page, under **Recovery codes**, select **Make new codes**. Every earlier code stops working, so save the new ones.
-8. **Turn it off.** On the security page, select **Turn off** and confirm. Your recovery codes stop working and you are signed out on your other devices.
+8. **Turn it off.** On the security page, select **Turn off** and confirm. Your recovery codes stop working and you are signed out on your other devices. When two-step sign-in is required for you, the page says who requires it and you can't turn it off.
+9. **Require it for your organization.** If you manage your organization, open **Settings**, then **Security**, and switch on **Require two-step sign-in**. You need two-step sign-in on your own account first. Members without it are asked to set it up on their next click, and the **Members** list shows who has it. The change appears in the organization's activity.
 
 ## Expected result
 Signing in asks for your password and then a code. You get an email whenever two-step sign-in is turned on or off, recovery codes are made, or a recovery code is used, so you notice if someone else does it.
 
 ## Troubleshooting
+- **You are asked to set up two-step sign-in before you can continue.** It is required for your account: for platform staff, or by an organization you belong to. Select **Set up** and follow steps 2 to 4; afterwards you return to the page you were opening. You can also select **Sign out**.
 - **The code is refused.** Codes depend on your phone's clock. Turn on automatic date and time on your phone and try the next code. A code that already signed you in can't be used again; wait for the next one.
 - **Back at the password step.** A sign-in waits five minutes and five tries for its code. After that, enter your password again to start over.
-- **You lost your phone.** Sign in with a recovery code, then turn two-step sign-in off and set it up again on your new phone, or make new recovery codes.
+- **You lost your phone.** Sign in with a recovery code, then turn two-step sign-in off and set it up again on your new phone, or make new recovery codes. If two-step sign-in is required for you, you can't turn it off: keep signing in with recovery codes and ask your platform administrator to reset it, then set it up on your new phone.
 - **You lost your phone and your recovery codes.** Ask your platform administrator to reset your two-step sign-in. They confirm it's you first; afterwards you sign in with your password and set it up again.
 - **A security email you didn't expect.** Change your password straight away and check the security page. Tell your administrator.
 

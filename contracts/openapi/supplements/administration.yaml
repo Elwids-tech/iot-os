@@ -4,7 +4,69 @@
 # the test suite (spec 001 PR 2, recorded in specs/001-openapi-contract/drift-log.md).
 # Success bodies stay pending until the domain is described.
 # Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    OrganizationSecurity:
+      type: object
+      description: >-
+        Whether every member of the organization must use two-step sign-in (spec 034,
+        FR-021). Seen and changed by people with `Organization.update`.
+      additionalProperties: false
+      required: [two_step_required, members_without_two_step, can_change]
+      properties:
+        two_step_required: {type: boolean}
+        members_without_two_step:
+          type: integer
+          minimum: 0
+          description: Members who have no second step set up.
+        can_change:
+          type: boolean
+          description: Whether the viewer has their own second step set up, which changing it needs.
 operations:
+  GET /v1/organizations/{organization}/security:
+    description: |-
+      The organization's sign-in security (spec 034): whether two-step sign-in is
+      required for every member, and how many members have not set it up.
+    responses:
+      '200':
+        description: The organization's sign-in security.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/OrganizationSecurity'
+  PUT /v1/organizations/{organization}/security:
+    description: |-
+      Requires two-step sign-in for every member, or stops requiring it (spec 034,
+      FR-021). The change is recorded in the organization's activity. Members without
+      two-step are sent to setup on their next request; turning it off turns nobody's
+      two-step off.
+    responses:
+      '200':
+        description: The saved setting.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/OrganizationSecurity'
+      '409':
+        description: >-
+          The viewer has no second step set up (`two_step_setup_required`) and must set
+          up their own first.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodedError'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   DELETE /v1/organizations/{organization}/invitations/{invitation}:
     responses:
       '422':

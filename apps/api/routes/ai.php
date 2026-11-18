@@ -7,6 +7,7 @@ use App\Domain\Agents\Http\Middleware\AuthenticateAgent;
 use App\Domain\Agents\Http\Middleware\RequireAgentAccess;
 use App\Domain\Agents\Http\Middleware\RequireMcpResource;
 use App\Domain\Agents\Mcp\PlatformServer;
+use App\Domain\Authentication\Http\Middleware\RequireTwoStep;
 use Illuminate\Support\Facades\Route;
 use Laravel\Mcp\Facades\Mcp;
 use Laravel\Mcp\Server\Http\Controllers\OAuthRegisterController;
@@ -27,9 +28,9 @@ Route::middleware(RequireAgentAccess::class)->group(function (): void {
 
     // Passport's endpoints under the names laravel/mcp's metadata points at. Consent is
     // always asked, and Passport's own approve and deny routes are not registered: the
-    // portal completes consent.
+    // portal completes consent. A person who must set up two-step does that first (spec 034).
     Route::get('oauth/authorize', [AuthorizationController::class, 'authorize'])
-        ->middleware(['web', RequireMcpResource::class])
+        ->middleware(['web', RequireMcpResource::class, RequireTwoStep::class])
         ->name('passport.authorizations.authorize');
     Route::post('oauth/token', [AccessTokenController::class, 'issueToken'])
         ->middleware(['throttle:60,1', RequireMcpResource::class])

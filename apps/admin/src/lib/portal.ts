@@ -4,3 +4,11 @@ export const portalUrl =
 
 /** A person's own sign-in security (two-step sign-in, spec 034) is a portal page. */
 export const securitySettingsUrl = `${portalUrl.replace(/\/$/, "")}/account/security`
+
+/**
+ * Required two-step sign-in that is not set up (spec 034): the portal's setup page, which
+ * comes back here when it is done. The apps share the session, so the person returns set up.
+ */
+export function twoStepSetupUrl(returnTo: string) {
+  return `${portalUrl.replace(/\/$/, "")}/account/security/setup?${new URLSearchParams({ return: returnTo })}`
+}

@@ -1,7 +1,7 @@
-import { runtimeConfig } from "@iot-os/api-client"
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
+  TWO_STEP_SETUP_REQUIRED_EVENT,
   TwoStepRequiredError,
   type AdministrationCapabilities,
   type AuthenticatedUser,
@@ -112,6 +112,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { api } from "./lib/api"
+import { adminUrl } from "./lib/admin"
 import { useSupportUnread } from "./support/model"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { PanelProvider, usePanel } from "./panel/context"
@@ -142,6 +143,7 @@ const NotificationCenter = lazy(() => import("./notifications/NotificationCenter
 const MyNotificationsRedirect = lazy(() => import("./notifications/NotificationCenter").then(module => ({ default: module.MyNotificationsRedirect })))
 const BillingAccountsPage = lazy(() => import("./billing/BillingAccountsPage"))
 const SecurityPage = lazy(() => import("./account/SecurityPage"))
+const SetupRequiredPage = lazy(() => import("./account/SetupRequiredPage"))
 const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
@@ -183,6 +185,7 @@ function useStandaloneClass() {
 
 /** Where a person makes new recovery codes (spec 034); the sign-in code step links here. */
 const SECURITY_PATH = "/account/security"
+const SETUP_PATH = "/account/security/setup"
 
 function Login({ recovered = false }: { recovered?: boolean }) {
   const cache = useQueryClient()
@@ -301,6 +304,17 @@ function Session() {
     window.addEventListener("iot-session-expired", expire)
     return () => window.removeEventListener("iot-session-expired", expire)
   }, [])
+  // Two-step sign-in is required and not set up (spec 034, FR-022): any refused request
+  // opens setup, which returns here when it is done.
+  const navigate = useNavigate()
+  useEffect(() => {
+    const setUp = () => {
+      const here = window.location.pathname + window.location.search + window.location.hash
+      if (window.location.pathname !== SETUP_PATH) navigate(`${SETUP_PATH}?${new URLSearchParams({ return: here })}`, { replace: true })
+    }
+    window.addEventListener(TWO_STEP_SETUP_REQUIRED_EVENT, setUp)
+    return () => window.removeEventListener(TWO_STEP_SETUP_REQUIRED_EVENT, setUp)
+  }, [navigate])
   // Removing this browser's own push device ended its session on the server (spec 033, FR-028).
   useEffect(() => {
     const ended = () => void api.logout().catch(() => {}).then(signedOut)
@@ -354,6 +368,8 @@ function Session() {
       <Routes>
         {/* An AI agent asking to connect: a standalone page, outside the workspace shell. */}
         <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />
+        {/* Required two-step that is not set up yet: only setup and sign-out (spec 034). */}
+        <Route path="account/security/setup" element={<Suspense fallback={<PageFallback />}><SetupRequiredPage /></Suspense>} />
         <Route element={<PortalShell user={user} />}>
           <Route path="notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           {/* The test push opens My notifications without naming an organization. */}
@@ -684,10 +700,6 @@ const footerItems: NavigationItem[] = [
   { path: "support", label: "Support", icon: LifeBuoyIcon },
   { path: "settings", label: "Settings", icon: SettingsIcon, also: ["members", "roles"] },
 ]
-
-const adminUrl =
-  runtimeConfig("VITE_ADMIN_URL", import.meta.env.VITE_ADMIN_URL) ||
-  `${window.location.protocol}//${window.location.hostname}:5174`
 
 function PortalSidebar({
   user,

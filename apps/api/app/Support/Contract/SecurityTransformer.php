@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Contract;
 
+use App\Domain\Authentication\Http\Middleware\RequireTwoStep;
 use App\Domain\Integrations\Http\AuthenticateApplication;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Auth\Middleware\Authorize;
@@ -126,7 +127,8 @@ final class SecurityTransformer
         $responses = $this->remapScrambleResponses($operation['responses'] ?? []);
         $shared = array_filter([
             401 => $session || $ability !== null ? 'Unauthenticated' : null,
-            403 => $ability !== null || $permission !== null || ($session && $organizationScoped) ? 'Forbidden' : null,
+            // A session route also answers 403 two_step_setup_required (spec 034, RequireTwoStep).
+            403 => $ability !== null || $permission !== null || ($session && ($organizationScoped || ! RequireTwoStep::allows($route->getName()))) ? 'Forbidden' : null,
             404 => $organizationScoped || $ability !== null || str_contains($path, '{') ? 'NotFound' : null,
             419 => in_array($method, self::UNSAFE_METHODS, true) && str_starts_with($path, '/v1/') ? 'CsrfExpired' : null,
             429 => $limits !== [] ? 'TooManyRequests' : null,

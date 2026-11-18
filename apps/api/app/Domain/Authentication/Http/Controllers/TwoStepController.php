@@ -88,10 +88,14 @@ final class TwoStepController
         return response()->json(['recovery_codes' => $user->recoveryCodes()]);
     }
 
-    public function destroy(Request $request, DisableTwoFactorAuthentication $disable): Response
+    public function destroy(Request $request, DisableTwoFactorAuthentication $disable): Response|JsonResponse
     {
         $user = $this->person($request);
         $wasOn = $user->hasEnabledTwoFactorAuthentication();
+        if ($wasOn && $user->twoStepRequired()) {
+            // FR-023: someone requires it, so it stays on. An unconfirmed setup can still be discarded.
+            return $this->conflict('two_step_required', 'Two-step sign-in is required for your account, so it cannot be turned off.');
+        }
 
         DB::transaction(function () use ($disable, $user, $request, $wasOn): void {
             // An unconfirmed setup is simply discarded; only turning off what was on is news.

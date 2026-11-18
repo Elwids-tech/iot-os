@@ -19,15 +19,16 @@ final class SecurityController
         /** @var User $user */
         $user = $request->user();
         $enabled = $user->hasEnabledTwoFactorAuthentication();
+        $requiredBy = $user->twoStepRequirement();
 
         return response()->json(['data' => [
             'two_step' => [
                 'enabled' => $enabled,
                 'confirmed_at' => $enabled ? $user->two_factor_confirmed_at?->toIso8601ZuluString() : null,
                 'recovery_codes_remaining' => $enabled ? $user->remainingRecoveryCodes() : 0,
-                // Required two-step arrives with spec 034's required two-step pull request.
-                'required' => false,
-                'required_by' => [],
+                // Who requires it (FR-020, FR-021): "platform" and each requiring organization.
+                'required' => $requiredBy !== [],
+                'required_by' => $requiredBy,
                 'satisfied' => $user->twoStepSatisfied(),
             ],
         ]]);

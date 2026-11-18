@@ -16,6 +16,7 @@ import { KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Confirm, LoadError } from "../components/forms"
 import { api } from "../lib/api"
+import { requirementText } from "./requirement"
 
 export const securityKey = ["me", "security"] as const
 
@@ -154,6 +155,7 @@ function AuthenticatorPanel({
   onSetUp: () => void
   onTurnOff: () => void
 }) {
+  const why = twoStep.required ? requirementText(twoStep.required_by) : null
   return (
     <Panel aria-labelledby="security-authenticator">
       <PanelHeader>
@@ -167,14 +169,23 @@ function AuthenticatorPanel({
           After your password, ask for a six-digit code from an authenticator app on your phone. Someone who learns
           your password still cannot sign in without it.
         </p>
+        {why && (
+          <p className="text-body" data-testid="two-step-required-by">
+            {why}
+            {twoStep.enabled && " It cannot be turned off."}
+          </p>
+        )}
         {twoStep.enabled ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-body">
               Authenticator app, turned on <RelativeTime at={twoStep.confirmed_at} />
             </p>
-            <Button variant="outline" onClick={onTurnOff}>
-              Turn off
-            </Button>
+            {/* Required two-step stays on (FR-023); the sentence above says why. */}
+            {!twoStep.required && (
+              <Button variant="outline" onClick={onTurnOff}>
+                Turn off
+              </Button>
+            )}
           </div>
         ) : (
           <Button className="w-fit" onClick={onSetUp} disabled={busy}>

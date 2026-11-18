@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ApiClient, ApiError, ConfirmationRequiredError, TwoStepRequiredError } from "./index"
+import { ApiClient, ApiError, ConfirmationRequiredError, TWO_STEP_SETUP_REQUIRED_EVENT, TwoStepRequiredError, TwoStepSetupRequiredError } from "./index"
 
 /** Two-step sign-in (spec 034) in the client. */
 describe("ApiClient two-step sign-in", () => {
@@ -89,5 +89,28 @@ describe("ApiClient two-step sign-in", () => {
     await expect(client.confirmTwoStep("123456")).resolves.toEqual(["one"])
     await client.disableTwoStep()
     expect(calls.at(-1)).toBe("DELETE /api/v1/me/two-step")
+  })
+
+  it("turns two_step_setup_required into a typed error and a window event", async () => {
+    const { client } = api(() => json(403, { code: "two_step_setup_required", message: "Set up two-step sign-in to continue." }))
+    const error = await client.organizationSecurity("org-1").catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(TwoStepSetupRequiredError)
+    const fired = vi.mocked(window.dispatchEvent).mock.calls.map(([event]) => event.type)
+    expect(fired).toEqual([TWO_STEP_SETUP_REQUIRED_EVENT])
+
+    // Another 403 stays an ordinary refusal.
+    const { client: other } = api(() => json(403, { message: "This action is unauthorized." }))
+    const refused = await other.organizationSecurity("org-1").catch((e: unknown) => e)
+    expect(refused).toBeInstanceOf(ApiError)
+    expect(refused).not.toBeInstanceOf(TwoStepSetupRequiredError)
+    expect(vi.mocked(window.dispatchEvent)).not.toHaveBeenCalled()
+  })
+
+  it("reads and changes an organization's two-step requirement", async () => {
+    const { client, calls } = api(() => json(200, { data: { two_step_required: true, members_without_two_step: 2, can_change: true } }))
+
+    await expect(client.organizationSecurity("org-1")).resolves.toMatchObject({ members_without_two_step: 2 })
+    await expect(client.setOrganizationTwoStep("org-1", true)).resolves.toMatchObject({ two_step_required: true })
+    expect(calls).toEqual(["GET /api/v1/organizations/org-1/security", 'PUT /api/v1/organizations/org-1/security {"two_step_required":true}'])
   })
 })

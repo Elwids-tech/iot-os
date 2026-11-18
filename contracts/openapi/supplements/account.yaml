@@ -221,8 +221,9 @@ components:
             $ref: '#/components/schemas/ErrorMessage'
     TwoStepConflict:
       description: >-
-        Two-step sign-in is already on (`two_step_already_on`), or is off where it must
-        be on (`two_step_off`).
+        Two-step sign-in is already on (`two_step_already_on`), is off where it must
+        be on (`two_step_off`), or is required for the person and cannot be turned off
+        (`two_step_required`).
       content:
         application/json:
           schema:
@@ -348,7 +349,10 @@ operations:
     description: |-
       Turns two-step off, or discards an unconfirmed setup. Turning it off ends every
       other session and kept sign-in of the person. Needs a recently confirmed password.
+      Refused while two-step is required for the person (`409 two_step_required`).
     responses:
+      '409':
+        $ref: '#/components/responses/TwoStepConflict'
       '423':
         $ref: '#/components/responses/PasswordConfirmationRequired'
   PUT /v1/notifications/preferences:

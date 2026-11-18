@@ -106,6 +106,7 @@ class Organization extends Model
     {
         return [
             'permissions_restricted' => 'boolean',
+            'two_step_required' => 'boolean',
         ];
     }
 }

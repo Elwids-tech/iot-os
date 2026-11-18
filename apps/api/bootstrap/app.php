@@ -3,6 +3,7 @@
 use App\Domain\Agents\Console\ExportToolCatalogue;
 use App\Domain\Agents\Console\PruneAgents;
 use App\Domain\Authentication\Console\PruneKeptSignIns;
+use App\Domain\Authentication\Http\Middleware\RequireTwoStep;
 use App\Domain\Authentication\Http\Middleware\ResumeKeptSignIn;
 use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\Automation\Console\PruneAlertNotifications;
@@ -43,6 +44,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // ahead of `auth:sanctum`, which the priority list would otherwise sort first.
         $middleware->appendToGroup('api', ResumeKeptSignIn::class);
         $middleware->prependToPriorityList(AuthenticatesRequests::class, ResumeKeptSignIn::class);
+        // Required two-step (spec 034, R7): once `auth:sanctum` has resolved the person.
+        $middleware->appendToGroup('api', RequireTwoStep::class);
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, RequireTwoStep::class);
         $middleware->appendToGroup('api', NoStorePrivateResponses::class);
         // A signed-out person starting an agent connection signs in on the portal, which
         // then returns to the authorize URL. Other routes keep their behaviour.

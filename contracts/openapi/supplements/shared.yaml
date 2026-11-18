@@ -218,7 +218,9 @@ components:
       description: >-
         The caller is not allowed: not a member of the organization, missing a tenant or
         platform permission, or (integration API) an ability not granted on both the
-        application and the token.
+        application and the token. On session routes, a person for whom two-step
+        sign-in is required and not set up gets `code: two_step_setup_required` until
+        they set it up (spec 034).
       content:
         application/json:
           schema:

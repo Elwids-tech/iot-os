@@ -21,6 +21,7 @@ import RoleRoutes, { RolesList } from "../members/Roles"
 import { useAdministration } from "../members/shared"
 import { AiAppsSettings } from "../agents/AiAppsSettings"
 import { agentAccessOffered } from "../agents/model"
+import { SecuritySettings } from "./Security"
 
 /** One place for organization and personal settings. */
 export default function SettingsRoutes() {
@@ -32,6 +33,8 @@ export default function SettingsRoutes() {
     { key: "general", label: "General", to: `${base}/general` },
     ...(can.members_view ? [{ key: "members", label: "Members", to: `${base}/members` }] : []),
     ...(can.roles_view ? [{ key: "roles", label: "Roles", to: `${base}/roles` }] : []),
+    // Required two-step sign-in (spec 034): people who may update the organization.
+    ...(organization?.capabilities?.manage_administration ? [{ key: "security", label: "Security", to: `${base}/security` }] : []),
     ...(capabilities.manage ? [{ key: "notifications", label: "Notifications", to: `${base}/notifications` }] : []),
     ...(capabilities.manage ? [{ key: "usage", label: "Usage", to: `${base}/usage` }] : []),
     ...(agentAccessOffered(organization) ? [{ key: "ai-apps", label: "AI apps", to: `${base}/ai-apps` }] : []),
@@ -49,6 +52,7 @@ export default function SettingsRoutes() {
         <Route path="general" element={<GeneralSettings />} />
         <Route path="members" element={<MembersPage />} />
         <Route path="roles" element={<RolesList />} />
+        <Route path="security" element={<SecuritySettings />} />
         <Route path="notifications" element={<NotificationsList />} />
         <Route path="usage" element={<UsageSettings />} />
         <Route path="my-notifications" element={<MyNotifications />} />

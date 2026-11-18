@@ -29,6 +29,8 @@ final class OrganizationResource extends JsonResource
             'uuid' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
+            // Members must use two-step sign-in (spec 034, FR-021).
+            'two_step_required' => (bool) $this->two_step_required,
             'users_count' => $this->whenCounted('users'),
             'devices_count' => $this->whenHas('devices_count', fn (): int => (int) $this->devices_count),
             // Only the admin list and admin writes load it; members never see their billing account (spec 023).
