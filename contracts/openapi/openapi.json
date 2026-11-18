@@ -7904,7 +7904,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_145",
+        "operationId": "domain.devices.retention.show_146",
         "tags": [
           "Retention"
         ],
@@ -7953,7 +7953,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_146",
+        "operationId": "domain.devices.retention.update_147",
         "tags": [
           "Retention"
         ],
@@ -8291,7 +8291,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_143",
+        "operationId": "domain.devices.retention.show_144",
         "tags": [
           "Retention"
         ],
@@ -8323,7 +8323,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_144",
+        "operationId": "domain.devices.retention.update_145",
         "tags": [
           "Retention"
         ],
@@ -9752,6 +9752,74 @@
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-organizations",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/admin/users/{user}/two-step/reset": {
+      "post": {
+        "operationId": "v1.admin.users.two-step.reset",
+        "tags": [
+          "TwoStepReset"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.reset-two-step",
+        "summary": "Reset a person's two-step sign-in",
+        "description": "Removes the person's authenticator, recovery codes and passkeys, ends every session and kept sign-in of theirs, emails them and records `person.two_step_reset` with the reason (spec 034, FR-024). `403` when the administrator is resetting themselves, or the person is a super administrator and the administrator is not."
       }
     },
     "/v1/agent-authorizations/approve": {
@@ -32099,7 +32167,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_189",
+        "operationId": "domain.automation.dag.settings_190",
         "tags": [
           "Dag"
         ],
@@ -32174,7 +32242,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_190",
+        "operationId": "domain.automation.dag.settings_191",
         "tags": [
           "Dag"
         ],
@@ -33581,7 +33649,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_203",
+        "operationId": "domain.automation.scenario.save_204",
         "tags": [
           "Scenario"
         ],
@@ -33697,7 +33765,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_204",
+        "operationId": "domain.automation.scenario.save_205",
         "tags": [
           "Scenario"
         ],
@@ -34242,7 +34310,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_195",
+        "operationId": "domain.automation.dag.timeline_196",
         "tags": [
           "Dag"
         ],
@@ -34313,7 +34381,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_196",
+        "operationId": "domain.automation.dag.timeline_197",
         "tags": [
           "Dag"
         ],
@@ -41697,6 +41765,12 @@
           "is_super_admin": {
             "type": "boolean"
           },
+          "two_step_enabled": {
+            "type": "boolean"
+          },
+          "passkey_count": {
+            "type": "integer"
+          },
           "platform_roles": {
             "type": "array",
             "items": {
@@ -41742,7 +41816,8 @@
           "id",
           "name",
           "email",
-          "is_super_admin"
+          "is_super_admin",
+          "two_step_enabled"
         ],
         "title": "PlatformUserResource"
       },

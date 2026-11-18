@@ -9,6 +9,7 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 final class PlatformUserController
@@ -22,6 +23,8 @@ final class PlatformUserController
         $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
 
         $users = User::query()
+            ->select('users.*')
+            ->addSelect(['passkey_count' => DB::table('passkeys')->selectRaw('count(*)')->whereColumn('passkeys.user_id', 'users.id')])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
