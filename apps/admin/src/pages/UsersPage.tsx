@@ -4,6 +4,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
+import { Status } from "@iot-os/ui/components/status-mark"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
@@ -13,6 +14,7 @@ import { MemberDialogs, type MemberAction } from "../components/MemberDialogs"
 import { PendingInvitations } from "../components/PendingInvitations"
 import { PlatformAdministratorDialog, type PlatformAdministratorAction } from "../components/PlatformAdministratorDialog"
 import { SuperAdministratorDialog, type SuperAdministratorAction } from "../components/SuperAdministratorDialog"
+import { TwoStepResetDialog } from "../components/TwoStepResetDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useDirectoryParameters, useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
@@ -27,6 +29,10 @@ function platformAccess(user: PlatformUser): string {
   if (user.is_super_admin) return "Super admin"
   if (user.platform_roles.length > 0) return "Platform administrator"
   return "Tenant user"
+}
+
+function twoStep(user: PlatformUser): "enabled" | "not_set_up" {
+  return user.two_step_enabled ? "enabled" : "not_set_up"
 }
 
 function isPlatformAdministrator(user: PlatformUser): boolean {
@@ -113,6 +119,9 @@ function UserDirectory({
   const [memberAction, setMemberAction] = useState<MemberAction | null>(null)
   const [superAdministratorAction, setSuperAdministratorAction] = useState<SuperAdministratorAction | null>(null)
   const [platformAdministratorAction, setPlatformAdministratorAction] = useState<PlatformAdministratorAction | null>(null)
+  const [twoStepReset, setTwoStepReset] = useState<PlatformUser | null>(null)
+  // Spec 034: the API also refuses resetting yourself, and a super administrator unless you are one.
+  const resetsTwoStep = currentUser.capabilities.reset_two_step === true
   const columns = useMemo<DataColumn<PlatformUser>[]>(
     () => [
       { id: "user", header: "User", mobile: "title", value: (user) => user.name, cell: (user) => <span className="font-medium">{user.name}</span> },
@@ -134,6 +143,22 @@ function UserDirectory({
         header: "Platform access",
         value: platformAccess,
         cell: (user) => <span className="text-muted-foreground">{platformAccess(user)}</span>,
+      },
+      {
+        id: "two-step",
+        header: "Two-step",
+        value: (user) => (user.two_step_enabled ? "On" : "Not set up"),
+        cell: (user) => <Status value={twoStep(user)} />,
+      },
+      {
+        id: "passkeys",
+        header: "Passkeys",
+        align: "end",
+        value: (user) => user.passkey_count ?? 0,
+        cell: (user) => {
+          const count = user.passkey_count ?? 0
+          return count > 0 ? <span className="tabular-nums">{count}</span> : <span className="text-muted-foreground">None</span>
+        },
       },
     ],
     [],
@@ -172,7 +197,13 @@ function UserDirectory({
             </DropdownMenuItem>
           ) : null
           const accessItems = platformAdministratorItem || superAdministratorItem
-          if (!isMember && !accessItems) return null
+          const twoStepItem =
+            resetsTwoStep && user.id !== currentUser.id && (!user.is_super_admin || currentUser.is_super_admin) ? (
+              <DropdownMenuItem variant="destructive" onSelect={() => setTwoStepReset(user)}>
+                Reset two-step
+              </DropdownMenuItem>
+            ) : null
+          if (!isMember && !accessItems && !twoStepItem) return null
           return (
             <>
               {isMember ? (
@@ -189,6 +220,8 @@ function UserDirectory({
               {isMember && accessItems ? <DropdownMenuSeparator /> : null}
               {platformAdministratorItem}
               {superAdministratorItem}
+              {(isMember || accessItems) && twoStepItem ? <DropdownMenuSeparator /> : null}
+              {twoStepItem}
             </>
           )
         }}
@@ -217,6 +250,7 @@ function UserDirectory({
         onClose={() => setPlatformAdministratorAction(null)}
         onChanged={reload}
       />
+      <TwoStepResetDialog user={twoStepReset} onClose={() => setTwoStepReset(null)} onReset={reload} />
     </>
   )
 }

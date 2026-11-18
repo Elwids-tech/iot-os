@@ -347,6 +347,43 @@ that changes nothing records none. Route:
 user with their platform roles); `GET /api/v1/admin/platform-team` lists users with
 their platform roles.
 
+### Lock-out reset
+
+A person who has lost their authenticator app, their recovery codes and their
+passkeys cannot sign in. A platform administrator with
+`PlatformAdministration.reset-two-step` resets their two-step sign-in from admin
+**Users**, and on deployments where no administrator can sign in, the server operator
+does it from the command line
+([spec 034](../../specs/034-two-factor-passkeys/spec.md) FR-024 to FR-026,
+[ADR-048](../adr/ADR-048-two-step-sign-in-and-passkeys.md)).
+
+- **What a reset does.** `ResetTwoStep` runs in one transaction: it clears the three
+  two-factor columns, deletes the person's passkeys, ends every database session, kept
+  sign-in (`two_step_reset`) and push device of theirs, records
+  `person.two_step_reset` and emails them (`SecurityChanged`). Their password is
+  unchanged: they sign in with it and set up two-step again. If two-step is required
+  for them, they can reach only their security settings until they do.
+- **Who.** Nobody resets themselves (`403`), and only a super administrator resets a
+  super administrator (`403` otherwise). The seeding migration grants the permission
+  to every platform role that already holds
+  `PlatformAdministration.manage-organizations`; super administrators hold it
+  implicitly. `GET /api/v1/me` returns it as `capabilities.reset_two_step`.
+- **Screens.** The **Users** table shows a **Two-step** status (`enabled` "On" or
+  `not_set_up` "Not set up") and a **Passkeys** count. With the permission, each row
+  but your own (and a super administrator's, unless you are one) offers
+  **Reset two-step**. It opens a dialog that asks for a reason (required, up to 500
+  characters) and confirms with a toast.
+- **Audit.** The activity entry belongs to no organization. The person is the
+  subject, the administrator is the causer (none for the server), and the properties
+  are `reason`, `source` (`admin` or `console`) and `passkeys_removed`.
+- **Routes.** `POST /api/v1/admin/users/{user_id}/two-step/reset` (`reason`; `204`,
+  `403`, `404` for an unknown user, `422` without a reason). `GET /api/v1/admin/users`
+  returns `two_step_enabled` and `passkey_count` for each user.
+- **Console.** `php artisan auth:reset-two-step {email} --reason="…"` performs the same
+  reset with no causer and `source: console`. It fails for an unknown email and
+  without a reason. The [incident runbook](../ops/incident-runbook.md#lock-out-reset)
+  says how to check the person's identity first.
+
 ### Deleting an organization
 
 **Delete organization** on an Organizations row removes an organization permanently

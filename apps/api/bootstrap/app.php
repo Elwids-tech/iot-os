@@ -3,6 +3,7 @@
 use App\Domain\Agents\Console\ExportToolCatalogue;
 use App\Domain\Agents\Console\PruneAgents;
 use App\Domain\Authentication\Console\PruneKeptSignIns;
+use App\Domain\Authentication\Console\ResetTwoStepCommand;
 use App\Domain\Authentication\Http\Middleware\RequireTwoStep;
 use App\Domain\Authentication\Http\Middleware\ResumeKeptSignIn;
 use App\Domain\Automation\Console\AutomationWorker;
@@ -37,7 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class, PruneKeptSignIns::class])
+    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class, PruneKeptSignIns::class, ResetTwoStepCommand::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         // Keep me signed in (spec 033, R11): after Sanctum has started the session, and

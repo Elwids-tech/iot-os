@@ -414,7 +414,7 @@ person's two-step sign-in (FR-024 to FR-026).
 
 ### Tests for User Story 4
 
-- [ ] T071 [P] [US4] Write `apps/api/tests/Feature/Domain/Administration/TwoStepResetTest.php` covering:
+- [x] T071 [P] [US4] Write `apps/api/tests/Feature/Domain/Administration/TwoStepResetTest.php` covering:
   - `POST admin/users/{user}/two-step/reset` needs `PlatformAdministration.reset-two-step`;
   - `reason` is required, up to 500 characters;
   - the reset clears the three two-factor columns, deletes passkeys and ends every session and kept sign-in (`two_step_reset`);
@@ -423,33 +423,40 @@ person's two-step sign-in (FR-024 to FR-026).
   - a platform administrator resetting a super administrator gives `403`;
   - an unknown user gives `404`;
   - `two_step_enabled` and `passkey_count` appear in the platform users list
-- [ ] T072 [P] [US4] Write `apps/api/tests/Feature/Console/ResetTwoStepCommandTest.php`: `auth:reset-two-step {email} --reason=` performs the same reset with no causer and `source: "console"`, fails for an unknown email, and requires `--reason`
+- [x] T072 [P] [US4] Write `apps/api/tests/Feature/Console/ResetTwoStepCommandTest.php`: `auth:reset-two-step {email} --reason=` performs the same reset with no causer and `source: "console"`, fails for an unknown email, and requires `--reason`
+  - Done (PR 6): the email match ignores case; a missing, blank or over-500-character reason exits with `2` (invalid).
 
 ### Implementation for User Story 4
 
-- [ ] T073 [US4] Add `RESET_TWO_STEP = 'PlatformAdministration.reset-two-step'` to `apps/api/app/Domain/Authorization/Permissions/PlatformAdministrationPermission.php`, with a migration `apps/api/database/migrations/2026_11_17_000004_seed_reset_two_step_permission.php` that creates the permission and grants it to existing platform roles that hold `PlatformAdministration.manage-organizations`
-- [ ] T074 [US4] Create `apps/api/app/Domain/Authentication/Actions/ResetTwoStep.php`. It takes the target, the actor (nullable), the reason and the source. In one transaction:
+- [x] T073 [US4] Add `RESET_TWO_STEP = 'PlatformAdministration.reset-two-step'` to `apps/api/app/Domain/Authorization/Permissions/PlatformAdministrationPermission.php`, with a migration `apps/api/database/migrations/2026_11_17_000004_seed_reset_two_step_permission.php` that creates the permission and grants it to existing platform roles that hold `PlatformAdministration.manage-organizations`
+  - Deviation (PR 6): the migration is `2026_11_23_000600_seed_reset_two_step_permission.php`, dated after the latest migration on `main` (as T006 was) and clear of the numbers pull requests 4 and 5 may use. Fresh installs get the permission from `PlatformRoleName`, which grants every `PlatformAdministrationPermission` case.
+- [x] T074 [US4] Create `apps/api/app/Domain/Authentication/Actions/ResetTwoStep.php`. It takes the target, the actor (nullable), the reason and the source. In one transaction:
   1. refuse self;
   2. refuse a super administrator target unless the actor is one;
   3. run `DisableTwoFactorAuthentication`;
   4. delete passkeys;
   5. run `EndSignIns::everywhere(…, KeptSignIn::TWO_STEP_RESET)`;
   6. run `SecurityAudit` (`person.two_step_reset`)
-- [ ] T075 [US4] Create `apps/api/app/Domain/Administration/Http/Controllers/TwoStepResetController.php` (`POST admin/users/{user}/two-step/reset`, integer `{user}`, `whereNumber`) in `apps/api/app/Domain/Administration/routes/api.php`. Add `two_step_enabled` and `passkey_count` to the platform users list returned by `apps/api/app/Domain/Administration/Http/Controllers/PlatformUserController.php`
-- [ ] T076 [US4] Create `apps/api/app/Domain/Authentication/Console/ResetTwoStepCommand.php` (`auth:reset-two-step {email} {--reason=}`), which calls `ResetTwoStep` with no actor and source `console`
-- [ ] T077 [P] [US4] Update the OpenAPI supplements in `contracts/openapi/supplements/` and `contracts/openapi/openapi.json`, pass the drift check, and add `resetTwoStep(userId, reason)`, the users list fields and the `reset_two_step` capability to `packages/api-client/src/index.ts`
-- [ ] T078 [US4] In `apps/admin/src/pages/UsersPage.tsx`:
+  - Deviation (PR 6): pull request 4 had not merged, so passkey deletion runs only when the `passkeys` table exists (`Schema::hasTable`) and otherwise removes none. The tests create a stand-in table with T044's columns. The server operator (no actor) may reset anyone, super administrators included.
+- [x] T075 [US4] Create `apps/api/app/Domain/Administration/Http/Controllers/TwoStepResetController.php` (`POST admin/users/{user}/two-step/reset`, integer `{user}`, `whereNumber`) in `apps/api/app/Domain/Administration/routes/api.php`. Add `two_step_enabled` and `passkey_count` to the platform users list returned by `apps/api/app/Domain/Administration/Http/Controllers/PlatformUserController.php`
+  - Deviation (PR 6): `passkey_count` is a subquery on the `passkeys` table when it exists and `0` otherwise; `PlatformUserResource` returns it only where the query selects it (`whenHas`), so the super administrator grant response omits it.
+- [x] T076 [US4] Create `apps/api/app/Domain/Authentication/Console/ResetTwoStepCommand.php` (`auth:reset-two-step {email} {--reason=}`), which calls `ResetTwoStep` with no actor and source `console`
+- [x] T077 [P] [US4] Update the OpenAPI supplements in `contracts/openapi/supplements/` and `contracts/openapi/openapi.json`, pass the drift check, and add `resetTwoStep(userId, reason)`, the users list fields and the `reset_two_step` capability to `packages/api-client/src/index.ts`
+- [x] T078 [US4] In `apps/admin/src/pages/UsersPage.tsx`:
   - add **Two-step** (`Status`) and **Passkeys** columns;
   - add a **Reset two-step** row action, shown only with the permission (expose `reset_two_step` in the capabilities of `apps/api/app/Domain/Authentication/Http/Resources/AuthenticatedUserResource.php`) and never on the viewer's own row;
   - the action opens a dialog with a required reason (up to 500 characters) and shows a success toast
-- [ ] T079 [P] [US4] Write `apps/admin/e2e/two-step-reset.spec.ts`: an administrator resets a member's two-step with a reason, the row shows **Not set up**, and the action is absent on their own row
-- [ ] T080 [P] [US4] Add a **Lock-out reset** section to `docs/features/access.md`, and write the lock-out procedure (how to check identity before a reset, and the console command) in `docs/ops/incident-runbook.md` under a new heading, with no hosts or names
-- [ ] T081 [US4] Verify pull request 6:
+  - Done (PR 6): the dialog is `apps/admin/src/components/TwoStepResetDialog.tsx`, mounted only while open (its discard guard is a router blocker, and the page already has one for the member dialogs). The action is also hidden on a super administrator's row unless the viewer is one, matching the API.
+- [x] T079 [P] [US4] Write `apps/admin/e2e/two-step-reset.spec.ts`: an administrator resets a member's two-step with a reason, the row shows **Not set up**, and the action is absent on their own row
+- [x] T080 [P] [US4] Add a **Lock-out reset** section to `docs/features/access.md`, and write the lock-out procedure (how to check identity before a reset, and the console command) in `docs/ops/incident-runbook.md` under a new heading, with no hosts or names
+- [x] T081 [US4] Verify pull request 6:
   - run the API suite on PostgreSQL, the admin lint and `two-step-reset.spec.ts`;
   - rebuild the API family and `admin`;
   - run `quickstart.md` US4 steps 1 to 3.
 
   Then open pull request 6
+
+  - Done (PR 6, 2026-11-18): the API suite on PostgreSQL passed 1608 of 1610, and the two failures were `OrganizationAuthorizationSeederTest` counting permissions (the seeder makes each permission for the `web` and `sanctum` guards, so the new one adds two rows; the count is now 90 and passes). The admin lint and `two-step-reset.spec.ts` (with `admin.spec.ts` and `two-step-admin.spec.ts`, 48 tests) pass. The API family, `admin` and `portal` were rebuilt, and quickstart US4 steps 1 to 3 ran live: the reset from **Users**, the email, the activity entry with the administrator and reason, `403` for yourself and for a super administrator, and the console reset with `source: console`.
 
 **Checkpoint**: all four user stories are complete.
 

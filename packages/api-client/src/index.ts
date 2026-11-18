@@ -112,12 +112,16 @@ export type PlatformUser = {
   name: string
   email: string
   is_super_admin: boolean
+  /** Whether two-step sign-in is on (spec 034). */
+  two_step_enabled: boolean
+  /** How many passkeys the person has (spec 034); only the users list carries it. */
+  passkey_count?: number
   platform_roles: PlatformRoleSummary[]
   organizations: Organization[]
 }
 
 /** A user as the platform-team update returns them: no organizations (spec 008). */
-export type PlatformTeamMember = Omit<PlatformUser, "organizations">
+export type PlatformTeamMember = Omit<PlatformUser, "organizations" | "two_step_enabled" | "passkey_count">
 
 export type OrganizationRole = {
   id: number
@@ -287,6 +291,8 @@ export type AuthenticatedUser = {
     /** Organizations, users, roles, activity and the billing pages (`PlatformAdministration.manage-organizations`). */
     manage_organizations?: boolean
     manage_retention?: boolean
+    /** Reset a locked-out person's two-step sign-in (`PlatformAdministration.reset-two-step`, spec 034). */
+    reset_two_step?: boolean
     manage_assistant?: boolean
     /** Super administrators work the support ticket queue (spec 015). */
     manage_tickets?: boolean
@@ -1781,6 +1787,18 @@ export class ApiClient {
     return this.request<PaginatedResponse<PlatformUser>>(
       `/api/v1/admin/users${directoryQuery(query)}`,
     )
+  }
+
+  /**
+   * Resets a locked-out person's two-step sign-in (spec 034, FR-024): their authenticator,
+   * recovery codes and passkeys are removed and every sign-in of theirs ends. `reason`
+   * is required, up to 500 characters.
+   */
+  async resetTwoStep(userId: number, reason: string): Promise<void> {
+    await this.request(`/api/v1/admin/users/${userId}/two-step/reset`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    })
   }
 
   async adminRoles(

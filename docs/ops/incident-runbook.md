@@ -85,6 +85,39 @@ Evaluation resumes from the newest retained reading within seconds, without a
 restart. Record the reason, the skipped range and any alerts or actions that may
 have been missed.
 
+## Lock-out reset
+
+Someone who has lost their authenticator app, their recovery codes and their
+passkeys asks to get back into their account. A reset removes all three and signs
+them out everywhere, so an attacker who talks you into one gets a password-only
+account. Check who is asking before you reset:
+
+1. Reach the person through a channel you already hold for them, not one given in
+   the request: call the number in your own records, or ask their organization's
+   administrator to confirm by a call or in person. Never accept the email that
+   asked for the reset as proof.
+2. Confirm the account's email address with them, and that they can still sign in
+   with their password. If they cannot, they reset the password first with
+   **Forgot password?**; a lock-out reset never changes the password.
+3. If you cannot confirm who they are, do not reset. Record the refusal.
+
+Then reset, giving how you checked as the reason (it is kept in the activity log):
+
+- In the admin app, open **Users**, choose **Reset two-step** on the person's row
+  and enter the reason. This needs `PlatformAdministration.reset-two-step`. Nobody
+  can reset themselves, and only a super administrator can reset a super
+  administrator.
+- When no administrator can sign in (for example the only super administrator is
+  locked out), the server operator runs:
+
+  ```sh
+  docker compose exec api php artisan auth:reset-two-step person@example.com --reason="Identity confirmed by a call to the number on file"
+  ```
+
+The person is emailed. Check the activity log for `person.two_step_reset` with your
+reason and `source` `admin` or `console`, and ask the person to sign in with their
+password and set up two-step again straight away.
+
 ## Safe recovery boundaries
 
 - Use `tooling/release/manage.py` with the actual private environment, manifest and
