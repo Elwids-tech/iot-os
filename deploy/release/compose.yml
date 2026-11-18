@@ -70,6 +70,10 @@ x-api-env: &api-env
   WEBPUSH_VAPID_PUBLIC_KEY: ${WEBPUSH_VAPID_PUBLIC_KEY:-}
   WEBPUSH_VAPID_PRIVATE_KEY: ${WEBPUSH_VAPID_PRIVATE_KEY:-}
   WEBPUSH_VAPID_SUBJECT: ${WEBPUSH_VAPID_SUBJECT:-}
+  # Passkeys (spec 034): bound to the parent domain of app. and admin., so changing
+  # DOMAIN makes every passkey stop working. The secret is generated once and kept.
+  PASSKEYS_RP_ID: ${DOMAIN}
+  PASSKEYS_USER_HANDLE_SECRET: ${PASSKEYS_USER_HANDLE_SECRET:?}
   BILLING_CURRENCY: ${BILLING_CURRENCY:-USD}
   MAIL_MAILER: smtp
   MAIL_HOST: smtp-relay.brevo.com

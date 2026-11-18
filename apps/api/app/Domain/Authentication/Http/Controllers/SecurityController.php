@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Controllers;
 
+use App\Domain\Authentication\Http\Resources\PasskeyResource;
+use App\Domain\Authentication\Services\PasskeyAvailability;
 use App\Domain\Shared\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * The signed-in person's security settings (spec 034, FR-029). Never returns a secret or
- * a recovery code: only whether two-step is on and how many codes remain.
+ * The signed-in person's security settings (spec 034, FR-029). Never returns a secret, a
+ * recovery code or credential material: only whether two-step is on, how many codes
+ * remain, and the passkeys by name.
  */
 final class SecurityController
 {
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, PasskeyAvailability $availability): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -29,6 +32,11 @@ final class SecurityController
                 'required' => false,
                 'required_by' => [],
                 'satisfied' => $user->twoStepSatisfied(),
+            ],
+            'passkeys' => [
+                'available' => $availability->available(),
+                'unavailable_reason' => $availability->unavailableReason(),
+                'items' => PasskeyResource::collection($user->passkeys()->orderBy('created_at')->orderBy('id')->get())->resolve($request),
             ],
         ]]);
     }

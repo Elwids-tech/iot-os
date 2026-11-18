@@ -39,6 +39,7 @@ def main():
                 'STATE_DIR': str(directory/'state'), 'CONFIG_DIR': str(directory/'private'),
                 'APP_KEY': 'base64:'+base64.b64encode(secrets.token_bytes(32)).decode(),
                 'DEVICE_BROKER_ADMIN_TOKEN': secrets.token_hex(32), 'MOSQUITTO_ADMIN_PASSWORD': secrets.token_hex(32),
+                'PASSKEYS_USER_HANDLE_SECRET': base64.b64encode(secrets.token_bytes(64)).decode(),
                 'IOT_STAGING_DEMO_ENABLED': 'true',
                 'MAIL_USERNAME': 'unused', 'MAIL_PASSWORD': 'unused', 'MAIL_FROM_ADDRESS': 'no-reply@example.test',
                 'ALERT_EMAIL': 'operator@example.test', 'ACME_EMAIL': 'operator@example.test', 'VPN_CIDR': '100.64.0.0/10',
@@ -66,7 +67,8 @@ def main():
         service.pop('ports', None)
         service.pop('mem_limit', None)
         if 'APP_ENV' in service.get('environment', {}):
-            service['environment'].update({'APP_URL': 'http://localhost:18091', 'FRONTEND_URL': 'http://localhost:18092', 'ADMIN_FRONTEND_URL': 'http://localhost:18093',
+            # Passkeys are bound to the front ends' host (spec 034).
+            service['environment'].update({'APP_URL': 'http://localhost:18091', 'FRONTEND_URL': 'http://localhost:18092', 'ADMIN_FRONTEND_URL': 'http://localhost:18093', 'PASSKEYS_RP_ID': 'localhost',
                 'SESSION_DOMAIN': '', 'SESSION_SECURE_COOKIE': 'false', 'SANCTUM_STATEFUL_DOMAINS': 'localhost:18092,localhost:18093',
                 'CORS_ALLOWED_ORIGINS': 'http://localhost:18092,http://localhost:18093'})
         if name in ('portal', 'admin'):

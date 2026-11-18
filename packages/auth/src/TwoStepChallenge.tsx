@@ -8,6 +8,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@io
 import { Input } from "@iot-os/ui/components/input"
 import { SixDigitCode } from "@iot-os/ui/components/input-otp"
 import { CheckCircle2Icon, TriangleAlertIcon } from "lucide-react"
+import { PasskeySignInButton } from "./PasskeySignInButton"
 
 type Answer = "code" | "recovery_code"
 
@@ -29,6 +30,10 @@ const recoveryDescription = "Enter one of the recovery codes you saved when you 
  * - After a recovery code it says how many are left before continuing; with none left it
  *   points to the security page (`securityHref`) to make new ones.
  *
+ * - When the person has a passkey (`passkey` in `methods`), it also offers that; alone,
+ *   as **Continue with your passkey**, when it is the only method. `remember` carries
+ *   **Keep me signed in** from the password step.
+ *
  * `variant` places it in a sign-in card or in the portal's session dialog.
  */
 export function TwoStepChallenge({
@@ -39,9 +44,12 @@ export function TwoStepChallenge({
   securityHref,
   variant = "card",
   top,
+  remember = false,
 }: {
   apiClient: ApiClient
   methods: TwoStepMethod[]
+  /** The Keep me signed in choice from the password step, for a passkey sign-in. */
+  remember?: boolean
   onSignedIn: (user: AuthenticatedUser) => void
   onStartAgain: () => void
   securityHref: string
@@ -51,6 +59,7 @@ export function TwoStepChallenge({
 }) {
   const offersCode = methods.includes("code")
   const offersRecovery = methods.includes("recovery_code")
+  const offersPasskey = methods.includes("passkey")
   const [mode, setMode] = useState<Answer>(offersCode ? "code" : "recovery_code")
   const [code, setCode] = useState("")
   const [recoveryCode, setRecoveryCode] = useState("")
@@ -150,6 +159,32 @@ export function TwoStepChallenge({
       </>
     )
 
+  // A required person whose only second step is a passkey (FR-022).
+  if (offersPasskey && !offersCode && !offersRecovery)
+    return (
+      <>
+        <Header>
+          {top}
+          <Title>{variant === "card" ? <h1>Continue with your passkey</h1> : "Continue with your passkey"}</Title>
+          <Description>Your password was right. Use your passkey to finish signing in.</Description>
+        </Header>
+        <Body>
+          <PasskeySignInButton
+            apiClient={apiClient}
+            remember={() => remember}
+            onSignedIn={onSignedIn}
+            label="Continue with your passkey"
+            variant="default"
+          />
+        </Body>
+        <Footer className={variant === "card" ? "flex flex-col items-stretch" : undefined}>
+          <Button type="button" variant="ghost" onClick={onStartAgain}>
+            Back to password
+          </Button>
+        </Footer>
+      </>
+    )
+
   const refused = problem?.kind === "refused" && problem.field === mode ? problem : null
   const refusedMessage = refused
     ? refused.attemptsLeft === null
@@ -218,6 +253,14 @@ export function TwoStepChallenge({
               >
                 {mode === "code" ? "Use a recovery code" : "Use your authenticator app"}
               </Button>
+            )}
+            {offersPasskey && (
+              <PasskeySignInButton
+                apiClient={apiClient}
+                remember={() => remember}
+                onSignedIn={onSignedIn}
+                label="Use a passkey instead"
+              />
             )}
           </FieldGroup>
         </Body>

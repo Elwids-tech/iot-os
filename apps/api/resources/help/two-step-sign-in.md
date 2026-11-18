@@ -23,16 +23,23 @@
     "new phone",
     "security",
     "sign in",
-    "turn off"
+    "turn off",
+    "passkey",
+    "passkeys",
+    "touch id",
+    "face id",
+    "windows hello",
+    "fingerprint"
   ],
   "required_capabilities": [],
-  "revision": 1,
-  "summary": "Turn on two-step sign-in so that, after your password, signing in also asks for a code from an authenticator app on your phone. Save recovery codes for the day you can't use your phone.",
+  "revision": 2,
+  "summary": "Turn on two-step sign-in so that, after your password, signing in also asks for a code from an authenticator app on your phone. Save recovery codes for the day you can't use your phone. Or add a passkey and sign in with your fingerprint, face or screen lock alone.",
   "questions": [
     "How do I turn on two-step sign-in?",
     "What do I do if I lose my phone?",
     "How do I get new recovery codes?",
-    "How do I turn off two-step sign-in?"
+    "How do I turn off two-step sign-in?",
+    "How do I sign in with a passkey?"
   ]
 }
 ---
@@ -51,15 +58,20 @@ Install an authenticator app on your phone, such as Google Authenticator, Micros
 6. **Use a recovery code.** If you can't use your phone, select **Use a recovery code** on the code step and enter one of your saved codes. Each recovery code works once, and you are told how many are left.
 7. **Make new recovery codes.** On the security page, under **Recovery codes**, select **Make new codes**. Every earlier code stops working, so save the new ones.
 8. **Turn it off.** On the security page, select **Turn off** and confirm. Your recovery codes stop working and you are signed out on your other devices.
+9. **Add a passkey.** A passkey signs you in with your fingerprint, face or screen lock instead of a password and code. On the security page, under **Passkeys**, select **Add a passkey**, name it after the device or key that holds it, and follow your browser's prompt. One passkey works in both apps.
+10. **Sign in with a passkey.** On the sign-in page, select **Sign in with a passkey**, or pick your passkey from the email field's suggestions. When the code step is showing, select **Use a passkey instead**. A passkey counts as both steps.
+11. **Remove a passkey.** On the security page, select **Remove** next to it and confirm. It stops signing you in; remove it from your device's password manager too.
 
 ## Expected result
-Signing in asks for your password and then a code. You get an email whenever two-step sign-in is turned on or off, recovery codes are made, or a recovery code is used, so you notice if someone else does it.
+Signing in asks for your password and then a code, or only your passkey. You get an email whenever two-step sign-in is turned on or off, recovery codes are made, a recovery code is used, or a passkey is added or removed, so you notice if someone else does it.
 
 ## Troubleshooting
 - **The code is refused.** Codes depend on your phone's clock. Turn on automatic date and time on your phone and try the next code. A code that already signed you in can't be used again; wait for the next one.
 - **Back at the password step.** A sign-in waits five minutes and five tries for its code. After that, enter your password again to start over.
 - **You lost your phone.** Sign in with a recovery code, then turn two-step sign-in off and set it up again on your new phone, or make new recovery codes.
 - **You lost your phone and your recovery codes.** Ask your platform administrator to reset your two-step sign-in. They confirm it's you first; afterwards you sign in with your password and set it up again.
+- **No passkey option.** Passkeys need a browser that supports them and a site served over HTTPS. The security page says which is missing. Use your password and code meanwhile.
+- **The passkey is not recognized.** It may have been removed from your account, or the site's address changed. Sign in with your password and code, remove the old passkey and add it again.
 - **A security email you didn't expect.** Change your password straight away and check the security page. Tell your administrator.
 
 ## Related guides

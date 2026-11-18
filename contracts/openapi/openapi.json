@@ -7904,7 +7904,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_138",
+        "operationId": "domain.devices.retention.show_145",
         "tags": [
           "Retention"
         ],
@@ -7953,7 +7953,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_139",
+        "operationId": "domain.devices.retention.update_146",
         "tags": [
           "Retention"
         ],
@@ -8291,7 +8291,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_136",
+        "operationId": "domain.devices.retention.show_143",
         "tags": [
           "Retention"
         ],
@@ -8323,7 +8323,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_137",
+        "operationId": "domain.devices.retention.update_144",
         "tags": [
           "Retention"
         ],
@@ -10076,6 +10076,121 @@
         "x-audience": "account"
       }
     },
+    "/v1/auth/confirm-passkey": {
+      "post": {
+        "operationId": "v1.auth.confirm-passkey",
+        "summary": "A passkey of the signed-in person confirms them, like their password. It answers\n`200` with a JSON body because the browser client reads one",
+        "tags": [
+          "Confirmation"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyVerificationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "confirmed"
+                  ],
+                  "properties": {
+                    "confirmed": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "ip",
+            "name": "passkeys"
+          }
+        ],
+        "description": "Confirms the signed-in person with a passkey's assertion (`credential`). Security\nchanges then work for 15 minutes, as after `POST /v1/auth/confirm-password`."
+      }
+    },
+    "/v1/auth/confirm-passkey/options": {
+      "get": {
+        "operationId": "v1.auth.confirm-passkey.options",
+        "summary": "WebAuthn request options limited to the signed-in person's own passkeys",
+        "tags": [
+          "Confirmation"
+        ],
+        "responses": {
+          "200": {
+            "description": "The request options, limited to the person's passkeys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "ip",
+            "name": "passkeys"
+          }
+        ],
+        "description": "Starts confirming the signed-in person with one of their own passkeys instead of\ntheir password (spec 034)."
+      }
+    },
     "/v1/auth/confirm-password": {
       "post": {
         "operationId": "v1.auth.confirm-password",
@@ -10218,7 +10333,7 @@
             }
           },
           "202": {
-            "description": "The password was right and a second step is due (spec 034): a code from the person's authenticator app or a recovery code. No session exists yet.",
+            "description": "The password was right and a second step is due (spec 034): a code from the person's authenticator app, a recovery code, or one of their passkeys (`POST /v1/auth/passkeys`) when `methods` includes `passkey`. No session exists yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10289,6 +10404,97 @@
         "x-audience": "account",
         "description": "Ends the session and this browser's kept sign-in, and forgets the `iot_kept`\ncookie. Kept sign-ins on other browsers stay.",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/auth/passkeys": {
+      "post": {
+        "operationId": "v1.auth.passkeys",
+        "tags": [
+          "PasskeySignIn"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyVerificationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoStepSignedIn"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "ip",
+            "name": "passkeys"
+          }
+        ],
+        "description": "Finishes a passkey sign-in with the browser's assertion (`credential`). A passkey\ncounts as both steps, so it signs in a person with two-step on and replaces any\npending password sign-in. With `remember: true` it starts a kept sign-in, as the\npassword step does. Limited to 6 a minute per browser."
+      }
+    },
+    "/v1/auth/passkeys/options": {
+      "get": {
+        "operationId": "v1.auth.passkeys.options",
+        "summary": "WebAuthn request options with no allowed credentials, so the browser offers every\npasskey it holds for this site. Kept in the session for the answer",
+        "tags": [
+          "PasskeySignIn"
+        ],
+        "responses": {
+          "200": {
+            "description": "The request options.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptions"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 6,
+            "per": "minute",
+            "key": "ip",
+            "name": "passkeys"
+          }
+        ],
+        "description": "Starts a passkey sign-in (spec 034): WebAuthn request options that allow every\npasskey the browser holds for this site. Limited to 6 a minute per browser, and\n`404` where passkeys cannot be used (the front ends are not served over HTTPS)."
       }
     },
     "/v1/auth/reset-password": {
@@ -11518,6 +11724,151 @@
         "x-audience": "account"
       }
     },
+    "/v1/me/passkeys": {
+      "post": {
+        "operationId": "v1.me.passkeys.store",
+        "tags": [
+          "Passkey"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPasskeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new passkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Passkey"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Adds a passkey with a `name` of 1 to 60 characters and the browser's attestation\n(`credential`). The person is emailed and an activity entry names the passkey.\nTheir other sign-ins continue. A passkey that is already registered is refused."
+      }
+    },
+    "/v1/me/passkeys/options": {
+      "get": {
+        "operationId": "v1.me.passkeys.options",
+        "summary": "WebAuthn creation options for the person, kept in the session for the answer. The\nperson's existing passkeys are excluded, so one authenticator is not added twice",
+        "tags": [
+          "Passkey"
+        ],
+        "responses": {
+          "200": {
+            "description": "The creation options.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Starts adding a passkey (spec 034): WebAuthn creation options for the person,\nexcluding the passkeys they already have. Needs a recently confirmed password or\npasskey, and answers `404` where passkeys cannot be used."
+      }
+    },
+    "/v1/me/passkeys/{passkey}": {
+      "delete": {
+        "operationId": "v1.me.passkeys.destroy",
+        "tags": [
+          "Passkey"
+        ],
+        "parameters": [
+          {
+            "name": "passkey",
+            "in": "path",
+            "required": true,
+            "description": "The passkey ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "423": {
+            "$ref": "#/components/responses/PasswordConfirmationRequired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Removes one of the person's passkeys; another person's passkey is not found. The\nperson is emailed and an activity entry names the passkey. Needs a recently\nconfirmed password or passkey."
+      }
+    },
     "/v1/me/security": {
       "get": {
         "operationId": "v1.me.security",
@@ -11554,7 +11905,7 @@
           }
         ],
         "x-audience": "account",
-        "description": "The signed-in person's sign-in security (spec 034): whether two-step is on, how\nmany recovery codes remain, and whether two-step is required for them."
+        "description": "The signed-in person's sign-in security (spec 034): whether two-step is on, how\nmany recovery codes remain, whether two-step is required for them, and their\npasskeys with whether passkeys can be used on this deployment."
       }
     },
     "/v1/me/two-step": {
@@ -31748,7 +32099,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_182",
+        "operationId": "domain.automation.dag.settings_189",
         "tags": [
           "Dag"
         ],
@@ -31823,7 +32174,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_183",
+        "operationId": "domain.automation.dag.settings_190",
         "tags": [
           "Dag"
         ],
@@ -33230,7 +33581,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_196",
+        "operationId": "domain.automation.scenario.save_203",
         "tags": [
           "Scenario"
         ],
@@ -33346,7 +33697,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_197",
+        "operationId": "domain.automation.scenario.save_204",
         "tags": [
           "Scenario"
         ],
@@ -33891,7 +34242,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_188",
+        "operationId": "domain.automation.dag.timeline_195",
         "tags": [
           "Dag"
         ],
@@ -33962,7 +34313,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_189",
+        "operationId": "domain.automation.dag.timeline_196",
         "tags": [
           "Dag"
         ],
@@ -34870,6 +35221,52 @@
           "note"
         ],
         "title": "AddAdjustmentRequest"
+      },
+      "AddPasskeyRequest": {
+        "type": "object",
+        "description": "A new passkey (spec 034, FR-016): the name the person chose and the browser's\nattestation, checked against the options kept in the session.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "credential": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "rawId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "response": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "response"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "credential"
+        ],
+        "title": "AddPasskeyRequest"
       },
       "AdminTicketResource": {
         "type": "object",
@@ -40749,6 +41146,98 @@
         ],
         "title": "OwnerOrganizationResource"
       },
+      "Passkey": {
+        "type": "object",
+        "description": "One of the person's passkeys (spec 034). Its credential and credential id never leave the API.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_used_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The last sign-in or confirmation with this passkey."
+          }
+        }
+      },
+      "PasskeyOptions": {
+        "type": "object",
+        "description": "WebAuthn options for the browser (`navigator.credentials`), kept in the session until the answer arrives.",
+        "additionalProperties": false,
+        "required": [
+          "options"
+        ],
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "PasskeyVerificationRequest": {
+        "type": "object",
+        "properties": {
+          "credential": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "rawId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "response": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "response"
+            ]
+          },
+          "remember": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyVerificationRequest"
+      },
       "PaymentStatus": {
         "type": "string",
         "description": "Whether an issued invoice is settled (spec 029 US6 and US7): `credited` when credit notes left nothing to pay, `paid_outside` when an administrator recorded a payment made another way. The only thing that changes on an issued invoice.\n",
@@ -41876,9 +42365,41 @@
         "description": "The person's sign-in security (spec 034). Never holds a secret or a recovery code.",
         "additionalProperties": false,
         "required": [
-          "two_step"
+          "two_step",
+          "passkeys"
         ],
         "properties": {
+          "passkeys": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "available",
+              "unavailable_reason",
+              "items"
+            ],
+            "properties": {
+              "available": {
+                "type": "boolean",
+                "description": "Whether passkeys can be used on this deployment: both front ends are served over HTTPS, or from `localhost`. The browser's own support is checked by the client."
+              },
+              "unavailable_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "not_https",
+                  null
+                ]
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Passkey"
+                }
+              }
+            }
+          },
           "two_step": {
             "type": "object",
             "additionalProperties": false,

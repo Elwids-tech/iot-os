@@ -55,6 +55,9 @@ def read_env(path):
 PASSPORT_KEYS = ("PASSPORT_PRIVATE_KEY", "PASSPORT_PUBLIC_KEY")
 # The VAPID pair that signs every push (spec 033). Both or neither: push is off without them.
 WEBPUSH_KEYS = ("WEBPUSH_VAPID_PUBLIC_KEY", "WEBPUSH_VAPID_PRIVATE_KEY")
+# Derives each person's WebAuthn user handle (spec 034). Generated once and kept, so
+# rotating APP_KEY leaves passkeys alone.
+PASSKEYS_SECRET = "PASSKEYS_USER_HANDLE_SECRET"
 
 
 def passport_keys():
@@ -113,6 +116,21 @@ def add_webpush_keys(path):
         del keys["WEBPUSH_VAPID_SUBJECT"]
     lines = [line for line in path.read_text().splitlines() if line.split("=", 1)[0] not in keys]
     private_write(path, "".join(line+"\n" for line in lines) + "".join(k+"="+json.dumps(v)+"\n" for k, v in keys.items()))
+    return True
+
+
+def passkeys_secret():
+    """64 random bytes, base64: the passkeys user-handle secret (spec 034)."""
+    return base64.b64encode(secrets.token_bytes(64)).decode()
+
+
+def add_passkeys_secret(path):
+    """Add the passkeys secret to an existing private environment once; never replace it."""
+    path = Path(path)
+    if read_env(path).get(PASSKEYS_SECRET):
+        return False
+    lines = [line for line in path.read_text().splitlines() if line.split("=", 1)[0] != PASSKEYS_SECRET]
+    private_write(path, "".join(line+"\n" for line in lines) + PASSKEYS_SECRET+"="+json.dumps(passkeys_secret())+"\n")
     return True
 
 
@@ -289,6 +307,8 @@ class Deployment:
             print("Push alerts are off: no push keys. Run manage.py webpush-keys to turn them on.", file=sys.stderr)
         elif not re.fullmatch(r"[A-Za-z0-9_-]{87}", self.env["WEBPUSH_VAPID_PUBLIC_KEY"]) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", self.env["WEBPUSH_VAPID_PRIVATE_KEY"]):
             raise ValueError("Push keys must be a base64url P-256 pair (manage.py webpush-keys)")
+        if not re.fullmatch(r"[A-Za-z0-9+/]{86}==", self.env.get(PASSKEYS_SECRET, "")):
+            raise ValueError("PASSKEYS_USER_HANDLE_SECRET must be generated: run manage.py passkeys-secret once and back up the environment file")
         self.nats_capacity()
         if bool(self.env.get("ALERT_SMTP_USERNAME")) != bool(self.env.get("ALERT_SMTP_PASSWORD")):
             raise ValueError("Separate alert SMTP username and password must both be set")
@@ -419,6 +439,10 @@ class Deployment:
         raise RuntimeError("Service readiness timed out")
 
     def deploy(self, backup_env, checkpoint_current=True):
+        # The first release with passkeys (spec 034) generates their secret; later ones keep it.
+        if add_passkeys_secret(self.env_path):
+            self.env[PASSKEYS_SECRET] = read_env(self.env_path)[PASSKEYS_SECRET]
+            print("Generated PASSKEYS_USER_HANDLE_SECRET. Back up the environment file.", file=sys.stderr)
         self.validate()
         if (self.config / "DEPLOYMENT_INCOMPLETE").exists():
             raise ValueError("Previous deployment did not complete; follow the recovery runbook before retrying")
@@ -552,6 +576,8 @@ class Deployment:
             raise ValueError("Restore requires the backed-up Passport keys")
         if any(original.get(k) and original.get(k) != self.env.get(k) for k in WEBPUSH_KEYS):
             raise ValueError("Restore requires the backed-up push keys")
+        if original.get(PASSKEYS_SECRET) and original.get(PASSKEYS_SECRET) != self.env.get(PASSKEYS_SECRET):
+            raise ValueError("Restore requires the backed-up passkeys secret")
         if original.get("IOT_ADAPTERS_ENABLED", "false") != self.env.get("IOT_ADAPTERS_ENABLED", "false"):
             raise ValueError("Restore requires the backed-up adapter feature configuration")
         if self.adapters_enabled and original.get("IOT_ADAPTER_MANAGER_TOKEN") != self.env.get("IOT_ADAPTER_MANAGER_TOKEN"):
@@ -699,7 +725,7 @@ class Deployment:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["init", "passport-keys", "webpush-keys", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
+    parser.add_argument("command", choices=["init", "passport-keys", "webpush-keys", "passkeys-secret", "validate", "render", "deploy", "backup", "restore", "certificates", "staging", "metrics", "monitoring_heartbeat", "smoke"])
     parser.add_argument("--env", required=True)
     parser.add_argument("--manifest")
     parser.add_argument("--backup-env")
@@ -720,6 +746,7 @@ def main():
         values.update(DEVICE_BROKER_ADMIN_TOKEN=secrets.token_hex(32), MOSQUITTO_ADMIN_PASSWORD=secrets.token_hex(32))
         values.update(passport_keys())
         values.update(webpush_keys())
+        values[PASSKEYS_SECRET] = passkeys_secret()
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
         print("Private environment created. Fill provider inputs without changing generated keys.")
         return
@@ -730,6 +757,10 @@ def main():
     if args.command == "webpush-keys":
         added = add_webpush_keys(args.env)
         print("Push keys added; deploy to turn push on, and back up the environment file." if added else "Push keys already present; nothing changed.")
+        return
+    if args.command == "passkeys-secret":
+        added = add_passkeys_secret(args.env)
+        print("Passkeys secret added. Back up the environment file." if added else "Passkeys secret already present; nothing changed.")
         return
     deployment = Deployment(args.env, args.manifest)
     if args.command == "validate":

@@ -4,6 +4,8 @@ import { Button } from "@iot-os/ui/components/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@iot-os/ui/components/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
+import { KeyRoundIcon } from "lucide-react"
+import { PasskeysUnavailableError, confirmWithPasskey, passkeyProblem, passkeysSupported } from "./passkeys"
 
 /** The person closed the password dialog: the change was not made. */
 export class ConfirmationCancelled extends Error {
@@ -14,22 +16,43 @@ export class ConfirmationCancelled extends Error {
 
 /**
  * Asks for the password again before a security change (spec 034, FR-013). The API
- * answers `423` when the last confirmation is older than 15 minutes.
+ * answers `423` when the last confirmation is older than 15 minutes. With `passkey`, the
+ * person can use one of their passkeys instead (**Use a passkey**).
  */
 export function ConfirmIdentityDialog({
   open,
   apiClient,
   onConfirmed,
   onCancel,
+  passkey = false,
 }: {
   open: boolean
   apiClient: ApiClient
   onConfirmed: () => void
   onCancel: () => void
+  /** The person has a passkey and passkeys can be used here. */
+  passkey?: boolean
 }) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [passkeyOffered, setPasskeyOffered] = useState(true)
+  const offersPasskey = passkey && passkeyOffered && passkeysSupported()
+
+  async function confirmByPasskey() {
+    setBusy(true)
+    setError(null)
+    try {
+      await confirmWithPasskey(apiClient)
+      setPassword("")
+      onConfirmed()
+    } catch (reason) {
+      if (reason instanceof PasskeysUnavailableError) setPasskeyOffered(false)
+      setError(passkeyProblem(reason, "confirm"))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -67,7 +90,9 @@ export function ConfirmIdentityDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Confirm it's you</DialogTitle>
-          <DialogDescription>Enter your password to change how you sign in.</DialogDescription>
+          <DialogDescription>
+            {offersPasskey ? "Enter your password, or use a passkey, to change how you sign in." : "Enter your password to change how you sign in."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
@@ -91,6 +116,12 @@ export function ConfirmIdentityDialog({
             </Field>
           </FieldGroup>
           <DialogFooter className="mt-5">
+            {offersPasskey && (
+              <Button type="button" variant="ghost" className="sm:mr-auto" disabled={busy} onClick={() => void confirmByPasskey()}>
+                <KeyRoundIcon />
+                Use a passkey
+              </Button>
+            )}
             <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
               Cancel
             </Button>
@@ -107,9 +138,10 @@ export function ConfirmIdentityDialog({
 /**
  * Runs a security change, asking for the password first when the API needs it: `run`
  * retries the action once the password is confirmed, and rejects with
- * {@link ConfirmationCancelled} if the person closes the dialog. Render `dialog`.
+ * {@link ConfirmationCancelled} if the person closes the dialog. Render `dialog`. With
+ * `passkey`, the dialog also offers **Use a passkey**.
  */
-export function useConfirmedAction(apiClient: ApiClient): {
+export function useConfirmedAction(apiClient: ApiClient, { passkey = false }: { passkey?: boolean } = {}): {
   run: <T>(action: () => Promise<T>) => Promise<T>
   dialog: ReactNode
 } {
@@ -142,6 +174,7 @@ export function useConfirmedAction(apiClient: ApiClient): {
       <ConfirmIdentityDialog
         open={open}
         apiClient={apiClient}
+        passkey={passkey}
         onConfirmed={() => settle("confirmed")}
         onCancel={() => settle("cancelled")}
       />

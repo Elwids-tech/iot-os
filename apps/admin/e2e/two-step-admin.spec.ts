@@ -54,7 +54,7 @@ test("a person with two-step on signs in to the admin app with a code", async ({
 
   await page.getByRole("textbox", { name: "Email" }).fill(admin.email)
   await page.getByRole("textbox", { name: "Password" }).fill("password")
-  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
   await expect(page.getByRole("heading", { name: "Enter your code" })).toBeVisible()
   expect(state.signedIn).toBe(false)
@@ -77,7 +77,7 @@ test("Back to password keeps the email and clears the password", async ({ page }
   await page.goto("/")
   await page.getByRole("textbox", { name: "Email" }).fill(admin.email)
   await page.getByRole("textbox", { name: "Password" }).fill("password")
-  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
   await page.getByRole("button", { name: "Back to password" }).click()
   await expect(page.getByRole("textbox", { name: "Email" })).toHaveValue(admin.email)
@@ -90,7 +90,7 @@ test("the six code boxes fit a 320 px phone", async ({ page }) => {
   await page.goto("/")
   await page.getByRole("textbox", { name: "Email" }).fill(admin.email)
   await page.getByRole("textbox", { name: "Password" }).fill("password")
-  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Enter your code" })).toBeVisible()
 
   const card = await page.locator("[data-slot=card]").boundingBox()

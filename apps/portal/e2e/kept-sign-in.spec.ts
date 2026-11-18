@@ -57,7 +57,7 @@ async function signIn(page: Page, keep: boolean) {
   await page.getByLabel("Email address").fill(me.email)
   await page.getByLabel("Password").fill("correct-horse")
   if (keep) await checkbox.check()
-  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
 }
 
 test("the sign-in asks to stay signed in only when ticked", async ({ page }) => {

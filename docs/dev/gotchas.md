@@ -342,6 +342,23 @@ Things that have cost time before. Add to this list when something surprises you
   only exist with the database driver. On the dev stack those changes end kept
   sign-ins but leave a plain session in another browser signed in. Check "the other
   browser is signed out" with a kept sign-in, or in a release-profile stack.
+- **Passkeys belong to the front ends' domain, not the API's.** `laravel/passkeys`
+  defaults the relying party ID to `APP_URL`'s host (`api.<domain>`), which browsers
+  refuse on `app.<domain>`; `config/fortify.php` sets it from `PASSKEYS_RP_ID` (the
+  release's `DOMAIN`), falling back to `FRONTEND_URL`'s host, and Fortify copies the
+  block into `passkeys.*` when it registers. Set `fortify.passkeys`, not a
+  `config/passkeys.php`, which Fortify overwrites. WebAuthn also refuses IP
+  addresses, so open the dev stack and the passkey specs on `localhost`, never
+  `127.0.0.1`.
+- **Fortify's own replay key is the code alone.** Its provider caches a used code
+  under the code, so two people with the same six digits in one window would refuse
+  each other's code; `PerUserTwoFactorProvider` keys it by secret and code instead.
+  Keep that binding when upgrading Fortify.
+- **Chrome's virtual authenticator answers passkey autofill on its own.** The
+  sign-in pages ask for conditional-mediation suggestions as they open; a CDP virtual
+  authenticator with `automaticPresenceSimulation` picks one at once, so the page signs
+  in before a test can click **Sign in with a passkey**. Specs that test the button
+  stub `PublicKeyCredential.isConditionalMediationAvailable` to false first.
 - **A runtime built from an older branch silently drops newer runtime work.** A
   feature branch cut before a runtime change merged still builds and runs, but without
   it: after one rebuild the runtime stored readings and counted none, the usage pages
