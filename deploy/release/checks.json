@@ -2,7 +2,8 @@
   "format": 1,
   "config": {
     "app.frontend_url": "https://app.{domain}",
-    "agents.resource": "https://api.{domain}/mcp"
+    "agents.resource": "https://api.{domain}/mcp",
+    "passkeys.relying_party_id": "{domain}"
   },
   "routes": [
     "PUT api/v1/admin/super-administrators/{user}",
@@ -11,7 +12,24 @@
     "PUT api/v1/admin/platform-team/{user}",
     "DELETE api/v1/admin/organizations/{organization}",
     "GET api/v1/notifications/push",
-    "POST api/v1/notifications/push/devices"
+    "POST api/v1/notifications/push/devices",
+    "POST api/v1/auth/two-step",
+    "GET api/v1/auth/passkeys/options",
+    "POST api/v1/auth/passkeys",
+    "POST api/v1/auth/confirm-password",
+    "GET api/v1/auth/confirm-passkey/options",
+    "POST api/v1/auth/confirm-passkey",
+    "GET api/v1/me/security",
+    "POST api/v1/me/two-step",
+    "POST api/v1/me/two-step/confirm",
+    "POST api/v1/me/two-step/recovery-codes",
+    "DELETE api/v1/me/two-step",
+    "GET api/v1/me/passkeys/options",
+    "POST api/v1/me/passkeys",
+    "DELETE api/v1/me/passkeys/{passkey}",
+    "GET api/v1/organizations/{organization}/security",
+    "PUT api/v1/organizations/{organization}/security",
+    "POST api/v1/admin/users/{user}/two-step/reset"
   ],
   "named_routes": [
     "api.v1.admin.assistant-settings.show",
@@ -29,13 +47,16 @@
     "assistant_settings", "assistant_provider_keys",
     "billing_plans", "billing_plan_allowances", "billing_plan_assignments", "billing_usage",
     "billing_invoices", "billing_payments", "billing_provider_events",
-    "kept_sign_ins", "push_devices", "push_organization_mutes", "push_summaries"
+    "kept_sign_ins", "push_devices", "push_organization_mutes", "push_summaries",
+    "passkeys"
   ],
   "columns": {
     "organization_invitations": ["grants_super_admin"],
     "billing_accounts": ["past_due_since", "pm_saved_at"],
     "devices": ["limit_place_at"],
     "automation_alert_deliveries": ["devices_total", "devices_reached", "push_summary_id"],
-    "notification_preferences": ["push_enabled", "push_levels", "push_revision"]
+    "notification_preferences": ["push_enabled", "push_levels", "push_revision"],
+    "users": ["two_factor_secret", "two_factor_recovery_codes", "two_factor_confirmed_at"],
+    "organizations": ["two_step_required"]
   }
 }
