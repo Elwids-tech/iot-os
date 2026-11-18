@@ -78,13 +78,19 @@ components:
     AuthenticatedUser:
       type: object
       description: The signed-in person, as `GET /v1/me` returns them.
-      required: [id, name, email, email_verified_at, is_super_admin, capabilities, organizations]
+      required: [id, name, email, email_verified_at, is_super_admin, two_step_setup_required, capabilities, organizations]
       properties:
         id: {type: integer}
         name: {type: string}
         email: {type: string}
         email_verified_at: {type: [string, 'null'], format: date-time}
         is_super_admin: {type: boolean}
+        two_step_setup_required:
+          type: boolean
+          description: >-
+            Two-step sign-in is required for the person and not set up (spec 034): every
+            other session route answers `403 two_step_setup_required`, so the apps open
+            setup straight away.
         capabilities:
           type: object
           description: What the person may open across the platform.

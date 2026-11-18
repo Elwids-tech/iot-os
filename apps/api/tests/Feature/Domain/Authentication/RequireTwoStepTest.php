@@ -46,8 +46,8 @@ final class RequireTwoStepTest extends TestCase
             ->assertExactJson(['code' => 'two_step_setup_required', 'message' => 'Set up two-step sign-in to continue.']);
         $this->as($admin)->getJson("/api/v1/organizations/{$this->acme->uuid}/context")->assertForbidden()->assertJsonPath('code', 'two_step_setup_required');
 
-        // Everything setup needs stays open.
-        $this->as($admin)->getJson('/api/v1/me')->assertOk();
+        // Everything setup needs stays open, and `me` tells the apps to open setup.
+        $this->as($admin)->getJson('/api/v1/me')->assertOk()->assertJsonPath('data.two_step_setup_required', true);
         $this->as($admin)->getJson('/api/v1/me/security')->assertOk()
             ->assertJsonPath('data.two_step.required', true)
             ->assertJsonPath('data.two_step.required_by', ['platform'])
@@ -60,6 +60,7 @@ final class RequireTwoStepTest extends TestCase
 
         $this->as($admin)->postJson('/api/v1/me/two-step/confirm', ['code' => $this->totp($secret)])->assertOk();
         $this->as($admin->refresh())->getJson('/api/v1/admin/organizations')->assertOk();
+        $this->as($admin)->getJson('/api/v1/me')->assertOk()->assertJsonPath('data.two_step_setup_required', false);
         $this->as($admin)->postJson('/api/v1/auth/logout')->assertOk();
     }
 
@@ -127,8 +128,8 @@ final class RequireTwoStepTest extends TestCase
         $this->acme->forceFill(['two_step_required' => true])->save();
         $response = $this->withHeader('Origin', 'http://localhost')->postJson('/api/v1/auth/login', ['email' => 'acme.member@example.test', 'password' => 'password']);
 
-        // The password signs them in (they have no second step yet) ...
-        $response->assertOk()->assertJsonPath('data.email', 'acme.member@example.test');
+        // The password signs them in (they have no second step yet), and says setup comes next ...
+        $response->assertOk()->assertJsonPath('data.email', 'acme.member@example.test')->assertJsonPath('data.two_step_setup_required', true);
         // ... and the next request is refused until setup is confirmed.
         $this->withHeader('Origin', 'http://localhost')->getJson("/api/v1/organizations/{$this->acme->uuid}/context")
             ->assertForbidden()->assertJsonPath('code', 'two_step_setup_required');

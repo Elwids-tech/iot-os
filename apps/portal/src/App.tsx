@@ -307,6 +307,7 @@ function Session() {
   // Two-step sign-in is required and not set up (spec 034, FR-022): any refused request
   // opens setup, which returns here when it is done.
   const navigate = useNavigate()
+  const location = useLocation()
   useEffect(() => {
     const setUp = () => {
       const here = window.location.pathname + window.location.search + window.location.hash
@@ -362,6 +363,9 @@ function Session() {
       </main>
     )
   const user = query.data!
+  // Straight after the password, before any page is refused (spec 034, FR-022).
+  if (user.two_step_setup_required && location.pathname !== SETUP_PATH)
+    return <Navigate to={`${SETUP_PATH}?${new URLSearchParams({ return: location.pathname + location.search + location.hash })}`} replace />
   return (
     <>
       <PushSync user={user.id} />

@@ -42,6 +42,20 @@ test("platform staff without two-step land on setup, then reach the page they as
   expect(errors).toEqual([])
 })
 
+test("platform staff go straight to setup after their password, even with no organization to open", async ({ page }) => {
+  const account = fakeAccount({ platform: true, user: { ...me, organizations: [] } })
+  const { errors } = await serve(page, account, "laptop")
+  await page.goto("/")
+  await page.getByLabel("Email address").fill(me.email)
+  await page.getByLabel("Password").fill(PASSWORD)
+  await page.getByRole("button", { name: "Sign in", exact: true }).click()
+
+  await expect(page.getByRole("heading", { name: "Set up two-step sign-in" })).toBeVisible()
+  await setUpWhenAsked(page)
+  await expect(page.getByRole("heading", { name: "Choose an organization" })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test("an organization administrator requires two-step and a signed-in member is sent to setup on the next click", async ({ browser }) => {
   const organization = fakeOrganization()
   const administrator = fakeAccount({ organization, user: withAdministration({ ...me, id: 2, name: "Ada Admin", email: "ada@example.test" }) })

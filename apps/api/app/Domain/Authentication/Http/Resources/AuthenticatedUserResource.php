@@ -24,6 +24,8 @@ final class AuthenticatedUserResource extends JsonResource
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
             'is_super_admin' => (bool) $this->is_super_admin,
+            // Required two-step that is not set up (spec 034, FR-022): the apps open setup at once.
+            'two_step_setup_required' => ! $this->resource->twoStepSatisfied() && $this->resource->twoStepRequired(),
             'capabilities' => [
                 'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
                 // Organizations, users, roles and every billing page (specs 008, 023, 028, 029).

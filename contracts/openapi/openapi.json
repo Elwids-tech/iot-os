@@ -36143,6 +36143,7 @@
           "email",
           "email_verified_at",
           "is_super_admin",
+          "two_step_setup_required",
           "capabilities",
           "organizations"
         ],
@@ -36165,6 +36166,10 @@
           },
           "is_super_admin": {
             "type": "boolean"
+          },
+          "two_step_setup_required": {
+            "type": "boolean",
+            "description": "Two-step sign-in is required for the person and not set up (spec 034): every other session route answers `403 two_step_setup_required`, so the apps open setup straight away."
           },
           "capabilities": {
             "type": "object",

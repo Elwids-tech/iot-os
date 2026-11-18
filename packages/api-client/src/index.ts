@@ -280,6 +280,8 @@ export type AuthenticatedUser = {
   email: string
   email_verified_at: string | null
   is_super_admin: boolean
+  /** Two-step sign-in is required and not set up (spec 034): open setup. Older payloads omit it. */
+  two_step_setup_required?: boolean
   capabilities: {
     platform_administration: boolean
     /** Organizations, users, roles, activity and the billing pages (`PlatformAdministration.manage-organizations`). */

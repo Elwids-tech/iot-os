@@ -158,6 +158,9 @@ required everywhere if any one of them requires it.
   - The organization context returns `two_step_required`, and each member in the
     member list returns `two_step_enabled`. Neither returns a secret.
 - **Screens.**
+  - `GET /api/v1/me` and the sign-in response carry `two_step_setup_required`, so both
+    apps open setup straight after the password, even on a page that makes no other
+    request.
   - The api-client turns the `403` into `TwoStepSetupRequiredError` and fires
     `iot-two-step-setup-required` on `window`.
   - The portal answers it by opening `/account/security/setup?return=<page>`, a

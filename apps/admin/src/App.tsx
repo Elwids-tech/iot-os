@@ -68,6 +68,11 @@ function PlatformAdministrationApp() {
   const [screen, setScreen] = useState<ScreenState>({ status: "loading" })
 
   function showAuthenticatedUser(user: AuthenticatedUser) {
+    // Required two-step that is not set up (spec 034): setup opens in the portal at once.
+    if (user.two_step_setup_required) {
+      window.location.assign(twoStepSetupUrl(window.location.href))
+      return
+    }
     apiClient.setSelectedOrganizationUuid(null)
     setScreen({ status: "signed-in", user })
   }

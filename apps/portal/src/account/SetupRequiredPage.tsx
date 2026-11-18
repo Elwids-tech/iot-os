@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import type { TwoStepSetup as Setup } from "@iot-os/api-client"
+import type { AuthenticatedUser, TwoStepSetup as Setup } from "@iot-os/api-client"
 import { ConfirmationCancelled, useConfirmedAction } from "@iot-os/auth/ConfirmIdentityDialog"
 import { TwoStepSetup } from "@iot-os/auth/TwoStepSetup"
 import { Button } from "@iot-os/ui/components/button"
@@ -48,7 +48,8 @@ export default function SetupRequiredPage() {
 
   function continueOn() {
     const target = returnTarget(params.get("return"), { admin: adminUrl, api: apiBaseUrl })
-    // Pages refused before setup load again now that their requests are allowed.
+    // The session no longer asks for setup, and pages refused before it load again.
+    cache.setQueryData<AuthenticatedUser>(["session"], (user) => user && { ...user, two_step_setup_required: false })
     void cache.invalidateQueries()
     if (target.kind === "external") window.location.assign(target.url)
     else navigate(target.path, { replace: true })

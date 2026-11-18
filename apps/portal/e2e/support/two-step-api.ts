@@ -105,6 +105,8 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
     const json = (data: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) })
     const signedInHere = () => account.sessions.has(name)
+    // As the API's AuthenticatedUserResource reports it (spec 034).
+    const user = () => ({ ...account.user, two_step_setup_required: account.requiredBy().length > 0 && !account.enabled })
     const signIn = (remember: boolean) => {
       account.sessions.add(name)
       if (remember) account.kept.add(name)
@@ -119,7 +121,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
         return json({ two_step_required: true, expires_in: 300, methods: ["code", "recovery_code"] }, 202)
       }
       signIn(body.remember === true)
-      return json({ data: account.user })
+      return json({ data: user() })
     }
     if (path === "/api/v1/auth/two-step" && method === "POST") {
       const pending = account.pending.get(name)
@@ -147,7 +149,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       }
       account.pending.delete(name)
       signIn(pending.remember)
-      return json(recovery !== null ? { data: account.user, recovery_codes_remaining: account.recoveryCodes.length } : { data: account.user })
+      return json(recovery !== null ? { data: user(), recovery_codes_remaining: account.recoveryCodes.length } : { data: user() })
     }
     if (path === "/api/v1/auth/logout") {
       account.sessions.delete(name)
@@ -159,7 +161,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
       return json({ data: { grants_super_admin: false, organization: { uuid: acme.uuid, name: acme.name }, email: account.user.email, expires_at: "2099-01-01T00:00:00Z", acceptance_mode: "create_account" } })
     if (path === "/api/v1/invitations/invite-token/accept" && method === "POST") {
       signIn(false)
-      return json({ data: account.user })
+      return json({ data: user() })
     }
     // A kept sign-in brings the session back in a new context of the same browser (spec 033).
     if (!signedInHere() && account.kept.has(name)) account.sessions.add(name)
@@ -170,7 +172,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
     if (account.requiredBy().length > 0 && !account.enabled && !setupRoute)
       return json({ code: "two_step_setup_required", message: "Set up two-step sign-in to continue." }, 403)
 
-    if (path === "/api/v1/me") return json({ data: account.user })
+    if (path === "/api/v1/me") return json({ data: user() })
     if (path === "/api/v1/auth/confirm-password" && method === "POST") {
       if (body.password !== PASSWORD) return json({ message: "Wrong.", errors: { password: ["The provided password is incorrect."] } }, 422)
       account.passwordConfirmed.add(name)
