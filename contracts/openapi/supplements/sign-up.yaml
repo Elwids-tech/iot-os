@@ -1,0 +1,113 @@
+# Self sign-up (spec 035, specs/035-self-sign-up/contracts/sign-up-api.md).
+# Statuses the code returns that inference missed. Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    SignUpRefused:
+      type: object
+      description: >-
+        A link that cannot complete a sign-up: `used` (it already did), `expired` (over
+        24 hours old) or `account_exists` (an account appeared for the address).
+      required: [code, message]
+      properties:
+        code: {type: string, enum: [used, expired, account_exists]}
+        message: {type: string}
+        email: {type: string, format: email}
+    SignUpPaused:
+      type: object
+      description: The deployment reached its daily ceiling of sign-ups (FR-042).
+      required: [code, message, retry_after]
+      properties:
+        code: {type: string, const: sign_up_paused}
+        message: {type: string}
+        retry_after: {type: integer, minimum: 0, description: Seconds until the next UTC day.}
+operations:
+  GET /v1/sign-up:
+    description: |-
+      What the sign-up page needs (spec 035): whether sign-up is open, whether the
+      deployment is a free beta, the password's minimum length and, while open, a form
+      token. The token records when the form was shown; a submission sooner than 3
+      seconds or later than 2 hours after it is refused.
+  POST /v1/sign-up:
+    description: |-
+      Starts a sign-up. It stores a waiting sign-up, emails a single-use link valid for
+      24 hours, and ties this browser to it. Nothing else exists until the link is
+      opened. An address that already has an account gets the same answer and an email
+      saying so. A new submission for an address that is waiting replaces it. The hidden
+      `website` field must be empty.
+    responses:
+      '403':
+        description: Sign-up is closed (`sign_up_closed`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodedError'
+      '503':
+        description: The day's sign-up ceiling is reached; try again after `retry_after` seconds.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpPaused'
+  GET /v1/sign-up/status:
+    description: |-
+      The state of the sign-up this browser submitted, polled by the waiting page. Once
+      it has completed, this browser is signed in, once, within 60 minutes, unless the
+      person has a second step to give.
+    responses:
+      '404':
+        description: This browser submitted no sign-up.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/sign-up/resend:
+    description: |-
+      Emails a new link for this browser's waiting sign-up; the earlier link stops
+      working. Once a minute and five times an hour.
+    responses:
+      '404':
+        description: This browser has no waiting sign-up.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  POST /v1/sign-up/confirm:
+    description: |-
+      Opens a link. It creates the person, a billing account they own with no plan,
+      and its first organization with them as Organization Admin. Only the browser that
+      submitted the sign-up is signed in (`signed_in`); any other signs in as usual. It
+      works while sign-up is closed.
+    responses:
+      '404':
+        description: An unknown link, or one replaced by a newer email.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+      '409':
+        description: An account exists for the address (`account_exists`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRefused'
+      '410':
+        description: The link was used (`used`) or expired (`expired`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRefused'
+  GET /v1/admin/sign-up-settings:
+    description: |-
+      Sign-up settings, for super administrators only (spec 035). Each channel says
+      whether it can work on this deployment, and `my_push_devices` counts the caller's
+      push devices.
+  PUT /v1/admin/sign-up-settings:
+    description: Saves the sign-up settings with the revision read; another save since answers 409.
+    responses:
+      '409':
+        description: Someone else saved the settings since they were read.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorMessage'
+  GET /v1/admin/sign-ups:
+    description: Sign-ups, newest first, for platform administrators who manage organizations (spec 035).

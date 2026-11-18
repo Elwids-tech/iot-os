@@ -6,6 +6,7 @@ namespace App\Domain\Billing\Services;
 
 use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Administration\Services\OrganizationRoleManager;
+use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
@@ -21,6 +22,7 @@ use Illuminate\Validation\ValidationException;
  * take it past its limit (FR-017). The limit is the account's `organizations`
  * allowance (ADR-035); `null` is unlimited. The owner becomes the organization's
  * Organization Admin through the same path invitations use, without the welcome email.
+ * Self sign-up (spec 035) creates its organization here too, with `source` `sign_up`.
  */
 final class OwnerOrganizations
 {
@@ -30,9 +32,9 @@ final class OwnerOrganizations
         private readonly Allowances $allowances,
     ) {}
 
-    public function create(User $owner, string $accountUuid, string $name, ?string $slug): Organization
+    public function create(User $owner, string $accountUuid, string $name, ?string $slug, string $source = 'owner'): Organization
     {
-        return DB::transaction(function () use ($owner, $accountUuid, $name, $slug): Organization {
+        return DB::transaction(function () use ($owner, $accountUuid, $name, $slug, $source): Organization {
             $account = BillingAccount::query()
                 ->where('uuid', $accountUuid)
                 ->whereHas('owners', fn ($query) => $query->whereKey($owner->getKey()))
@@ -58,6 +60,11 @@ final class OwnerOrganizations
             $roles = $this->defaultRoles->ensure($organization);
             $owner->organizations()->attach($organization->getKey());
             $this->roleManager->syncMemberRoles($organization, $owner, [$roles[OrganizationRoleName::ORGANIZATION_ADMIN->value]->getKey()]);
+            ActivityLog::record('organization.created', $organization, $owner, $organization, [
+                'slug' => $organization->slug,
+                'billing_account' => ['uuid' => $account->uuid, 'name' => $account->name],
+                'source' => $source,
+            ]);
 
             return $organization;
         });

@@ -236,6 +236,78 @@ required everywhere if any one of them requires it.
   available, they are sent to set up an authenticator app instead. The setup screen
   offers **Add a passkey instead** where passkeys can be used.
 
+### Signing up
+
+A person can sign up for their own organization when platform staff open sign-up
+([spec 035](../../specs/035-self-sign-up/spec.md),
+[ADR-049](../adr/ADR-049-self-sign-up.md)). Code:
+[`Domain/SignUp`](../../apps/api/app/Domain/SignUp).
+
+- **Closed by default.** `sign_up_settings` holds one row: `open` (false), `free_beta`
+  (true), `notify_push` (true), `notify_email` (false) and `daily_limit` (50), with a
+  revision. `GET/PUT /api/v1/admin/sign-up-settings` is for super administrators only
+  (`403` for everyone else, a stale `revision` answers `409`). Each change writes
+  `sign_up_settings.updated` with the changed fields. `GET me` sends
+  `capabilities.manage_sign_up` to super administrators.
+- **The form.** `GET /api/v1/sign-up` returns `open`, `free_beta`, `password_min` and,
+  while open, a `form_token`. `POST /api/v1/sign-up` takes `name` (up to 120),
+  `email`, `password` with `password_confirmation` (`Password::defaults()`: 12 to 256
+  characters), `organization_name` (2 to 80), `form_token` and the hidden `website`.
+  Names may not contain `<`, `>`, `://` or `www.`. A closed sign-up answers
+  `403 sign_up_closed` before checking anything.
+- **Nothing exists until the email is confirmed.** The submission stores a `waiting`
+  row in `sign_ups` with the bcrypt hash and the SHA-256 of a 40-character token,
+  emails a link to `${FRONTEND_URL}/sign-up/confirm#token=…` (24 hours, single use)
+  and puts the sign-up's uuid in this browser's session (`sign_up.pending`). The answer
+  is always `202 {state: "waiting"}`:
+  - an address that already has an account gets an email saying so, and nothing is
+    stored or tied to the session;
+  - a new submission for a waiting address replaces it, so only the newest link works.
+- **Resend.** `POST /api/v1/sign-up/resend` sends a new link for the session's waiting
+  sign-up and stops the old one: not within 60 seconds of the last, and 5 an hour.
+- **Opening the link.** `POST /api/v1/sign-up/confirm` with the `token` creates, in
+  one transaction with the row locked:
+  - the person (`email_verified_at` now), through `forceFill`, since `is_super_admin`
+    is mass-assignable on `User`;
+  - a billing account named after the organization with their email as contact
+    (`BillingAccounts::create`), with the person as its owner (`addOwner`);
+  - the organization under it, through `OwnerOrganizations::create`, which checks the
+    account's `organizations` allowance (1 with no plan) and makes the person
+    Organization Admin.
+
+  It then logs `sign_up.completed`, queues `SignUpWelcome`, and dispatches
+  `SignUpCompleted` after commit. A used link answers `410 used`, an expired one
+  `410 expired`, an unknown or replaced one `404`, and an address that got an account
+  meanwhile `409 account_exists` (the sign-up is then `refused`). Links work while
+  sign-up is closed.
+- **Who is signed in.** Only the browser whose session holds the sign-up, once
+  (`signed_in_at`), within 60 minutes of completion, and only when the person has no
+  second step. It goes through `CompleteSignIn`, like every other sign-in. Any other
+  browser gets `signed_in: false` and signs in with the password. The waiting page polls
+  `GET /api/v1/sign-up/status`, which answers `waiting` (with `resend_after`),
+  `completed` (signing the browser in as above) or `refused`, and `404` without a
+  sign-up in the session.
+- **Signing in before confirming.** For an address with no account, a waiting sign-up
+  whose password matches makes `POST /api/v1/auth/login` answer
+  `403 sign_up_unconfirmed` and ties the browser to it, so it can resend.
+- **Abuse.**
+  - Limits: `sign-up` allows 5 an hour per address and 3 an hour per email;
+    `sign-up-confirm` 10 a minute per address; `sign-up-status` 120 a minute per
+    address. A `429` carries `retry_after`.
+  - A filled `website`, or a `form_token` that is missing, forged, under 3 seconds or
+    over 2 hours old, answers a generic `422` on `errors.form`.
+  - Sign-ups started today (UTC), waiting or completed, at `daily_limit` answer
+    `503 sign_up_paused` with `retry_after`, and dispatch `SignUpsPaused` once a day.
+  - Refusals are stored as `refused` with the reason and no password, for review.
+- **The list.** `GET /api/v1/admin/sign-ups`
+  (`PlatformAdministration.manage-organizations`) lists sign-ups newest first, with
+  a `state` filter (`waiting`, `expired`, `completed`, `refused`; expired is a waiting
+  sign-up whose link ran out) and `search` on name, email and organization name. It
+  never returns the password or the token.
+- **Pruning.** `sign-ups:prune` runs daily at 04:10 UTC. It deletes waiting sign-ups
+  after 7 days and refused ones after 30. Completed ones stay as the record of where an
+  organization came from.
+
 ### Password recovery
 
 Both sign-in pages link to **Forgot password?**, hosted by the portal at
@@ -509,6 +581,9 @@ organization's account.
   account (nothing inside the organization changes) and shows its history: changes,
   owner changes, and organizations joining and leaving, with who and when. Only an
   account with no organizations and no issued invoices can be deleted.
+- **Signing up** ([above](#signing-up)) creates a billing account named after the new
+  organization, with the person who signed up as its owner, no plan and the default
+  limit of 1.
 - **Owners** create organizations under their account themselves, while it is below
   its limit, and become each new organization's Organization Admin as an ordinary
   member. In the portal, the user menu shows **Billing accounts** to anyone who owns

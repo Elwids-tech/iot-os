@@ -29,7 +29,15 @@
     "DELETE api/v1/me/passkeys/{passkey}",
     "GET api/v1/organizations/{organization}/security",
     "PUT api/v1/organizations/{organization}/security",
-    "POST api/v1/admin/users/{user}/two-step/reset"
+    "POST api/v1/admin/users/{user}/two-step/reset",
+    "GET api/v1/sign-up",
+    "POST api/v1/sign-up",
+    "GET api/v1/sign-up/status",
+    "POST api/v1/sign-up/resend",
+    "POST api/v1/sign-up/confirm",
+    "GET api/v1/admin/sign-up-settings",
+    "PUT api/v1/admin/sign-up-settings",
+    "GET api/v1/admin/sign-ups"
   ],
   "named_routes": [
     "api.v1.admin.assistant-settings.show",
@@ -48,7 +56,7 @@
     "billing_plans", "billing_plan_allowances", "billing_plan_assignments", "billing_usage",
     "billing_invoices", "billing_payments", "billing_provider_events",
     "kept_sign_ins", "push_devices", "push_organization_mutes", "push_summaries",
-    "passkeys"
+    "passkeys", "sign_ups", "sign_up_settings"
   ],
   "columns": {
     "organization_invitations": ["grants_super_admin"],

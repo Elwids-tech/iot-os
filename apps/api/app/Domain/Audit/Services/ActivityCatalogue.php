@@ -19,6 +19,9 @@ final class ActivityCatalogue
         // Organizations and access
         'organization.created' => ['created organization', 'organization'],
         'organization.updated' => ['updated organization', 'organization'],
+        // Self sign-up (spec 035)
+        'sign_up.completed' => ['signed up and created', 'organization'],
+        'sign_up_settings.updated' => ['changed the sign-up settings', null],
         'organization.deleted' => ['deleted organization', 'organization'],
         'organization.timezone.updated' => ['changed the time zone of', 'organization'],
         'organization.permissions_updated' => ['changed the permission ceiling of', 'organization'],
