@@ -49,7 +49,19 @@ final class DeviceProfileController
         $page = DeviceProfile::query()
             ->where('organization_id', $organization->getKey())
             ->withCount('parameters')
-            ->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])->orWhereRaw('LOWER(code) LIKE ?', ['%'.mb_strtolower($search).'%'])))
+            // One search box: every word must appear in the name, code, category or description.
+            // Separators count as spaces, so "asset tracker" finds the category "asset-tracker".
+            ->when($filters['search'] ?? null, function ($query, $search): void {
+                $words = preg_split('/[\s\-_.]+/u', mb_strtolower($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                foreach ($words as $word) {
+                    $like = '%'.addcslashes($word, '%_\\').'%';
+                    $query->where(fn ($q) => $q
+                        ->whereRaw('LOWER(name) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(code) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(category) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(description) LIKE ?', [$like]));
+                }
+            })
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['category'] ?? null, fn ($query, $category) => $query->where('category', $category))
             ->orderBy('name')

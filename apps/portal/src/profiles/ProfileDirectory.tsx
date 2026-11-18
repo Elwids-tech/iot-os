@@ -8,9 +8,7 @@ import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-
 import { DropdownMenuItem, DropdownMenuSeparator } from "@iot-os/ui/components/dropdown-menu"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
 import { FieldGroup } from "@iot-os/ui/components/field"
-import { FilterField } from "@iot-os/ui/components/filter-bar"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { Input } from "@iot-os/ui/components/input"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
@@ -57,17 +55,15 @@ export function ProfileDirectory() {
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<DeviceProfile | null>(null)
   const search = url.get("search"),
-    status = url.get("status"),
-    category = url.get("category")
+    status = url.get("status")
   const page = Math.max(1, Number(url.get("page")) || 1),
     pageSize = Number(url.get("per_page") || 25)
   const query = useQuery({
-    queryKey: ["profiles", organization.organizationUuid, search, status, category, page, pageSize],
+    queryKey: ["profiles", organization.organizationUuid, search, status, page, pageSize],
     queryFn: () =>
       api.deviceProfiles(organization.organizationUuid, {
         search,
         status,
-        category,
         page,
         perPage: pageSize,
       }),
@@ -201,26 +197,12 @@ export function ProfileDirectory() {
             }}
             search={{
               label: "Search profiles",
-              placeholder: "Search name or code",
+              placeholder: "Search name, code or category",
               value: search,
               onChange: (value) => url.set({ search: value }),
             }}
-            toolbar={
-              // A text filter, not a picker: it matches any part of the category.
-              // On phones it shares a row with the icon buttons.
-              <FilterField label="Category" id="profile-category" className="min-w-32 flex-1 sm:w-44 sm:flex-none">
-                {(id) => (
-                  <Input
-                    id={id}
-                    placeholder="Filter by category"
-                    value={category}
-                    onChange={(event) => url.set({ category: event.target.value })}
-                  />
-                )}
-              </FilterField>
-            }
-            filtered={Boolean(search || status || category)}
-            onReset={() => url.clear(["search", "status", "category"])}
+            filtered={Boolean(search || status)}
+            onReset={() => url.clear(["search", "status"])}
             groups={[
               { id: "category", label: "Category", value: (p) => (p.category ? categoryLabel(p.category) : null) },
               { id: "status", label: "Status", value: (p) => (p.status === "published" ? "Live" : p.status === "archived" ? "Archived" : "Draft") },
