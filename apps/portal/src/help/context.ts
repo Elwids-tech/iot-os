@@ -1,6 +1,7 @@
 /** Resolve only UI page identifiers; resource IDs and form contents never enter Help context. */
 export function helpContextForPath(pathname: string): string {
   const [, root, , section, resource, tab] = pathname.split("/");
+  if (pathname.startsWith("/account/security")) return "account.security";
   if (root !== "organizations") return "getting-started";
   switch (section) {
     case "devices":

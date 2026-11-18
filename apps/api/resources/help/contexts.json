@@ -210,5 +210,9 @@
   "billing.usage": {
     "title": "Settings · Usage",
     "overview": "billing-usage"
+  },
+  "account.security": {
+    "title": "Account · Security",
+    "overview": "two-step-sign-in"
   }
 }

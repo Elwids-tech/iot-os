@@ -50,6 +50,16 @@ export const Domains: StoryObj = {
   ),
 }
 
+/** A person's two-step sign-in (spec 034), on the security page and in member and user lists. */
+export const TwoStep: StoryObj = {
+  render: () => (
+    <div className="flex flex-wrap gap-4">
+      <Status value="enabled" />
+      <Status value="not_set_up" />
+    </div>
+  ),
+}
+
 const ticketStatuses = ["new", "in_review", "needs_info", "planned", "in_progress", "resolved", "declined"]
 const priorities = ["low", "normal", "high", "urgent"]
 

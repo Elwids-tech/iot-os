@@ -43,6 +43,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vite-pwa/assets-generator": "^2.0.0",
+    "otpauth": "9.4.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.7",
     "vitest": "^4.1.12"

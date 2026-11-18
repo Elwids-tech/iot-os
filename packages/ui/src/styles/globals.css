@@ -67,6 +67,23 @@
   animation: thinking-dot 1.2s ease-in-out infinite;
 }
 
+/* The caret in an InputOTP box: blinks while the box waits for a character. */
+@keyframes caret-blink {
+  0%,
+  70%,
+  100% {
+    opacity: 1;
+  }
+  20%,
+  50% {
+    opacity: 0;
+  }
+}
+
+@utility animate-caret-blink {
+  animation: caret-blink 1.25s ease-out infinite;
+}
+
 /* A live reading just changed: one 600 ms highlight behind the value, then nothing. */
 @keyframes value-flash {
   from {
@@ -228,6 +245,8 @@
 }
 
 @source "../../../workflow-editor/src";
+/* The shared sign-in pages (@iot-os/auth): classes used only there are generated too. */
+@source "../../../auth/src";
 
 /*
  * Phones: a text link that stands on its own (a fact, a list line, a "Show all") gets a

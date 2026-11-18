@@ -886,6 +886,11 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## UI
 
+- **Tailwind only generates classes from the folders it scans.** `globals.css` lists
+  them with `@source`: the kit, every app, `workflow-editor` and `auth`. A class that
+  appears only in another workspace package is silently missing from the built CSS.
+  The two-step QR code (`size-44` in `@iot-os/auth`) filled its whole dialog until
+  `auth` was added. Add an `@source` line when a new package holds UI.
 - **React Flow turns a jittery click into a drag.** Its defaults drag a node after
   1px and count a click only within 0px, so clicking a node in the automation
   editor moved it by a pixel and showed **Unsaved changes**. The editor sets
