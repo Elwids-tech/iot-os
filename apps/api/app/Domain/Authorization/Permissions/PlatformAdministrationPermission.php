@@ -13,4 +13,6 @@ enum PlatformAdministrationPermission: string
     case ACCESS = 'PlatformAdministration.access';
     case MANAGE_ORGANIZATIONS = 'PlatformAdministration.manage-organizations';
     case MANAGE_RETENTION = 'PlatformAdministration.manage-retention';
+    // Reset a locked-out person's two-step sign-in (spec 034, FR-024).
+    case RESET_TWO_STEP = 'PlatformAdministration.reset-two-step';
 }

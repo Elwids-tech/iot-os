@@ -41,6 +41,16 @@ operations:
         $ref: '#/components/responses/Forbidden'
       '422':
         $ref: '#/components/responses/ValidationFailed'
+  POST /v1/admin/users/{user}/two-step/reset:
+    summary: Reset a person's two-step sign-in
+    description: >-
+      Removes the person's authenticator, recovery codes and passkeys, ends every session
+      and kept sign-in of theirs, emails them and records `person.two_step_reset` with the
+      reason (spec 034, FR-024). `403` when the administrator is resetting themselves, or
+      the person is a super administrator and the administrator is not.
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
   POST /v1/admin/super-administrators/invitations:
     responses:
       '403':

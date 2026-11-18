@@ -21,6 +21,8 @@ final class PlatformUserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'is_super_admin' => (bool) $this->is_super_admin,
+            'two_step_enabled' => (bool) $this->resource->hasEnabledTwoFactorAuthentication(),
+            'passkey_count' => $this->whenHas('passkey_count', fn ($count): int => (int) $count),
             'platform_roles' => $this->whenLoaded('platformRoles', fn (): array => $this->platformRoleSummaries()),
             'organizations' => $this->whenLoaded('organizations', fn (): array => $this->organizationSummaries()),
         ];
