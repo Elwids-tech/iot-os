@@ -17,7 +17,7 @@ One attempt to sign up ([spec](spec.md) Key Entities).
 | `password` | string, nullable | bcrypt hash; null on `refused`, cleared once completed |
 | `state` | string(16) | `waiting`, `completed`, `refused` |
 | `refusal_reason` | string(32), nullable | `honeypot`, `too_fast`, `form_expired`, `paused`, `account_exists` |
-| `token_hash` | char(64), nullable | SHA-256 of the current link's token; null once used |
+| `token_hash` | char(64), nullable | SHA-256 of the current link's token; kept after use so a second opening answers `used` |
 | `token_expires_at` | timestamptz, nullable | 24 hours after the link was sent |
 | `sends` | smallint | links sent, for the admin list |
 | `last_sent_at` | timestamptz, nullable | |
@@ -56,8 +56,8 @@ not stored).
   `>`, `://` or `www.` (FR-043).
 - `email`: RFC address, at most 255, stored lowercased (Fortify's
   `lowercase_usernames`).
-- The token is 40 random characters, sent only in the email; a new send replaces
-  `token_hash` and `token_expires_at` (FR-009).
+- The token is 40 random characters, sent only in the email (in the link's fragment);
+  a new send replaces `token_hash` and `token_expires_at` (FR-009).
 
 ## `sign_up_settings`
 

@@ -121,9 +121,10 @@ default, it shows the beta text (FR-031); off, the operator text (FR-033).
 **Decision**:
 
 - **Limiter `sign-up`**: 5 an hour per address and 3 an hour per `sha256(email)`, with
-  the `login` limiter's JSON 429 (`retry_after`). `sign-up-resend`: 1 a minute and 5 an
-  hour per sign-up. Confirm: 10 a minute per address. Status poll: 40 a minute per
-  session.
+  a JSON 429 carrying `retry_after`. `sign-up-resend`: 1 a minute and 5 an hour per
+  sign-up, and never within 60 seconds of the last email. Confirm: 10 a minute per
+  address. Status poll: 120 a minute per address (the contract export describes limits
+  by address, user, email, organization or application, not by session).
 - **Form token**: `GET /api/v1/sign-up` returns `form_token`, an encrypted timestamp.
   A submit whose token is missing, unreadable, under 3 seconds old or over 2 hours old
   is refused, as is one with the hidden `website` field filled. Refusals answer `422`

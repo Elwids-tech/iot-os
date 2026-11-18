@@ -48,7 +48,7 @@ The portal's Home panel and the billing account page read `free_beta` from here 
 | Daily ceiling reached | `503 {"code": "sign_up_paused", "retry_after": seconds}` |
 | Too many attempts | `429 {"message": "...", "retry_after": seconds}` |
 
-### `GET sign-up/status` (guest, session-bound, 40 a minute per session)
+### `GET sign-up/status` (guest, session-bound, 120 a minute per address)
 
 The waiting page polls it every 3 seconds.
 
@@ -56,34 +56,36 @@ The waiting page polls it every 3 seconds.
 | --- | --- |
 | No pending sign-up | `404` |
 | Waiting | `200 {"state": "waiting", "email": "...", "resend_after": n}` |
-| Completed, this session not yet signed in, within 60 minutes, no second step | Signs the session in through `CompleteSignIn`; `200 {"state": "completed", "signed_in": true, "organization_uuid": "...", "user": {…authenticated user…}}` |
+| Completed, this session not yet signed in, within 60 minutes, no second step | Signs the session in through `CompleteSignIn`; `200 {"state": "completed", "signed_in": true, "organization_uuid": "...", "email": "..."}`. The page then reads `GET me`. |
 | Completed otherwise | `200 {"state": "completed", "signed_in": false, "email": "..."}` |
 | Refused at confirmation (account exists) | `200 {"state": "refused", "reason": "account_exists", "email": "..."}` |
 
 ### `POST sign-up/resend` (guest, session-bound, `throttle:sign-up-resend`)
 
 Sends a new link for the session's waiting sign-up and invalidates the old one.
-`202 {"state": "waiting", "resend_after": 60}`; `404` without one; `429` with
-`retry_after`.
+`202 {"state": "waiting", "email": "...", "resend_after": 60}`; `404` without one;
+`429` with `retry_after` within 60 seconds of the last email or after 5 an hour.
 
 ### `POST sign-up/confirm` (guest, 10 a minute per address)
 
-`{"token": "..."}` from the link (`/sign-up/confirm?token=…` in the portal).
+`{"token": "..."}` from the link (`/sign-up/confirm#token=…` in the portal; the
+token rides in the fragment, as password reset's does, so it stays out of server logs
+and referrers).
 
 | Outcome | Response |
 | --- | --- |
 | Valid | Completes the sign-up ([research R5](../research.md)). `200 {"state": "completed", "signed_in": true|false, "organization_uuid": "...", "email": "..."}`; `signed_in` follows research R3. |
-| Already used | `410 {"code": "used", "email": "..."}` |
-| Expired or replaced | `410 {"code": "expired"}` or `410 {"code": "replaced"}` |
-| Unknown token | `404` |
-| An account exists for the address | `409 {"code": "account_exists", "email": "..."}` |
+| Already used | `410 {"code": "used", "message": "...", "email": "..."}`, unless this browser is the waiting one and not yet signed in, which is then signed in (`200`) |
+| Expired | `410 {"code": "expired", "message": "...", "email": "..."}` |
+| Unknown, or replaced by a newer email | `404` (a replaced token is not kept) |
+| An account exists for the address | `409 {"code": "account_exists", "message": "...", "email": "..."}` |
 
 Confirmation works while sign-up is closed (FR-025).
 
 ### `POST auth/login` (existing)
 
-One addition: a wrong password for an address with no account, but with a waiting
-sign-up whose password matches, answers `403 {"code": "sign_up_unconfirmed"}`. The
+One addition: a failed sign-in for an address with no account, but with a waiting
+sign-up whose password matches, answers `403 {"code": "sign_up_unconfirmed", "message": "..."}`. The
 session takes over that pending sign-up, so the page can offer **Send it again**.
 
 ## Admin

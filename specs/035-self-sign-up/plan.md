@@ -138,7 +138,7 @@ The new domain keeps sign-up out of `Authentication`, which is about sign-in, an
   sign-up in the session. Every other failure answers as today.
 - **Mail**: three queued notifications on the `alerts` queue, written so they never
   name the product (the help-guide rule):
-  - `SignUpConfirmation`: the link is `${FRONTEND_URL}/sign-up/confirm?token=…`, valid
+  - `SignUpConfirmation`: the link is `${FRONTEND_URL}/sign-up/confirm#token=…`, valid
     for 24 hours;
   - `SignUpAccountExists`: sign-in and reset links;
   - `SignUpWelcome`: the organization, the quickstart, help, and the beta line while
