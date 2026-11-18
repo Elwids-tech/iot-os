@@ -162,45 +162,52 @@ two-step exactly as before.
 
 **Independent Test**: `quickstart.md` US1 steps 1 to 8 in the browser pane.
 
-- [ ] T028 [P] [US1] Add `packages/ui/src/components/input-otp.tsx` from shadcn `input-otp` (add the `input-otp` dependency to `packages/ui/package.json`), styled with the kit tokens, with a story in `apps/storybook/src/components/InputOTP.stories.tsx` covering six digits, an error and disabled
-- [ ] T029 [P] [US1] Add the statuses `enabled` and `not_set_up` to `packages/ui/src/lib/status.ts`, and add them to `apps/storybook/src/foundations/Status.stories.tsx`
-- [ ] T030 [P] [US1] Create `packages/auth/src/TwoStepChallenge.tsx`:
+- [x] T028 [P] [US1] Add `packages/ui/src/components/input-otp.tsx` from shadcn `input-otp` (add the `input-otp` dependency to `packages/ui/package.json`), styled with the kit tokens, with a story in `apps/storybook/src/components/InputOTP.stories.tsx` covering six digits, an error and disabled
+  - Done: also exports `SixDigitCode` (two groups of three, `one-time-code` autofill); the caret keyframe is in `globals.css`.
+- [x] T029 [P] [US1] Add the statuses `enabled` and `not_set_up` to `packages/ui/src/lib/status.ts`, and add them to `apps/storybook/src/foundations/Status.stories.tsx`
+- [x] T030 [P] [US1] Create `packages/auth/src/TwoStepChallenge.tsx`:
   - the `InputOTP` code field, a **Use a recovery code** toggle switching to a text field, and an attempts-left message;
   - on `pending` errors, **Start again** returns to the password step;
   - on success, it shows "n recovery codes left" when the response includes the count; at zero it says none are left and links to **Account → Security** to regenerate them;
   - it shows only the methods the `202` lists (PR4 adds the passkey option).
+  - Done: also used in the portal's session-restore dialog; **Back to password** keeps the email and **Keep me signed in**.
 
   Export it from `packages/auth/package.json`
-- [ ] T031 [P] [US1] Create `packages/auth/src/RecoveryCodes.tsx`: the eight codes in a monospace grid, **Copy** and **Download** (a `.txt` file named after the deployment host, not the product), and a "I have saved these codes" checkbox before **Done**
-- [ ] T032 [P] [US1] Create `packages/auth/src/TwoStepSetup.tsx`:
+- [x] T031 [P] [US1] Create `packages/auth/src/RecoveryCodes.tsx`: the eight codes in a monospace grid, **Copy** and **Download** (a `.txt` file named after the deployment host, not the product), and a "I have saved these codes" checkbox before **Done**
+- [x] T032 [P] [US1] Create `packages/auth/src/TwoStepSetup.tsx`:
   1. render the QR code as an `<img src="data:image/svg+xml;base64,…">`, never injected HTML;
   2. show the setup key with **Copy**;
   3. confirm a code with `InputOTP`;
   4. show `RecoveryCodes`.
 
   Export it from `packages/auth/package.json`
-- [ ] T033 [P] [US1] Create `packages/auth/src/ConfirmIdentityDialog.tsx`: a password dialog opened on `ConfirmationRequiredError`, which calls `confirmPassword`, then retries the original action
-- [ ] T034 [US1] Update the portal sign-in route in `apps/portal/src/App.tsx`. On `{ twoStepRequired: true }`, swap the form for `TwoStepChallenge` without losing the email or the **Keep me signed in** choice (`apps/portal/src/components/KeepSignedIn.tsx` stays on the first step), and continue to the original location on success
-- [ ] T035 [US1] Create `apps/portal/src/account/SecurityPage.tsx` at `/account/security`, linked from the user menu in `apps/portal/src/App.tsx`, with `Panel` sections:
+- [x] T033 [P] [US1] Create `packages/auth/src/ConfirmIdentityDialog.tsx`: a password dialog opened on `ConfirmationRequiredError`, which calls `confirmPassword`, then retries the original action
+  - Done: `useConfirmedAction(apiClient)` wraps a change and opens the dialog on `423`; closing it rejects with `ConfirmationCancelled`.
+- [x] T034 [US1] Update the portal sign-in route in `apps/portal/src/App.tsx`. On `{ twoStepRequired: true }`, swap the form for `TwoStepChallenge` without losing the email or the **Keep me signed in** choice (`apps/portal/src/components/KeepSignedIn.tsx` stays on the first step), and continue to the original location on success
+- [x] T035 [US1] Create `apps/portal/src/account/SecurityPage.tsx` at `/account/security`, linked from the user menu in `apps/portal/src/App.tsx`, with `Panel` sections:
   - **Authenticator app**: `Status` from `statusOf`, **Set up** opening `TwoStepSetup` in a dialog, **Turn off**;
   - **Recovery codes**: remaining count (a warning at zero) and **Regenerate**, showing `RecoveryCodes`.
+  - Done: the page composes `SettingsPage` (title **Account**, one **Security** section); the user menu item is **Security**.
 
   Wrap actions with `ConfirmIdentityDialog`, and show success toasts bottom-right
-- [ ] T036 [US1] Update `apps/admin/src/auth/LoginPage.tsx` to handle `{ twoStepRequired: true }` with `TwoStepChallenge`, and add a **Security settings** link to the admin user menu pointing at the portal's `/account/security` via `apps/admin/src/lib/portal.ts`
-- [ ] T037 [P] [US1] Write `apps/portal/e2e/two-step.spec.ts` (generate codes in the test from the setup key with an `otpauth` dev dependency):
+- [x] T036 [US1] Update `apps/admin/src/auth/LoginPage.tsx` to handle `{ twoStepRequired: true }` with `TwoStepChallenge`, and add a **Security settings** link to the admin user menu pointing at the portal's `/account/security` via `apps/admin/src/lib/portal.ts`
+- [x] T037 [P] [US1] Write `apps/portal/e2e/two-step.spec.ts` (generate codes in the test from the setup key with an `otpauth` dev dependency):
   - set up, save codes, sign out, sign in with a code;
   - sign in with a recovery code and see the count;
   - **Keep me signed in** survives a new context;
   - a second context is signed out after two-step is turned on;
   - turn off
-- [ ] T038 [P] [US1] Write `apps/admin/e2e/two-step-admin.spec.ts`: a person with two-step on signs in to the admin app with a code
-- [ ] T039 [P] [US1] Write the help guide `apps/api/resources/help/two-step-sign-in.md` (setup, recovery codes, losing your phone, turning it off) without naming the product, and register it in `apps/api/app/Domain/Help/Services/HelpCatalog.php`
-- [ ] T040 [US1] Verify pull request 3:
+  - Done: against a mocked API, like the other portal specs; the fake API is `apps/portal/e2e/support/two-step-api.ts`. Added: five wrong codes, and a wrong confirmation password.
+- [x] T038 [P] [US1] Write `apps/admin/e2e/two-step-admin.spec.ts`: a person with two-step on signs in to the admin app with a code
+- [x] T039 [P] [US1] Write the help guide `apps/api/resources/help/two-step-sign-in.md` (setup, recovery codes, losing your phone, turning it off) without naming the product, and register it in `apps/api/app/Domain/Help/Services/HelpCatalog.php`
+  - Done: `HelpCatalog` loads every guide file, so nothing is registered there; the page context `account.security` is in `resources/help/contexts.json` and `apps/portal/src/help/context.ts`.
+- [x] T040 [US1] Verify pull request 3:
   - run `pnpm --filter @iot-os/portal lint`, `pnpm --filter @iot-os/admin lint` (with `check-ui`), the Storybook build, and both e2e specs;
   - rebuild `portal` and `admin` without discarding open browser edits;
   - run all of `quickstart.md` US1 in the browser pane;
   - time setup from opening the security page to saving the codes (SC-001, under 2 minutes);
   - take screenshots of the sign-in code step, the security page and the recovery codes for the designer review.
+  - Done: lints, the Storybook build, 266 mocked portal specs and 76 admin specs pass. Live on the rebuilt stack as a seeded member: steps 1, 3, 4, 6 and 8 in the browser pane, with the emails in Mailpit and the `person.*` activity entries. Steps 2 and 5 need a second browser and are covered by `two-step.spec.ts`; step 7 was checked against the API in pull request 2. Setup took 22.6 s (SC-001). The run found three problems, now fixed: Tailwind did not scan `packages/auth`; a refused code dropped focus from the code field; and six boxes did not fit a 320 px phone.
 
   Then open pull request 3
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { apiClient } from "../lib/api-client"
 import { usePolled } from "../hooks/use-polled"
-import { portalUrl } from "../lib/portal"
+import { portalUrl, securitySettingsUrl } from "../lib/portal"
 import type { AuthenticatedUser } from "@iot-os/api-client"
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ import {
   Building2Icon,
   HistoryIcon,
   InboxIcon,
+  KeyRoundIcon,
   LayersIcon,
   LogOutIcon,
   ReceiptTextIcon,
@@ -213,6 +214,13 @@ function AdminSidebar({
                 <DropdownMenuSeparator />
                 <AppearanceMenuItems />
                 <DropdownMenuSeparator />
+                {/* A person's own sign-in security lives in the portal (spec 034). */}
+                <DropdownMenuItem asChild>
+                  <a href={securitySettingsUrl}>
+                    <KeyRoundIcon />
+                    Security settings
+                  </a>
+                </DropdownMenuItem>
                 <DropdownMenuItem disabled={isSigningOut} onSelect={onSignOut}>
                   <LogOutIcon />
                   {isSigningOut ? "Signing out…" : "Sign out"}

@@ -99,8 +99,26 @@ routes call them.
   many recovery codes remain and whether it is required. It never returns a secret
   or a code.
 
-The portal and admin screens arrive in the next pull request of spec 034; until then
-two-step can be turned on only through the API.
+**Screens.** People manage two-step on the portal's **Account → Security** page
+(`/account/security`, **Security** in the user menu). The admin app's user menu links
+there as **Security settings**. The shared pieces are in `@iot-os/auth`:
+
+- `TwoStepChallenge` is the code step. Both sign-in pages and the portal's
+  session-restore dialog show it when `login()` throws `TwoStepRequiredError`. It
+  offers only the methods the `202` lists, says how many tries are left, and sends the
+  person back to the password on `errors.pending`, keeping the email and **Keep me
+  signed in**. After a recovery code it shows how many are left, and with none left it
+  links to the security page.
+- `TwoStepSetup` shows the QR code as an `<img>` from a `data:` URL, never as injected
+  HTML. It also shows the setup key and confirms a code. `RecoveryCodes` then shows
+  the eight codes with **Copy** and **Download** (a `.txt` named after the deployment's
+  host) and asks the person to confirm they saved them.
+- `useConfirmedAction` runs a change. On `423` (`ConfirmationRequiredError`) it opens
+  `ConfirmIdentityDialog` for the password and then retries the change.
+
+The code field is the kit's `InputOTP` (`SixDigitCode`). The status uses the kit
+values `enabled` ("On") and `not_set_up` ("Not set up"). The help guide is
+`two-step-sign-in`.
 
 ### Password recovery
 

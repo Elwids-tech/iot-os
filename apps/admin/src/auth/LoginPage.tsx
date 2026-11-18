@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react"
-import { ApiError, type AuthenticatedUser } from "@iot-os/api-client"
+import { ApiError, TwoStepRequiredError, type AuthenticatedUser } from "@iot-os/api-client"
+import { TwoStepChallenge } from "@iot-os/auth/TwoStepChallenge"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Card,
@@ -17,7 +18,7 @@ import {
 } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { apiClient } from "../lib/api-client"
-import { portalUrl } from "../lib/portal"
+import { portalUrl, securitySettingsUrl } from "../lib/portal"
 
 type FormErrors = {
   email?: string[]
@@ -34,6 +35,8 @@ export function LoginPage({
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Two-step sign-in (spec 034): the password was right and a code is due.
+  const [twoStep, setTwoStep] = useState<TwoStepRequiredError | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -43,7 +46,9 @@ export function LoginPage({
     try {
       onAuthenticated(await apiClient.login({ email, password }))
     } catch (error) {
-      if (error instanceof ApiError && error.status === 422) {
+      if (error instanceof TwoStepRequiredError) {
+        setTwoStep(error)
+      } else if (error instanceof ApiError && error.status === 422) {
         const payload = error.payload as { errors?: FormErrors }
         setErrors(payload.errors ?? { form: "Please check your details and try again." })
       } else if (error instanceof ApiError && error.status === 429) {
@@ -60,6 +65,19 @@ export function LoginPage({
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12">
       <Card className="w-full max-w-md">
+        {twoStep ? (
+          <TwoStepChallenge
+            apiClient={apiClient}
+            methods={twoStep.methods}
+            securityHref={securitySettingsUrl}
+            onSignedIn={onAuthenticated}
+            onStartAgain={() => {
+              setPassword("")
+              setTwoStep(null)
+            }}
+          />
+        ) : (
+        <>
         <CardHeader>
           <h1 className="text-2xl font-semibold leading-none tracking-tight">
             Sign in to IoT OS
@@ -113,6 +131,8 @@ export function LoginPage({
             </Button>
           </CardFooter>
         </form>
+        </>
+        )}
       </Card>
     </main>
   )

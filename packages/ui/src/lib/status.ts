@@ -65,6 +65,9 @@ const vocabulary: Record<string, Status> = {
   uncertain: { tone: "warning", label: "Uncertain" },
   expired: { tone: "muted", label: "Expired" },
   cancelled: { tone: "muted", label: "Cancelled" },
+  // A person's two-step sign-in (spec 034): on, or not set up yet.
+  enabled: { tone: "good", label: "On" },
+  not_set_up: { tone: "muted", label: "Not set up" },
 }
 
 /** Where the same raw value means something else. */

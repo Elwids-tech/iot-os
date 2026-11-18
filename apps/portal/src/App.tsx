@@ -2,6 +2,7 @@ import { runtimeConfig } from "@iot-os/api-client"
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
+  TwoStepRequiredError,
   type AdministrationCapabilities,
   type AuthenticatedUser,
   type Organization,
@@ -21,6 +22,7 @@ import {
 import { Controller, useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
+import { TwoStepChallenge } from "@iot-os/auth/TwoStepChallenge"
 import { Button } from "@iot-os/ui/components/button"
 import { ErrorBoundary } from "@iot-os/ui/components/error-boundary"
 import {
@@ -93,6 +95,7 @@ import {
   CpuIcon,
   DownloadIcon,
   HouseIcon,
+  KeyRoundIcon,
   MapPinnedIcon,
   PlugIcon,
   SearchIcon,
@@ -138,6 +141,7 @@ const ConnectPage = lazy(() => import("./agents/ConnectPage"))
 const NotificationCenter = lazy(() => import("./notifications/NotificationCenter"))
 const MyNotificationsRedirect = lazy(() => import("./notifications/NotificationCenter").then(module => ({ default: module.MyNotificationsRedirect })))
 const BillingAccountsPage = lazy(() => import("./billing/BillingAccountsPage"))
+const SecurityPage = lazy(() => import("./account/SecurityPage"))
 const SupportRoutes = lazy(() => import("./support/Support"))
 const HelpPanel = lazy(() => import("./help/HelpPanel"))
 const ProfileAssistantBody = lazy(() => import("./assistant/AssistantPanel"))
@@ -177,22 +181,51 @@ function useStandaloneClass() {
   }, [])
 }
 
+/** Where a person makes new recovery codes (spec 034); the sign-in code step links here. */
+const SECURITY_PATH = "/account/security"
+
 function Login({ recovered = false }: { recovered?: boolean }) {
   const cache = useQueryClient()
   const [error, setError] = useState<unknown>(null)
+  // The password was right and two-step sign-in is on (spec 034): the code step replaces
+  // the form, which keeps the email and the Keep me signed in choice for Back to password.
+  const [twoStep, setTwoStep] = useState<TwoStepRequiredError | null>(null)
   const form = useForm({
     defaultValues: { email: "", password: "", remember: false },
   })
+  const signedIn = (user: AuthenticatedUser) => {
+    cache.removeQueries({
+      predicate: (query) => query.queryKey[0] !== "session",
+    })
+    cache.setQueryData(["session"], user)
+  }
+  const top = (
+    <div className="mb-4 flex items-center justify-between">
+      <CpuIcon className="text-primary" />
+      <ThemePicker />
+    </div>
+  )
   return (
     // Phones: the card spans the screen with 16 px sides, and its controls are 44 px tall.
     <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">
       {/* Phones: the form fills the screen without a card's frame. */}
       <Card className="w-full max-w-md max-md:rounded-none max-md:bg-transparent max-md:shadow-none max-md:[&_[data-slot=card-footer]]:border-0 max-md:[&_[data-slot=card-footer]]:bg-transparent">
+        {twoStep ? (
+          <TwoStepChallenge
+            apiClient={api}
+            methods={twoStep.methods}
+            securityHref={SECURITY_PATH}
+            top={top}
+            onSignedIn={signedIn}
+            onStartAgain={() => {
+              form.setValue("password", "")
+              setTwoStep(null)
+            }}
+          />
+        ) : (
+        <>
         <CardHeader>
-          <div className="mb-4 flex items-center justify-between">
-            <CpuIcon className="text-primary" />
-            <ThemePicker />
-          </div>
+          {top}
           <CardTitle>
             <h1>Welcome to your workspace</h1>
           </CardTitle>
@@ -206,15 +239,14 @@ function Login({ recovered = false }: { recovered?: boolean }) {
           onSubmit={form.handleSubmit(async (values) => {
             setError(null)
             try {
-              const user = await api.login(
-                credentials(values.email, values.password, values.remember),
+              signedIn(
+                await api.login(
+                  credentials(values.email, values.password, values.remember),
+                ),
               )
-              cache.removeQueries({
-                predicate: (query) => query.queryKey[0] !== "session",
-              })
-              cache.setQueryData(["session"], user)
             } catch (reason) {
-              setError(reason)
+              if (reason instanceof TwoStepRequiredError) setTwoStep(reason)
+              else setError(reason)
             }
           })}
         >
@@ -255,6 +287,8 @@ function Login({ recovered = false }: { recovered?: boolean }) {
             </Button>
           </CardFooter>
         </form>
+        </>
+        )}
       </Card>
     </main>
   )
@@ -325,6 +359,7 @@ function Session() {
           {/* The test push opens My notifications without naming an organization. */}
           <Route path="settings/my-notifications" element={<Suspense fallback={<PageFallback />}><MyNotificationsRedirect /></Suspense>} />
           <Route path="billing" element={<Suspense fallback={<PageFallback />}><BillingAccountsPage /></Suspense>} />
+          <Route path="account/security" element={<Suspense fallback={<PageFallback />}><SecurityPage /></Suspense>} />
           <Route path="organizations/:organizationUuid/notifications" element={<Suspense fallback={<PageFallback />}><NotificationCenter /></Suspense>} />
           <Route path="organizations/:organizationUuid/home" element={<HomeRoute organizations={user.organizations} />} />
           <Route path="organizations/:organizationUuid/device-adapters/*" element={<Suspense fallback={<PageFallback />}><AdapterRoutes /></Suspense>} />
@@ -894,6 +929,9 @@ function PortalSidebar({
                 <DropdownMenuItem asChild>
                   <Link to={organization ? sectionPath(organization.uuid, "settings/my-notifications") : "/notifications"}><BellIcon />My notifications</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={SECURITY_PATH}><KeyRoundIcon />Security</Link>
+                </DropdownMenuItem>
                 {user.capabilities.billing_accounts && (
                   <DropdownMenuItem asChild>
                     <Link to="/billing">
@@ -1154,7 +1192,8 @@ function SessionRecovery({
     [busy, setBusy] = useState(false),
     [signingOut, setSigningOut] = useState(false),
     [confirmDiscard, setConfirmDiscard] = useState(false),
-    [remember, setRemember] = useState(false)
+    [remember, setRemember] = useState(false),
+    [twoStep, setTwoStep] = useState<TwoStepRequiredError | null>(null)
   const { dirty } = useDirtyContext()
   return (
     <Dialog open>
@@ -1162,6 +1201,21 @@ function SessionRecovery({
         onEscapeKeyDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
       >
+        {/* Two-step sign-in (spec 034): the code step, with the unsaved form still behind it. */}
+        {twoStep ? (
+          <TwoStepChallenge
+            apiClient={api}
+            methods={twoStep.methods}
+            securityHref={SECURITY_PATH}
+            variant="dialog"
+            onSignedIn={() => void onRecovered()}
+            onStartAgain={() => {
+              setPassword("")
+              setTwoStep(null)
+            }}
+          />
+        ) : (
+        <>
         <DialogHeader>
           <DialogTitle>Restore your session</DialogTitle>
           <DialogDescription>
@@ -1178,7 +1232,8 @@ function SessionRecovery({
               await api.login(credentials(email, password, remember))
               await onRecovered()
             } catch (reason) {
-              setError(reason)
+              if (reason instanceof TwoStepRequiredError) setTwoStep(reason)
+              else setError(reason)
             } finally {
               setBusy(false)
             }
@@ -1233,6 +1288,8 @@ function SessionRecovery({
             </Button>
           </DialogFooter>
         </form>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   )
