@@ -1,6 +1,6 @@
 # ADR-047: Progressive Web App Before Native Apps
 
-**Status:** Proposed 2026-11-16
+**Status:** Proposed 2026-11-16; amended by [ADR-049](ADR-049-self-sign-up.md)
 **Date:** 2026-11-16
 **Relates to:** [spec 033](../../specs/033-pwa-web-push/spec.md), [spec 022](../../specs/022-alert-bell/spec.md) (alert bell), [spec 011](../../specs/011-notification-channels/spec.md) (notification channels), [ADR-013](ADR-013-integer-user-ids.md)
 
