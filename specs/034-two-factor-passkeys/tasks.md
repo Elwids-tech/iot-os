@@ -357,7 +357,7 @@ apps until they have two-step or a passkey (FR-020 to FR-023).
   - an organization administrator requires it, and a signed-in member is sent to setup on the next click;
   - an invited new member sets up before reaching the app
 - [x] T069 [P] [US3] Add a **Required two-step** section to `docs/features/access.md`, and a release-notes line to `docs/ops/release.md`: platform staff will be asked to set up two-step at their next sign-in
-- [ ] T070 [US3] Verify pull request 5:
+- [x] T070 [US3] Verify pull request 5:
   - run the API suite on PostgreSQL, both lints, and `two-step-required.spec.ts`;
   - rebuild the API family, `portal` and `admin`;
   - run `quickstart.md` US3 steps 1 to 6, including the agent and application token check;
@@ -384,6 +384,22 @@ Pull request 5 notes (deviations from the tasks above):
 - T064: the contract's `SecurityTransformer` adds the shared `403` to every session
   operation outside the allowlist, recorded in the spec 001 drift log.
 - T065: **Add a passkey instead** arrives with pull request 4.
+- T070 (verified 2026-11-18 on the rebuilt dev stack):
+  - Quickstart US3 steps 1, 2, 3 and 6 passed live:
+    - the platform administrator was sent to setup straight after the password, in
+      the portal and from the admin app, and returned to the admin app after setup;
+    - after an organization administrator required two-step, a member already signed
+      in got `two_step_setup_required` on their next request, and the activity
+      entry was written;
+    - an administrator without two-step was refused (`409`);
+    - another organization's administrator got `404`.
+  - Steps 4 (invitation) and 5 (agent and application tokens) are covered by
+    `RequireTwoStepTest` and `two-step-required.spec.ts`.
+  - The live run found three problems, fixed here:
+    - a person with no organization opened no refused page, so `me` now carries
+      `two_step_setup_required`;
+    - the dev admin address used `127.0.0.1` against `localhost`;
+    - the setup heading said two-step was on before the recovery codes were saved.
 
 **Checkpoint**: User Story 3 is complete.
 
