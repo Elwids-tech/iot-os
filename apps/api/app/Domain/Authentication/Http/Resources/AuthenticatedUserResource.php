@@ -28,6 +28,8 @@ final class AuthenticatedUserResource extends JsonResource
                 'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
                 // Organizations, users, roles and every billing page (specs 008, 023, 028, 029).
                 'manage_organizations' => app(PlatformAuthorization::class)->allows($this->resource, PlatformAdministrationPermission::MANAGE_ORGANIZATIONS),
+                // Reset a locked-out person's two-step sign-in (spec 034).
+                'reset_two_step' => app(PlatformAuthorization::class)->allows($this->resource, PlatformAdministrationPermission::RESET_TWO_STEP),
                 'manage_retention' => app(PlatformAuthorization::class)->allows($this->resource, PlatformAdministrationPermission::MANAGE_RETENTION),
                 // The assistant's provider keys spend the operator's money for every organization (spec 010).
                 'manage_assistant' => (bool) $this->is_super_admin,

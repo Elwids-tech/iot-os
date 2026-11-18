@@ -19,6 +19,7 @@ use App\Domain\Administration\Http\Controllers\PlatformUserController;
 use App\Domain\Administration\Http\Controllers\PublicOrganizationInvitationController;
 use App\Domain\Administration\Http\Controllers\SuperAdministratorController;
 use App\Domain\Administration\Http\Controllers\SuperAdministratorInvitationController;
+use App\Domain\Administration\Http\Controllers\TwoStepResetController;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use Illuminate\Support\Facades\Route;
 
@@ -50,6 +51,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::get('users', [PlatformUserController::class, 'index'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('users.index');
+            Route::post('users/{user}/two-step/reset', TwoStepResetController::class)
+                ->whereNumber('user')
+                ->middleware('can:'.PlatformAdministrationPermission::RESET_TWO_STEP->value)
+                ->name('users.two-step.reset');
             Route::get('invitations', [PlatformInvitationController::class, 'index'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('invitations.index');
