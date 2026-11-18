@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shared\Models;
 
+use App\Domain\Authentication\Services\PasskeyAvailability;
 use App\Domain\Authorization\Models\PlatformRole;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Billing\Models\BillingAccount;
@@ -14,8 +15,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\Events\RecoveryCodeReplaced;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
@@ -28,10 +31,10 @@ use Spatie\Permission\Traits\HasRoles;
  * hold Passport tokens, so the token trait is Passport's: the two packages cannot
  * share it, and people never hold Sanctum tokens (spec 004, research finding 5).
  */
-class User extends Authenticatable implements OAuthenticatable
+class User extends Authenticatable implements OAuthenticatable, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Roles and permissions always resolve on the web guard. Agent requests authenticate
@@ -99,11 +102,12 @@ class User extends Authenticatable implements OAuthenticatable
 
     /**
      * Whether the person has a second step set up (spec 034): confirmed authenticator
-     * codes. Passkeys join this with spec 034's passkeys pull request.
+     * codes, or a passkey while passkeys can be used on this deployment.
      */
     public function twoStepSatisfied(): bool
     {
-        return $this->hasEnabledTwoFactorAuthentication();
+        return $this->hasEnabledTwoFactorAuthentication()
+            || (app(PasskeyAvailability::class)->available() && $this->hasPasskeysEnabled());
     }
 
     /**

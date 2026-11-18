@@ -412,6 +412,9 @@ importers:
       '@iot-os/ui':
         specifier: workspace:*
         version: link:../ui
+      '@laravel/passkeys':
+        specifier: ^0.4.1
+        version: 0.4.1(react@19.2.8)
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.8)
@@ -1887,6 +1890,21 @@ packages:
     os: [darwin, linux]
     hasBin: true
 
+  '@laravel/passkeys@0.4.1':
+    resolution: {integrity: sha512-og3qrXHy0Q8naRkSg2Yo8BMwvr5P7fEoxqYSN8NGZ0hg44vSGeY8hFUyjnQxZmZcJk2IMWmTFS+O5G3FnCLqlQ==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      svelte: ^5.0.0
+      vue: ^3.3.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+
   '@lezer/common@1.5.2':
     resolution: {integrity: sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ==}
 
@@ -3325,6 +3343,9 @@ packages:
 
   '@shikijs/vscode-textmate@10.1.0':
     resolution: {integrity: sha512-cVBuhDQjBZaNMTwBquYfPydrUP+E3hE6oYGasx8h6ZrODIM7/r+gxLDXdd66oszbrggZHEntdE6j+5gYIVyMWQ==}
+
+  '@simplewebauthn/browser@13.3.0':
+    resolution: {integrity: sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ==}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -9533,6 +9554,12 @@ snapshots:
       - utf-8-validate
     optional: true
 
+  '@laravel/passkeys@0.4.1(react@19.2.8)':
+    dependencies:
+      '@simplewebauthn/browser': 13.3.0
+    optionalDependencies:
+      react: 19.2.8
+
   '@lezer/common@1.5.2': {}
 
   '@lezer/highlight@1.2.3':
@@ -10876,6 +10903,8 @@ snapshots:
       '@types/hast': 3.0.5
 
   '@shikijs/vscode-textmate@10.1.0': {}
+
+  '@simplewebauthn/browser@13.3.0': {}
 
   '@standard-schema/spec@1.1.0': {}
 

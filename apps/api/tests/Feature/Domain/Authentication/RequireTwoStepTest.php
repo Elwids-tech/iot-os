@@ -18,13 +18,14 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
 use Spatie\Permission\Models\Role;
 use Tests\Support\Agents\AgentFixtures;
+use Tests\Support\PasskeyFixtures;
 use Tests\Support\TwoStepFixtures;
 use Tests\TestCase;
 
 /** Required two-step sign-in (spec 034, US3, FR-020 to FR-023, FR-032, research R7). */
 final class RequireTwoStepTest extends TestCase
 {
-    use AgentFixtures, RefreshDatabase, TwoStepFixtures;
+    use AgentFixtures, PasskeyFixtures, RefreshDatabase, TwoStepFixtures;
 
     private Organization $acme;
 
@@ -96,6 +97,48 @@ final class RequireTwoStepTest extends TestCase
         // Leaving Acme lifts it, and does not turn anything off (FR-021).
         $both->organizations()->detach($this->acme);
         $this->as($both)->getJson("/api/v1/organizations/{$northstar->uuid}/context")->assertOk();
+    }
+
+    public function test_a_passkey_satisfies_the_requirement(): void
+    {
+        $person = $this->person('acme.member@example.test');
+        $this->acme->forceFill(['two_step_required' => true])->save();
+        $this->as($person)->getJson("/api/v1/organizations/{$this->acme->uuid}/context")->assertForbidden();
+
+        $this->givePasskey($person);
+
+        $this->as($person->refresh())->getJson("/api/v1/organizations/{$this->acme->uuid}/context")->assertOk();
+        $this->as($person)->getJson('/api/v1/me/security')->assertOk()->assertJsonPath('data.two_step.satisfied', true);
+    }
+
+    public function test_a_required_person_with_only_a_passkey_must_finish_with_it(): void
+    {
+        $person = $this->person('acme.member@example.test');
+        $this->acme->forceFill(['two_step_required' => true])->save();
+        [$authenticator] = $this->givePasskey($person);
+
+        // The right password starts no session: it asks for the passkey (FR-022).
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/v1/auth/login', ['email' => $person->email, 'password' => 'password'])
+            ->assertStatus(202)
+            ->assertJsonPath('methods', ['passkey']);
+        $this->assertGuest('web');
+        $this->withHeader('Origin', 'http://localhost')->postJson('/api/v1/auth/two-step', ['code' => '123456'])->assertUnprocessable();
+        $this->assertGuest('web');
+
+        $options = $this->withHeader('Origin', 'http://localhost')->getJson('/api/v1/auth/passkeys/options')->assertOk()->json('options');
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/v1/auth/passkeys', ['credential' => $authenticator->assert($options)])
+            ->assertOk();
+        $this->withHeader('Origin', 'http://localhost')->getJson("/api/v1/organizations/{$this->acme->uuid}/context")->assertOk();
+
+        // Someone nobody requires it of still signs in with the password alone.
+        $this->acme->forceFill(['two_step_required' => false])->save();
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Origin', 'http://localhost')
+            ->postJson('/api/v1/auth/login', ['email' => $person->email, 'password' => 'password'])
+            ->assertOk();
     }
 
     public function test_required_two_step_cannot_be_turned_off(): void

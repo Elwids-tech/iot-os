@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { AuthenticatedUser, TwoStepSetup as Setup } from "@iot-os/api-client"
 import { ConfirmationCancelled, useConfirmedAction } from "@iot-os/auth/ConfirmIdentityDialog"
+import { passkeysSupported } from "@iot-os/auth/passkeys"
 import { TwoStepSetup } from "@iot-os/auth/TwoStepSetup"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
@@ -17,7 +18,7 @@ import { clearPersonalState } from "../pwa/personal-state"
 import { unsubscribeHere } from "../pwa/push"
 import { requirementText } from "./requirement"
 import { returnTarget } from "./returnTo"
-import { securityKey } from "./SecurityPage"
+import { AddPasskeyDialog, securityKey } from "./SecurityPage"
 
 /**
  * Required two-step sign-in that is not set up yet (spec 034, US3, FR-022): the person
@@ -34,6 +35,7 @@ export default function SetupRequiredPage() {
   const [setup, setSetup] = useState<Setup | null>(null)
   const [starting, setStarting] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [addingPasskey, setAddingPasskey] = useState(false)
 
   async function start() {
     setStarting(true)
@@ -66,6 +68,8 @@ export default function SetupRequiredPage() {
   }
 
   const why = security.data ? requirementText(security.data.two_step.required_by) : null
+  // A passkey satisfies the requirement too, where the deployment and browser can use one.
+  const passkeyOffered = Boolean(security.data?.passkeys?.available) && passkeysSupported()
   // While the recovery codes are on screen, setup is not finished for the person.
   const satisfied = (security.data?.two_step.satisfied ?? false) && setup === null
 
@@ -107,7 +111,7 @@ export default function SetupRequiredPage() {
           ) : (
             <p className="text-body text-muted-foreground">
               You need an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator or
-              1Password. It takes about a minute.
+              1Password. It takes about a minute.{passkeyOffered && " Or add a passkey: your fingerprint, face or screen lock."}
             </p>
           )}
         </CardContent>
@@ -119,13 +123,30 @@ export default function SetupRequiredPage() {
             {satisfied ? (
               <Button onClick={continueOn}>Continue</Button>
             ) : (
-              <Button onClick={() => void start()} disabled={starting || security.isPending || Boolean(security.error)}>
-                {starting ? "Starting…" : "Set up"}
-              </Button>
+              <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                {passkeyOffered && (
+                  <Button variant="outline" onClick={() => setAddingPasskey(true)} disabled={starting}>
+                    Add a passkey instead
+                  </Button>
+                )}
+                <Button onClick={() => void start()} disabled={starting || security.isPending || Boolean(security.error)}>
+                  {starting ? "Starting…" : "Set up"}
+                </Button>
+              </div>
             )}
           </CardFooter>
         )}
       </Card>
+      <AddPasskeyDialog
+        open={addingPasskey}
+        run={confirmed.run}
+        onClose={() => setAddingPasskey(false)}
+        onAdded={async () => {
+          setAddingPasskey(false)
+          toast.success("Passkey added")
+          continueOn()
+        }}
+      />
       {confirmed.dialog}
     </main>
   )

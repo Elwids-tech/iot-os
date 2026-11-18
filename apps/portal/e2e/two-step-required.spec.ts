@@ -3,6 +3,15 @@ import { acme, codeFor, fakeAccount, fakeOrganization, me, PASSWORD, serve, type
 
 /** Required two-step sign-in (spec 034, US3), against a mocked API. */
 
+/** A platform authenticator with user verification, like Touch ID, answering at once. */
+async function virtualAuthenticator(page: Page) {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send("WebAuthn.enable")
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  })
+}
+
 const home = `/organizations/${acme.uuid}/home`
 
 /** Finishes setup on the setup-required page and returns where it went. */
@@ -131,7 +140,7 @@ test("sign out from the setup page", async ({ page }) => {
   await serve(page, account, "laptop", { signedIn: true })
   await page.goto(home)
   await page.getByRole("button", { name: "Sign out" }).click()
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible()
   expect(account.sessions.size).toBe(0)
 })
 
@@ -158,3 +167,44 @@ function withAdministration(user: typeof me): typeof me {
     })),
   }
 }
+
+test.describe("with passkeys", () => {
+  // WebAuthn refuses IP addresses, so these pages open on `localhost`.
+  test.use({ baseURL: (process.env.STUDIO_BASE_URL ?? "http://127.0.0.1:4173").replace("127.0.0.1", "localhost") })
+
+  test("a passkey satisfies the requirement, and then the password alone asks for it", async ({ page }) => {
+    await page.addInitScript(() => {
+      PublicKeyCredential.isConditionalMediationAvailable = async () => false
+    })
+    await virtualAuthenticator(page)
+    const account = fakeAccount({ platform: true })
+    const { errors } = await serve(page, account, "laptop", { signedIn: true })
+    await page.goto(home)
+
+    // Setup offers a passkey instead of the authenticator app.
+    await page.getByRole("button", { name: "Add a passkey instead" }).click()
+    const confirm = page.getByRole("dialog", { name: "Confirm it's you" })
+    const add = page.getByRole("dialog", { name: "Add a passkey" })
+    await add.getByLabel("Name").fill("Laptop Touch ID")
+    await add.getByRole("button", { name: "Add passkey" }).click()
+    // Adding needs the password confirmed first.
+    await confirm.getByLabel("Password").fill(PASSWORD)
+    await confirm.getByRole("button", { name: "Confirm" }).click()
+    await expect(page).toHaveURL(new RegExp(`${home}$`))
+    expect(account.passkeys).toHaveLength(1)
+    expect(account.enabled).toBe(false)
+
+    // Signing in again: the right password asks for the passkey, never a code (FR-022).
+    await page.getByRole("button", { name: me.name }).click()
+    await page.getByRole("menuitem", { name: "Sign out" }).click()
+    await page.getByLabel("Email address").fill(me.email)
+    await page.getByLabel("Password").fill(PASSWORD)
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
+    await expect(page.getByRole("heading", { name: "Continue with your passkey" })).toBeVisible()
+    await expect(page.getByLabel("Code from your authenticator app")).toHaveCount(0)
+    expect(account.sessions.has("laptop")).toBe(false)
+    await page.getByRole("button", { name: "Continue with your passkey" }).click()
+    await expect(page).toHaveURL(/\/organizations\//)
+    expect(errors).toEqual([])
+  })
+})

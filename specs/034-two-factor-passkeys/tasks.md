@@ -224,8 +224,9 @@ Touch ID on `localhost`.
 
 ### Tests for User Story 2
 
-- [ ] T041 [US2] Spike the `laravel/passkeys` version resolved in T005: confirm the signatures of `GenerateRegistrationOptions`, `StorePasskey`, `GenerateVerificationOptions`, `VerifyPasskey` and `DeletePasskey`, plus `Passkeys::ignoreRoutes()`, `useUserModel()` and the `passkeys` migration. Record the results in `research.md` R4, and adjust T046 to T050 if they differ
-- [ ] T042 [P] [US2] Write `apps/api/tests/Feature/Domain/Authentication/PasskeySignInTest.php` with WebAuthn fixtures from `web-auth/webauthn-lib` test helpers:
+- [x] T041 [US2] Spike the `laravel/passkeys` version resolved in T005: confirm the signatures of `GenerateRegistrationOptions`, `StorePasskey`, `GenerateVerificationOptions`, `VerifyPasskey` and `DeletePasskey`, plus `Passkeys::ignoreRoutes()`, `useUserModel()` and the `passkeys` migration. Record the results in `research.md` R4, and adjust T046 to T050 if they differ
+  - Done: `laravel/passkeys` 0.3.0 matched the plan (signatures in research R4). Fortify's provider already ignores the package routes and sets the user model. `@laravel/passkeys` 0.4.1 takes routes per call and parses every answer as JSON, so `POST auth/confirm-passkey` answers `200 {"confirmed": true}`, not `204` (contract updated).
+- [x] T042 [P] [US2] Write `apps/api/tests/Feature/Domain/Authentication/PasskeySignInTest.php` with WebAuthn fixtures from `web-auth/webauthn-lib` test helpers:
   - options are stored in the session;
   - a valid assertion signs in through `CompleteSignIn` and counts as both steps for a person with two-step on;
   - `remember` issues a kept sign-in, not Laravel's remember token;
@@ -233,7 +234,8 @@ Touch ID on `localhost`.
   - an invalid assertion gives `422`;
   - both routes give `404` when passkeys are unavailable;
   - a 7th attempt in a minute gives `429`
-- [ ] T043 [P] [US2] Write `apps/api/tests/Feature/Domain/Authentication/PasskeyManagementTest.php`:
+  - Done: the fixtures are our own `tests/Support/VirtualAuthenticator.php` (an ES256 key that answers the API's options with `none` attestation, built with the CBOR classes `web-auth` already depends on); the library ships no test helpers. Also covers a removed passkey, a foreign origin, a stale challenge, and the 202 offering `passkey`.
+- [x] T043 [P] [US2] Write `apps/api/tests/Feature/Domain/Authentication/PasskeyManagementTest.php`:
   - add (`name` "1 to 60 characters"), list, remove;
   - `423` without confirmation;
   - another person's passkey gives `404`;
@@ -242,58 +244,72 @@ Touch ID on `localhost`.
   - `GET me/security` reports `unavailable_reason: "not_https"` with an `http://` front-end URL;
   - a person with two-step confirmed and a passkey gets `"passkey"` in the login `202` `methods`;
   - `POST auth/confirm-passkey` confirms
+  - Done: also: someone else's credential cannot be claimed, a passkey alone adds no step to the password, and `not_https` keeps the list (to remove) but stops counting passkeys toward `satisfied`.
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Publish the `laravel/passkeys` migration as `apps/api/database/migrations/2026_11_17_000002_create_passkeys_table.php` (`id`, `user_id` foreign key cascade on delete, `name`, `credential_id` unique, `credential` json, `last_used_at` nullable, timestamps, index on `user_id`). Add a `passkeys` block to `apps/api/config/fortify.php` (Fortify's provider copies it into `passkeys.*` at register time, research R4):
+- [x] T044 [US2] Publish the `laravel/passkeys` migration as `apps/api/database/migrations/2026_11_17_000002_create_passkeys_table.php` (`id`, `user_id` foreign key cascade on delete, `name`, `credential_id` unique, `credential` json, `last_used_at` nullable, timestamps, index on `user_id`). Add a `passkeys` block to `apps/api/config/fortify.php` (Fortify's provider copies it into `passkeys.*` at register time, research R4):
   - `relying_party_id` = `env('PASSKEYS_RP_ID', parse_url(env('FRONTEND_URL', 'http://localhost'), PHP_URL_HOST))`;
   - `allowed_origins` = `[env('FRONTEND_URL'), env('ADMIN_FRONTEND_URL')]`;
   - `user_handle_secret` = `env('PASSKEYS_USER_HANDLE_SECRET', env('APP_KEY'))`;
   - `limiters.passkeys` for the 6-a-minute limit
-- [ ] T045 [US2] In the provider from T008:
+  - Done: migration `2026_11_23_000200_create_passkeys_table.php` (dated after the two-step migration on `main`, not `2026_11_17_000002`). The limit is a named `passkeys` limiter in `AuthenticationServiceProvider`: 6 a minute per route, per address before sign-in and per person after, so fetching options does not use up the answer. The contract generator only describes ip/user/email keys, which ruled out a per-browser key.
+- [x] T045 [US2] In the provider from T008:
   - check that Fortify's provider has already called `Passkeys::ignoreRoutes()` and set the user model (research R4), and add both only if it has not;
   - update `apps/api/app/Domain/Shared/Models/User.php` to use `Laravel\Fortify\PasskeyAuthenticatable` and implement `Laravel\Fortify\Contracts\PasskeyUser`;
   - change `twoStepSatisfied()` to also return true when the person has at least one passkey
-- [ ] T046 [P] [US2] Create `apps/api/app/Domain/Authentication/Services/PasskeyAvailability.php`: available when `FRONTEND_URL` and `ADMIN_FRONTEND_URL` are both `https`, or their host is `localhost`; otherwise `unavailable_reason: "not_https"`
-- [ ] T047 [US2] Create `apps/api/app/Domain/Authentication/Http/Controllers/PasskeySignInController.php`. Both routes are guest, `throttle:6,1`, and `404` when unavailable:
+  - Done: nothing to add to the provider. `twoStepSatisfied()` counts passkeys only while `PasskeyAvailability` allows them.
+- [x] T046 [P] [US2] Create `apps/api/app/Domain/Authentication/Services/PasskeyAvailability.php`: available when `FRONTEND_URL` and `ADMIN_FRONTEND_URL` are both `https`, or their host is `localhost`; otherwise `unavailable_reason: "not_https"`
+  - Done: `.localhost` hosts count as localhost too.
+- [x] T047 [US2] Create `apps/api/app/Domain/Authentication/Http/Controllers/PasskeySignInController.php`. Both routes are guest, `throttle:6,1`, and `404` when unavailable:
   - `GET auth/passkeys/options`: `GenerateVerificationOptions`, kept in the session;
   - `POST auth/passkeys`: `VerifyPasskey`, then `Passkeys::allowsLogin`, then forget any pending sign-in and call `CompleteSignIn` with `remember`, and set `last_used_at`.
+  - Done: both sign-in routes and both confirm routes sit behind `EnsurePasskeysAvailable` (404) and the `passkeys` limiter; the package's form requests parse the credential. `last_used_at` is set by `VerifyPasskey` itself. `"passkey"` is added in `TwoStepChallengeController::begin()`, which `SessionController::store` calls.
 
   In `SessionController::store`, add `"passkey"` to the pending `methods` when the person has a passkey and `PasskeyAvailability` allows it
 
   Add `GET auth/confirm-passkey/options` and `POST auth/confirm-passkey` (session) to `ConfirmationController`; these call `passwordConfirmed()` on success
-- [ ] T048 [US2] Create `apps/api/app/Domain/Authentication/Http/Controllers/PasskeyController.php` (`GET me/passkeys/options`, `POST me/passkeys`, `DELETE me/passkeys/{passkey}`, all `password.confirm`), scoped to `$request->user()->passkeys()` (`404` otherwise). It validates `name` as required, string, 1 to 60 characters, and calls `SecurityAudit` (`person.passkey_added` / `person.passkey_removed` with `name`). Fill the `passkeys` block of `GET me/security` in `SecurityController` from `PasskeyAvailability` and the person's passkeys (`id`, `name`, `created_at`, `last_used_at`)
-- [ ] T049 [P] [US2] Add the passkey routes and schemas to the OpenAPI supplements in `contracts/openapi/supplements/`, regenerate `contracts/openapi/openapi.json`, and pass the drift check. Add `passkeyOptions()`, `addPasskey()`, `removePasskey()` and the passkey `security()` fields to `packages/api-client/src/security.ts`
-- [ ] T050 [P] [US2] Release tooling:
+- [x] T048 [US2] Create `apps/api/app/Domain/Authentication/Http/Controllers/PasskeyController.php` (`GET me/passkeys/options`, `POST me/passkeys`, `DELETE me/passkeys/{passkey}`, all `password.confirm`), scoped to `$request->user()->passkeys()` (`404` otherwise). It validates `name` as required, string, 1 to 60 characters, and calls `SecurityAudit` (`person.passkey_added` / `person.passkey_removed` with `name`). Fill the `passkeys` block of `GET me/security` in `SecurityController` from `PasskeyAvailability` and the person's passkeys (`id`, `name`, `created_at`, `last_used_at`)
+  - Done: `DELETE` stays open where passkeys are unavailable, so old passkeys can still be removed. Add/remove and their audit entry run in one transaction.
+- [x] T049 [P] [US2] Add the passkey routes and schemas to the OpenAPI supplements in `contracts/openapi/supplements/`, regenerate `contracts/openapi/openapi.json`, and pass the drift check. Add `passkeyOptions()`, `addPasskey()`, `removePasskey()` and the passkey `security()` fields to `packages/api-client/src/security.ts`
+  - Done: api-client has `passkeyEndpoints()` (absolute URLs of the three ceremonies) and `removePasskey()` instead of `passkeyOptions()`/`addPasskey()`: `@laravel/passkeys` fetches the options and posts the answer itself. `packages/auth/src/passkeys.ts` maps its errors to the client's (`423` to `ConfirmationRequiredError`, `404` to unavailable). Adding routes renumbers some Scramble operation ids.
+- [x] T050 [P] [US2] Release tooling:
   - add `PASSKEYS_RP_ID: ${DOMAIN}` and `PASSKEYS_USER_HANDLE_SECRET: ${PASSKEYS_USER_HANDLE_SECRET:?}` to the API family environment in `deploy/release/compose.yml`, and document both in `deploy/release/environment.example`;
   - in `tooling/release/manage.py`, generate the secret once (64 random bytes, base64) and keep it across upgrades the way the push key is kept; a restore refuses a different secret;
   - set `PASSKEYS_RP_ID=localhost` in `tooling/release/verify_local.py`;
   - add tests in `tooling/release/test_release.py`
-- [ ] T051 [P] [US2] Create `packages/auth/src/PasskeySignInButton.tsx` with `@laravel/passkeys` ^0.4 (add to `packages/auth/package.json`):
+  - Done: `init` writes the secret; `manage.py passkeys-secret` adds it to an existing environment, and `deploy` adds it once when missing (the first release with passkeys), so an upgrade needs no manual step. `validate` refuses a missing or malformed secret. Six new tests.
+- [x] T051 [P] [US2] Create `packages/auth/src/PasskeySignInButton.tsx` with `@laravel/passkeys` ^0.4 (add to `packages/auth/package.json`):
   - `configure` the routes to the API's `auth/passkeys/options` and `auth/passkeys`, with `credentials: "include"`;
   - pass `remember`;
   - set `autocomplete="email webauthn"` conditional UI on the email field;
   - hide the button when `isSupported` is false or the deployment reports passkeys unavailable;
   - map `UserCancelledError` to no message
-- [ ] T052 [US2] Add `PasskeySignInButton` to the portal sign-in route in `apps/portal/src/App.tsx` and to `apps/admin/src/auth/LoginPage.tsx`, below the password form, and to `packages/auth/src/TwoStepChallenge.tsx` when the `202` `methods` include `passkey` (alone, as "Continue with your passkey", when it is the only method)
-- [ ] T053 [US2] Add a **Passkeys** `Panel` to `apps/portal/src/account/SecurityPage.tsx`:
+  - Done: `@laravel/passkeys` ^0.4.1. The email fields use `username webauthn` (portal) and `email webauthn` (admin). The sign-in page learns that the deployment cannot offer passkeys from the options route's `404` (the autofill request on load, or the click), since a guest cannot read `me/security`.
+- [x] T052 [US2] Add `PasskeySignInButton` to the portal sign-in route in `apps/portal/src/App.tsx` and to `apps/admin/src/auth/LoginPage.tsx`, below the password form, and to `packages/auth/src/TwoStepChallenge.tsx` when the `202` `methods` include `passkey` (alone, as "Continue with your passkey", when it is the only method)
+  - Done: the portal's session-restore dialog passes **Keep me signed in** to `TwoStepChallenge` too. Existing e2e selectors for **Sign in** became `exact: true`.
+- [x] T053 [US2] Add a **Passkeys** `Panel` to `apps/portal/src/account/SecurityPage.tsx`:
   - a `DataTable` of name, added and **Last used** (`RelativeTime`);
   - **Add a passkey** (name field, then `@laravel/passkeys` registration against `me/passkeys/options` and `me/passkeys`);
   - **Remove**, with confirmation;
   - the reason when passkeys cannot be used: the deployment's `unavailable_reason`, or "This browser does not support passkeys" when `isSupported` is false (FR-018).
+  - Done: `useConfirmedAction(api, { passkey })` offers **Use a passkey** only when the person has one and passkeys are available.
 
   Wrap actions with `ConfirmIdentityDialog`, which also offers **Use a passkey** through `auth/confirm-passkey`
-- [ ] T054 [P] [US2] Write `apps/portal/e2e/passkeys.spec.ts` with a CDP virtual authenticator:
+- [x] T054 [P] [US2] Write `apps/portal/e2e/passkeys.spec.ts` with a CDP virtual authenticator:
   - add a passkey, sign out, sign in with it on the portal, then on the admin app, remove it, and check that sign-in fails;
   - with `me/security` answered as `not_https` (route stub), the security page says passkeys need HTTPS and the sign-in page has no passkey button
-- [ ] T055 [P] [US2] Add a **Passkeys** section to `docs/features/access.md`. Add the new keys to `docs/ops/release.md`, with the warning that changing `DOMAIN` invalidates passkeys. Add the relying-party-ID and Fortify replay-key traps to `docs/dev/gotchas.md`, and add passkeys to `apps/api/resources/help/two-step-sign-in.md`
-- [ ] T056 [US2] Verify pull request 4:
+  - Done: five specs against the mocked API (which checks challenge, type and origin): add/sign in/remove/refused, a passkey finishing a code step with **Keep me signed in**, the email field's autofill, **Use a passkey** in the confirmation dialog, and `not_https`. The admin app's passkey sign-in is in `apps/admin/e2e/passkeys-admin.spec.ts` (the credential is loaded with `WebAuthn.addCredential`), because one mocked spec cannot drive both apps.
+- [x] T055 [P] [US2] Add a **Passkeys** section to `docs/features/access.md`. Add the new keys to `docs/ops/release.md`, with the warning that changing `DOMAIN` invalidates passkeys. Add the relying-party-ID and Fortify replay-key traps to `docs/dev/gotchas.md`, and add passkeys to `apps/api/resources/help/two-step-sign-in.md`
+  - Done: the help guide gains steps 9 to 11 and two troubleshooting items (revision 2). Gotchas also cover WebAuthn refusing IP addresses and the virtual authenticator answering autofill.
+- [x] T056 [US2] Verify pull request 4:
   - run the API suite on PostgreSQL, both lints, the release tooling tests and `passkeys.spec.ts`;
   - rebuild the API family, `portal` and `admin`;
   - run `quickstart.md` US2 steps 1 to 4 with the virtual authenticator and again with Touch ID on `localhost`, timing a passkey sign-in (SC-003, under 10 seconds); run step 5 too if pull request 5 has merged;
   - take designer screenshots of the passkey sign-in and the passkeys panel.
 
   Then open pull request 4
+  - Done: the API suite on PostgreSQL (1617 tests), both lints, the release tooling tests (50), all 271 mocked portal specs and the admin specs pass. Rebuilt the API family, `portal` and `admin`; quickstart US2 steps 1 to 4 ran live on `localhost` with Chrome's virtual authenticator as `platform-admin@example.test`: passkey sign-in took 209 ms on the portal and 150 ms on the admin app (SC-003), the email field's autofill 206 ms; the mails and `person.passkey_*` entries arrived; the removed passkey was refused. The dev stack's `FRONTEND_URL` is `127.0.0.1`, which WebAuthn refuses, so `compose.app.yml` now sets `PASSKEYS_RP_ID=localhost` and localhost passkey origins, and availability is read from the passkey origins (they default to the two front-end URLs). The run found two problems, now fixed: the "or" divider had no lines, and a browser with no authenticator showed "does not support passkeys" on load. Not done: the Touch ID run (needs a person at the machine) and step 5 (pull request 5 has not merged). Designer screenshots are in the session notes (`pr4-screenshots`).
 
 **Checkpoint**: User Story 2 is complete; passkeys sign in on both apps.
 
@@ -367,9 +383,10 @@ apps until they have two-step or a passkey (FR-020 to FR-023).
 
 Pull request 5 notes (deviations from the tasks above):
 
-- T057: the `methods: ["passkey"]` case and passkeys opening the routes wait for pull
-  request 4, which adds them once it is on `main` (FR-022), as the order section says.
-  The gate's allowlist already names `me/passkeys*` and `auth/confirm-passkey*`.
+- T057: pull request 4 merged first, so this pull request adds the passkey cases:
+  `SessionController::store` starts a pending sign-in for a required person whose only
+  second step is a passkey, and `TwoStepChallengeController::begin` offers them
+  `methods: ["passkey"]` alone (FR-022). `RequireTwoStepTest` covers both.
 - T059: the migration is `2026_11_23_000300_add_two_step_required_to_organizations.php`,
   after pull request 2's two-factor columns.
 - T060: `twoStepRequirement()` is read fresh on each call rather than memoised: a
@@ -383,7 +400,8 @@ Pull request 5 notes (deviations from the tasks above):
   `two_step_setup_required`.
 - T064: the contract's `SecurityTransformer` adds the shared `403` to every session
   operation outside the allowlist, recorded in the spec 001 drift log.
-- T065: **Add a passkey instead** arrives with pull request 4.
+- T065: **Add a passkey instead** reuses the security page's `AddPasskeyDialog`, shown
+  where the deployment and browser can use passkeys.
 - T070 (verified 2026-11-18 on the rebuilt dev stack):
   - Quickstart US3 steps 1, 2, 3 and 6 passed live:
     - the platform administrator was sent to setup straight after the password, in

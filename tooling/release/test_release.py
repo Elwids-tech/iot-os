@@ -133,7 +133,7 @@ class ReleaseTests(unittest.TestCase):
         root = Path(root)
         values = release.read_env(release.RELEASE/'environment.example')
         values.update({key: 'a'*64 for key in release.SECRET_KEYS})
-        values.update(DEVICE_BROKER_ADMIN_TOKEN='b'*64, MOSQUITTO_ADMIN_PASSWORD='c'*64)
+        values.update(DEVICE_BROKER_ADMIN_TOKEN='b'*64, MOSQUITTO_ADMIN_PASSWORD='c'*64, PASSKEYS_USER_HANDLE_SECRET=release.passkeys_secret())
         values.update(STATE_DIR=str(root/'state'), CONFIG_DIR=str(root/'private'), DOMAIN='staging.example.test', ACME_EMAIL='operator@example.test', MAIL_FROM_ADDRESS='app@example.test', MAIL_USERNAME='application', MAIL_PASSWORD='application-password', ALERT_EMAIL='operator@example.test')
         path = root/'environment'
         release.private_write(path, ''.join(k+'='+v+'\n' for k,v in values.items()))
@@ -441,6 +441,77 @@ class ReleaseTests(unittest.TestCase):
             deployment.env.update(keys)
             with self.assertRaisesRegex(ValueError, 'release manifest'):
                 deployment.validate()
+
+    def test_passkeys_secret_is_64_random_bytes(self):
+        secret = release.passkeys_secret()
+        self.assertRegex(secret, r"^[A-Za-z0-9+/]{86}==$")
+        self.assertEqual(64, len(base64.b64decode(secret)))
+        self.assertNotEqual(secret, release.passkeys_secret())
+
+    def test_passkeys_secret_is_added_once_and_never_replaced(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'environment'
+            release.private_write(path, 'DOMAIN=example.com\nPASSKEYS_USER_HANDLE_SECRET=\n')
+            self.assertTrue(release.add_passkeys_secret(path))
+            first = release.read_env(path)['PASSKEYS_USER_HANDLE_SECRET']
+            self.assertRegex(first, r"^[A-Za-z0-9+/]{86}==$")
+            self.assertEqual(1, path.read_text().count('PASSKEYS_USER_HANDLE_SECRET='))
+            self.assertFalse(release.add_passkeys_secret(path))
+            self.assertEqual(first, release.read_env(path)['PASSKEYS_USER_HANDLE_SECRET'])
+            self.assertEqual('0o600', oct(path.stat().st_mode & 0o777))
+
+    def test_validation_needs_a_generated_passkeys_secret(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env['APP_KEY'] = 'base64:'+'a'*44
+            with self.assertRaisesRegex(ValueError, 'release manifest'):
+                deployment.validate()
+            for value in ('', 'short', 'a'*88):
+                deployment.env['PASSKEYS_USER_HANDLE_SECRET'] = value
+                with self.assertRaisesRegex(ValueError, 'manage.py passkeys-secret'):
+                    deployment.validate()
+
+    def test_the_first_deploy_with_passkeys_generates_the_secret_and_later_ones_keep_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            path = deployment.env_path
+            path.write_text(''.join(line+'\n' for line in path.read_text().splitlines() if not line.startswith('PASSKEYS_USER_HANDLE_SECRET=')))
+            deployment = release.Deployment(path, None)
+            with patch.object(deployment, 'validate', side_effect=ValueError('stop')):
+                with self.assertRaisesRegex(ValueError, 'stop'):
+                    deployment.deploy(None)
+            secret = release.read_env(path)['PASSKEYS_USER_HANDLE_SECRET']
+            self.assertEqual(secret, deployment.env['PASSKEYS_USER_HANDLE_SECRET'])
+            again = release.Deployment(path, None)
+            with patch.object(again, 'validate', side_effect=ValueError('stop')):
+                with self.assertRaisesRegex(ValueError, 'stop'):
+                    again.deploy(None)
+            self.assertEqual(secret, release.read_env(path)['PASSKEYS_USER_HANDLE_SECRET'])
+
+    def test_restore_refuses_a_different_passkeys_secret(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.images = {'images': {}}
+            original = release.read_env(deployment.env_path)
+            original['PASSKEYS_USER_HANDLE_SECRET'] = release.passkeys_secret()
+
+            def restic(_backup_env, *args, **_kwargs):
+                checkpoint = Path(args[args.index('--target')+1])/'checkpoint'
+                checkpoint.mkdir()
+                (checkpoint/'checkpoint.json').write_text('{"quiesced": true}')
+                (checkpoint/'release.json').write_text('{"images": {}}')
+                (checkpoint/'environment').write_text(''.join(k+'='+json.dumps(v)+'\n' for k, v in original.items()))
+
+            with patch.object(deployment, 'restic', side_effect=restic), patch.object(deployment, 'compose') as compose:
+                with self.assertRaisesRegex(ValueError, 'backed-up passkeys secret'):
+                    deployment.restore(None, 'snapshot', Path(temp)/'restored')
+                compose.assert_not_called()
+
+    def test_passkeys_are_bound_to_the_parent_domain(self):
+        environment = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['x-api-env']
+        self.assertEqual('${DOMAIN}', environment['PASSKEYS_RP_ID'])
+        self.assertEqual('${PASSKEYS_USER_HANDLE_SECRET:?}', environment['PASSKEYS_USER_HANDLE_SECRET'])
+        self.assertIn('PASSKEYS_USER_HANDLE_SECRET', release.read_env(release.RELEASE/'environment.example'))
 
     def test_agent_access_needs_passport_keys(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 use App\Domain\Authentication\Http\Controllers\ConfirmationController;
+use App\Domain\Authentication\Http\Controllers\PasskeyController;
+use App\Domain\Authentication\Http\Controllers\PasskeySignInController;
 use App\Domain\Authentication\Http\Controllers\PasswordRecoveryController;
 use App\Domain\Authentication\Http\Controllers\SecurityController;
 use App\Domain\Authentication\Http\Controllers\SessionController;
 use App\Domain\Authentication\Http\Controllers\TwoStepChallengeController;
 use App\Domain\Authentication\Http\Controllers\TwoStepController;
+use App\Domain\Authentication\Http\Middleware\EnsurePasskeysAvailable;
 use App\Domain\Authorization\Http\Controllers\OrganizationContextController;
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +25,11 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     // The second step (spec 034): shares the password step's limiter keys.
     Route::post('auth/two-step', TwoStepChallengeController::class)
         ->middleware('throttle:login')->name('auth.two-step');
+    // Passkey sign-in (spec 034): counts as both steps, and 404 where passkeys cannot be used.
+    Route::middleware([EnsurePasskeysAvailable::class, 'throttle:passkeys'])->group(function (): void {
+        Route::get('auth/passkeys/options', [PasskeySignInController::class, 'options'])->name('auth.passkeys.options');
+        Route::post('auth/passkeys', [PasskeySignInController::class, 'store'])->name('auth.passkeys');
+    });
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('me', [SessionController::class, 'show'])
@@ -34,6 +42,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         // in the last 15 minutes (`423` otherwise).
         Route::post('auth/confirm-password', [ConfirmationController::class, 'password'])
             ->middleware('throttle:6,1')->name('auth.confirm-password');
+        Route::middleware([EnsurePasskeysAvailable::class, 'throttle:passkeys'])->group(function (): void {
+            Route::get('auth/confirm-passkey/options', [ConfirmationController::class, 'passkeyOptions'])->name('auth.confirm-passkey.options');
+            Route::post('auth/confirm-passkey', [ConfirmationController::class, 'passkey'])->name('auth.confirm-passkey');
+        });
         Route::get('me/security', [SecurityController::class, 'show'])->name('me.security');
         Route::post('me/two-step', [TwoStepController::class, 'store'])
             ->middleware('password.confirm')->name('me.two-step.store');
@@ -43,6 +55,15 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->middleware('password.confirm')->name('me.two-step.recovery-codes');
         Route::delete('me/two-step', [TwoStepController::class, 'destroy'])
             ->middleware('password.confirm')->name('me.two-step.destroy');
+        Route::middleware('password.confirm')->group(function (): void {
+            Route::get('me/passkeys/options', [PasskeyController::class, 'options'])
+                ->middleware(EnsurePasskeysAvailable::class)->name('me.passkeys.options');
+            Route::post('me/passkeys', [PasskeyController::class, 'store'])
+                ->middleware(EnsurePasskeysAvailable::class)->name('me.passkeys.store');
+            // Removing stays possible where passkeys cannot be used any more.
+            Route::delete('me/passkeys/{passkey}', [PasskeyController::class, 'destroy'])
+                ->whereNumber('passkey')->name('me.passkeys.destroy');
+        });
 
         Route::get('organizations/{organization}/context', [OrganizationContextController::class, 'show'])
             ->whereUuid('organization')

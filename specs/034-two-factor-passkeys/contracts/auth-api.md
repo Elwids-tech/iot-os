@@ -37,12 +37,12 @@ The request carries exactly one of `code` (six digits) or `recovery_code`.
 | Wrong code | `422 {"errors": {"code": [...]}}` and `"attempts_left": n`. |
 | No pending sign-in, expired, or five wrong codes | `422 {"errors": {"pending": ["Start again with your password."]}}` |
 
-### `GET auth/passkeys/options` (guest, `throttle:6,1`)
+### `GET auth/passkeys/options` (guest, 6 a minute per address)
 
 Returns `200 {"options": {...}}`: WebAuthn request options stored in the session.
 Returns `404` when passkeys are not available on this deployment.
 
-### `POST auth/passkeys` (guest, `throttle:6,1`)
+### `POST auth/passkeys` (guest, 6 a minute per address)
 
 The request carries `credential` (the browser's assertion) and `remember`.
 
@@ -56,8 +56,9 @@ The request carries `password`. The response is `204`, or `422` for a wrong pass
 
 ### `GET auth/confirm-passkey/options`, `POST auth/confirm-passkey` (session)
 
-These work like the passkey sign-in routes but confirm instead of signing in. The
-response is `204`.
+These work like the passkey sign-in routes but confirm instead of signing in, and
+offer only the person's own passkeys. The response is `200 {"confirmed": true}`, a JSON
+body because the browser client parses every answer.
 
 ## The person's security settings
 

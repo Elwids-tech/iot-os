@@ -69,6 +69,15 @@ environment label).
   `restore` refuses a backup whose pair differs, and a replaced pair makes every
   browser register again the next time its person opens the portal. Push needs
   outbound HTTPS to the browser vendors' push services.
+- Passkeys ([spec 034](../../specs/034-two-factor-passkeys/spec.md)): the API gets
+  `PASSKEYS_RP_ID=${DOMAIN}` and `PASSKEYS_USER_HANDLE_SECRET`. `init` generates the
+  secret (64 random bytes, base64); the first deploy of a release with passkeys adds
+  it to an older environment file, and `manage.py passkeys-secret` does the same by
+  hand. Back up the environment file afterwards. Keep the secret: `validate` refuses
+  an environment without it, and `restore` refuses a backup whose secret differs.
+  **Changing `DOMAIN` makes every passkey stop working**, because passkeys are bound
+  to it; people then sign in with their password and code and add their passkeys
+  again.
 
 ## First installation
 
@@ -107,6 +116,7 @@ and recovery jobs.
 
 Commands: `init`, `passport-keys` (adds Passport keys to an existing environment
 file), `webpush-keys` (adds the push key pair to an existing environment file),
+`passkeys-secret` (adds the passkeys secret to an existing environment file),
 `validate`, `render`, `deploy`, `backup`, `restore`,
 `certificates`, `staging`, `metrics`, `monitoring_heartbeat`, `smoke`. Upgrades of a
 running deployment go through [`ship.py`](#shipping-an-upgrade).

@@ -11,6 +11,9 @@ services:
       APP_URL: "http://127.0.0.1:${IOT_API_PORT:-8001}"
       FRONTEND_URL: ${IOT_PORTAL_URL:-http://127.0.0.1:5173}
       ADMIN_FRONTEND_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
+      # Passkeys (spec 034) refuse IP addresses: open the apps on localhost to use them.
+      PASSKEYS_RP_ID: localhost
+      PASSKEYS_ALLOWED_ORIGINS: http://localhost:${IOT_PORTAL_PORT:-5173},http://localhost:${IOT_ADMIN_PORT:-5174}
       LOG_CHANNEL: stderr
       DB_CONNECTION: pgsql
       DB_HOST: timescaledb

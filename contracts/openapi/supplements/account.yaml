@@ -155,8 +155,26 @@ components:
         The person's sign-in security (spec 034). Never holds a secret or a recovery
         code.
       additionalProperties: false
-      required: [two_step]
+      required: [two_step, passkeys]
       properties:
+        passkeys:
+          type: object
+          additionalProperties: false
+          required: [available, unavailable_reason, items]
+          properties:
+            available:
+              type: boolean
+              description: >-
+                Whether passkeys can be used on this deployment: both front ends are
+                served over HTTPS, or from `localhost`. The browser's own support is
+                checked by the client.
+            unavailable_reason:
+              type: [string, 'null']
+              enum: [not_https, null]
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Passkey'
         two_step:
           type: object
           additionalProperties: false
@@ -183,6 +201,32 @@ components:
             satisfied:
               type: boolean
               description: Whether the person has a second step set up.
+    Passkey:
+      type: object
+      description: >-
+        One of the person's passkeys (spec 034). Its credential and credential id never
+        leave the API.
+      additionalProperties: false
+      required: [id, name, created_at, last_used_at]
+      properties:
+        id: {type: integer}
+        name: {type: string, minLength: 1, maxLength: 60}
+        created_at: {type: [string, 'null'], format: date-time}
+        last_used_at:
+          type: [string, 'null']
+          format: date-time
+          description: The last sign-in or confirmation with this passkey.
+    PasskeyOptions:
+      type: object
+      description: >-
+        WebAuthn options for the browser (`navigator.credentials`), kept in the session
+        until the answer arrives.
+      additionalProperties: false
+      required: [options]
+      properties:
+        options:
+          type: object
+          additionalProperties: {}
     TwoStepSetup:
       type: object
       description: >-
@@ -253,7 +297,9 @@ operations:
       '202':
         description: >-
           The password was right and a second step is due (spec 034): a code from the
-          person's authenticator app or a recovery code. No session exists yet.
+          person's authenticator app, a recovery code, or one of their passkeys
+          (`POST /v1/auth/passkeys`) when `methods` includes `passkey`. No session
+          exists yet.
         content:
           application/json:
             schema:
@@ -294,7 +340,8 @@ operations:
   GET /v1/me/security:
     description: |-
       The signed-in person's sign-in security (spec 034): whether two-step is on, how
-      many recovery codes remain, and whether two-step is required for them.
+      many recovery codes remain, whether two-step is required for them, and their
+      passkeys with whether passkeys can be used on this deployment.
     responses:
       '200':
         description: The person's security settings.
@@ -359,6 +406,120 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/TwoStepConflict'
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
+  GET /v1/auth/passkeys/options:
+    description: |-
+      Starts a passkey sign-in (spec 034): WebAuthn request options that allow every
+      passkey the browser holds for this site. Limited to 6 a minute per browser, and
+      `404` where passkeys cannot be used (the front ends are not served over HTTPS).
+    responses:
+      '200':
+        description: The request options.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyOptions'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  POST /v1/auth/passkeys:
+    description: |-
+      Finishes a passkey sign-in with the browser's assertion (`credential`). A passkey
+      counts as both steps, so it signs in a person with two-step on and replaces any
+      pending password sign-in. With `remember: true` it starts a kept sign-in, as the
+      password step does. Limited to 6 a minute per browser.
+    responses:
+      '200':
+        description: Signed in.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoStepSignedIn'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  GET /v1/auth/confirm-passkey/options:
+    description: |-
+      Starts confirming the signed-in person with one of their own passkeys instead of
+      their password (spec 034).
+    responses:
+      '200':
+        description: The request options, limited to the person's passkeys.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyOptions'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  POST /v1/auth/confirm-passkey:
+    description: |-
+      Confirms the signed-in person with a passkey's assertion (`credential`). Security
+      changes then work for 15 minutes, as after `POST /v1/auth/confirm-password`.
+    responses:
+      '200':
+        description: Confirmed.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirmed]
+              properties:
+                confirmed: {const: true}
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '429':
+        $ref: '#/components/responses/TooManyRequests'
+  GET /v1/me/passkeys/options:
+    description: |-
+      Starts adding a passkey (spec 034): WebAuthn creation options for the person,
+      excluding the passkeys they already have. Needs a recently confirmed password or
+      passkey, and answers `404` where passkeys cannot be used.
+    responses:
+      '200':
+        description: The creation options.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyOptions'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
+  POST /v1/me/passkeys:
+    description: |-
+      Adds a passkey with a `name` of 1 to 60 characters and the browser's attestation
+      (`credential`). The person is emailed and an activity entry names the passkey.
+      Their other sign-ins continue. A passkey that is already registered is refused.
+    responses:
+      '201':
+        description: The new passkey.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/Passkey'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '423':
+        $ref: '#/components/responses/PasswordConfirmationRequired'
+  DELETE /v1/me/passkeys/{passkey}:
+    description: |-
+      Removes one of the person's passkeys; another person's passkey is not found. The
+      person is emailed and an activity entry names the passkey. Needs a recently
+      confirmed password or passkey.
+    responses:
+      '404':
+        $ref: '#/components/responses/NotFound'
       '423':
         $ref: '#/components/responses/PasswordConfirmationRequired'
   PUT /v1/notifications/preferences:

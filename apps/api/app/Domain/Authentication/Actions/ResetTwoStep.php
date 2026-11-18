@@ -12,7 +12,6 @@ use App\Domain\Shared\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 
 /**
@@ -70,10 +69,6 @@ final class ResetTwoStep
      */
     private function removePasskeys(User $person): int
     {
-        if (! Schema::hasTable('passkeys')) {
-            return 0;
-        }
-
         return DB::table('passkeys')->where('user_id', $person->getKey())->delete();
     }
 }

@@ -55,7 +55,7 @@ import type {
   WaitingInvoice,
 } from "./billing"
 import { connection } from "./connection"
-import type { OrganizationSecurity, SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
+import type { OrganizationSecurity, PasskeyEndpoints, SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
@@ -773,6 +773,25 @@ export class ApiClient {
   /** Requires two-step sign-in for every member, or stops. Refused (`409`) until the viewer has their own set up. */
   setOrganizationTwoStep(org: string, required: boolean): Promise<OrganizationSecurity> {
     return this.data<OrganizationSecurity>(`/api/v1/organizations/${encodeURIComponent(org)}/security`, "PUT", { two_step_required: required })
+  }
+
+  /**
+   * Where the passkey ceremonies run (spec 034): sign in, confirm the person instead of
+   * their password, and add a passkey. Each options route answers `404` where passkeys
+   * cannot be used, and adding one needs a confirmed password or passkey (`423`).
+   */
+  passkeyEndpoints(): PasskeyEndpoints {
+    const url = (path: string) => `${this.baseUrl}/api/v1/${path}`
+    return {
+      signIn: { options: url("auth/passkeys/options"), submit: url("auth/passkeys") },
+      confirm: { options: url("auth/confirm-passkey/options"), submit: url("auth/confirm-passkey") },
+      register: { options: url("me/passkeys/options"), submit: url("me/passkeys") },
+    }
+  }
+
+  /** Removes one of the person's passkeys. Needs a confirmed password or passkey. */
+  async removePasskey(id: number): Promise<void> {
+    await this.request(`/api/v1/me/passkeys/${encodeURIComponent(String(id))}`, { method: "DELETE" })
   }
 
   async requestPasswordReset(email: string): Promise<{ message: string }> {

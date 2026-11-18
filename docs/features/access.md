@@ -96,8 +96,8 @@ routes call them.
   [activity log](activity-log.md) with no organization, the person as subject and no
   secret.
 - `GET /api/v1/me/security` reports whether two-step is on, when it was confirmed, how
-  many recovery codes remain and whether it is required. It never returns a secret
-  or a code.
+  many recovery codes remain and whether it is required, plus the person's
+  [passkeys](#passkeys). It never returns a secret, a code or credential material.
 
 **Screens.** People manage two-step on the portal's **Account → Security** page
 (`/account/security`, **Security** in the user menu). The admin app's user menu links
@@ -114,11 +114,64 @@ there as **Security settings**. The shared pieces are in `@iot-os/auth`:
   the eight codes with **Copy** and **Download** (a `.txt` named after the deployment's
   host) and asks the person to confirm they saved them.
 - `useConfirmedAction` runs a change. On `423` (`ConfirmationRequiredError`) it opens
-  `ConfirmIdentityDialog` for the password and then retries the change.
+  `ConfirmIdentityDialog` for the password, or **Use a passkey** when the person has
+  one, and then retries the change.
 
 The code field is the kit's `InputOTP` (`SixDigitCode`). The status uses the kit
 values `enabled` ("On") and `not_set_up` ("Not set up"). The help guide is
 `two-step-sign-in`.
+
+### Passkeys
+
+A person can add passkeys and sign in with one alone: the browser checks their
+fingerprint, face or screen lock, and the passkey counts as both steps
+([spec 034](../../specs/034-two-factor-passkeys/spec.md) US2,
+[ADR-048](../adr/ADR-048-two-step-sign-in-and-passkeys.md)). `laravel/passkeys`
+(through Fortify) supplies the WebAuthn actions behind our own routes; the browser
+side is `@laravel/passkeys`.
+
+- **Relying party.** Passkeys are bound to `PASSKEYS_RP_ID`, the parent domain of the
+  portal and admin app (the release's `DOMAIN`), so one passkey works in both. The
+  allowed origins are `FRONTEND_URL` and `ADMIN_FRONTEND_URL`. Changing the domain
+  makes every passkey stop working; people sign in with their password and code.
+- **When they are offered.** Only when both front-end URLs are `https`, or their host
+  is `localhost` (`PasskeyAvailability`). Otherwise every passkey route answers `404`,
+  `GET /api/v1/me/security` says `unavailable_reason: "not_https"`, the sign-in pages
+  hide the button, and existing passkeys no longer count toward two-step.
+- **Sign-in.** `GET /api/v1/auth/passkeys/options` keeps WebAuthn request options in
+  the session; `POST /api/v1/auth/passkeys` takes the browser's assertion and
+  `remember`. A valid one starts the session through `CompleteSignIn`, like every other
+  sign-in, so **Keep me signed in** issues a kept sign-in and never Laravel's remember
+  token. It also replaces a pending password sign-in, and the password step's `202`
+  lists `passkey` in `methods` for a person with two-step on who has a passkey. Both
+  routes allow 6 requests a minute per address, each counted on its own.
+- **Adding and removing.** `GET /api/v1/me/passkeys/options`, `POST /api/v1/me/passkeys`
+  (`name`, 1 to 60 characters, and the attestation) and
+  `DELETE /api/v1/me/passkeys/{passkey}` need a confirmation from the last 15 minutes.
+  The browser is told to skip the person's existing passkeys, and one already
+  registered to anyone is refused (`422`). Another person's passkey is not found.
+  Adding or removing emails the person and writes `person.passkey_added` or
+  `person.passkey_removed` with the name and never the credential; it does not end
+  other sign-ins.
+- **Confirming with a passkey.** `GET /api/v1/auth/confirm-passkey/options` offers
+  only the person's own passkeys; `POST /api/v1/auth/confirm-passkey` confirms them
+  for 15 minutes, as the password does. It answers `200 {"confirmed": true}` because
+  the browser client reads a JSON body.
+- **Storage.** The `passkeys` table holds the name, the credential id (unique), the
+  public key credential, `last_used_at` and timestamps. The credential and its id never
+  leave the API. The user handle is an HMAC of the person's id with
+  `PASSKEYS_USER_HANDLE_SECRET`, generated once per deployment, so rotating `APP_KEY`
+  leaves passkeys alone.
+
+**Screens.** `PasskeySignInButton` (`@iot-os/auth`) sits below the password form on
+both sign-in pages and in `TwoStepChallenge` (**Use a passkey instead**, or **Continue
+with your passkey** when it is the only method). The email field carries
+`autocomplete="… webauthn"`, so the browser also lists saved passkeys there. The button
+hides when the browser cannot use passkeys or the API answers `404`, and closing the
+browser's prompt shows no error. The portal's **Account → Security** page has a
+**Passkeys** panel: a table of name, added and last used, **Add a passkey** with a
+name, **Remove** with a confirmation, and the reason when passkeys can't be used here
+(no HTTPS, or a browser without passkeys).
 
 ### Required two-step
 
@@ -134,7 +187,8 @@ required everywhere if any one of them requires it.
 - **The gate.** `RequireTwoStep` runs in the `api` group after `auth:sanctum`. A
   person who is required and has no second step set up gets
   `403 {"code": "two_step_setup_required"}` from every session route except `me`,
-  `me/security`, `me/two-step*`, `auth/confirm-password` and `auth/logout`.
+  `me/security`, `me/two-step*`, `me/passkeys*`, `auth/confirm-password`,
+  `auth/confirm-passkey*` and `auth/logout`.
   - It checks only browser sessions. Agent (`mcp`) tokens, application tokens and
     public routes never get this response.
   - It reads the person's own two-step columns first, so people who have two-step set
@@ -175,8 +229,12 @@ required everywhere if any one of them requires it.
   - The members table has a **Two-step** column.
   - On the person's own security page, a sentence says who requires it, and **Turn
     off** is not offered.
-- Passkeys satisfy the requirement once spec 034's passkeys pull request is merged.
-  Until then, only a confirmed authenticator app does.
+- **Passkeys count, when used.** A passkey satisfies the requirement while the
+  deployment can offer passkeys (`twoStepSatisfied()`). A required person whose only
+  second step is a passkey gets `202` with `methods: ["passkey"]` from a right password
+  and no session, and finishes with the passkey (FR-022). If passkeys stop being
+  available, they are sent to set up an authenticator app instead. The setup screen
+  offers **Add a passkey instead** where passkeys can be used.
 
 ### Password recovery
 

@@ -102,7 +102,21 @@ and `@laravel/passkeys` (the browser client) v0.4.1.
     `fortify.passkeys.*` (relying party ID, allowed origins, user-handle secret) and
     `fortify.guard`. Pull request 4 sets these under `fortify.passkeys` in
     `config/fortify.php`, not in a separate `config/passkeys.php`.
-  - The PR 4 spike confirms the 0.3 action signatures.
+  - The PR 4 spike (2026-11-18) confirmed the 0.3.0 actions as planned:
+    `GenerateRegistrationOptions($user)` and `GenerateVerificationOptions(?$user)` return
+    WebAuthn options objects (serialized with `Support\WebAuthn::toJson` for the session
+    and `toBrowserArray` for the browser); `StorePasskey($user, $name, $credential,
+    $options)` refuses a credential id that exists for anyone; `VerifyPasskey($credential,
+    $options, ?$user)` locks the row, checks ownership when given a user, and sets
+    `last_used_at`; `DeletePasskey($user, $passkey)`. The package's form requests
+    (`PasskeyRegistrationRequest`, `PasskeyVerificationRequest`) parse the credential and
+    pull the options from the session keys `passkey.registration_options` and
+    `passkey.verification_options`; ours reuse them. Fortify's provider calls
+    `Passkeys::ignoreRoutes()` and `useUserModel()` itself, so our provider adds neither,
+    and the package's own migration matches the planned table.
+  - The browser client `@laravel/passkeys` 0.4.1 takes per-call `routes`, not routes in
+    `configure()`, and parses every answer as JSON, so `POST auth/confirm-passkey`
+    answers `200 {"confirmed": true}` instead of `204`.
 - **Alternatives considered**:
   - `spatie/laravel-passkeys`. Rejected: it is built around Livewire and is not
     first-party.
