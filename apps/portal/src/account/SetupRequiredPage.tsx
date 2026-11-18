@@ -66,7 +66,8 @@ export default function SetupRequiredPage() {
   }
 
   const why = security.data ? requirementText(security.data.two_step.required_by) : null
-  const satisfied = security.data?.two_step.satisfied ?? false
+  // While the recovery codes are on screen, setup is not finished for the person.
+  const satisfied = (security.data?.two_step.satisfied ?? false) && setup === null
 
   return (
     <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">

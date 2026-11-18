@@ -19,7 +19,15 @@ export function returnTarget(value: string | null, origins: { admin: string; api
     return home
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") return home
-  if (url.origin === new URL(origins.admin).origin) return { kind: "external", url: url.toString() }
-  if (url.origin === new URL(origins.api).origin && url.pathname === "/oauth/authorize") return { kind: "external", url: url.toString() }
+  if (sameOrigin(url, new URL(origins.admin))) return { kind: "external", url: url.toString() }
+  if (sameOrigin(url, new URL(origins.api)) && url.pathname === "/oauth/authorize") return { kind: "external", url: url.toString() }
   return home
+}
+
+const loopback = ["localhost", "127.0.0.1"]
+
+/** On a developer's machine `localhost` and `127.0.0.1` are the same host, as `lib/api.ts` treats them. */
+function sameOrigin(a: URL, b: URL) {
+  if (a.origin === b.origin) return true
+  return a.protocol === b.protocol && a.port === b.port && loopback.includes(a.hostname) && loopback.includes(b.hostname)
 }

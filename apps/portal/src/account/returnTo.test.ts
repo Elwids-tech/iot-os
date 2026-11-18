@@ -16,6 +16,12 @@ describe("returnTarget", () => {
     })
   })
 
+  it("treats localhost and 127.0.0.1 as one host on a developer's machine", () => {
+    const local = { admin: "http://127.0.0.1:5174", api: "http://127.0.0.1:8001" }
+    expect(returnTarget("http://localhost:5174/organizations", local)).toEqual({ kind: "external", url: "http://localhost:5174/organizations" })
+    expect(returnTarget("http://localhost:5175/organizations", local)).toEqual({ kind: "portal", path: "/" })
+  })
+
   it("goes home for anything else", () => {
     for (const value of [null, "", "//evil.example.com/x", "/\\evil.example.com", "https://evil.example.com/", "https://api.example.test/api/v1/me", "javascript:alert(1)", "/account/security/setup?return=/x"])
       expect(returnTarget(value, origins)).toEqual({ kind: "portal", path: "/" })
