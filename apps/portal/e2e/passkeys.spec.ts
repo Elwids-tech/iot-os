@@ -149,6 +149,16 @@ test("the email field suggests the browser's passkeys, and picking one signs in"
   expect(errors).toEqual([])
 })
 
+test("a browser that cannot offer passkey suggestions says nothing until the button is used", async ({ page }) => {
+  const account = fakeAccount()
+  await serve(page, account, "laptop")
+  // No authenticator at all: the suggestions requested as the page opens fail quietly.
+  await page.goto("/")
+  await expect(page.getByRole("button", { name: "Sign in with a passkey" })).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(page.getByRole("alert")).toHaveCount(0)
+})
+
 test("the confirmation dialog offers the person's passkey instead of the password", async ({ page }) => {
   const account = fakeAccount()
   await serve(page, account, "laptop", { signedIn: true })

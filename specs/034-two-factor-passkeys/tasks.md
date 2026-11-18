@@ -302,13 +302,14 @@ Touch ID on `localhost`.
   - Done: five specs against the mocked API (which checks challenge, type and origin): add/sign in/remove/refused, a passkey finishing a code step with **Keep me signed in**, the email field's autofill, **Use a passkey** in the confirmation dialog, and `not_https`. The admin app's passkey sign-in is in `apps/admin/e2e/passkeys-admin.spec.ts` (the credential is loaded with `WebAuthn.addCredential`), because one mocked spec cannot drive both apps.
 - [x] T055 [P] [US2] Add a **Passkeys** section to `docs/features/access.md`. Add the new keys to `docs/ops/release.md`, with the warning that changing `DOMAIN` invalidates passkeys. Add the relying-party-ID and Fortify replay-key traps to `docs/dev/gotchas.md`, and add passkeys to `apps/api/resources/help/two-step-sign-in.md`
   - Done: the help guide gains steps 9 to 11 and two troubleshooting items (revision 2). Gotchas also cover WebAuthn refusing IP addresses and the virtual authenticator answering autofill.
-- [ ] T056 [US2] Verify pull request 4:
+- [x] T056 [US2] Verify pull request 4:
   - run the API suite on PostgreSQL, both lints, the release tooling tests and `passkeys.spec.ts`;
   - rebuild the API family, `portal` and `admin`;
   - run `quickstart.md` US2 steps 1 to 4 with the virtual authenticator and again with Touch ID on `localhost`, timing a passkey sign-in (SC-003, under 10 seconds); run step 5 too if pull request 5 has merged;
   - take designer screenshots of the passkey sign-in and the passkeys panel.
 
   Then open pull request 4
+  - Done: the API suite on PostgreSQL (1616 tests), both lints, the release tooling tests (50), all 271 mocked portal specs and the admin specs pass. Rebuilt the API family, `portal` and `admin`; quickstart US2 steps 1 to 4 ran live on `localhost` with Chrome's virtual authenticator as `platform-admin@example.test`: passkey sign-in took 209 ms on the portal and 150 ms on the admin app (SC-003), the email field's autofill 206 ms; the mails and `person.passkey_*` entries arrived; the removed passkey was refused. The dev stack's `FRONTEND_URL` is `127.0.0.1`, which WebAuthn refuses, so `compose.app.yml` now sets `PASSKEYS_RP_ID=localhost` and localhost passkey origins, and availability is read from the passkey origins (they default to the two front-end URLs). The run found two problems, now fixed: the "or" divider had no lines, and a browser with no authenticator showed "does not support passkeys" on load. Not done: the Touch ID run (needs a person at the machine) and step 5 (pull request 5 has not merged). Designer screenshots are in the session notes (`pr4-screenshots`).
 
 **Checkpoint**: User Story 2 is complete; passkeys sign in on both apps.
 

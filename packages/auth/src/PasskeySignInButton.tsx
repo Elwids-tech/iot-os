@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { ApiClient, AuthenticatedUser } from "@iot-os/api-client"
+import { ApiError, type ApiClient, type AuthenticatedUser } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
 import { FieldError } from "@iot-os/ui/components/field"
 import { Separator } from "@iot-os/ui/components/separator"
@@ -62,7 +62,9 @@ export function PasskeySignInButton({
       .catch((error: unknown) => {
         if (!active) return
         if (error instanceof PasskeysUnavailableError) setUnavailable(true)
-        else setProblem(passkeyProblem(error, "sign_in"))
+        // The suggestions start unasked, so only a refusal of a passkey the person picked
+        // is news; a browser that cannot offer them says nothing until the button is used.
+        else if (error instanceof ApiError && error.status === 422) setProblem(passkeyProblem(error, "sign_in"))
       })
     return () => {
       active = false
