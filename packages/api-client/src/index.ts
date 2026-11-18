@@ -56,6 +56,7 @@ import type {
 } from "./billing"
 import { connection } from "./connection"
 import type { OrganizationSecurity, PasskeyEndpoints, SecuritySettings, TwoStepAnswer, TwoStepMethod, TwoStepSetup } from "./security"
+import type { SignUpConfig, SignUpConfirmation, SignUpInput, SignUpLinkProblem, SignUpQuery, SignUpRecord, SignUpSettings, SignUpSettingsValues, SignUpStatus } from "./sign-up"
 export * from "./dashboards"
 export * from "./archive"
 export * from "./devices"
@@ -73,6 +74,7 @@ export * from "./support"
 export * from "./billing"
 export * from "./activity"
 export type * from "./security"
+export type * from "./sign-up"
 
 export type Organization = {
   uuid: string
@@ -296,6 +298,8 @@ export type AuthenticatedUser = {
     manage_assistant?: boolean
     /** Super administrators work the support ticket queue (spec 015). */
     manage_tickets?: boolean
+    /** Super administrators open sign-up and choose how staff hear of it (spec 035). Older payloads omit it. */
+    manage_sign_up?: boolean
     /** Owns at least one billing account (spec 023). Older payloads omit it. */
     billing_accounts?: boolean
   }
@@ -543,6 +547,14 @@ export type OrganizationDeletion = {
 }
 
 /** A failed request: the HTTP status, or 0 when no response arrived (offline, or the API unreachable). */
+/** Why a sign-up link failed: `410`/`409` carry a code; `404` is an unknown or replaced link. */
+export function signUpLinkProblem(error: unknown): SignUpLinkProblem | "unknown" | null {
+  if (!(error instanceof ApiError)) return null
+  if (error.status === 404) return "unknown"
+  const code = (error.payload as { code?: unknown } | null)?.code
+  return code === "used" || code === "expired" || code === "account_exists" ? code : null
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -579,6 +591,16 @@ export class ConfirmationRequiredError extends ApiError {}
 export class TwoStepSetupRequiredError extends ApiError {}
 
 export const TWO_STEP_SETUP_REQUIRED_EVENT = "iot-two-step-setup-required"
+
+/**
+ * The address has no account but a sign-up waiting for its email to be confirmed, and the
+ * password was that sign-up's (spec 035, `403 sign_up_unconfirmed`). This browser can now
+ * send the link again with `resendSignUp`.
+ */
+export class SignUpUnconfirmedError extends ApiError {}
+
+/** Guest paths: a 401 or 419 on them means nothing about a session to restore. */
+const isGuestPath = (path: string) => path === "/api/v1/auth/login" || path === "/api/v1/me" || path.startsWith("/api/v1/sign-up")
 
 /** A wrong code, with how many tries the pending sign-in has left (spec 034). */
 export type TwoStepRefusal = { message: string; errors: Record<string, string[]>; attempts_left?: number }
@@ -1372,6 +1394,74 @@ export class ApiClient {
       `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountUuid)}/billing-details`,
       { method: "PATCH", body: JSON.stringify(values) },
     ).then((response) => response.data)
+  }
+
+  /** What the sign-up page needs: whether sign-up is open, the free beta and a form token (spec 035). */
+  async signUpConfig(): Promise<SignUpConfig> {
+    return this.request<SignUpConfig>("/api/v1/sign-up")
+  }
+
+  /**
+   * Starts a sign-up: a waiting sign-up and an emailed link, tied to this browser. The
+   * answer is the same whether or not the address has an account.
+   */
+  async signUp(input: SignUpInput): Promise<Extract<SignUpStatus, { state: "waiting" }>> {
+    await this.csrf()
+
+    return this.request<Extract<SignUpStatus, { state: "waiting" }>>("/api/v1/sign-up", {
+      method: "POST",
+      body: JSON.stringify(input),
+    })
+  }
+
+  /** This browser's sign-up; once completed, this browser is signed in (`signed_in`). Rejects 404 without one. */
+  async signUpStatus(): Promise<SignUpStatus> {
+    return this.request<SignUpStatus>("/api/v1/sign-up/status")
+  }
+
+  /** Emails a new link; the earlier one stops working. Rejects 429 with `retry_after` when too soon. */
+  async resendSignUp(): Promise<Extract<SignUpStatus, { state: "waiting" }>> {
+    await this.csrf()
+
+    return this.request<Extract<SignUpStatus, { state: "waiting" }>>("/api/v1/sign-up/resend", { method: "POST" })
+  }
+
+  /**
+   * Opens a link. Rejects with 410 (`used`, `expired`), 409 (`account_exists`) or 404 (an
+   * unknown or replaced link); see {@link signUpLinkProblem}.
+   */
+  async confirmSignUp(token: string): Promise<SignUpConfirmation> {
+    await this.csrf()
+
+    return this.request<SignUpConfirmation>("/api/v1/sign-up/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+  }
+
+  /** Sign-up settings, for super administrators (spec 035). */
+  async signUpSettings(): Promise<SignUpSettings> {
+    return this.request<ApiResponse<SignUpSettings>>("/api/v1/admin/sign-up-settings").then((response) => response.data)
+  }
+
+  /** Saves the sign-up settings; a stale `revision` answers 409. */
+  async updateSignUpSettings(values: SignUpSettingsValues): Promise<SignUpSettings> {
+    return this.request<ApiResponse<SignUpSettings>>("/api/v1/admin/sign-up-settings", {
+      method: "PUT",
+      body: JSON.stringify(values),
+    }).then((response) => response.data)
+  }
+
+  /** Sign-ups, newest first (spec 035). */
+  async signUps(query: SignUpQuery = {}): Promise<PaginatedResponse<SignUpRecord>> {
+    const parameters = new URLSearchParams()
+    if (query.state) parameters.set("state", query.state)
+    if (query.search?.trim()) parameters.set("search", query.search.trim())
+    if (query.page && query.page > 1) parameters.set("page", String(query.page))
+    if (query.perPage) parameters.set("per_page", String(query.perPage))
+    const search = parameters.toString()
+
+    return this.request<PaginatedResponse<SignUpRecord>>(`/api/v1/admin/sign-ups${search ? `?${search}` : ""}`)
   }
 
   async billingSettings(): Promise<BillingSettings> {
@@ -3098,20 +3188,17 @@ export class ApiClient {
 
     if (!response.ok) {
       // The refused request never ran, so it is sent once more with the renewed token.
-      if (response.status === 419 && !resumed && path !== "/api/v1/auth/login" && path !== "/api/v1/me" && (await this.resume()))
+      if (response.status === 419 && !resumed && !isGuestPath(path) && (await this.resume()))
         return this.request<T>(path, init, true)
-      if (
-        (response.status === 401 || response.status === 419) &&
-        path !== "/api/v1/auth/login" &&
-        path !== "/api/v1/me" &&
-        typeof window !== "undefined"
-      )
+      if ((response.status === 401 || response.status === 419) && !isGuestPath(path) && typeof window !== "undefined")
         window.dispatchEvent(new Event("iot-session-expired"))
       if (response.status === 423) throw new ConfirmationRequiredError(response.status, payload)
       if (response.status === 403 && (payload as { code?: unknown } | null)?.code === "two_step_setup_required") {
         if (typeof window !== "undefined") window.dispatchEvent(new Event(TWO_STEP_SETUP_REQUIRED_EVENT))
         throw new TwoStepSetupRequiredError(response.status, payload)
       }
+      if (response.status === 403 && (payload as { code?: unknown } | null)?.code === "sign_up_unconfirmed")
+        throw new SignUpUnconfirmedError(response.status, payload)
       throw new ApiError(response.status, payload)
     }
 

@@ -20,6 +20,14 @@ Things that have cost time before. Add to this list when something surprises you
   be chosen as alert recipients. Use `forceCreate` or `forceFill` for attributes
   that are deliberately not fillable. Seeders are unaffected: `db:seed` unguards
   models.
+- **`User`'s `#[Fillable]` includes `is_super_admin`.** `User::create($request->all())`
+  or `fill($request->validated())` with a request that can carry extra keys would let
+  a caller make themselves a super administrator. Code that creates people from
+  public input (self sign-up, spec 035) sets each attribute with `forceFill` from
+  known values, never from the request array.
+- **A malformed uuid in a `where('uuid', …)` is a 500 on PostgreSQL.** A uuid column
+  rejects a non-uuid string (`22P02`) where SQLite simply finds nothing. Check
+  `Str::isUuid()` before querying with a value from a session, cookie or payload.
 - **PHPUnit runs on SQLite.** [`apps/api/phpunit.xml`](../../apps/api/phpunit.xml)
   forces an in-memory SQLite database. SQLite never raises Postgres's `22P02`
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in

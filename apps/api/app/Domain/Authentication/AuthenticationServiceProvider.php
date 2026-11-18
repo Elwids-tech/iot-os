@@ -10,6 +10,7 @@ use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Fortify;
 use PragmaRX\Google2FA\Google2FA;
@@ -33,6 +34,10 @@ final class AuthenticationServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // The password rule for new passwords (spec 035 research R8): the reset page's
+        // length, with no outside breached-password check, which on-premise hosts may not reach.
+        Password::defaults(static fn (): Password => Password::min(12)->max(256));
+
         // Passkey routes (spec 034): 6 a minute for each route, per signed-in person, or
         // per address before sign-in, so asking for options does not use up the answer.
         RateLimiter::for('passkeys', static function (Request $request): Limit {

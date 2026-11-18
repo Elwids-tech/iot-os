@@ -55,8 +55,9 @@ final class OrganizationDeletion
      * null. Support tickets (spec 015) lose their tagged participants here. Billing
      * assignments (spec 023) keep which account paid for the organization, and when, and
      * usage shares (spec 028) keep its usage in the account's months, under its name.
+     * Sign-ups (spec 035) keep where an organization came from.
      */
-    public const KEPT = ['billing_account_assignments', 'billing_usage_shares', 'support_tickets'];
+    public const KEPT = ['billing_account_assignments', 'billing_usage_shares', 'sign_ups', 'support_tickets'];
 
     public function __construct(private readonly AssistantRecovery $assistantRecovery) {}
 

@@ -37,6 +37,8 @@ final class AuthenticatedUserResource extends JsonResource
                 'manage_assistant' => (bool) $this->is_super_admin,
                 // Super administrators work the support ticket queue (spec 015).
                 'manage_tickets' => (bool) $this->is_super_admin,
+                // Opening sign-up and choosing how staff hear of it (spec 035).
+                'manage_sign_up' => (bool) $this->is_super_admin,
                 // Owners see their billing accounts and create organizations under them (spec 023).
                 'billing_accounts' => $this->resource->ownedBillingAccounts()->exists(),
             ],

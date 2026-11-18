@@ -11,10 +11,12 @@ use App\Domain\Authentication\Services\CompleteSignIn;
 use App\Domain\Authentication\Services\KeptSignInCookie;
 use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Shared\Models\User;
+use App\Domain\SignUp\Services\SignUps;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class SessionController
@@ -22,6 +24,7 @@ final class SessionController
     public function __construct(
         private readonly KeptSignInCookie $kept,
         private readonly CompleteSignIn $complete,
+        private readonly SignUps $signUps,
     ) {}
 
     /**
@@ -53,6 +56,16 @@ final class SessionController
         }
 
         if (! $signedIn) {
+            // A sign-up nobody confirmed yet has no account; with its own password the
+            // browser takes it over so the page can send the link again (spec 035).
+            if (! User::query()->where('email', Str::lower(trim((string) $credentials['email'])))->exists()
+                && $this->signUps->claimUnconfirmed((string) $credentials['email'], (string) $credentials['password'], $request)) {
+                return response()->json([
+                    'code' => 'sign_up_unconfirmed',
+                    'message' => 'Confirm your email first. We can send the link again.',
+                ], 403);
+            }
+
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
