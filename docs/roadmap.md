@@ -59,6 +59,11 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Control plane
 
+- **Self sign-up** ([spec 035](../specs/035-self-sign-up/spec.md),
+  [ADR-049](adr/ADR-049-self-sign-up.md)): a person signs up from the landing site,
+  confirms their email and lands in their own organization under a billing account they
+  own; super administrators get a push for each sign-up; staff open or close sign-up
+  and switch the channels in the admin app.
 - **Central tenant scoping.** Organization checks are repeated in every controller
   method; move them into scoped route bindings or a request-scoped global scope, and
   resolve membership and permissions once per request.
