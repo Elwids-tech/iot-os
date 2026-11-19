@@ -165,7 +165,12 @@ the same steps in the workspace panel: **Ask the assistant** on the checklist, o
 header **Assistant** on any adapter page.
 
 1. Create an adapter: pick a published profile and name the reusable device-type
-   adapter.
+   adapter. Once devices are active through it, the adapter can move only to another
+   revision of the same profile that keeps every reading it publishes (same key,
+   parameter, type and unit), for example one that adds readings. Active devices keep
+   their configured revision and ignore the new readings until each one is upgraded
+   on its configuration; a different profile, or a revision that drops or changes a
+   reading, needs a separate adapter.
 2. Choose the source and connect it: the tenant broker; a vendor broker URL with
    credentials, CA and topic filters (passwords never go in the URL); a webhook
    (create a secret and paste the URL and secret into the vendor cloud); or a polling

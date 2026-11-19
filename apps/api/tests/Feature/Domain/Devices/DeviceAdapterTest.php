@@ -15,6 +15,7 @@ use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceAdapters\Services\AdapterService;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
+use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
@@ -327,6 +328,47 @@ final class DeviceAdapterTest extends TestCase
             ->assertJsonPath('message', 'A device was activated through this adapter. Adapters in use cannot be deleted.');
         $this->assertSame(1, DeviceAdapter::count());
         Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/remove'));
+    }
+
+    /** A copy of the adapter's profile revision with its parameters changed by `$change`. */
+    private function revision(int $number, callable $change, ?int $profile = null): string
+    {
+        $artifact = DeviceProfileArtifact::where('uuid', $this->artifact)->firstOrFail()->replicate();
+        $definition = $artifact->definition;
+        $definition['parameters'] = $change($definition['parameters']);
+        $artifact->fill(['uuid' => (string) Str::uuid(), 'revision' => $number, 'definition' => $definition, 'definition_hash' => hash('sha256', json_encode($definition)), 'device_profile_id' => $profile ?? $artifact->device_profile_id])->save();
+
+        return $artifact->uuid;
+    }
+
+    public function test_an_adapter_with_active_devices_moves_to_a_revision_that_keeps_their_readings(): void
+    {
+        [$a, , $candidate] = $this->liveCandidate();
+        $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])->assertAccepted();
+        DeviceAdapter::first()->update(['status' => 'running']);
+        $input = $this->input();
+        unset($input['request_uuid']);
+        $url = $this->prefix.'/device-adapters/'.$a['uuid'];
+        $draft = fn () => DeviceAdapter::first()->draft_revision;
+
+        // Dropping a reading the active device maps, or changing its type, is refused.
+        $dropped = $this->revision(2, fn ($parameters) => array_values(array_filter($parameters, fn ($p) => $p['key'] !== 'total_volume')));
+        $this->putJson($url, [...$input, 'artifact_uuid' => $dropped, 'draft_revision' => $draft()])->assertUnprocessable()
+            ->assertJsonPath('message', 'Active devices use total_volume, which this revision drops or changes. Choose a revision that keeps them, or create a separate adapter.');
+        $retyped = $this->revision(3, fn ($parameters) => array_map(fn ($p) => $p['key'] === 'flow_rate' ? [...$p, 'data_type' => 'integer'] : $p, $parameters));
+        $this->putJson($url, [...$input, 'artifact_uuid' => $retyped, 'draft_revision' => $draft()])->assertUnprocessable();
+
+        // Another profile still needs its own adapter.
+        $other = DeviceProfile::findOrFail(DeviceProfileArtifact::where('uuid', $this->artifact)->value('device_profile_id'))->replicate();
+        $other->fill(['uuid' => (string) Str::uuid(), 'code' => 'other-water-meter', 'name' => 'Other water meter'])->save();
+        $foreign = $this->revision(1, fn ($parameters) => $parameters, $other->id);
+        $this->putJson($url, [...$input, 'artifact_uuid' => $foreign, 'draft_revision' => $draft()])->assertUnprocessable()
+            ->assertJsonPath('message', 'Create a separate adapter for a different profile while devices are active.');
+
+        // A revision that only adds a reading is accepted; the active device keeps its configuration.
+        $added = $this->revision(4, fn ($parameters) => [...$parameters, [...$parameters[0], 'uuid' => (string) Str::uuid(), 'key' => 'leak_detected', 'label' => 'Leak detected', 'data_type' => 'boolean', 'unit' => null, 'kind' => 'state']]);
+        $this->putJson($url, [...$input, 'artifact_uuid' => $added, 'draft_revision' => $draft()])->assertOk()->assertJsonPath('data.artifact_uuid', $added);
+        $this->assertSame($this->artifact, Device::firstWhere('name', 'Workshop water meter')->configurations()->latest('id')->firstOrFail()->artifact->uuid);
     }
 
     public function test_binding_failure_rolls_back_native_activation_and_installation(): void
