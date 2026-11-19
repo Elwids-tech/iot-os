@@ -70,6 +70,27 @@ final class AdapterService
         return $saved;
     }
 
+    /**
+     * Keys of the readings an adapter publishes under `$from` that `$to` does not keep with
+     * the same parameter, data type and unit. Empty when `$to` only adds or relabels.
+     *
+     * @return list<string>
+     */
+    public static function droppedReadings(DeviceProfileArtifact $from, DeviceProfileArtifact $to): array
+    {
+        $published = fn (DeviceProfileArtifact $artifact) => collect($artifact->definition['parameters'] ?? [])
+            ->filter(fn ($p) => ($p['reports_state'] ?? true) !== false && ($p['kind'] ?? null) !== 'derived')
+            ->keyBy('key');
+        $next = $published($to);
+
+        return $published($from)
+            ->reject(fn ($p, $key) => ($n = $next->get($key)) !== null
+                && ($n['uuid'] ?? null) === ($p['uuid'] ?? null)
+                && ($n['data_type'] ?? null) === ($p['data_type'] ?? null)
+                && ($n['unit'] ?? null) === ($p['unit'] ?? null))
+            ->keys()->values()->all();
+    }
+
     private function persist(Organization $organization, array $v, int $actor, ?DeviceAdapter $adapter, ?int $expected, DeviceProfileArtifact $artifact): DeviceAdapter
     {
         return DB::transaction(function () use ($organization, $v, $actor, $adapter, $expected, $artifact) {
@@ -84,9 +105,15 @@ final class AdapterService
                 $adapter = new DeviceAdapter(['uuid' => $v['request_uuid'] ?? (string) Str::uuid(), 'organization_id' => $organization->id, 'created_by' => $actor]);
                 $revision = 1;
             }
-            // A reused device profile remains pinned for all currently active installations.
-            if ($adapter->exists && $adapter->device_profile_artifact_id !== $artifact->id) {
-                abort_if(DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->whereNull('ended_at')->exists(), 422, 'Create a separate adapter for a different profile while devices are active.');
+            // Active installations keep their configured profile revision. The adapter may move
+            // to another revision of the same profile that keeps every reading it publishes, so
+            // the active devices' mappings still match; new readings wait for each device's upgrade.
+            if ($adapter->exists && $adapter->device_profile_artifact_id !== $artifact->id
+                && DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->whereNull('ended_at')->exists()) {
+                $current = $adapter->artifact;
+                abort_unless($current->device_profile_id === $artifact->device_profile_id, 422, 'Create a separate adapter for a different profile while devices are active.');
+                $missing = self::droppedReadings($current, $artifact);
+                abort_if($missing !== [], 422, 'Active devices use '.implode(', ', $missing).', which this revision drops or changes. Choose a revision that keeps them, or create a separate adapter.');
             }
             $previousType = $adapter->source['type'] ?? null;
             // Credentials belong to one kind of source; a broker password never becomes an API key.
