@@ -70,6 +70,37 @@ final class DeviceProfileApiTest extends TestCase
             ->assertJsonMissingPath('data.definition.parameters.0.id');
     }
 
+    public function test_one_search_matches_name_code_category_and_description_word_by_word(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $organization = Organization::query()->where('slug', 'acme-manufacturing')->firstOrFail();
+        $administrator = User::query()->where('email', 'shared.operator@example.test')->firstOrFail();
+        app(PermissionRegistrar::class)->setPermissionsTeamId($organization->getKey());
+        $prefix = "/api/v1/organizations/{$organization->uuid}/device-profiles";
+        foreach ([
+            ['code' => 'search-yard-tracker', 'name' => 'Yard tracker', 'category' => 'asset-tracker', 'description' => 'Read by polling a vendor cloud.'],
+            ['code' => 'search-cold-room', 'name' => 'Cold room probe', 'category' => 'refrigeration'],
+        ] as $profile) {
+            $this->actingAs($administrator, 'sanctum')->postJson($prefix, $profile)->assertCreated();
+        }
+        $found = fn (string $search): array => $this->actingAs($administrator, 'sanctum')
+            ->getJson($prefix.'?search='.urlencode($search))
+            ->assertOk()
+            ->collect('data')
+            ->pluck('code')
+            ->filter(fn (string $code): bool => str_starts_with($code, 'search-'))
+            ->values()
+            ->all();
+
+        $this->assertSame(['search-cold-room'], $found('refrigeration'));
+        $this->assertSame(['search-yard-tracker'], $found('Asset Tracker'));
+        $this->assertSame(['search-yard-tracker'], $found('polling'));
+        $this->assertSame(['search-yard-tracker'], $found('yard asset'));
+        $this->assertSame(['search-cold-room'], $found('search-cold'));
+        $this->assertSame([], $found('yard refrigeration'));
+        $this->assertSame([], $found('100%'));
+    }
+
     public function test_profile_routes_hide_another_organization_profile_and_reject_a_stale_draft_revision(): void
     {
         $this->seed(DatabaseSeeder::class);
