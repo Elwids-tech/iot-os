@@ -155,13 +155,20 @@ Serial reports expose `network` (`wifi_connecting`, `clock_sync`,
 found. Done means a healthy board report, fresh telemetry in the platform and a
 platform command reflected in the driver state, not a successful flash.
 
+Opening the USB serial port on macOS resets the board, even with DTR and RTS held
+low before opening. The board reboots with both outputs off and every control at
+its boot default (red, solid, 25% brightness, beep, 15% volume, 5 s), then
+reconnects in about ten seconds. Settings chosen in the platform beforehand are
+lost, so open a serial monitor before a demo, not during one.
+
 ## Pilot broker
 
 `waveshare_bridge.py --allow-staging` lets the USB bridge connect to the pilot
 broker. The script only accepts the hostname `mqtt.staging.elwids.xyz` on port
 8883 (constant `STAGING_BROKER`), which the pilot keeps as a legacy name on the
 broker certificate ([pilot](../ops/pilot.md#domains)). TLS certificate and
-hostname checks stay on.
+hostname checks stay on. The standalone Wi-Fi firmware uses the canonical
+`mqtts://mqtt.elwids.xyz:8883`; it no longer depends on the legacy name.
 
 The pilot uses its own physical device, connection, gateway and the
 `physical-waveshare-audio` profile; never reuse a simulator identity. Controls
