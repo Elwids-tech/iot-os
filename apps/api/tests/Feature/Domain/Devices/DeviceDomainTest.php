@@ -29,6 +29,7 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 final class DeviceDomainTest extends TestCase
@@ -807,5 +808,20 @@ final class DeviceDomainTest extends TestCase
         }
         $this->assertSame($old->definition, $old->fresh()->definition);
         $this->assertSameJsonDocument($definition, $artifact->fresh()->definition);
+    }
+
+    public function test_a_mapping_to_a_metric_the_source_never_reported_is_named_once(): void
+    {
+        $device = $this->configured();
+        $draft = $device->draft;
+        $draft['mappings'][0]['metric'] = 'Not reported';
+        $device->update(['draft' => $draft]);
+        $label = collect(DeviceProfileArtifact::where('uuid', $draft['artifact_uuid'])->firstOrFail()->definition['parameters'])->firstWhere('uuid', $draft['mappings'][0]['parameter_uuid'])['label'];
+        try {
+            app(DeviceConfigurationService::class)->compile($device->fresh());
+            $this->fail('A mapping to an unreported metric compiled.');
+        } catch (ValidationException $e) {
+            $this->assertSame(['mappings.0' => [$label.' is mapped to Not reported, which this source has not reported.']], $e->errors());
+        }
     }
 }

@@ -371,6 +371,27 @@ final class DeviceAdapterTest extends TestCase
         $this->assertSame($this->artifact, Device::firstWhere('name', 'Workshop water meter')->configurations()->latest('id')->firstOrFail()->artifact->uuid);
     }
 
+    public function test_a_source_activates_with_the_readings_it_has_reported(): void
+    {
+        [$a, $adapter, $candidate] = $this->liveCandidate();
+        // The profile has a reading this source has never reported (no IO harness, say).
+        $added = $this->revision(2, fn ($parameters) => [...$parameters, [...$parameters[0], 'uuid' => (string) Str::uuid(), 'key' => 'supply_voltage', 'label' => 'Supply voltage']]);
+        $adapter->update(['device_profile_artifact_id' => DeviceProfileArtifact::where('uuid', $added)->value('id')]);
+        $url = $this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate';
+        $device = $this->postJson($url, ['name' => 'Workshop water meter'])->assertAccepted()->json('data.device');
+        $mapped = array_column(Device::where('uuid', $device['uuid'])->firstOrFail()->configurations()->firstOrFail()->definition['mappings'], 'metric');
+        $this->assertEqualsCanonicalizing(['flow_rate', 'total_volume'], $mapped);
+    }
+
+    public function test_a_source_that_reported_none_of_the_profiles_readings_cannot_activate_yet(): void
+    {
+        [$a, $adapter, $candidate] = $this->liveCandidate();
+        DiscoveryCandidate::where('source_device_id', $candidate->sparkplug_device_id)->update(['metrics' => [['name' => 'battery', 'datatype' => 'Double', 'value' => 3.6]]]);
+        $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Meter'])->assertUnprocessable()
+            ->assertJsonPath('message', 'WM-1042 has not reported any reading of Manufacturer water meter’s profile yet. Activate it once it reports.');
+        $this->assertSame(0, DeviceInstallation::count());
+    }
+
     public function test_binding_failure_rolls_back_native_activation_and_installation(): void
     {
         [$a,$adapter,$candidate] = $this->liveCandidate();
