@@ -526,6 +526,13 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Device adapters
 
+- **An adapter source's stored birth is not its latest report.** The adapter announces
+  a source again only when its metric set changes, so the Discovery candidate's
+  `metrics` keep the values of that announcement, while each decoded sample updates
+  the adapter candidate's `preview`. Values from before a device's installation also
+  carry no installation stamp, so the runtime never stores them unless the activation
+  kept them (`keeps_last_readings`, `DeviceConfigurationService::lastReport`).
+
 - **Every deployed adapter is also a `SparkplugGateway`.** Its publisher's broker login
   and edge node live in a gateway record, so anything that lists or acts on gateways
   meets adapters too: pass `kind=gateway` to `GET gateways` for the gateways people
@@ -929,6 +936,12 @@ Things that have cost time before. Add to this list when something surprises you
   editor moved it by a pixel and showed **Unsaved changes**. The editor sets
   `nodeDragThreshold` and `nodeClickDistance` to 4px; keep both if you touch the
   canvas, or a drifting click neither selects nor stays still.
+- **A dialog's width is set by a `data-size` variant.** `AlertDialogContent` caps
+  itself with `data-[size=default]:sm:max-w-sm`, which outranks a plain
+  `sm:max-w-md` in `className`; widen it with the same variant
+  (`data-[size=default]:sm:max-w-md`) so tailwind-merge replaces it. Buttons never
+  shrink, so dialog footers wrap rather than overflow; widen a dialog whose actions
+  should stay on one line.
 - **An `AlertAction` button fits one short word.** The kit's `Alert` reserves
   `pr-18` for it, so a longer label covers the description; put such a button in
   the `AlertDescription` instead.

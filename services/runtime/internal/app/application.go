@@ -750,6 +750,7 @@ func (a *Application) transition(d devices.Definition, generation int, birth []d
 	delete(a.reported, d.DeviceUUID) // the control plane resets presence on device.applied.v1
 	a.mu.Unlock()
 	a.connectivity.define(d, appliedAt)
+	a.handOnKept(d, generation, birth, appliedAt)
 	// A released activation's birth carries the source's state, and packet() hands it on
 	// as the first readings. One applied at once hands on the live state it was checked
 	// against; only a source without one (an adapter-fed source's stored birth) asks for
@@ -758,6 +759,42 @@ func (a *Application) transition(d devices.Definition, generation int, birth []d
 		a.requestRebirth(d.Source.ConnectionUUID, d.Source.GroupID, d.Source.EdgeNodeID)
 	}
 	return nil
+}
+
+// handOnKept stores the values an adapter-fed source reported before its activation,
+// when the person activating it chose to keep them: the control plane then sends them
+// in the stored birth, stamped with the new installation. Unstamped birth values are
+// never this installation's readings. Their observed times are old, so they neither
+// make the device present nor count towards offline detection, and automations start
+// after them.
+func (a *Application) handOnKept(d devices.Definition, generation int, birth []devices.Metric, at time.Time) {
+	kept := keptMetrics(d, birth)
+	if len(kept) == 0 {
+		return
+	}
+	profile, e := devices.ParseProfile(d)
+	if e != nil {
+		return
+	}
+	a.mu.Lock()
+	session := a.sessions[d.DeviceUUID]
+	a.mu.Unlock()
+	a.handOn(d, profile, generation, session, kept, at, "")
+}
+
+// keptMetrics are the birth values stamped with d's installation, each with the time
+// the source observed it.
+func keptMetrics(d devices.Definition, birth []devices.Metric) []devices.Metric {
+	kept := []devices.Metric{}
+	if d.Adapter == nil {
+		return kept
+	}
+	for _, m := range birth {
+		if m.Value != nil && m.Timestamp != nil && m.InstallationUUID == d.Adapter.InstallationUUID {
+			kept = append(kept, m)
+		}
+	}
+	return kept
 }
 
 // handOnLive hands a live source's current state on as the first readings of an

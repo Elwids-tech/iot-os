@@ -2729,7 +2729,9 @@ export class ApiClient {
   testAdapterConnection(org: string, id: string) { return this.data<{connected: boolean; broker_url?: string}>(this.adapterPath(org,id,"/connection-test"), "POST", {}) }
   deployDeviceAdapter(org: string, id: string, input: {draft_revision: number; action: "deploy" | "pause" | "rollback"; revision_uuid?: string; request_uuid: string; cursor_start_at?: string}) { return this.data<{uuid: string; status: string}>(this.adapterPath(org,id,"/deploy"), "POST", input) }
   adapterCandidates(org: string, id: string) { return this.data<import("./adapters").AdapterCandidate[]>(this.adapterPath(org,id,"/candidates")) }
-  activateAdapterCandidate(org: string,id: string,candidate: string,input: {name: string;device_uuid?: string}) { return this.data<{installation_uuid: string;device: Device}>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/activate`), "POST", input) }
+  /** The readings activating this source can keep: what it last reported, inside retention. Empty when there is nothing to keep. */
+  adapterLastReport(org: string,id: string,candidate: string) { return this.data<import("./adapters").AdapterLastReport>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/last-report`)) }
+  activateAdapterCandidate(org: string,id: string,candidate: string,input: {name: string;device_uuid?: string;keep_last_readings?: boolean}) { return this.data<{installation_uuid: string;device: Device}>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/activate`), "POST", input) }
   adapterCredentials(org: string,id: string) { return this.data<import("./adapters").AdapterCredential[]>(this.adapterPath(org,id,"/credentials")) }
   createAdapterCredential(org: string,id: string,name: string) { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,"/credentials"), "POST", {name}) }
   adapterConnectionKit(org: string,id: string,credential: string,action: "kit" | "rotate" = "kit") { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/${action}`), "POST", {}) }
