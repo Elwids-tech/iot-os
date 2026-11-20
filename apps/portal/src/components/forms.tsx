@@ -73,12 +73,15 @@ export function errorMessage(error: unknown): string {
       return "You do not have permission for this action in this organization."
     if (error.status === 404 && (!payload?.message || payload.message === "Not Found"))
       return "This isn't available. It may have been removed, or the feature isn't enabled for this organization."
-    // Laravel repeats a lone field error as the message: say it once.
+    // Laravel repeats the first field error as the message, with "(and N more errors)"
+    // when there are several: list the field errors themselves, each once.
+    const fieldErrors = Object.values(payload?.errors ?? {}).flat()
+    const summary = fieldErrors.length > 0 && / \(and \d+ more errors?\)$/.test(payload?.message ?? "")
     return (
       [
         ...new Set([
-          payload?.message,
-          ...Object.values(payload?.errors ?? {}).flat(),
+          summary ? undefined : payload?.message,
+          ...fieldErrors,
           ...(payload?.references ?? []).map((item) => item.label),
         ]),
       ]

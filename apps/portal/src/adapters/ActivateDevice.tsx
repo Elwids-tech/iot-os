@@ -20,7 +20,7 @@ import { RequestError } from "../components/forms";
 /**
  * Activates one manufacturer serial an adapter decoded, in one step: a new device
  * named after the serial (or an inactive registered one) gets every reading of the
- * adapter's profile mapped and applied, tied to the adapter. Discovery, Add device,
+ * adapter's profile the source has reported mapped and applied, tied to the adapter. Discovery, Add device,
  * the adapter's Devices tab and the onboarding assistant all open this; adapter
  * sources never go through manual mapping.
  */
@@ -79,8 +79,8 @@ export function ActivateAdapterDevice({
         <DialogHeader>
           <DialogTitle>Activate {serial}</DialogTitle>
           <DialogDescription>
-            {adapter.name} decodes this device, so its readings are mapped from the adapter’s profile and stored from now on. There
-            is nothing else to set up.
+            {adapter.name} decodes this device, so the readings it reports are mapped from the adapter’s profile and stored from now
+            on. There is nothing else to set up.
           </DialogDescription>
         </DialogHeader>
         <form

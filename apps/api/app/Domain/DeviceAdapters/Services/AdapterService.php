@@ -291,7 +291,11 @@ final class AdapterService
             $device = $device->fresh();
             abort_if($device->lifecycle === 'archived' || $device->applied_configuration_uuid || $device->desired_configuration_uuid || $device->last_applied_configuration_uuid, 422, 'Select an inactive virtual device. Replacement with counter adjustments is a separate workflow.');
             $installation = $this->install($candidate, $adapter, $device, $actor);
-            $mappings = collect($adapter->artifact->definition['parameters'])->filter(fn ($p) => ($p['reports_state'] ?? false) && $p['kind'] !== 'derived')->map(fn ($p) => ['parameter_uuid' => $p['uuid'], 'metric' => $p['key'], 'conversion_mode' => 'none'])->values()->all();
+            // Only the readings this source has reported: the adapter announces the fields its
+            // decoder has seen, and the rest join when the device's configuration is upgraded.
+            $reported = collect($birth->metrics)->pluck('name');
+            $mappings = collect($adapter->artifact->definition['parameters'])->filter(fn ($p) => ($p['reports_state'] ?? false) && $p['kind'] !== 'derived' && $reported->contains($p['key']))->map(fn ($p) => ['parameter_uuid' => $p['uuid'], 'metric' => $p['key'], 'conversion_mode' => 'none'])->values()->all();
+            abort_if($mappings === [], 422, $candidate->source_device_id.' has not reported any reading of '.$adapter->name.'’s profile yet. Activate it once it reports.');
             $service = app(DeviceConfigurationService::class);
             $device = $service->saveDraft($device, ['artifact_uuid' => $adapter->artifact->uuid, 'candidate_uuid' => $birth->uuid, 'birth_revision' => $birth->birth_revision, 'mappings' => $mappings], $device->draft_revision, $actor);
             $service->activate($device, $device->draft_revision, $actor);

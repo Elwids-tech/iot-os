@@ -97,14 +97,23 @@ final class DeviceConfigurationService
         abort_unless($candidate->birth_revision === ($draft['birth_revision'] ?? null), 409, 'The source has a new birth certificate. Review its metrics before activating.');
         $parameters = collect($artifact->definition['parameters'])->keyBy('uuid');
         $metrics = collect($candidate->metrics)->keyBy('name');
+        $gateway = $candidate->gateway;
+        $installation = DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->first();
         $mappings = [];
         $used = [];
         $errors = [];
         foreach ($draft['mappings'] ?? [] as $i => $mapping) {
             $parameter = $parameters->get($mapping['parameter_uuid']);
             $metric = $metrics->get($mapping['metric']);
-            if (! $parameter || ! $metric || ! $parameter['reports_state'] || $parameter['kind'] === 'derived') {
-                $errors["mappings.$i"] = 'Map a reported parameter in the selected artifact to a discovered metric.';
+            if (! $parameter || ! $parameter['reports_state'] || $parameter['kind'] === 'derived') {
+                $errors["mappings.$i"] = 'A mapping points to a parameter this profile revision does not report. Choose another parameter or remove the mapping.';
+
+                continue;
+            }
+            if (! $metric) {
+                // One problem per parameter: a mapping to a missing metric is not also "unmapped".
+                $used[$parameter['uuid']] = true;
+                $errors["mappings.$i"] = $parameter['label'].' is mapped to '.$mapping['metric'].', which this source has not reported.';
 
                 continue;
             }
@@ -115,7 +124,7 @@ final class DeviceConfigurationService
             $conversion = app(IngressConversion::class)->resolve($parameter, $mapping, "mappings.$i");
             $allowed = self::acceptedDatatypes($parameter['data_type'], $conversion['ingress_conversion'] !== null);
             if (! in_array($metric['datatype'], $allowed, true)) {
-                $errors["mappings.$i"] = 'The source datatype is incompatible with this profile parameter.';
+                $errors["mappings.$i"] = $parameter['label'].' expects '.$parameter['data_type'].', but this source reports '.$metric['name'].' as '.$metric['datatype'].'.';
             }
             $commandMetric = $mapping['command_metric'] ?? null;
             if ($commandMetric && (! $parameter['accepts_command'] || ! isset($metrics[$commandMetric]) || ! in_array($metrics[$commandMetric]['datatype'], $allowed, true))) {
@@ -125,15 +134,20 @@ final class DeviceConfigurationService
                 'command_metric' => $commandMetric, 'command_datatype' => $commandMetric ? $metrics[$commandMetric]['datatype'] : null];
         }
         foreach ($parameters as $parameter) {
-            if ($parameter['reports_state'] && $parameter['kind'] !== 'derived' && ! isset($used[$parameter['uuid']])) {
-                $errors['mappings.'.$parameter['uuid']] = 'Map '.$parameter['label'].' before activation.';
+            if (! $parameter['reports_state'] || $parameter['kind'] === 'derived' || isset($used[$parameter['uuid']])) {
+                continue;
             }
+            // An adapter announces only the fields its decoder has seen, so a reading this
+            // source has not reported yet (a tracker without the IO harness never reports
+            // its inputs) stays unmapped until the device's configuration is upgraded.
+            if ($installation && ! $metrics->has($parameter['key'])) {
+                continue;
+            }
+            $errors['mappings.'.$parameter['uuid']] = 'Map '.$parameter['label'].' to one of this source\'s metrics before activation.';
         }
         if ($errors) {
             throw ValidationException::withMessages($errors);
         }
-        $gateway = $candidate->gateway;
-        $installation = DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->first();
         $binding = null;
         if ($installation) {
             $physical = AdapterCandidate::findOrFail($installation->device_adapter_candidate_id);

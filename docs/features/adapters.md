@@ -188,8 +188,11 @@ header **Assistant** on any adapter page.
    download its kit (`device-config.json`, `ca.crt`, `quickstart.md`). Credentials
    can be rotated and revoked.
 8. Activate a discovered serial number: a new device named after the serial, or an
-   inactive registered one, gets every profile reading mapped and applied in one
-   step. Unknown serials and retained messages stay previews; nothing is stored as
+   inactive registered one, gets every profile reading the source has reported
+   mapped and applied in one step. A reading it has not reported yet (a tracker
+   without the IO harness never sends its inputs) is left out and joins when the
+   device's configuration is upgraded after it reports; a source that has reported
+   none of the profile's readings cannot be activated yet. Unknown serials and retained messages stay previews; nothing is stored as
    production telemetry until a device is activated. The same **Activate** appears
    wherever the source shows up: the adapter's Devices tab, **Discovery** and
    **Add device** (which list it by serial, not by its `src-…` Sparkplug ID), and the
