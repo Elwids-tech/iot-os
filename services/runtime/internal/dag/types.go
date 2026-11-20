@@ -2,9 +2,11 @@
 package dag
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 	"time"
 )
 
@@ -21,10 +23,32 @@ type Binding struct {
 	FreshSeconds  int    `json:"fresh_seconds"`
 }
 type Node struct {
-	ID     string         `json:"id"`
-	Type   string         `json:"type"`
-	Config map[string]any `json:"config"`
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Config Config `json:"config"`
 }
+
+// Config is a node's settings. The API is PHP, which encodes an empty object it
+// has decoded as [], so an empty array reads as no settings.
+type Config map[string]any
+
+func (c *Config) UnmarshalJSON(data []byte) error {
+	var list []json.RawMessage
+	if string(bytes.TrimSpace(data)) != "null" && json.Unmarshal(data, &list) == nil {
+		if len(list) > 0 {
+			return &json.UnmarshalTypeError{Value: "non-empty array", Type: reflect.TypeOf(*c)}
+		}
+		*c = Config{}
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	*c = m
+	return nil
+}
+
 type Edge struct {
 	Source     string `json:"source"`
 	SourcePort string `json:"source_port"`
@@ -94,19 +118,19 @@ type State struct {
 	Episode int                   `json:"episode"`
 }
 type Intent struct {
-	ID           string         `json:"id"`
-	Workflow     string         `json:"workflow_uuid"`
-	Version      string         `json:"operation_uuid"`
-	Organization string         `json:"organization_uuid"`
-	Node         string         `json:"node_id"`
-	Correlation  string         `json:"correlation_key"`
-	Kind         string         `json:"kind"`
-	Trigger      string         `json:"trigger"`
-	At           time.Time      `json:"occurred_at"`
-	Expires      time.Time      `json:"expires_at"`
-	Config       map[string]any `json:"config"`
-	Episode      int            `json:"episode"`
-	Transition   string         `json:"transition,omitempty"`
+	ID           string    `json:"id"`
+	Workflow     string    `json:"workflow_uuid"`
+	Version      string    `json:"operation_uuid"`
+	Organization string    `json:"organization_uuid"`
+	Node         string    `json:"node_id"`
+	Correlation  string    `json:"correlation_key"`
+	Kind         string    `json:"kind"`
+	Trigger      string    `json:"trigger"`
+	At           time.Time `json:"occurred_at"`
+	Expires      time.Time `json:"expires_at"`
+	Config       Config    `json:"config"`
+	Episode      int       `json:"episode"`
+	Transition   string    `json:"transition,omitempty"`
 }
 type Trace struct {
 	Node      string           `json:"node_id"`
