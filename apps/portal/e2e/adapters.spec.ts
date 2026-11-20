@@ -496,6 +496,8 @@ async function setup(
             : null,
         },
       ]);
+    // Nothing reported yet unless a test says otherwise, so Activate does not ask.
+    if (path.endsWith("/last-report")) return data({ observed_at: null, readings: [] });
     if (path.endsWith("/activate")) {
       linked = true;
       return data(
@@ -599,6 +601,7 @@ test("hardware kit download and discovered serial activation stay in the tenant 
   ).toHaveAttribute("href", `/organizations/${org}/devices/${device}/overview`);
   expect(requests.find((r) => r.path.endsWith("/activate"))?.body).toEqual({
     name: "Workshop water meter",
+    keep_last_readings: false,
   });
   expect(errors).toEqual([]);
   // The activation toast fades in; axe reads mid-fade colours as low contrast.
@@ -606,7 +609,7 @@ test("hardware kit download and discovered serial activation stay in the tenant 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test("Discovery shows an adapter's source by serial and activates it in one step", async ({ page }) => {
+test("Discovery shows an adapter's source by serial and activates it keeping what it last reported", async ({ page }) => {
   const { errors, requests } = await setup(page);
   const source = {
     uuid: "50000000-0000-4000-8000-000000000001",
@@ -628,6 +631,13 @@ test("Discovery shows an adapter's source by serial and activates it in one step
       body: JSON.stringify({ data: [source], meta: { current_page: 1, last_page: 1, total: 1 } }),
     }),
   );
+  const reported = new Date(Date.now() - 26 * 3600_000).toISOString();
+  await page.route(`**/candidates/${candidate}/last-report`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: { observed_at: reported, readings: [{ key: "flow_rate", label: "Flow rate", unit: "L/min", value: 12.5, observed_at: reported }] } }),
+    }),
+  );
   await page.goto(`/organizations/${org}/discovery`);
   const row = page.getByRole("row", { name: /WM-1042/ });
   await expect(row).not.toContainText("src-4f2a9c");
@@ -635,8 +645,21 @@ test("Discovery shows an adapter's source by serial and activates it in one step
   const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
   await expect(activate).toContainText("Manufacturer water meter decodes this device");
   await activate.getByRole("button", { name: "Activate", exact: true }).click();
+  // The source reported a day ago: Activate asks whether that report becomes the first readings.
+  const keep = page.getByRole("alertdialog", { name: "Keep what WM-1042 last reported?" });
+  await expect(keep).toContainText("1 d ago");
+  await expect(keep).toContainText("Flow rate");
+  await expect(keep).toContainText("12.5 L/min");
+  // All three choices sit on one line inside the footer.
+  const tops = await keep.getByRole("button").evaluateAll((buttons) => buttons.map((b) => Math.round(b.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+  await keep.getByRole("button", { name: "Back" }).click();
+  await expect(keep).toHaveCount(0);
+  expect(requests.some((r) => r.path.endsWith("/activate"))).toBe(false);
+  await activate.getByRole("button", { name: "Activate", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep and activate" }).click();
   await expect(page).toHaveURL(new RegExp(`/organizations/${org}/devices/${device}`));
-  expect(requests.find((r) => r.path.endsWith(`/candidates/${candidate}/activate`))?.body).toEqual({ name: "WM-1042" });
+  expect(requests.find((r) => r.path.endsWith(`/candidates/${candidate}/activate`))?.body).toEqual({ name: "WM-1042", keep_last_readings: true });
   expect(errors).toEqual([]);
 });
 

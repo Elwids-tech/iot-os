@@ -232,6 +232,11 @@ export type AdapterCandidate = {
   /** The latest decoder input for this source, when kept, so it can become a fixture. */
   input?: AdapterFixture | null;
 };
+/** What a source last reported that its activation can keep, each reading with the time the source observed it. */
+export type AdapterLastReport = {
+  observed_at: string | null;
+  readings: { key: string; label: string; unit: string | null; value: number | boolean | string; observed_at: string }[];
+};
 export type AdapterCredential = {
   uuid: string;
   name: string;

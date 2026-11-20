@@ -18,6 +18,7 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ad
         Route::post('connection-test', [AdapterController::class, 'connectionTest'])->middleware('throttle:6,1');
         Route::post('deploy', [AdapterController::class, 'deploy'])->middleware('throttle:10,1');
         Route::get('candidates', [AdapterController::class, 'candidates']);
+        Route::get('candidates/{candidate}/last-report', [AdapterController::class, 'lastReport']);
         Route::post('candidates/{candidate}/activate', [AdapterController::class, 'activate']);
         Route::get('credentials', [AdapterController::class, 'credentials']);
         Route::post('credentials', [AdapterController::class, 'credential'])->middleware('throttle:10,1');

@@ -20,11 +20,14 @@ use App\Domain\DeviceAdapters\Services\PollingService;
 use App\Domain\DeviceAdapters\Services\WebhookRoutes;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\DeviceProfiles\Support\CanonicalJson;
+use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -161,14 +164,34 @@ final class AdapterController
         })];
     }
 
+    /**
+     * What activating this source would keep, if whoever activates it chooses to: the
+     * readings of the adapter's profile it last reported, inside the organization's
+     * retention, each with the time the source observed it. Empty when there is nothing
+     * to keep, so activation does not ask.
+     */
+    public function lastReport(Request $r, Organization $organization, DeviceAdapter $adapter, AdapterCandidate $candidate): array
+    {
+        $this->authorize($r, $organization, $adapter);
+        abort_unless($candidate->device_adapter_id === $adapter->id, 404);
+        $birth = DiscoveryCandidate::where('sparkplug_gateway_id', $adapter->sparkplug_gateway_id)->where('source_device_id', $candidate->sparkplug_device_id)->first();
+        $reported = DeviceConfigurationService::lastReport($candidate, $birth, $organization);
+        $readings = collect($adapter->artifact?->definition['parameters'] ?? [])
+            ->filter(fn ($p) => ($p['reports_state'] ?? false) && $p['kind'] !== 'derived' && isset($reported[$p['key']]))
+            ->map(fn ($p) => ['key' => $p['key'], 'label' => $p['label'] ?? $p['key'], 'unit' => $p['unit'] ?? null, 'value' => $reported[$p['key']]['value'], 'observed_at' => CarbonImmutable::parse($reported[$p['key']]['timestamp'])->toIso8601String()])
+            ->values();
+
+        return ['data' => ['observed_at' => $readings->max('observed_at'), 'readings' => $readings->all()]];
+    }
+
     public function activate(Request $r, Organization $organization, DeviceAdapter $adapter, AdapterCandidate $candidate)
     {
         $this->authorize($r, $organization, $adapter);
         $this->authorization->authorize($r->user(), DevicePermission::ACTIVATE, $organization);
         $this->authorization->authorize($r->user(), DevicePermission::CONNECTIONS, $organization);
         abort_unless($candidate->device_adapter_id === $adapter->id, 404);
-        $v = $r->validate(['device_uuid' => 'nullable|uuid', 'name' => 'required|string|max:255']);
-        $installation = $this->service->activate($candidate, $v['device_uuid'] ?? null, $v['name'], $r->user()->id);
+        $v = $r->validate(['device_uuid' => 'nullable|uuid', 'name' => 'required|string|max:255', 'keep_last_readings' => 'sometimes|boolean']);
+        $installation = $this->service->activate($candidate, $v['device_uuid'] ?? null, $v['name'], $r->user()->id, $v['keep_last_readings'] ?? false);
 
         return response()->json(['data' => ['installation_uuid' => $installation->uuid, 'device' => DeviceView::device($installation->device)]], 202);
     }

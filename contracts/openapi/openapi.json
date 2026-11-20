@@ -19009,6 +19009,9 @@
                   "name": {
                     "type": "string",
                     "maxLength": 255
+                  },
+                  "keep_last_readings": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -19056,6 +19059,135 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/candidates/{candidate}/last-report": {
+      "get": {
+        "operationId": "adapter.lastReport",
+        "summary": "What activating this source would keep, if whoever activates it chooses to: the\nreadings of the adapter's profile it last reported, inside the organization's\nretention, each with the time the source observed it. Empty when there is nothing\nto keep, so activation does not ask",
+        "tags": [
+          "Adapter"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "candidate",
+            "in": "path",
+            "required": true,
+            "description": "The candidate UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The readings activation can keep, newest observed time first in `observed_at`; empty when there is nothing to keep.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "observed_at",
+                        "readings"
+                      ],
+                      "properties": {
+                        "observed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "readings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "unit",
+                              "value",
+                              "observed_at"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "value": {
+                                "type": [
+                                  "number",
+                                  "boolean",
+                                  "string"
+                                ],
+                                "description": "As the source reported it."
+                              },
+                              "observed_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
       }
     },
     "/v1/organizations/{organization}/device-adapters/{adapter}/connection-test": {

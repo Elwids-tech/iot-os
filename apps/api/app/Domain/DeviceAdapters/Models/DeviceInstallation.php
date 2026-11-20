@@ -11,7 +11,7 @@ final class DeviceInstallation extends DeviceModel
 {
     protected function casts(): array
     {
-        return ['started_at' => 'immutable_datetime', 'ended_at' => 'immutable_datetime'];
+        return ['started_at' => 'immutable_datetime', 'ended_at' => 'immutable_datetime', 'keeps_last_readings' => 'boolean'];
     }
 
     public function device()

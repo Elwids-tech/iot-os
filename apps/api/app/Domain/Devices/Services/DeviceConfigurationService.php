@@ -14,6 +14,9 @@ use App\Domain\DeviceProfiles\Support\CanonicalJson;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceMoveDevice;
 use App\Domain\Devices\Models\DiscoveryCandidate;
+use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -195,7 +198,66 @@ final class DeviceConfigurationService
             return [];
         }
 
-        return ['birth_metrics' => array_map(fn (array $metric) => ['name' => $metric['name'], 'datatype' => $metric['datatype']], array_values($candidate->metrics))];
+        $kept = self::keptValues($definition['adapter']['installation_uuid'] ?? null, $candidate);
+
+        return ['birth_metrics' => array_map(fn (array $metric) => ['name' => $metric['name'], 'datatype' => $metric['datatype'], ...($kept[$metric['name']] ?? [])], array_values($candidate->metrics))];
+    }
+
+    /**
+     * The values a source reported before its device's first activation, when whoever
+     * activated it chose to keep them, stamped with the installation so the runtime
+     * stores them as its first readings. Keyed by metric name.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function keptValues(?string $installationUuid, DiscoveryCandidate $birth): array
+    {
+        $installation = $installationUuid ? DeviceInstallation::with(['device.organization', 'candidate'])->where('uuid', $installationUuid)->first() : null;
+        if (! $installation?->keeps_last_readings || ! $installation->candidate || $installation->device->last_applied_configuration_uuid) {
+            return [];
+        }
+
+        return collect(self::lastReport($installation->candidate, $birth, $installation->device->organization))
+            ->map(fn (array $metric) => [...Arr::only($metric, ['value', 'timestamp', 'timestamp_source']), 'installation_uuid' => $installation->uuid, 'adapter_revision_uuid' => $installation->adapter_revision_uuid])
+            ->all();
+    }
+
+    /**
+     * What an adapter source last reported that its activation can keep, keyed by metric
+     * name. The adapter announces a source again only when its metric set changes, so the
+     * stored birth can hold an older value than the latest decoded sample (the preview).
+     * Each metric takes whichever of the two the source observed later: a preview without
+     * its own observed time was received when the candidate was last seen, and a
+     * historical backfill decoded last does not replace a newer birth value. Retained
+     * previews are never readings, values without one are left out, and so is anything
+     * the organization's retention has passed.
+     *
+     * @return array<string, array{name: string, datatype: string, value: mixed, timestamp: string, timestamp_source: string}>
+     */
+    public static function lastReport(AdapterCandidate $candidate, ?DiscoveryCandidate $birth, Organization $organization): array
+    {
+        $report = [];
+        foreach ($birth?->metrics ?? [] as $m) {
+            if (isset($m['value'], $m['timestamp'])) {
+                $report[$m['name']] = ['name' => $m['name'], 'datatype' => $m['datatype'], 'value' => $m['value'], 'timestamp' => CarbonImmutable::parse($m['timestamp']), 'timestamp_source' => $m['timestamp_source'] ?? 'source'];
+            }
+        }
+        $preview = $candidate->preview ?? [];
+        if (! ($preview['retained'] ?? false) && $candidate->last_seen_at) {
+            $observed = isset($preview['observedAt']) ? CarbonImmutable::parse($preview['observedAt']) : CarbonImmutable::parse($candidate->last_seen_at);
+            foreach ($preview['metrics'] ?? [] as $m) {
+                $earlier = $report[$m['name'] ?? ''] ?? null;
+                if (isset($m['name'], $m['value'], $m['datatype']) && (! $earlier || $observed->greaterThanOrEqualTo($earlier['timestamp']))) {
+                    $report[$m['name']] = ['name' => $m['name'], 'datatype' => $m['datatype'], 'value' => $m['value'], 'timestamp' => $observed, 'timestamp_source' => isset($preview['observedAt']) ? 'source' : 'receipt'];
+                }
+            }
+        }
+        $cutoff = now()->subDays(app(RetentionService::class)->effective($organization)['days']);
+
+        return collect($report)
+            ->filter(fn (array $m) => $m['timestamp']->greaterThanOrEqualTo($cutoff))
+            ->map(fn (array $m) => [...$m, 'timestamp' => $m['timestamp']->utc()->format('Y-m-d\\TH:i:s.v\\Z')])
+            ->all();
     }
 
     public function validate(Device $device, int $revision): array

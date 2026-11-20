@@ -149,6 +149,41 @@ operations:
         $ref: '#/components/responses/ServiceUnavailable'
   GET /v1/organizations/{organization}/device-adapters/{adapter}/candidates:
     description: The adapter's discovered sources, newest first, at most 100. A source whose device is in this organization embeds it in `device`; one in use in another organization of the billing account (a hosted device, spec 031) has `in_use_in` with that organization's name instead, and `device` and `installation_uuid` are null.
+  GET /v1/organizations/{organization}/device-adapters/{adapter}/candidates/{candidate}/last-report:
+    responses:
+      '200':
+        description: The readings activation can keep, newest observed time first in `observed_at`; empty when there is nothing to keep.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [observed_at, readings]
+                  properties:
+                    observed_at:
+                      type: [string, 'null']
+                      format: date-time
+                    readings:
+                      type: array
+                      items:
+                        type: object
+                        required: [key, label, unit, value, observed_at]
+                        properties:
+                          key:
+                            type: string
+                          label:
+                            type: string
+                          unit:
+                            type: [string, 'null']
+                          value:
+                            type: [number, boolean, string]
+                            description: As the source reported it.
+                          observed_at:
+                            type: string
+                            format: date-time
   POST /v1/organizations/{organization}/device-adapters/{adapter}/candidates/{candidate}/activate:
     responses:
       '409':

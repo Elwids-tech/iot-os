@@ -193,7 +193,12 @@ header **Assistant** on any adapter page.
    without the IO harness never sends its inputs) is left out and joins when the
    device's configuration is upgraded after it reports; a source that has reported
    none of the profile's readings cannot be activated yet. Unknown serials and retained messages stay previews; nothing is stored as
-   production telemetry until a device is activated. The same **Activate** appears
+   production telemetry until a device is activated. When the source has already
+   reported, **Activate** asks whether its last report becomes the device's first
+   readings, kept at the time the source observed them, or the device starts from its
+   next report. Readings older than the organization's retention are never kept, the
+   choice applies to the first activation only, and kept readings neither mark the
+   device online nor trigger automations, which start after them. The same **Activate** appears
    wherever the source shows up: the adapter's Devices tab, **Discovery** and
    **Add device** (which list it by serial, not by its `src-…` Sparkplug ID), and the
    onboarding assistant once serials are waiting. Adapter sources never go through

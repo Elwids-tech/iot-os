@@ -264,7 +264,7 @@ final class AdapterService
         });
     }
 
-    public function activate(AdapterCandidate $candidate, ?string $deviceUuid, string $name, int $actor): DeviceInstallation
+    public function activate(AdapterCandidate $candidate, ?string $deviceUuid, string $name, int $actor, bool $keepLastReadings = false): DeviceInstallation
     {
         if ($candidate->installation) {
             $this->ensureHere($candidate);
@@ -277,7 +277,7 @@ final class AdapterService
         $birth = DiscoveryCandidate::where('sparkplug_gateway_id', $adapter->sparkplug_gateway_id)->where('source_device_id', $candidate->sparkplug_device_id)->first();
         abort_unless($birth, 422, 'Wait for a live Sparkplug birth message. Retained previews cannot activate a device.');
 
-        return DB::transaction(function () use ($candidate, $adapter, $birth, $deviceUuid, $name, $actor) {
+        return DB::transaction(function () use ($candidate, $adapter, $birth, $deviceUuid, $name, $actor, $keepLastReadings) {
             $adapter = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
             $candidate = AdapterCandidate::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($candidate->installation) {
@@ -290,7 +290,7 @@ final class AdapterService
             $device = $deviceUuid ? Device::where('organization_id', $adapter->organization_id)->where('uuid', $deviceUuid)->lockForUpdate()->firstOrFail() : Device::create(['organization_id' => $adapter->organization_id, 'name' => $name, 'code' => 'device-'.Str::uuid(), 'created_by' => $actor, 'updated_by' => $actor]);
             $device = $device->fresh();
             abort_if($device->lifecycle === 'archived' || $device->applied_configuration_uuid || $device->desired_configuration_uuid || $device->last_applied_configuration_uuid, 422, 'Select an inactive virtual device. Replacement with counter adjustments is a separate workflow.');
-            $installation = $this->install($candidate, $adapter, $device, $actor);
+            $installation = $this->install($candidate, $adapter, $device, $actor, $keepLastReadings);
             // Only the readings this source has reported: the adapter announces the fields its
             // decoder has seen, and the rest join when the device's configuration is upgraded.
             $reported = collect($birth->metrics)->pluck('name');
@@ -319,11 +319,11 @@ final class AdapterService
      * with this installation once the adapter is next deployed. The installation belongs
      * to the adapter's organization, wherever the device is (spec 031, research R3).
      */
-    public function install(AdapterCandidate $candidate, DeviceAdapter $adapter, Device $device, int $actor): DeviceInstallation
+    public function install(AdapterCandidate $candidate, DeviceAdapter $adapter, Device $device, int $actor, bool $keepsLastReadings = false): DeviceInstallation
     {
         abort_if(DeviceInstallation::where('device_id', $device->id)->whereNull('ended_at')->exists(), 409, 'The virtual device already has an active physical installation.');
 
-        return DeviceInstallation::create(['organization_id' => $adapter->organization_id, 'device_id' => $device->id, 'device_adapter_candidate_id' => $candidate->id, 'adapter_revision_uuid' => $adapter->applied_revision_uuid, 'manufacturer_serial' => $candidate->source_device_id, 'started_at' => now(), 'created_by' => $actor]);
+        return DeviceInstallation::create(['organization_id' => $adapter->organization_id, 'device_id' => $device->id, 'device_adapter_candidate_id' => $candidate->id, 'adapter_revision_uuid' => $adapter->applied_revision_uuid, 'manufacturer_serial' => $candidate->source_device_id, 'started_at' => now(), 'keeps_last_readings' => $keepsLastReadings, 'created_by' => $actor]);
     }
 
     /**

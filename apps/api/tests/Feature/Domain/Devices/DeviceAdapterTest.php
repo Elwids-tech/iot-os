@@ -20,9 +20,11 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugConnection;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
+use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -390,6 +392,82 @@ final class DeviceAdapterTest extends TestCase
         $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Meter'])->assertUnprocessable()
             ->assertJsonPath('message', 'WM-1042 has not reported any reading of Manufacturer water meter’s profile yet. Activate it once it reports.');
         $this->assertSame(0, DeviceInstallation::count());
+    }
+
+    /** The tracker last reported a day before activation; a reading from years ago is past retention. */
+    private function reportedEarlier(AdapterCandidate $candidate): string
+    {
+        $reported = now()->subDay()->startOfSecond()->toIso8601ZuluString();
+        DiscoveryCandidate::where('source_device_id', $candidate->sparkplug_device_id)->update(['metrics' => [
+            ['name' => 'flow_rate', 'datatype' => 'Double', 'value' => 12.5, 'timestamp' => $reported],
+            ['name' => 'total_volume', 'datatype' => 'Double', 'value' => 8400, 'timestamp' => now()->subYears(20)->toIso8601ZuluString()],
+        ]]);
+
+        return $reported;
+    }
+
+    /** @return array<string, array<string, mixed>> the birth metrics the activation sent the runtime, by name */
+    private function activationBirth(): array
+    {
+        $payload = json_decode((string) DB::table('device_outbox')->where('type', 'device.activate.v1')->latest('id')->value('payload'), true);
+
+        return collect($payload['birth_metrics'])->keyBy('name')->all();
+    }
+
+    public function test_activation_keeps_the_readings_the_source_last_reported_when_asked(): void
+    {
+        [$a, , $candidate] = $this->liveCandidate();
+        $reported = $this->reportedEarlier($candidate);
+        $base = $this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid;
+        $this->getJson($base.'/last-report')->assertOk()
+            ->assertJsonPath('data.observed_at', CarbonImmutable::parse($reported)->toIso8601String())
+            ->assertJsonCount(1, 'data.readings')->assertJsonPath('data.readings.0.key', 'flow_rate')->assertJsonPath('data.readings.0.value', 12.5);
+        $result = $this->postJson($base.'/activate', ['name' => 'Workshop water meter', 'keep_last_readings' => true])->assertAccepted()->json('data');
+        $this->assertTrue(DeviceInstallation::where('uuid', $result['installation_uuid'])->value('keeps_last_readings'));
+        $birth = $this->activationBirth();
+        $revision = DeviceInstallation::where('uuid', $result['installation_uuid'])->value('adapter_revision_uuid');
+        // jsonb does not keep key order.
+        $this->assertEquals(['name' => 'flow_rate', 'datatype' => 'Double', 'value' => 12.5, 'timestamp' => CarbonImmutable::parse($reported)->format('Y-m-d\\TH:i:s.v\\Z'), 'timestamp_source' => 'source', 'installation_uuid' => $result['installation_uuid'], 'adapter_revision_uuid' => $revision], $birth['flow_rate']);
+        // Past the organization's retention: announced, not kept.
+        $this->assertSame(['name' => 'total_volume', 'datatype' => 'Double'], $birth['total_volume']);
+        // The runtime's control rows carry the same birth while the activation is pending.
+        $rows = DeviceConfigurationService::storedBirth(Device::where('uuid', $result['device']['uuid'])->firstOrFail()->configurations()->firstOrFail()->definition, DiscoveryCandidate::where('source_device_id', $candidate->sparkplug_device_id)->firstOrFail());
+        $this->assertSame(12.5, collect($rows['birth_metrics'])->firstWhere('name', 'flow_rate')['value']);
+    }
+
+    public function test_the_last_report_takes_whichever_the_source_observed_later(): void
+    {
+        [$a, , $candidate] = $this->liveCandidate();
+        $this->reportedEarlier($candidate);
+        $url = $this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/last-report';
+        // The adapter announces a source again only when its metrics change: the latest decoded sample is newer.
+        $candidate->update(['preview' => ['sourceDeviceId' => 'WM-1042', 'metrics' => [['name' => 'flow_rate', 'value' => 13.25, 'datatype' => 'Double']], 'retained' => false], 'last_seen_at' => now()->subMinutes(5)]);
+        $this->getJson($url)->assertJsonPath('data.readings.0.value', 13.25)->assertJsonPath('data.observed_at', CarbonImmutable::parse($candidate->fresh()->last_seen_at)->toIso8601String());
+        // A retained message is never a reading.
+        $candidate->update(['preview' => [...$candidate->preview, 'retained' => true]]);
+        $this->getJson($url)->assertJsonPath('data.readings.0.value', 12.5);
+        // A historical backfill decoded last does not replace the newer birth value.
+        $candidate->update(['preview' => ['sourceDeviceId' => 'WM-1042', 'observedAt' => now()->subDays(3)->toIso8601ZuluString(), 'metrics' => [['name' => 'flow_rate', 'value' => 9, 'datatype' => 'Double']], 'retained' => false]]);
+        $this->getJson($url)->assertJsonPath('data.readings.0.value', 12.5);
+        // Nothing reported inside retention: nothing to keep, so activation does not ask.
+        DiscoveryCandidate::where('source_device_id', $candidate->sparkplug_device_id)->update(['metrics' => [['name' => 'flow_rate', 'datatype' => 'Double']]]);
+        $candidate->update(['preview' => []]);
+        $this->getJson($url)->assertOk()->assertJsonPath('data.observed_at', null)->assertJsonCount(0, 'data.readings');
+    }
+
+    public function test_activation_starts_from_now_unless_asked_and_keeps_nothing_after_the_first_apply(): void
+    {
+        [$a, , $candidate] = $this->liveCandidate();
+        $this->reportedEarlier($candidate);
+        $result = $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/candidates/'.$candidate->uuid.'/activate', ['name' => 'Workshop water meter'])->assertAccepted()->json('data');
+        $this->assertFalse(DeviceInstallation::where('uuid', $result['installation_uuid'])->value('keeps_last_readings'));
+        $this->assertSame([['name' => 'flow_rate', 'datatype' => 'Double'], ['name' => 'total_volume', 'datatype' => 'Double']], array_values($this->activationBirth()));
+        // A later configuration of a device that kept its last readings does not hand them on again.
+        $device = Device::where('uuid', $result['device']['uuid'])->firstOrFail();
+        DeviceInstallation::where('uuid', $result['installation_uuid'])->update(['keeps_last_readings' => true]);
+        $device->update(['last_applied_configuration_uuid' => $device->desired_configuration_uuid]);
+        $rows = DeviceConfigurationService::storedBirth($device->configurations()->firstOrFail()->definition, DiscoveryCandidate::where('source_device_id', $candidate->sparkplug_device_id)->firstOrFail());
+        $this->assertArrayNotHasKey('value', $rows['birth_metrics'][0]);
     }
 
     public function test_binding_failure_rolls_back_native_activation_and_installation(): void
