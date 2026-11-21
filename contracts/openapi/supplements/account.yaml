@@ -108,6 +108,16 @@ components:
                 type: object
                 description: What the person may do in this organization.
                 additionalProperties: {}
+        address:
+          type: [object, 'null']
+          description: >-
+            The billing account's portal address the request came from (spec 036), or
+            null on the platform's own address. On an address, `organizations` lists
+            only that account's.
+          required: [kind, host]
+          properties:
+            kind: {type: string, enum: [name, domain]}
+            host: {type: string}
     TwoStepRequired:
       type: object
       description: >-
@@ -261,6 +271,15 @@ components:
         code: {type: string}
         message: {type: string}
   responses:
+    NotAvailableHere:
+      description: >-
+        The credentials were right, and the person belongs to no organization of the
+        billing account whose portal address the request came from
+        (`not_available_here`, spec 036). No session was started.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
     PasswordConfirmationRequired:
       description: >-
         The password was not confirmed in the last 15 minutes. Confirm it with
@@ -298,7 +317,10 @@ operations:
         description: >-
           The address has no account but a sign-up waiting for its email to be confirmed,
           and the password is that sign-up's (`sign_up_unconfirmed`, spec 035). This
-          browser can now send the link again with `POST /v1/sign-up/resend`.
+          browser can now send the link again with `POST /v1/sign-up/resend`. Or the
+          password was right and the person belongs to no organization of the billing
+          account whose portal address the request came from (`not_available_here`,
+          spec 036).
         content:
           application/json:
             schema:
@@ -336,6 +358,8 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/TwoStepSignedIn'
+      '403':
+        $ref: '#/components/responses/NotAvailableHere'
       '422':
         description: A wrong code, invalid input, or no pending sign-in.
         content:
@@ -446,6 +470,8 @@ operations:
           application/json:
             schema:
               $ref: '#/components/schemas/TwoStepSignedIn'
+      '403':
+        $ref: '#/components/responses/NotAvailableHere'
       '404':
         $ref: '#/components/responses/NotFound'
       '429':

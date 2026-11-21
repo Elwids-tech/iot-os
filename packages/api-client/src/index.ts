@@ -310,6 +310,12 @@ export type AuthenticatedUser = {
     billing_accounts?: boolean
   }
   organizations: Organization[]
+  /**
+   * The billing account's portal address the request came from (spec 036), or null on
+   * the platform's own. On an address `organizations` lists only that account's.
+   * Older payloads omit it.
+   */
+  address?: { kind: "name" | "domain"; host: string } | null
 }
 
 export type JsonObject = { [key: string]: JsonValue }
@@ -597,6 +603,18 @@ export class ConfirmationRequiredError extends ApiError {}
 export class TwoStepSetupRequiredError extends ApiError {}
 
 export const TWO_STEP_SETUP_REQUIRED_EVENT = "iot-two-step-setup-required"
+
+/**
+ * Fired when a signed-in request is refused with `403 not_available_here` (spec 036): the
+ * person no longer belongs to any organization of the billing account whose portal
+ * address this is. The portal reads the session again and shows the sign-in page.
+ */
+export const NOT_AVAILABLE_HERE_EVENT = "iot-not-available-here"
+
+/** Whether an error is the API's `not_available_here` refusal, at sign-in (403) or for an organization (404). */
+export function isNotAvailableHere(error: unknown): boolean {
+  return error instanceof ApiError && (error.payload as { code?: unknown } | null)?.code === "not_available_here"
+}
 
 /**
  * The address has no account but a sign-up waiting for its email to be confirmed, and the
@@ -1706,6 +1724,20 @@ export class ApiClient {
 
   async removeBrandImage(billingAccountUuid: string, role: import("./branding").BrandImageRole, admin = false): Promise<import("./branding").Brand> {
     return this.data(this.brandPath(billingAccountUuid, admin, `brand/images/${role}`), "DELETE")
+  }
+
+  /**
+   * Claims a name under the platform's domain for the billing account, or renames the
+   * one it holds; the old name then redirects for 30 days. A refusal's `code` is a
+   * `PortalAddressRefusal`.
+   */
+  async claimPortalName(billingAccountUuid: string, name: string, admin = false): Promise<import("./branding").PortalAddress> {
+    return this.data(this.brandPath(billingAccountUuid, admin, "addresses/name"), "PUT", { name })
+  }
+
+  /** Releases an address: it stops serving within a minute and its host is held for 30 days. 409 `suspended` for an owner. */
+  async releasePortalAddress(billingAccountUuid: string, addressUuid: string, admin = false): Promise<void> {
+    await this.request(this.brandPath(billingAccountUuid, admin, `addresses/${encodeURIComponent(addressUuid)}`), { method: "DELETE" })
   }
 
   /** An organization's own logo, needing `Organization.update`; refusals as for `setBrandImage`. */
@@ -3265,6 +3297,8 @@ export class ApiClient {
         if (typeof window !== "undefined") window.dispatchEvent(new Event(TWO_STEP_SETUP_REQUIRED_EVENT))
         throw new TwoStepSetupRequiredError(response.status, payload)
       }
+      if (response.status === 403 && (payload as { code?: unknown } | null)?.code === "not_available_here" && !isGuestPath(path) && !path.startsWith("/api/v1/auth/") && typeof window !== "undefined")
+        window.dispatchEvent(new Event(NOT_AVAILABLE_HERE_EVENT))
       if (response.status === 403 && (payload as { code?: unknown } | null)?.code === "sign_up_unconfirmed")
         throw new SignUpUnconfirmedError(response.status, payload)
       throw new ApiError(response.status, payload)
@@ -3278,5 +3312,5 @@ export const apiClient = new ApiClient()
 
 export type { DeviceOnboarding, OnboardingInput, DeviceConnectionKit } from './onboarding'
 
-export { runtimeConfig, type RuntimeConfig } from "./runtime-config"
+export { runtimeAddress, runtimeApiUrl, runtimeBrand, runtimeConfig, type RuntimeAddress, type RuntimeBrand, type RuntimeConfig } from "./runtime-config"
 export * from "./connection"

@@ -283,6 +283,10 @@ class Deployment:
         legacy = self.env.get("LEGACY_DOMAIN", "")
         if legacy and (legacy == self.env["DOMAIN"] or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", legacy)):
             raise ValueError("LEGACY_DOMAIN must be a different valid domain")
+        if self.env.get("PORTAL_ADDRESSES", "off") not in ("on", "off"):
+            raise ValueError("PORTAL_ADDRESSES must be on or off")
+        if self.portal_addresses and not re.fullmatch(r"[0-9a-f]{64}", self.env.get("PORTAL_ADDRESSES_TOKEN", "")):
+            raise ValueError("PORTAL_ADDRESSES=on needs PORTAL_ADDRESSES_TOKEN: 64 hex characters (openssl rand -hex 32)")
         if not re.fullmatch(r"[a-z][a-z0-9-]+", self.env["COMPOSE_PROJECT_NAME"]):
             raise ValueError("Invalid Compose project name")
         for path in (self.state, self.config):
@@ -339,6 +343,10 @@ class Deployment:
             raise ValueError("IOT_WEBHOOK_PUBLIC_URL must be an https:// host name, for example https://hooks.example.com")
         return match.group(1)
 
+    @property
+    def portal_addresses(self):
+        return self.env.get("PORTAL_ADDRESSES", "off") == "on"
+
     def render(self):
         from monitoring import render as render_monitoring
         self.config.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -355,6 +363,13 @@ class Deployment:
         host = self.webhook_host() if self.adapters_enabled else ""
         hooks = f"{host} {{\n    @ingest path /w/*\n    handle @ingest {{\n        reverse_proxy webhook-receiver:8095\n    }}\n    respond 404\n}}\n" if host else ""
         private_write(self.config / "webhooks.Caddyfile", hooks, 0o644)
+        # Portal addresses (spec 036, ADR-050): one catch-all site that gets a certificate
+        # for a host only after the API says it is an address that serves. The named sites
+        # are more specific and still win. The token stays in Caddy's environment.
+        ask = "    on_demand_tls {\n        ask http://api-web:80/api/internal/portal-addresses/ask?token={$PORTAL_ADDRESSES_TOKEN}\n    }\n" if self.portal_addresses else ""
+        site = "https:// {\n    tls {\n        on_demand\n    }\n    encode gzip\n    @internal path /internal/* /api/internal/*\n    respond @internal 404\n    reverse_proxy portal:80\n}\n" if self.portal_addresses else ""
+        private_write(self.config / "addresses-global.Caddyfile", ask, 0o644)
+        private_write(self.config / "addresses.Caddyfile", site, 0o644)
         capacity = self.nats_capacity()
         # Sync every JetStream write: the default 2-minute interval lets a host crash drop
         # acknowledged telemetry and break the workflow checkpoint's continuity.
@@ -720,7 +735,21 @@ class Deployment:
         with urllib.request.urlopen("https://app."+self.env["DOMAIN"]+"/manifest.webmanifest", timeout=15) as response:
             if response.status != 200 or "name" not in json.loads(response.read()):
                 raise RuntimeError("Public HTTPS smoke check failed: the portal manifest")
+        if self.portal_addresses:
+            self.smoke_portal_addresses()
         print("Public HTTPS and dependency readiness checks passed.")
+
+    def smoke_portal_addresses(self):
+        """A name nobody claimed gets no certificate and no brand (spec 036, FR-014), checked
+        from inside: the proxy's own question to the API, and the host the portal's nginx
+        passes on reaching Laravel."""
+        unclaimed = "unclaimed-smoke-check." + self.env["DOMAIN"]
+        asked = self.compose("exec", "-T", "caddy", "sh", "-c", 'wget -q -S -O /dev/null "http://api-web:80/api/internal/portal-addresses/ask?token=$PORTAL_ADDRESSES_TOKEN&domain=' + unclaimed + '" 2>&1 | head -n 1', stdout=subprocess.PIPE, text=True).stdout
+        if " 404 " not in asked:
+            raise RuntimeError("Portal address smoke check failed: the certificate question for an unclaimed name did not answer 404")
+        config = self.compose("exec", "-T", "portal", "wget", "-q", "-O", "-", "--header", "Host: " + unclaimed, "http://127.0.0.1/runtime-config.js", stdout=subprocess.PIPE, text=True).stdout
+        if '"not_in_use"' not in config:
+            raise RuntimeError("Portal address smoke check failed: an unclaimed name did not reach the API as its own host")
 
 
 def main():
@@ -747,6 +776,7 @@ def main():
         values.update(passport_keys())
         values.update(webpush_keys())
         values[PASSKEYS_SECRET] = passkeys_secret()
+        values["PORTAL_ADDRESSES_TOKEN"] = secrets.token_hex(32)
         private_write(path, "".join(k+"="+json.dumps(v)+"\n" for k, v in values.items()))
         print("Private environment created. Fill provider inputs without changing generated keys.")
         return

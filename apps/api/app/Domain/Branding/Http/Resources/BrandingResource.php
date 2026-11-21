@@ -9,6 +9,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\Allowances;
 use App\Domain\Branding\Services\BrandImages;
 use App\Domain\Branding\Services\Brands;
+use App\Domain\Branding\Services\PortalAddresses;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,16 +37,13 @@ final class BrandingResource extends JsonResource
         $brands = app(Brands::class);
         $allowances = app(Allowances::class)->all($account);
         $brand = $brands->for($account);
-        $domain = config('branding.domain');
+        $addresses = app(PortalAddresses::class);
+        $domain = $addresses->domain();
 
         return [
             'brand' => new BrandResource($brand, $brands->inEffect($account, $brand)),
-            /**
-             * The account's portal addresses. Always empty until addresses are available.
-             *
-             * @var list<array{uuid: string, kind: 'name'|'domain', host: string, state: 'waiting_dns'|'active'|'unreachable'|'suspended'|'lapsed', main: bool}>
-             */
-            'addresses' => [],
+            /** The account's portal addresses: at most one name and one custom domain. */
+            'addresses' => PortalAddressResource::collection($addresses->for($account)),
             /** What the account's plan and overrides turn on. */
             'allowances' => [
                 'branding' => $allowances[AllowanceKind::Branding->value]->value === 1,
@@ -53,9 +51,9 @@ final class BrandingResource extends JsonResource
                 'hide_powered_by' => $allowances[AllowanceKind::HidePoweredBy->value]->value === 1,
             ],
             /** Whether this deployment serves portal addresses at all. */
-            'addresses_available' => (bool) config('branding.addresses_enabled'),
+            'addresses_available' => (bool) $addresses->enabled(),
             /** What follows a claimed name, such as `.example.com`; null when the deployment has no domain for addresses. */
-            'name_suffix' => is_string($domain) && $domain !== '' ? '.'.$domain : null,
+            'name_suffix' => $domain === null ? null : '.'.$domain,
             'limits' => [
                 'image_bytes' => (int) config('branding.images.max_bytes'),
                 /** @var list<string> */

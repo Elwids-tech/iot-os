@@ -127,8 +127,10 @@ final class SecurityTransformer
         $responses = $this->remapScrambleResponses($operation['responses'] ?? []);
         $shared = array_filter([
             401 => $session || $ability !== null ? 'Unauthenticated' : null,
-            // A session route also answers 403 two_step_setup_required (spec 034, RequireTwoStep).
-            403 => $ability !== null || $permission !== null || ($session && ($organizationScoped || ! RequireTwoStep::allows($route->getName()))) ? 'Forbidden' : null,
+            // A session route also answers 403 two_step_setup_required (spec 034, RequireTwoStep),
+            // and 403 not_available_here on a portal address the person may not use (spec 036,
+            // EnsurePortalAccess), which only signing out is spared.
+            403 => $ability !== null || $permission !== null || ($session && $route->getName() !== 'api.v1.auth.logout') ? 'Forbidden' : null,
             404 => $organizationScoped || $ability !== null || str_contains($path, '{') ? 'NotFound' : null,
             419 => in_array($method, self::UNSAFE_METHODS, true) && str_starts_with($path, '/v1/') ? 'CsrfExpired' : null,
             429 => $limits !== [] ? 'TooManyRequests' : null,

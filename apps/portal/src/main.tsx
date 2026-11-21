@@ -29,7 +29,9 @@ document.querySelector('meta[name="build-id"]')?.setAttribute("content", __BUILD
 // The service worker exists only in production builds (vite.config.ts, src/sw.ts).
 const installable = import.meta.env.PROD && "serviceWorker" in navigator
 const router = createBrowserRouter([{ path: "*", element: <App />, errorElement: <RouteError /> }])
-createRoot(document.getElementById("root")!).render(
+// An address that is not in use, or one that moved, shows the bootstrap's message and
+// starts nothing (spec 036, src/lib/brand-bootstrap.js).
+if (!(window as { __IOT_HALT__?: boolean }).__IOT_HALT__) createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {runtimeConfig("environment") === "staging" ? <Badge variant="warning" className="fixed bottom-2 left-2 pointer-events-none">Staging environment</Badge> : null}
     <ThemeProvider

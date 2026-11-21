@@ -7,7 +7,11 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Branding\Http\Controllers\BrandAssetController;
 use App\Domain\Branding\Http\Controllers\OrganizationLogoController;
 use App\Domain\Branding\Http\Controllers\OwnedBrandController;
+use App\Domain\Branding\Http\Controllers\OwnedPortalAddressController;
 use App\Domain\Branding\Http\Controllers\PlatformBrandController;
+use App\Domain\Branding\Http\Controllers\PlatformPortalAddressController;
+use App\Domain\Branding\Http\Controllers\PortalAddressAskController;
+use App\Domain\Branding\Http\Controllers\PortalBootstrapController;
 use App\Domain\Branding\Models\BrandAsset;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +23,11 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         ->where('asset', '[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}[0-9a-f]{'.BrandAsset::HASH_LENGTH.'}')
         ->where('variant', '[a-z0-9]{1,16}')
         ->name('brand-assets.show');
+
+    // What the portal reads before it starts on a host that is not the platform's own
+    // (contracts/portal-bootstrap.md). The portal's proxy sends `/runtime-config.js` here.
+    Route::get('portal/runtime-config.js', [PortalBootstrapController::class, 'runtimeConfig'])
+        ->name('portal.runtime-config');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::prefix('admin')->name('admin.')
@@ -39,6 +48,12 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                     ->whereUuid('billingAccount')
                     ->whereIn('role', BrandAsset::ROLES)
                     ->name('billing-accounts.brand.images.destroy');
+                Route::put('billing-accounts/{billingAccount}/addresses/name', [PlatformPortalAddressController::class, 'name'])
+                    ->whereUuid('billingAccount')
+                    ->name('billing-accounts.addresses.name');
+                Route::delete('billing-accounts/{billingAccount}/addresses/{address}', [PlatformPortalAddressController::class, 'destroy'])
+                    ->whereUuid(['billingAccount', 'address'])
+                    ->name('billing-accounts.addresses.destroy');
             });
 
         // Owners: an account the signed-in person does not own answers 404.
@@ -57,8 +72,19 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->whereUuid('billingAccount')
             ->whereIn('role', BrandAsset::ROLES)
             ->name('billing-accounts.brand.images.destroy');
+        Route::put('billing-accounts/{billingAccount}/addresses/name', [OwnedPortalAddressController::class, 'name'])
+            ->whereUuid('billingAccount')
+            ->middleware('throttle:30,1')
+            ->name('billing-accounts.addresses.name');
+        Route::delete('billing-accounts/{billingAccount}/addresses/{address}', [OwnedPortalAddressController::class, 'destroy'])
+            ->whereUuid(['billingAccount', 'address'])
+            ->name('billing-accounts.addresses.destroy');
     });
 });
+
+// The proxy asks this before it requests a certificate for a host (research R7). The
+// token is the only guard here; the proxy blocks `/api/internal` from outside.
+Route::get('internal/portal-addresses/ask', PortalAddressAskController::class)->name('api.internal.portal-addresses.ask');
 
 // An organization's own logo, needing Organization.update (spec 036 US2).
 Route::prefix('v1/organizations/{organization}')->name('api.v1.organizations.')

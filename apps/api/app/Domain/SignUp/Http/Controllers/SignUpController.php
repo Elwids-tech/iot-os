@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SignUp\Http\Controllers;
 
+use App\Domain\Branding\Services\PortalAccess;
 use App\Domain\SignUp\Http\Requests\StartSignUpRequest;
 use App\Domain\SignUp\Services\FormToken;
 use App\Domain\SignUp\Services\SignUps;
@@ -21,9 +22,13 @@ final class SignUpController
     public function __construct(private readonly SignUps $signUps) {}
 
     /** What the sign-up page needs before showing the form. */
-    public function show(SignUpSettings $settings, FormToken $formToken): JsonResponse
+    public function show(Request $request, SignUpSettings $settings, FormToken $formToken, PortalAccess $access): JsonResponse
     {
         $current = $settings->get();
+        // Nobody signs up on a billing account's address (spec 036, FR-024).
+        if ($access->address($request) !== null) {
+            $current['open'] = false;
+        }
 
         return response()->json([
             'open' => $current['open'],

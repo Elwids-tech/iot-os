@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { execSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
@@ -18,6 +19,13 @@ function buildId(): string {
 export default defineConfig({
   plugins: [
     react(),
+    // The brand bootstrap (spec 036, research R9) runs inline, right after
+    // runtime-config.js and before any module is fetched.
+    {
+      name: "brand-bootstrap",
+      transformIndexHtml: (html) =>
+        html.replace("/*brand-bootstrap*/", () => readFileSync(new URL("./src/lib/brand-bootstrap.js", import.meta.url), "utf8")),
+    },
     tailwindcss(),
     // Installable app (spec 033, research R2 to R5): the worker in src/sw.ts precaches the
     // app shell only. Updates wait for Reload or the next launch (src/pwa/UpdatePrompt.tsx).

@@ -55,14 +55,28 @@ export type BrandValues = {
   revision: number
 }
 
-/** A portal address of a billing account. None exist until addresses are available. */
+/**
+ * A portal address of a billing account: a name under the platform's domain, or its own
+ * domain. `main` marks the one links in mail and alerts use. A `suspended` address was
+ * stopped by platform staff and cannot be changed or removed by its owners.
+ */
 export type PortalAddress = {
   uuid: string
   kind: "name" | "domain"
   host: string
+  /** Where the portal opens on this address. */
+  url: string
   state: "waiting_dns" | "active" | "unreachable" | "suspended" | "lapsed"
   main: boolean
+  claimed_at: string | null
+  activated_at: string | null
+  last_checked_at: string | null
+  unreachable_since: string | null
+  suspended_at: string | null
 }
+
+/** Why a name was not claimed: a 409 or 422 `code`. */
+export type PortalAddressRefusal = "addresses_unavailable" | "name_taken" | "name_reserved" | "name_invalid" | "suspended" | "branding_not_allowed"
 
 /** Everything the branding pages read for one billing account. */
 export type Branding = {

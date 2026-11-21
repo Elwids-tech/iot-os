@@ -38,7 +38,9 @@ FROM nginx:1.29-alpine
 RUN apk add --no-cache jq
 COPY --chmod=755 deploy/docker/web/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 
-COPY deploy/docker/portal/nginx.conf /etc/nginx/conf.d/default.conf
+# The config is a template: portal-addresses.sh renders it at start (spec 036).
+COPY --chmod=755 deploy/docker/portal/portal-addresses.sh /docker-entrypoint.d/30-portal-addresses.sh
+COPY deploy/docker/portal/nginx.conf /etc/nginx/portal.conf.template
 COPY --from=build /workspace/apps/portal/dist /usr/share/nginx/html
 
 EXPOSE 80

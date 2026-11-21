@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Models;
 
 use App\Domain\Branding\Models\Brand;
+use App\Domain\Branding\Models\PortalAddress;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
@@ -115,6 +116,16 @@ final class BillingAccount extends Model
     public function brand(): HasOne
     {
         return $this->hasOne(Brand::class);
+    }
+
+    /**
+     * Every portal address the account holds or held (spec 036).
+     *
+     * @return HasMany<PortalAddress, $this>
+     */
+    public function portalAddresses(): HasMany
+    {
+        return $this->hasMany(PortalAddress::class);
     }
 
     /**

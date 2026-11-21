@@ -6,6 +6,7 @@ namespace App\Domain\Authentication\Http\Middleware;
 
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Services\KeptSignInCookie;
+use App\Domain\Branding\Services\PortalAccess;
 use Closure;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Http\Request;
@@ -30,7 +31,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class ResumeKeptSignIn
 {
-    public function __construct(private readonly KeptSignInCookie $cookie) {}
+    public function __construct(
+        private readonly KeptSignInCookie $cookie,
+        private readonly PortalAccess $access,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -70,6 +74,12 @@ final class ResumeKeptSignIn
             // A stale or forged cookie: stop the browser sending it.
             Cookie::queue($this->cookie->forget());
 
+            return $next($request);
+        }
+
+        // A kept sign-in does not open an address its person may not use (spec 036,
+        // FR-020). The cookie stays: on the platform's domain it is theirs elsewhere.
+        if (! $this->access->admits($user, $request)) {
             return $next($request);
         }
 

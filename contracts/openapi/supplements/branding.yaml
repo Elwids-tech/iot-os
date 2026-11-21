@@ -46,6 +46,24 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CodedError'
+    AddressRefused:
+      description: >-
+        The address cannot be claimed or changed. `code` is `addresses_unavailable`
+        (this deployment does not serve portal addresses), `name_taken` (another account
+        holds the name, or released it less than 30 days ago), `name_reserved`, or
+        `suspended` (platform staff stopped the account's address).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
+    AddressNameInvalid:
+      description: >-
+        The name is missing, or is not 3 to 40 letters, numbers and single hyphens that
+        start and end with a letter or number (`name_invalid`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
 operations:
   GET /v1/brand-assets/{asset}/{variant}:
     description: |-
@@ -124,3 +142,55 @@ operations:
     responses:
       '422':
         $ref: '#/components/responses/BrandImageRefused'
+  PUT /v1/billing-accounts/{billingAccount}/addresses/name:
+    description: |-
+      Claims a name under the platform's domain for the billing account, or renames the
+      one it holds: `acme` becomes `acme.<domain>`. The name serves the branded portal
+      at once. A renamed name is released and redirects to the new one for 30 days.
+      Needs the account's `branding` allowance.
+    responses:
+      '403':
+        $ref: '#/components/responses/BrandingNotAllowed'
+      '409':
+        $ref: '#/components/responses/AddressRefused'
+      '422':
+        $ref: '#/components/responses/AddressNameInvalid'
+  DELETE /v1/billing-accounts/{billingAccount}/addresses/{address}:
+    description: |-
+      Releases an address. It stops serving within a minute, people signed in there lose
+      the portal, and no other account can claim the host for 30 days.
+    responses:
+      '409':
+        $ref: '#/components/responses/AddressRefused'
+  PUT /v1/admin/billing-accounts/{billingAccount}/addresses/name:
+    description: Claims or renames a billing account's name on its owners' behalf, without the allowance check.
+    responses:
+      '409':
+        $ref: '#/components/responses/AddressRefused'
+      '422':
+        $ref: '#/components/responses/AddressNameInvalid'
+  GET /v1/portal/runtime-config.js:
+    description: |-
+      What the portal reads before it starts on a host that is not the platform's own
+      (specs/036-white-label-custom-domains/contracts/portal-bootstrap.md): one
+      JavaScript statement that sets `window.__IOT_CONFIG__`, with the host's brand and
+      address. A host that is not in use gets `address.state` `not_in_use` and no brand.
+      Public and never cached.
+    responses:
+      '200':
+        description: The statement.
+        content:
+          application/javascript:
+            schema:
+              type: string
+  POST /v1/invitations/{token}/accept:
+    responses:
+      '403':
+        description: >-
+          The request came from a billing account's portal address and the invitation is
+          to an organization of another account, or to a platform role
+          (`not_available_here`). The invitation stays pending.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodedError'

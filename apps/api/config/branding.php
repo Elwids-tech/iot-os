@@ -21,6 +21,26 @@ return [
     'reserved_names' => ['app', 'admin', 'api', 'ops', 'mqtt', 'www', 'docs', 'mail'],
     'claim_prefix' => 'c-',
 
+    // A released name cannot be claimed by another account, and a renamed one redirects, for this long.
+    'hold_days' => 30,
+
+    /*
+    | Development only: a name's portal calls the API on its own host, through the
+    | portal's nginx, instead of on the platform's API host. Browsers do not treat
+    | `acme.localhost` and `localhost` as one site, so the shared session cookie of a
+    | real deployment cannot be tried locally (research R16).
+    */
+    'same_origin_names' => in_array(strtolower((string) env('PORTAL_ADDRESSES_SAME_ORIGIN', 'off')), ['on', 'true', '1'], true),
+
+    // The platform's own product name: the **Powered by** line on a branded sign-in page.
+    'platform_name' => env('PLATFORM_NAME') ?: 'IoT OS',
+
+    // What the portal's runtime-config.js carries besides the brand (the web images' own values).
+    'portal' => [
+        'map_style_url' => (string) env('PUBLIC_MAP_STYLE_URL', ''),
+        'environment' => (string) env('DEPLOY_ENVIRONMENT', 'local'),
+    ],
+
     'images' => [
         'max_bytes' => 1048576,
         'icon_min' => 512,
