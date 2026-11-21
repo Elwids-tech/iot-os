@@ -135,7 +135,7 @@ export function CustomDomainSection({
           ) : null}
 
           {live.record ? (
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-md border bg-muted/40 p-3 text-sm" aria-label="DNS record">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 rounded-md border bg-muted/40 p-3 text-sm" aria-label="DNS record">
               <dt className="text-muted-foreground">Type</dt>
               <dd className="font-mono">{live.record.type}</dd>
               <dt className="text-muted-foreground">Name</dt>
