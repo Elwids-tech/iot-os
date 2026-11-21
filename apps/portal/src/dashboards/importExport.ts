@@ -7,12 +7,21 @@ import type {
   DashboardWidget,
   StatusWidgetConfig,
 } from "@iot-os/api-client"
-import { DEFAULT_VIEW, fileName, saveFile } from "./model"
+import { DEFAULT_VIEW, fileName, MAX_ROWS, MAX_STATE_COLORS, ROW_PITCH, saveFile } from "./model"
 
 /** The portable part of a dashboard; ids, revision and per-user fields stay behind. */
 export function definition(dashboard: Dashboard): DashboardInput {
   const { name, widgets, layouts, defaults, tags, folder } = dashboard
   return { name, widgets, layouts, defaults, tags, folder }
+}
+
+/**
+ * What an export file holds: the definition plus the grid row it was laid out on.
+ * Files without `row_height` come from before rows were halved (48 px rows); importing
+ * them doubles each panel's row and height so panels keep their size.
+ */
+export function exported(dashboard: Dashboard) {
+  return { ...definition(dashboard), row_height: ROW_PITCH }
 }
 
 export function downloadJson(name: string, data: unknown) {
@@ -137,6 +146,7 @@ function readSource(value: unknown, path: string): DashboardSource {
     "color",
     "base",
     "thresholds",
+    "state_colors",
   ])
   return {
     device_uuid: pattern(s.device_uuid, `${path}.device_uuid`, UUID, "a UUID"),
@@ -157,6 +167,18 @@ function readSource(value: unknown, path: string): DashboardSource {
       const rule = object(item, at, ["value", "label", "color"])
       return { value: number(rule.value, `${at}.value`), ...readBand({ label: rule.label, color: rule.color }, at) }
     }),
+    ...(s.state_colors === undefined
+      ? {}
+      : {
+          state_colors: list(s.state_colors, `${path}.state_colors`, MAX_STATE_COLORS).map((item, i) => {
+            const at = `${path}.state_colors.${i}`
+            const chosen = object(item, at, ["value", "color"])
+            return {
+              value: typeof chosen.value === "boolean" ? chosen.value : text(chosen.value, `${at}.value`, 120),
+              color: pattern(chosen.color, `${at}.color`, HEX, "a colour like #2563eb"),
+            }
+          }),
+        }),
   }
 }
 
@@ -211,7 +233,7 @@ function readWidget(value: unknown, path: string): DashboardWidget {
   }
 }
 
-function readLayouts(value: unknown): DashboardLayout {
+function readLayouts(value: unknown, scale: number): DashboardLayout {
   const raw = object(value ?? {}, "layouts", BREAKPOINTS)
   const layouts: DashboardLayout = {}
   for (const key of BREAKPOINTS) {
@@ -222,9 +244,9 @@ function readLayouts(value: unknown): DashboardLayout {
       return {
         i: text(l.i, `${at}.i`, 100),
         x: whole(l.x, `${at}.x`, 0, 12),
-        y: whole(l.y, `${at}.y`, 0, 100000),
+        y: whole(l.y, `${at}.y`, 0, 200000 / scale) * scale,
         w: whole(l.w, `${at}.w`, 1, 12),
-        h: whole(l.h, `${at}.h`, 1, 100),
+        h: whole(l.h, `${at}.h`, 1, MAX_ROWS / scale) * scale,
       }
     })
   }
@@ -258,11 +280,13 @@ function readDefaults(value: unknown): DashboardView {
 
 /** Rebuilds a dashboard from known keys only; nothing from the file is passed through unchecked. */
 function readDashboard(value: unknown): DashboardInput {
-  const d = object(value, "dashboard", ["name", "widgets", "layouts", "defaults", "tags", "folder", ...SERVER_KEYS])
+  const d = object(value, "dashboard", ["name", "widgets", "layouts", "defaults", "tags", "folder", "row_height", ...SERVER_KEYS])
+  if (d.row_height !== undefined) oneOf(d.row_height, "row_height", [ROW_PITCH])
+  const scale = d.row_height === undefined ? 2 : 1
   return {
     name: text(d.name, "name", 120).trim(),
     widgets: list(d.widgets, "widgets", 100).map((w, i) => readWidget(w, `widgets.${i}`)),
-    layouts: readLayouts(d.layouts),
+    layouts: readLayouts(d.layouts, scale),
     defaults: d.defaults === undefined ? DEFAULT_VIEW : readDefaults(d.defaults),
     tags:
       d.tags === undefined

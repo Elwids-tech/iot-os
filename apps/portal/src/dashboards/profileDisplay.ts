@@ -34,8 +34,8 @@ export function displayStates(parameter?: Pick<DeviceProfileParameter, "display"
   })
 }
 
-/** The profile label for a reported value; booleans also match 1/0 and "true"/"false". */
-export function stateFor(states: StateLabel[], value: unknown): StateLabel | undefined {
+/** The profile label (or panel colour) for a reported value; booleans also match 1/0 and "true"/"false". */
+export function stateFor<T extends { value: string | boolean }>(states: T[], value: unknown): T | undefined {
   if (!states.length) return undefined
   const asBoolean = booleanValue(value)
   return states.find((state) =>

@@ -88,11 +88,19 @@ the portal's by
 Edits stay in a local draft. **Apply to dashboard** changes the draft; only **Save
 dashboard** persists panels, layout, name and viewing defaults. Panels stick to
 the top or to the panel above them, as in Grafana; layouts are compacted on load
-and save. Leaving with unsaved changes offers save, discard or stay; a revision
-conflict keeps the draft. Panels can be duplicated, removed or shown fullscreen.
+and save. Grid rows are 24 px including half the panel gap, so panels resize in
+half steps of the original 48 px row; a new panel is half the columns wide and 12
+rows high. Layouts saved before the change were doubled (`y`, `h`) by a migration,
+and import doubles files exported without `row_height: 24`. Leaving with unsaved
+changes offers save, discard or stay; a revision conflict keeps the draft. Panels
+can be duplicated, removed or shown fullscreen.
 
 Status thresholds are per-source numeric lower bounds with an explicit base band;
 lower bounds are inclusive. They are display rules, not alarms.
+
+State history panels can set their own colour per value (`state_colors`, up to 50
+per source: booleans as `true`/`false`, enum values as text). Values without one use
+the profile's tone; the profile's labels still apply.
 
 ## Panel types
 
@@ -108,7 +116,7 @@ keys.
 | `device_health` | Presence and last seen | `devices` (1–50), no sources |
 | `timeseries` | Numeric history, several same-unit series | sources |
 | `consumption` | Counter usage as bars | 1–4 counter sources of one unit, `bucket`, `period` |
-| `state_history` | Time in boolean or enum states | sources |
+| `state_history` | Time in boolean or enum states | sources, optional `state_colors` per source |
 | `color_history` | Reported colours as a timeline | sources |
 | `location` | GPS map: devices with location bindings (the editor sets up missing ones), trails, optional geofence | `location_device_uuids`, `geofence_uuid`, `show_trails`, `show_labels`, `trail_window` (legacy: `workflow_uuid`) |
 | `alerts` | Active conditions and the latest ten episodes of a workflow | `workflow_uuid` |

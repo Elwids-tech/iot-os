@@ -233,6 +233,46 @@ final class DashboardTest extends TestCase
         $this->postJson($this->url, $colourPayload)->assertUnprocessable();
     }
 
+    public function test_state_history_keeps_a_colour_per_state_value(): void
+    {
+        $panel = $this->panel($this->source('', 'boolean'), 'state_history');
+        $panel['config']['sources'][0]['state_colors'] = [['value' => true, 'color' => '#16a34a'], ['value' => false, 'color' => '#DC2626']];
+        $payload = [...$this->emptyDashboard(), 'widgets' => [$panel], 'layouts' => ['lg' => [['i' => $panel['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 200]]]];
+        $this->postJson($this->url, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.widgets.0.config.sources.0.state_colors', [['value' => true, 'color' => '#16a34a'], ['value' => false, 'color' => '#DC2626']])
+            ->assertJsonPath('data.layouts.lg.0.h', 200);
+
+        foreach ([
+            'sources.0.state_colors.0.value' => [['value' => 'on', 'color' => '#16a34a']],
+            'sources.0.state_colors.1.value' => [['value' => true, 'color' => '#16a34a'], ['value' => true, 'color' => '#000000']],
+            'sources.0.state_colors.0.color' => [['value' => true, 'color' => 'green']],
+        ] as $field => $colors) {
+            $bad = $payload;
+            $bad['widgets'][0]['config']['sources'][0]['state_colors'] = $colors;
+            $this->postJson($this->url, $bad)->assertUnprocessable()->assertJsonValidationErrors(["widgets.0.config.$field"]);
+        }
+        $tall = $payload;
+        $tall['layouts']['lg'][0]['h'] = 201;
+        $this->postJson($this->url, $tall)->assertUnprocessable()->assertJsonValidationErrors(['layouts.lg.0.h']);
+
+        $enum = $this->panel($this->source('', 'enum'), 'state_history');
+        $enum['config']['sources'][0]['state_colors'] = [['value' => 'running', 'color' => '#16a34a']];
+        $this->postJson($this->url, [...$payload, 'widgets' => [$enum], 'layouts' => ['lg' => [['i' => $enum['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 12]]]])
+            ->assertOk()
+            ->assertJsonPath('data.widgets.0.config.sources.0.state_colors.0.value', 'running');
+        $enum['config']['sources'][0]['state_colors'] = [['value' => false, 'color' => '#16a34a']];
+        $this->postJson($this->url, [...$payload, 'widgets' => [$enum], 'layouts' => ['lg' => [['i' => $enum['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 12]]]])
+            ->assertUnprocessable();
+
+        // Other panel types drop them, as when the editor changes a panel's type.
+        $status = $this->panel($this->source(), 'status');
+        $status['config']['sources'][0]['state_colors'] = [['value' => true, 'color' => '#16a34a']];
+        $saved = $this->postJson($this->url, [...$payload, 'widgets' => [$status], 'layouts' => ['lg' => [['i' => $status['id'], 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 12]]]])
+            ->assertOk()->json('data.widgets.0.config.sources.0');
+        $this->assertArrayNotHasKey('state_colors', $saved);
+    }
+
     public function test_time_series_validates_authoritative_profile_units_and_data_types(): void
     {
         $first = $this->source();

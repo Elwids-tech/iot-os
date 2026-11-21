@@ -59,6 +59,8 @@ export function seriesColor(color: string) {
   return index < 0 ? color : `var(--series-${index + 1})`
 }
 export const NEUTRAL: DashboardBand = { label: "Current", color: "#64748b" }
+/** State history: the most values one parameter can colour (the API accepts the same). */
+export const MAX_STATE_COLORS = 50
 /**
  * Band colours the server saves for a named tone, as listed in
  * contracts/dashboards/v1/panel-suggestions.fixture.json (the dashboard assistant).
@@ -436,6 +438,22 @@ export function timeLabel(value: string, timezone: DashboardView["timezone"]) {
 export const GRID_COLUMNS: Record<string, number> = { lg: 12, md: 10, sm: 6, xs: 1, xxs: 1 }
 
 /**
+ * One grid row is half of the original 48 px row, so a panel resizes in 24 px steps.
+ * Rows are measured with the gap between panels: two rows and their gap span exactly
+ * one original row in every skin, which is why saved layouts were doubled (y and h)
+ * when rows were halved.
+ */
+export const ROW_PITCH = 24
+/** The tallest panel, in rows (the API accepts the same). */
+export const MAX_ROWS = 200
+/** New panels: half the columns wide and this many rows high, as the API places them. */
+export const NEW_PANEL_ROWS = 12
+export const rowHeight = (gap: number) => ROW_PITCH - gap / 2
+/** The fewest rows that fit `pixels` of panel height. */
+export const rowsFor = (pixels: number, gap: number) =>
+  Math.min(MAX_ROWS, Math.max(1, Math.ceil((pixels + gap) / (rowHeight(gap) + gap))))
+
+/**
  * Panels float up to the panel above them or to the top of the dashboard, as
  * in Grafana, so an accidental drag never leaves a panel stranded below a gap.
  * The grid draws layouts this way; compacting before saving keeps the stored
@@ -471,19 +489,19 @@ export function cleanLayouts(layouts: DashboardLayout): DashboardLayout {
 
 /**
  * Phones: the fewest grid rows a panel gets in the one-column layout, by kind, so each
- * stays readable (spec 033, FR-006). Stat-like panels 3, charts and maps 6, tables and
- * lists 8; other kinds keep their own height.
+ * stays readable (spec 033, FR-006). Stat-like panels 6, charts and maps 12, tables and
+ * lists 16; other kinds keep their own height.
  */
 export const PHONE_MIN_ROWS: Partial<Record<DashboardWidget["type"], number>> = {
-  status: 3,
-  gauge: 3,
-  timeseries: 6,
-  state_history: 6,
-  color_history: 6,
-  consumption: 6,
-  location: 6,
-  table: 8,
-  alerts: 8,
+  status: 6,
+  gauge: 6,
+  timeseries: 12,
+  state_history: 12,
+  color_history: 12,
+  consumption: 12,
+  location: 12,
+  table: 16,
+  alerts: 16,
 }
 
 /**
@@ -542,7 +560,7 @@ export function appendLayout(
       const existing = items ?? []
       const cols = GRID_COLUMNS[key] ?? 12
       const w = Math.max(1, Math.floor(cols / 2)),
-        h = 6
+        h = NEW_PANEL_ROWS
       if (placement === "bottom") {
         // Under the lowest panel, so the grid's upward compaction keeps it at the bottom.
         const lowest = [...existing].sort((a, b) => b.y + b.h - (a.y + a.h))[0]

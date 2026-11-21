@@ -9,6 +9,7 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Geospatial\Models\Geofence;
 use App\Domain\Shared\Models\Organization;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -21,6 +22,9 @@ final class DashboardDefinition
 
     /** "dashboard" follows the dashboard range; the others are calendar periods in the device's time zone. */
     public const CONSUMPTION_PERIODS = ['dashboard', 'today', '7d', 'month', '12mo'];
+
+    /** State history: the most values one parameter can colour, as the portal's MAX_STATE_COLORS. */
+    public const MAX_STATE_COLORS = 50;
 
     public static function defaults(): array
     {
@@ -91,7 +95,7 @@ final class DashboardDefinition
             'widgets.*.config.devices.*' => ['array:device_uuid,device_name'],
             'widgets.*.config.devices.*.device_uuid' => ['required', 'uuid'],
             'widgets.*.config.devices.*.device_name' => ['sometimes', 'string', 'max:255'],
-            'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds'],
+            'widgets.*.config.sources.*' => ['array:device_uuid,parameter_uuid,device_name,label,unit,data_type,format,display_widget,precision,color,base,thresholds,state_colors'],
             'widgets.*.config.sources.*.device_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.parameter_uuid' => ['required', 'uuid'],
             'widgets.*.config.sources.*.device_name' => ['sometimes', 'string', 'max:255'],
@@ -110,14 +114,24 @@ final class DashboardDefinition
             'widgets.*.config.sources.*.thresholds.*.value' => ['required', 'numeric'],
             'widgets.*.config.sources.*.thresholds.*.label' => ['required', 'string', 'max:80'],
             'widgets.*.config.sources.*.thresholds.*.color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            // State history: the panel's own colour per boolean or enum value.
+            'widgets.*.config.sources.*.state_colors' => ['sometimes', 'array', 'max:'.self::MAX_STATE_COLORS],
+            'widgets.*.config.sources.*.state_colors.*' => ['array:value,color'],
+            'widgets.*.config.sources.*.state_colors.*.value' => ['required', function (string $attribute, mixed $value, Closure $fail): void {
+                if (! is_bool($value) && (! is_string($value) || $value === '' || mb_strlen($value) > 120)) {
+                    $fail('Enter the state value as reported, up to 120 characters.');
+                }
+            }],
+            'widgets.*.config.sources.*.state_colors.*.color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'layouts' => ['present', 'array:lg,md,sm,xs,xxs'],
             'layouts.*' => ['array', 'max:100'],
             'layouts.*.*' => ['array:i,x,y,w,h'],
             'layouts.*.*.i' => ['required', 'string'],
             'layouts.*.*.x' => ['required', 'integer', 'between:0,12'],
-            'layouts.*.*.y' => ['required', 'integer', 'between:0,100000'],
+            'layouts.*.*.y' => ['required', 'integer', 'between:0,200000'],
             'layouts.*.*.w' => ['required', 'integer', 'between:1,12'],
-            'layouts.*.*.h' => ['required', 'integer', 'between:1,100'],
+            // Rows are 24 px (half the original 48 px row): spec 019's 6-row panel is 12 now.
+            'layouts.*.*.h' => ['required', 'integer', 'between:1,200'],
             'tags' => ['sometimes', 'array', 'max:10'],
             'tags.*' => ['required', 'string', 'max:32'],
             'folder' => ['sometimes', 'nullable', 'string', 'max:60'],
@@ -296,6 +310,22 @@ final class DashboardDefinition
                 }
                 if (in_array($widget['type'], ['state_history', 'color_history'], true)) {
                     $source['thresholds'] = [];
+                }
+                if ($widget['type'] !== 'state_history') {
+                    // Kept by the editor when a panel changes type; only State history uses them.
+                    unset($source['state_colors']);
+                } elseif (isset($source['state_colors'])) {
+                    $values = [];
+                    foreach ($source['state_colors'] as $ci => $entry) {
+                        if (is_bool($entry['value']) !== ($source['data_type'] === 'boolean')) {
+                            $this->fail("$path.state_colors.$ci.value", $source['data_type'] === 'boolean' ? 'Colour On (true) or Off (false).' : 'Enter the state value as text.');
+                        }
+                        $key = var_export($entry['value'], true);
+                        if (isset($values[$key])) {
+                            $this->fail("$path.state_colors.$ci.value", 'Colour each state once.');
+                        }
+                        $values[$key] = true;
+                    }
                 }
                 if (! $numeric && ($source['thresholds'] || $widget['type'] === 'timeseries')) {
                     $this->fail($path, 'Charts and numeric thresholds require a numeric parameter.');

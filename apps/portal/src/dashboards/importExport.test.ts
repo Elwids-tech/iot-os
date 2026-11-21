@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { Dashboard } from "@iot-os/api-client"
 import {
   definition,
+  exported as exportFile,
   FILE_TOO_LARGE,
   fieldLabel,
   MAX_IMPORT_BYTES,
@@ -48,6 +49,26 @@ describe("export", () => {
 })
 
 describe("import", () => {
+  it("doubles rows from files exported before rows were halved, and keeps newer ones", () => {
+    const old = { ...exported, layouts: { lg: [{ i: "w1", x: 0, y: 3, w: 6, h: 6 }] } }
+    expect(parse(old).definitions[0].layouts.lg).toEqual([{ i: "w1", x: 0, y: 6, w: 6, h: 12 }])
+    const current = exportFile({ ...old, uuid: "x" } as unknown as Dashboard)
+    expect(current.row_height).toBe(24)
+    expect(parse(current).definitions[0].layouts.lg).toEqual(old.layouts.lg)
+    expect(parse({ ...current, row_height: 48 }).errors[0]).toContain("row_height must be one of 24.")
+    expect(parse({ ...old, layouts: { lg: [{ i: "w1", x: 0, y: 0, w: 6, h: 101 }] } }).errors[0]).toContain("must be a whole number from 1 to 100.")
+  })
+
+  it("round trips State history colours and rejects bad ones", () => {
+    const state = { ...source, data_type: "enum", unit: null, precision: null, thresholds: [], state_colors: [{ value: "running", color: "#16a34a" }, { value: true, color: "#dc2626" }] }
+    const panel = { id: "s", schema_version: 2, type: "state_history", title: "State", description: "", config: { sources: [state] } }
+    const result = parse(withWidget(panel))
+    expect(result.errors).toEqual([])
+    expect(result.definitions[0].widgets[0].config.sources[0].state_colors).toEqual(state.state_colors)
+    expect(parse(withWidget({ ...panel, config: { sources: [{ ...state, state_colors: [{ value: "x", color: "green" }] }] } })).errors[0]).toContain("state_colors.0.color must be a colour")
+    expect(parse(withWidget({ ...panel, config: { sources: [{ ...state, state_colors: [{ value: 1, color: "#000000" }] }] } })).errors[0]).toContain("state_colors.0.value must be text")
+  })
+
   it("round trips GPS configuration and rejects malformed map settings", () => {
     const config = { sources: [], location_device_uuids: [device], geofence_uuid: parameter, show_trails: false, show_labels: true, trail_window: "7d" }
     const gps = { id: "gps", schema_version: 2, type: "location", title: "GPS", description: "", config }

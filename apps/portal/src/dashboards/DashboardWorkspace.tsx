@@ -114,6 +114,7 @@ import {
   readView,
   resolveRange,
   responsiveLayouts,
+  rowsFor,
   saveFile,
   toCsv,
   widgetError,
@@ -122,7 +123,7 @@ import {
 import { PanelEditor } from "./PanelEditor"
 import { AddPanelDialog } from "./AddPanelDialog"
 import { PanelBody, widgetRegistry } from "./registry"
-import { DashboardGrid, ROW_HEIGHT } from "./DashboardGrid"
+import { DashboardGrid } from "./DashboardGrid"
 import { TimeControls } from "./TimeControls"
 import { ContextRail } from "./ContextRail"
 import { panelCsvRows } from "./panelData"
@@ -130,7 +131,7 @@ import { VersionHistory } from "./VersionHistory"
 import { ShareDialog } from "./ShareDialog"
 import { dashboardAbilities } from "./access"
 import { DuplicateDialog, SettingsDialog } from "./LibraryDialogs"
-import { definition, downloadJson } from "./importExport"
+import { downloadJson, exported } from "./importExport"
 
 const COLS = GRID_COLUMNS
 const RAIL_KEY = "iot-dashboard-rail"
@@ -619,10 +620,7 @@ export function DashboardWorkspace({
       contentTop +
       Number.parseFloat(contentStyle.paddingBottom || "0")
     const requiredHeight = (header?.offsetHeight ?? 0) + naturalContentHeight + 2
-    const rows = Math.min(
-      100,
-      Math.max(1, Math.ceil((requiredHeight + gap) / (ROW_HEIGHT + gap))),
-    )
+    const rows = rowsFor(requiredHeight, gap)
     setDraft((current) => {
       if (!current) return current
       const currentLayout = responsiveLayouts(current.layouts)[breakpoint] ?? []
@@ -1007,7 +1005,7 @@ export function DashboardWorkspace({
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
-                      onSelect={() => downloadJson(saved.name, definition(saved))}
+                      onSelect={() => downloadJson(saved.name, exported(saved))}
                     >
                       <FileJsonIcon />
                       Export JSON
