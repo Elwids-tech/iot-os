@@ -79,18 +79,32 @@ final class BrandImages
         $asset?->forceFill(['replaced_at' => now()])->save();
     }
 
-    /** Deletes images replaced before the given time, with their files. */
+    /**
+     * Deletes images replaced before the given time, with their files, and files left
+     * behind when a deleted billing account or organization took its rows with it.
+     */
     public function prune(CarbonImmutable $before): int
     {
+        $disk = Storage::disk(self::DISK);
         $deleted = 0;
         BrandAsset::query()->whereNotNull('replaced_at')->where('replaced_at', '<', $before)->orderBy('id')
-            ->chunkById(200, function ($assets) use (&$deleted): void {
+            ->chunkById(200, function ($assets) use (&$deleted, $disk): void {
                 foreach ($assets as $asset) {
-                    Storage::disk(self::DISK)->deleteDirectory(self::directory($asset->uuid));
+                    $disk->deleteDirectory(self::directory($asset->uuid));
                     $asset->delete();
                     $deleted++;
                 }
             });
+
+        foreach ($disk->directories('branding') as $directory) {
+            $files = $disk->files($directory);
+            // An upload writes its files just before its row: leave anything recent alone.
+            $recent = $files === [] || max(array_map($disk->lastModified(...), $files)) >= $before->getTimestamp();
+            if (! $recent && ! BrandAsset::query()->where('uuid', basename($directory))->exists()) {
+                $disk->deleteDirectory($directory);
+                $deleted++;
+            }
+        }
 
         return $deleted;
     }

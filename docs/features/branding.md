@@ -55,7 +55,8 @@ brand's while it is in effect and null otherwise; nothing reads it for page titl
   characters of the content hash, so the response is cached for a year and a changed
   image has a new address.
 - A replaced or removed image is still served for a day, for pages already open, then
-  `branding:prune-assets` (daily, 04:20 UTC) deletes it and its files.
+  `branding:prune-assets` (daily, 04:20 UTC) deletes it and its files. The same run
+  removes files whose billing account or organization was deleted.
 - Images are uploaded with `POST`: PHP reads a multipart body only on POST.
 
 ## Allowances

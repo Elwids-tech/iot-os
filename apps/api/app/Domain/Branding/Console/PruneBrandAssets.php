@@ -9,8 +9,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 
 /**
- * Deletes brand images replaced or removed more than a day ago, with their files (spec
- * 036, constitution VII). The day lets pages already open keep showing the old image.
+ * Deletes brand images replaced or removed more than a day ago, with their files, and
+ * the files of deleted billing accounts and organizations (spec 036, constitution VII).
+ * The day lets pages already open keep showing the old image.
  */
 final class PruneBrandAssets extends Command
 {
@@ -23,7 +24,7 @@ final class PruneBrandAssets extends Command
     public function handle(BrandImages $images): int
     {
         $now = $this->option('now') ? CarbonImmutable::parse((string) $this->option('now')) : CarbonImmutable::now();
-        $this->info(sprintf('Deleted %d replaced brand images.', $images->prune($now->subHours(self::KEEP_HOURS))));
+        $this->info(sprintf('Deleted %d replaced or orphaned brand images.', $images->prune($now->subHours(self::KEEP_HOURS))));
 
         return self::SUCCESS;
     }

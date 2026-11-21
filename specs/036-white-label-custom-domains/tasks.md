@@ -105,7 +105,7 @@ in the navigation, with the fallback of FR-004.
 - [x] T028 [US6] Give apps/admin/src/components/AllowanceOverrideDialog.tsx a switch mode for switch kinds and show the three kinds with their source in the allowances panel of apps/admin/src/pages/BillingAccountPage.tsx; add a **Branding** panel there that edits on the owner's behalf
 - [x] T029 [P] [US1] Playwright apps/portal/e2e/branding.spec.ts: the panel is locked without the allowance; set a brand; upload refusals show their reason; an organization logo shows and falls back
 - [x] T030 [P] [US1] Write docs/features/branding.md (brands, logos, fallback, image rules, allowances, routes) and add the three allowances to docs/features/billing.md
-- [ ] T031 [US1] Verify pull request 2: rebuild the API family, `portal` and `admin`; run quickstart 1 to 4 in the browser pane; `pnpm --filter @iot-os/portal lint` and the admin one pass
+- [x] T031 [US1] Verify pull request 2: rebuild the API family, `portal` and `admin`; run quickstart 1 to 4 in the browser pane; `pnpm --filter @iot-os/portal lint` and the admin one pass
 
 **Checkpoint**: pull request 2 merged. Logos work inside the portal on the platform's address.
 

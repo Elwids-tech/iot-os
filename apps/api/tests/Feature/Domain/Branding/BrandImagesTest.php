@@ -11,6 +11,7 @@ use App\Domain\Branding\Services\BrandImages;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -123,6 +124,22 @@ final class BrandImagesTest extends TestCase
         $this->assertFalse(Storage::disk(BrandImages::DISK)->exists($old->variants['logo']['path']));
         $this->assertTrue(Storage::disk(BrandImages::DISK)->exists($current->variants['logo']['path']));
         $this->get("/api/v1/brand-assets/{$old->publicKey()}/logo")->assertNotFound();
+    }
+
+    public function test_files_of_a_deleted_account_are_swept_a_day_later(): void
+    {
+        $asset = $this->store($this->image(300, 100), BrandAsset::LOGO);
+        $kept = app(BrandImages::class)->store($this->image(300, 100), BrandAsset::LOGO, BillingAccount::factory()->create(), null);
+        DB::table('billing_accounts')->where('id', $this->account->id)->delete();
+        $this->assertNull($asset->fresh());
+
+        // Recent files are left alone: an upload writes them just before its row.
+        $this->artisan('branding:prune-assets')->assertSuccessful();
+        $this->assertTrue(Storage::disk(BrandImages::DISK)->exists($asset->variants['logo']['path']));
+
+        $this->artisan('branding:prune-assets', ['--now' => CarbonImmutable::now()->addHours(25)->toIso8601String()])->assertSuccessful();
+        $this->assertFalse(Storage::disk(BrandImages::DISK)->exists($asset->variants['logo']['path']));
+        $this->assertTrue(Storage::disk(BrandImages::DISK)->exists($kept->variants['logo']['path']));
     }
 
     private function store(UploadedFile $file, string $role): BrandAsset
