@@ -1,7 +1,12 @@
-import type { AllowanceKind, PlanAllowance } from "@iot-os/api-client"
+import type { AllowanceKind, PlanAllowance, SwitchAllowanceKind } from "@iot-os/api-client"
+
+/** Kinds that are on (1) or off (0) rather than a number (spec 036). */
+export const switchKinds: SwitchAllowanceKind[] = ["branding", "custom_domain", "hide_powered_by"]
 
 /** Every allowance kind, in the API's order (ADR-035). */
-export const allowanceKinds: AllowanceKind[] = ["alerts", "sms", "devices", "data_points", "retention_days", "organizations"]
+export const allowanceKinds: AllowanceKind[] = ["alerts", "sms", "devices", "data_points", "retention_days", "organizations", ...switchKinds]
+
+export const isSwitch = (kind: AllowanceKind): kind is SwitchAllowanceKind => (switchKinds as AllowanceKind[]).includes(kind)
 
 type KindText = {
   /** Field and row label. */
@@ -40,6 +45,24 @@ export const allowanceText: Record<AllowanceKind, KindText> = {
     noun: "organization limit",
     help: "Organizations the account's owners may create. Platform administrators can always add more.",
   },
+  branding: {
+    label: "Branding",
+    short: "Branding",
+    noun: "branding",
+    help: "The account's owners may show their own product name, logo and icon instead of the platform's.",
+  },
+  custom_domain: {
+    label: "Custom domain",
+    short: "Custom domain",
+    noun: "custom domain",
+    help: "The account's owners may serve the portal on a domain of their own. It needs Branding.",
+  },
+  hide_powered_by: {
+    label: "Hide \"Powered by\"",
+    short: "No \"Powered by\"",
+    noun: "hidden \"Powered by\" line",
+    help: "Removes the line naming the platform from the account's branded pages.",
+  },
 }
 
 /** The highest value the API accepts for each kind. */
@@ -50,14 +73,18 @@ export const allowanceMaximum: Record<AllowanceKind, number> = {
   data_points: 1_000_000_000_000,
   retention_days: 36_500,
   organizations: 100_000,
+  branding: 1,
+  custom_domain: 1,
+  hide_powered_by: 1,
 }
 
-/** Retention is never unlimited: null there means the platform's retention setting. */
-export const allowsUnlimited = (kind: AllowanceKind) => kind !== "retention_days"
+/** Retention is never unlimited: null there means the platform's retention setting. Switches are on or off. */
+export const allowsUnlimited = (kind: AllowanceKind) => kind !== "retention_days" && !isSwitch(kind)
 
 /** A value as text: a number, "Unlimited", or the platform retention setting, in days when known. */
 export function allowanceValue(kind: AllowanceKind, value: number | null, platformRetentionDays?: number): string {
   const days = (count: number) => `${count.toLocaleString()} ${count === 1 ? "day" : "days"}`
+  if (isSwitch(kind)) return value === 1 ? "On" : "Off"
   if (value === null && allowsUnlimited(kind)) return "Unlimited"
   if (value === null) return platformRetentionDays === undefined ? "Platform setting" : `${days(platformRetentionDays)} (platform setting)`
   return kind === "retention_days" ? days(value) : value.toLocaleString()

@@ -46,7 +46,8 @@ final class OwnedBillingAccountResource extends JsonResource
         $sms = Usage::smsAvailable();
         $allowances = array_values(array_filter(
             app(Allowances::class)->all($this->resource),
-            fn (ResolvedAllowance $allowance): bool => $sms || $allowance->kind !== AllowanceKind::Sms,
+            // Switches (spec 036) are read with the account's branding, not listed as limits.
+            fn (ResolvedAllowance $allowance): bool => ! $allowance->kind->isSwitch() && ($sms || $allowance->kind !== AllowanceKind::Sms),
         ));
         $usage = app(Usage::class)->forAccount($this->resource, CarbonImmutable::now(), withSms: $sms);
         $latest = $this->resource->invoices()->where('status', Invoice::ISSUED)->latest('month')->first();

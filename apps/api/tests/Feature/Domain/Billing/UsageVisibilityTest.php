@@ -93,7 +93,8 @@ final class UsageVisibilityTest extends TestCase
             ->assertJsonPath('data.0.plan.since', $this->account->fresh()->openPlanAssignment->started_at->toIso8601String())
             ->assertJsonPath('data.0.usage.0.count', 5)
             ->assertJsonPath('data.0.usage.1.kind', 'sms')
-            ->assertJsonCount(count(AllowanceKind::cases()), 'data.0.allowances');
+            // Owners read the switches (spec 036) with their branding, not as limits.
+            ->assertJsonCount(count(array_filter(AllowanceKind::cases(), fn (AllowanceKind $kind): bool => ! $kind->isSwitch())), 'data.0.allowances');
 
         $this->getJson('/api/v1/billing-accounts/'.$this->account->uuid.'/usage?month=2026-13')->assertUnprocessable();
 

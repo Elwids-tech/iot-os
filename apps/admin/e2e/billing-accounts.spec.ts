@@ -1,4 +1,5 @@
 import { expect, test as base, type Page, type Route } from "@playwright/test"
+import { mockBranding } from "./branding-mock"
 
 // Billing accounts in the admin app (spec 023 US1 and US2), against a mocked API.
 
@@ -303,6 +304,8 @@ async function mockApi(page: Page) {
 
     return json(route, { message: `Unmocked ${method} ${path}` }, 404)
   })
+
+  await mockBranding(page)
 
   return { sent, usageMonths, listQueries }
 }

@@ -62,6 +62,8 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:${IOT_PORTAL_PORT:-5173},http://127.0.0.1:${IOT_PORTAL_PORT:-5173},http://localhost:${IOT_ADMIN_PORT:-5174},http://localhost:5175,http://127.0.0.1:${IOT_ADMIN_PORT:-5174},http://127.0.0.1:5175
     volumes:
       - assistant-private:/var/www/html/storage/app/private/assistant
+      # Brand images (spec 036): kept across rebuilds, and shared with the scheduler that prunes them.
+      - branding-private:/var/www/html/storage/app/private/branding
     ports:
       - "${IOT_API_PORT:-8001}:8000"
     depends_on:
@@ -160,6 +162,8 @@ services:
       dockerfile: deploy/docker/api/Dockerfile
     environment: *api-environment
     command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - branding-private:/var/www/html/storage/app/private/branding
     depends_on:
       api:
         condition: service_healthy
@@ -199,3 +203,4 @@ services:
 
 volumes:
   assistant-private:
+  branding-private:

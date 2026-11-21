@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@iot-os/ui/components/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
 import { Label } from "@iot-os/ui/components/label"
 import { Switch } from "@iot-os/ui/components/switch"
@@ -18,7 +18,7 @@ import { Textarea } from "@iot-os/ui/components/textarea"
 import { AlertCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
-import { allowanceMaximum, allowanceText, allowanceValue, allowsUnlimited } from "../lib/allowances"
+import { allowanceMaximum, allowanceText, allowanceValue, allowsUnlimited, isSwitch } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
 import { RetentionConfirmDialog, retentionConfirmation } from "./RetentionConfirmDialog"
@@ -81,7 +81,10 @@ export function AllowanceOverrideDialog({
     setIsSubmitting(true)
 
     try {
-      const value = values.unlimited ? null : values.value.trim() === "" ? Number.NaN : Number.parseInt(values.value, 10)
+      // A switch kind is on (1) or off (0), never empty or unlimited.
+      const value = isSwitch(kind)
+        ? values.value === "1" ? 1 : 0
+        : values.unlimited ? null : values.value.trim() === "" ? Number.NaN : Number.parseInt(values.value, 10)
       if (Number.isNaN(value)) {
         setErrors({ value: ["Enter a whole number, or choose unlimited."] })
         return
@@ -125,6 +128,21 @@ export function AllowanceOverrideDialog({
           </DialogHeader>
           <form onSubmit={submit}>
             <FieldGroup>
+              {isSwitch(kind) ? (
+                <Field orientation="horizontal" data-invalid={Boolean(field("value"))}>
+                  <Switch
+                    id="override-value"
+                    checked={values.value === "1"}
+                    aria-describedby="override-value-help"
+                    onCheckedChange={(on) => setValues((current) => ({ ...current, value: on ? "1" : "0" }))}
+                  />
+                  <FieldContent>
+                    <FieldLabel htmlFor="override-value">{allowanceText[kind].label}</FieldLabel>
+                    <FieldDescription id="override-value-help">{allowanceText[kind].help}</FieldDescription>
+                    <FieldError errors={field("value")} />
+                  </FieldContent>
+                </Field>
+              ) : (
               <Field data-invalid={Boolean(field("value"))}>
                 <FieldLabel htmlFor="override-value">{allowanceText[kind].label}</FieldLabel>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -160,6 +178,7 @@ export function AllowanceOverrideDialog({
                 <FieldDescription id="override-value-help">{allowanceText[kind].help}</FieldDescription>
                 <FieldError errors={field("value")} />
               </Field>
+              )}
               <Field data-invalid={Boolean(field("note"))}>
                 <FieldLabel htmlFor="override-note">Note</FieldLabel>
                 <Textarea

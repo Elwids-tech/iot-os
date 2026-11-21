@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import { test, expect, type Page } from "@playwright/test"
+import { mockBranding } from "./branding-mock"
 
 /** Usage in the portal (spec 028 US4, spec 029 US5): owners' panels and managers' Settings → Usage, against a mocked API. */
 const org = "a0000000-0000-4000-8000-000000000001"
@@ -128,6 +129,7 @@ async function setup(page: Page, options: { manage?: boolean; reportedAt?: strin
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: ago(0) } })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
+  await mockBranding(page)
   return { errors, months }
 }
 

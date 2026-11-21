@@ -83,6 +83,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@iot-os/ui/components/dialog"
+import { BrandMark } from "@iot-os/ui/components/brand-mark"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
   BookOpenIcon,
@@ -770,15 +771,28 @@ function PortalSidebar({
                       ? `Organization: ${organization.name}`
                       : "Choose organization"
                   }
+                  size={organization?.brand?.logo ? "lg" : "default"}
                   className="font-medium group-data-[collapsible=icon]:p-1.5!"
                 >
+                  {/* The logo (spec 036) sits above the name, which says which organization
+                      this is when the logo is its provider's. The rail keeps the initial. */}
                   <Mark
                     text={organization ? initials(organization.name, 1) : "?"}
-                    className="bg-foreground text-micro text-background"
+                    className={cn(
+                      "bg-foreground text-micro text-background",
+                      organization?.brand?.logo && "hidden group-data-[collapsible=icon]:grid",
+                    )}
                   />
-                  <span className="truncate group-data-[collapsible=icon]:sr-only">
-                    {organization?.name ?? "Choose organization"}
-                  </span>
+                  {organization?.brand?.logo ? (
+                    <span className="grid min-w-0 flex-1 gap-0.5 group-data-[collapsible=icon]:sr-only">
+                      <BrandMark name={organization.name} logo={organization.brand.logo} logoDark={organization.brand.logo_dark} aria-hidden="true" />
+                      <span className="truncate text-meta font-normal text-muted-foreground">{organization.name}</span>
+                    </span>
+                  ) : (
+                    <span className="truncate group-data-[collapsible=icon]:sr-only">
+                      {organization?.name ?? "Choose organization"}
+                    </span>
+                  )}
                   <ChevronsUpDownIcon className="ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

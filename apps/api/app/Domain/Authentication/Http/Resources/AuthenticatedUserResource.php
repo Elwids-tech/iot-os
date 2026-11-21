@@ -6,8 +6,10 @@ namespace App\Domain\Authentication\Http\Resources;
 
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
+use App\Domain\Branding\Services\Brands;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,6 +20,15 @@ final class AuthenticatedUserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $organizations = $this->is_super_admin
+            ? Organization::query()->with(['logo', 'logoDark'])->orderBy('name')->get()
+            : $this->whenLoaded('organizations');
+        if ($organizations instanceof Collection) {
+            // One pass for every organization's logos and brand (spec 036).
+            $organizations->loadMissing(['logo', 'logoDark']);
+            app(Brands::class)->preload($organizations);
+        }
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -42,11 +53,7 @@ final class AuthenticatedUserResource extends JsonResource
                 // Owners see their billing accounts and create organizations under them (spec 023).
                 'billing_accounts' => $this->resource->ownedBillingAccounts()->exists(),
             ],
-            'organizations' => OrganizationResource::collection(
-                $this->is_super_admin
-                    ? Organization::query()->orderBy('name')->get()
-                    : $this->whenLoaded('organizations'),
-            ),
+            'organizations' => OrganizationResource::collection($organizations),
         ];
     }
 }

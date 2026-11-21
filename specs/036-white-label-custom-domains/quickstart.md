@@ -106,7 +106,7 @@ otherwise. Shapes are in [contracts/](contracts/); states are in
 ## Automated
 
 ```bash
-cd apps/api && php artisan test --compact tests/Feature/Branding
+cd apps/api && php artisan test --compact tests/Feature/Domain/Branding
 ```
 
 ```bash

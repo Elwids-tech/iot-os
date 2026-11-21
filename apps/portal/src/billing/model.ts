@@ -33,6 +33,10 @@ export const allowanceLabels: Record<AllowanceKind, string> = {
   data_points: "Data points per month",
   retention_days: "Telemetry retention",
   organizations: "Organizations",
+  // Switches (spec 036). Owners read them on the Branding panel; the API leaves them out of the list.
+  branding: "Branding",
+  custom_domain: "Custom domain",
+  hide_powered_by: "Hidden \"Powered by\" line",
 }
 
 /** An allowance as text: a number, "Unlimited", or for retention days, the platform's when the plan sets none. */

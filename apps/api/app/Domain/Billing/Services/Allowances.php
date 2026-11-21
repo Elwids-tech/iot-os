@@ -34,6 +34,12 @@ final class Allowances
         return $this->resolve($account, $kind)->value;
     }
 
+    /** Whether a switch kind (spec 036) is on for the account. */
+    public function allows(BillingAccount $account, AllowanceKind $kind): bool
+    {
+        return $this->value($account, $kind) === 1;
+    }
+
     /**
      * Every kind, in the enum's order. Loaded `allowanceOverrides` and
      * `openPlanAssignment.plan.allowances` relations are used when present, so a list
@@ -177,6 +183,10 @@ final class Allowances
      */
     public function validate(AllowanceKind $kind, ?int $value, string $field = 'value'): void
     {
+        if ($kind->isSwitch() && ! in_array($value, [0, 1], true)) {
+            throw ValidationException::withMessages([$field => 'Choose on (1) or off (0).']);
+        }
+
         if ($value === null && ! $kind->allowsUnlimited()) {
             throw ValidationException::withMessages([$field => 'Retention needs a number of days.']);
         }

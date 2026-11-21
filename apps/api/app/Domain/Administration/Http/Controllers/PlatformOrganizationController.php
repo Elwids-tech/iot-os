@@ -15,6 +15,7 @@ use App\Domain\Billing\Models\BillingPlan;
 use App\Domain\Billing\Services\BillingAccounts;
 use App\Domain\Billing\Services\PlanAssignments;
 use App\Domain\Billing\Services\Trials;
+use App\Domain\Branding\Services\Brands;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
@@ -57,6 +58,10 @@ final class PlatformOrganizationController
             ->orderBy('name')
             ->paginate($perPage)
             ->withQueryString();
+
+        // One pass for the page's logos and brands (spec 036).
+        $organizations->getCollection()->load(['logo', 'logoDark']);
+        app(Brands::class)->preload($organizations->getCollection());
 
         return OrganizationResource::collection($organizations);
     }

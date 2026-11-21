@@ -8,6 +8,7 @@ use App\Domain\Administration\Services\OrganizationAdministrationAuthorization;
 use App\Domain\Administration\Services\OrganizationGrants;
 use App\Domain\Agents\Services\AgentAccess;
 use App\Domain\Automation\Services\DagAuthorization;
+use App\Domain\Branding\Services\Brands;
 use App\Domain\Dashboards\Services\DashboardAccess;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
 use App\Domain\Devices\Services\DeviceAuthorization;
@@ -24,11 +25,32 @@ final class OrganizationResource extends JsonResource
     public function toArray(Request $request): array
     {
         $user = $request->user();
+        $brand = app(Brands::class)->forOrganization($this->resource);
 
         return [
             'uuid' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
+            /**
+             * The organization's own logo (spec 036), or null.
+             *
+             * @var array{url: string, width: int, height: int}|null
+             */
+            'logo' => $this->resource->logo?->image(),
+            /** @var array{url: string, width: int, height: int}|null */
+            'logo_dark' => $this->resource->logoDark?->image(),
+            /**
+             * What the portal shows for the organization: its own logo, else its billing
+             * account's brand while that is in effect. A null `product_name` means the
+             * platform's name; a null `logo` means the organization's name is shown.
+             *
+             * @var array{product_name: string|null, logo: array{url: string, width: int, height: int}|null, logo_dark: array{url: string, width: int, height: int}|null}
+             */
+            'brand' => [
+                'product_name' => $brand['product_name'],
+                'logo' => $brand['logo']?->image(),
+                'logo_dark' => $brand['logo_dark']?->image(),
+            ],
             // Members must use two-step sign-in (spec 034, FR-021).
             'two_step_required' => (bool) $this->two_step_required,
             'users_count' => $this->whenCounted('users'),

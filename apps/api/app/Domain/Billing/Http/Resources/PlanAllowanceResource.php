@@ -21,7 +21,7 @@ final class PlanAllowanceResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            /** @var 'alerts'|'sms'|'devices'|'data_points'|'retention_days'|'organizations' */
+            /** @var 'alerts'|'sms'|'devices'|'data_points'|'retention_days'|'organizations'|'branding'|'custom_domain'|'hide_powered_by' */
             'kind' => $this->resource->kind->value,
             'value' => $this->resource->value === null ? null : (int) $this->resource->value,
         ];

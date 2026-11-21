@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import { test, expect, type Page } from "@playwright/test"
+import { mockBranding } from "./branding-mock"
 
 /** Billing account owners in the portal (spec 023), against a mocked API. */
 const shop = { uuid: "a0000000-0000-4000-8000-000000000001", name: "Corner Shop", slug: "corner-shop" }
@@ -104,6 +105,7 @@ async function setup(
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: now } })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
+  await mockBranding(page)
   return { state, errors }
 }
 

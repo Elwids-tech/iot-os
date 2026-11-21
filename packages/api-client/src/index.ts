@@ -72,6 +72,7 @@ export * from "./overview"
 export * from "./agents"
 export * from "./support"
 export * from "./billing"
+export * from "./branding"
 export * from "./activity"
 export type * from "./security"
 export type * from "./sign-up"
@@ -87,6 +88,11 @@ export type Organization = {
   billing_account?: { uuid: string; name: string }
   /** Every member must use two-step sign-in (spec 034). Older payloads omit it. */
   two_step_required?: boolean
+  /** The organization's own logos (spec 036). Older payloads omit them. */
+  logo?: import("./branding").BrandImage | null
+  logo_dark?: import("./branding").BrandImage | null
+  /** What the portal shows for it: its own logo, else its billing account's brand. Older payloads omit it. */
+  brand?: import("./branding").ResolvedBrand
   capabilities?: {
     manage_administration: boolean
     /** Member, invitation and role screens. Older payloads omit it. */
@@ -1661,6 +1667,66 @@ export class ApiClient {
     return this.request<ApiResponse<OwnedBillingAccount[]>>("/api/v1/billing-accounts").then(
       (response) => response.data,
     )
+  }
+
+  // Brands and logos (spec 036). `admin` uses the platform staff routes, which skip the allowance check.
+  private brandPath(billingAccountUuid: string, admin: boolean, rest: string) {
+    return `/api/v1/${admin ? "admin/" : ""}billing-accounts/${encodeURIComponent(billingAccountUuid)}/${rest}`
+  }
+  private imageBody(file: File) {
+    const body = new FormData()
+    body.append("image", file)
+    return body
+  }
+
+  /** A billing account's brand, addresses, switches and image limits; 404 for an account the person does not own. */
+  async branding(billingAccountUuid: string, admin = false): Promise<import("./branding").Branding> {
+    return this.data(this.brandPath(billingAccountUuid, admin, "branding"))
+  }
+
+  /** 403 `branding_not_allowed` for an owner whose plan has no branding; 409 `brand_changed` on a stale `revision`. */
+  async updateBrand(billingAccountUuid: string, values: import("./branding").BrandValues, admin = false): Promise<import("./branding").Brand> {
+    return this.data(this.brandPath(billingAccountUuid, admin, "brand"), "PUT", values)
+  }
+
+  /** PNG, JPEG or WebP up to 1 MB; a refusal is a 422 whose `code` is a `BrandImageRefusal`. */
+  async setBrandImage(
+    billingAccountUuid: string,
+    role: import("./branding").BrandImageRole,
+    file: File,
+    admin = false,
+  ): Promise<import("./branding").Brand> {
+    return (
+      await this.request<ApiResponse<import("./branding").Brand>>(this.brandPath(billingAccountUuid, admin, `brand/images/${role}`), {
+        method: "POST",
+        body: this.imageBody(file),
+      })
+    ).data
+  }
+
+  async removeBrandImage(billingAccountUuid: string, role: import("./branding").BrandImageRole, admin = false): Promise<import("./branding").Brand> {
+    return this.data(this.brandPath(billingAccountUuid, admin, `brand/images/${role}`), "DELETE")
+  }
+
+  /** An organization's own logo, needing `Organization.update`; refusals as for `setBrandImage`. */
+  async setOrganizationLogo(
+    organizationUuid: string,
+    role: import("./branding").OrganizationLogoRole,
+    file: File,
+  ): Promise<import("./branding").OrganizationLogos> {
+    return (
+      await this.request<ApiResponse<import("./branding").OrganizationLogos>>(
+        `/api/v1/organizations/${encodeURIComponent(organizationUuid)}/${role === "logo" ? "logo" : "logo/dark"}`,
+        { method: "POST", body: this.imageBody(file) },
+      )
+    ).data
+  }
+
+  async removeOrganizationLogo(
+    organizationUuid: string,
+    role: import("./branding").OrganizationLogoRole,
+  ): Promise<import("./branding").OrganizationLogos> {
+    return this.data(`/api/v1/organizations/${encodeURIComponent(organizationUuid)}/${role === "logo" ? "logo" : "logo/dark"}`, "DELETE")
   }
 
   /** An owned account's usage for a UTC month (`YYYY-MM`, this month by default); 404 for anyone else's. */

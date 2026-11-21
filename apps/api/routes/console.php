@@ -45,6 +45,7 @@ Schedule::command('billing:payment-reminders')->dailyAt('09:00')->withoutOverlap
 Schedule::command('passport:purge')->dailyAt('03:35')->withoutOverlapping();
 Schedule::command('auth:prune-kept-sign-ins')->dailyAt('03:55')->withoutOverlapping();
 Schedule::command('sign-ups:prune')->dailyAt('04:10')->withoutOverlapping();
+Schedule::command('branding:prune-assets')->dailyAt('04:20')->withoutOverlapping();
 
 Schedule::call(function (): void {
     if (config('deployment.ops_enabled')) {

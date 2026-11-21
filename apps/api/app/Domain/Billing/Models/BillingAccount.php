@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Billing\Models;
 
+use App\Domain\Branding\Models\Brand;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
@@ -104,6 +105,16 @@ final class BillingAccount extends Model
     {
         return $this->belongsToMany(User::class, 'billing_account_owners')
             ->withPivot(['added_by', 'created_at']);
+    }
+
+    /**
+     * The account's brand (spec 036), if one was ever saved.
+     *
+     * @return HasOne<Brand, $this>
+     */
+    public function brand(): HasOne
+    {
+        return $this->hasOne(Brand::class);
     }
 
     /**

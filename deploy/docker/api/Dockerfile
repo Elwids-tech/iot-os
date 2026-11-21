@@ -19,8 +19,9 @@ RUN composer install \
 FROM php:8.4.27-cli-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl libpq-dev poppler-utils \
-    && docker-php-ext-install pdo_pgsql pcntl opcache bcmath \
+    && apt-get install -y --no-install-recommends curl libpq-dev poppler-utils libpng-dev libjpeg62-turbo-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install pdo_pgsql pcntl opcache bcmath gd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html

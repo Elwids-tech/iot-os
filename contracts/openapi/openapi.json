@@ -3990,7 +3990,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations)$"
+              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations|branding|custom_domain|hide_powered_by)$"
             },
             "description": "A value that does not match returns 404."
           }
@@ -4080,7 +4080,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations)$"
+              "pattern": "^(?:alerts|sms|devices|data_points|retention_days|organizations|branding|custom_domain|hide_powered_by)$"
             },
             "description": "A value that does not match returns 404."
           },
@@ -4216,6 +4216,309 @@
         ],
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/brand": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.brand.update",
+        "tags": [
+          "PlatformBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBrandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BrandChanged"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "description": "Saves a billing account's brand on its owners' behalf. The allowance is not\nchecked: the brand takes effect only once `branding` is on for the account."
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/brand/images/{role}": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.brand.images.store",
+        "summary": "Sets the logo, dark logo or icon from a multipart `image`",
+        "tags": [
+          "PlatformBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:logo|logo_dark|icon)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "contentMediaType": "application/octet-stream"
+                  }
+                },
+                "required": [
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/BrandImageRefused"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "v1.admin.billing-accounts.brand.images.destroy",
+        "tags": [
+          "PlatformBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:logo|logo_dark|icon)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/branding": {
+      "get": {
+        "operationId": "v1.admin.billing-accounts.branding.show",
+        "tags": [
+          "PlatformBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BrandingResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandingResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "description": "Any billing account's branding, for platform staff."
       }
     },
     "/v1/admin/billing-accounts/{billingAccount}/invoices": {
@@ -11181,6 +11484,306 @@
         "x-audience": "account"
       }
     },
+    "/v1/billing-accounts/{billingAccount}/brand": {
+      "put": {
+        "operationId": "v1.billing-accounts.brand.update",
+        "tags": [
+          "OwnedBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBrandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/BrandingNotAllowed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/BrandChanged"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Saves the brand's product name, short name and support link together. Needs the\naccount's `branding` allowance. The brand takes effect once it has a product name."
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/brand/images/{role}": {
+      "post": {
+        "operationId": "v1.billing-accounts.brand.images.store",
+        "summary": "Sets the logo, dark logo or icon from a multipart `image`",
+        "tags": [
+          "OwnedBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:logo|logo_dark|icon)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "contentMediaType": "application/octet-stream"
+                  }
+                },
+                "required": [
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/BrandingNotAllowed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/BrandImageRefused"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Sets the brand's `logo`, `logo_dark` or `icon` from a multipart `image`: PNG, JPEG\nor WebP by content, at most 1 MB. The image is re-encoded; a logo is scaled to fit\n480 × 160 and an icon, square and at least 512 × 512, is stored in every size the\ninstalled app needs. It is a POST because a multipart body is only read on POST."
+      },
+      "delete": {
+        "operationId": "v1.billing-accounts.brand.images.destroy",
+        "tags": [
+          "OwnedBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:logo|logo_dark|icon)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BrandResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/BrandingNotAllowed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/branding": {
+      "get": {
+        "operationId": "v1.billing-accounts.branding.show",
+        "tags": [
+          "OwnedBrand"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`BrandingResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BrandingResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "What the branding page reads for a billing account the signed-in person owns: its\nbrand, its portal addresses, what its plan allows and the image limits. Reading\nworks without the `branding` allowance, so the page can say so."
+      }
+    },
     "/v1/billing-accounts/{billingAccount}/credit-notes/{creditNote}.csv": {
       "get": {
         "operationId": "v1.billing-accounts.credit-notes.csv",
@@ -12014,6 +12617,47 @@
           }
         ],
         "x-audience": "account"
+      }
+    },
+    "/v1/brand-assets/{asset}/{variant}": {
+      "get": {
+        "operationId": "v1.brand-assets.show",
+        "tags": [
+          "BrandAsset"
+        ],
+        "parameters": [
+          {
+            "name": "asset",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}[0-9a-f]{12})$"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9]{1,16})$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/BrandImage"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "description": "A brand image, public because the sign-in page shows it before anyone signs in.\n`asset` is the image's uuid followed by the first 12 characters of its content\nhash; `variant` is `logo`, or for an icon `512`, `192`, `180`, `64` or `maskable`."
       }
     },
     "/v1/invitations/{token}": {
@@ -29624,6 +30268,308 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/logo": {
+      "post": {
+        "operationId": "v1.organizations.logo.store",
+        "summary": "Sets the logo from a multipart `image`",
+        "tags": [
+          "OrganizationLogo"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`OrganizationLogosResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationLogosResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/BrandImageRefused"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Sets the organization's own logo from a multipart `image`, under the same rules as\na brand's logo. Needs `Organization.update` and no allowance.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "contentMediaType": "application/octet-stream"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "v1.organizations.logo.destroy",
+        "tags": [
+          "OrganizationLogo"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`OrganizationLogosResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationLogosResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/logo/dark": {
+      "post": {
+        "operationId": "v1.organizations.logo.dark.store",
+        "summary": "Sets the logo shown on dark appearance from a multipart `image`",
+        "tags": [
+          "OrganizationLogo"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`OrganizationLogosResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationLogosResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/BrandImageRefused"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Sets the logo shown on dark appearance. Without it, the logo is shown on both.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "contentMediaType": "application/octet-stream"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "v1.organizations.logo.dark.destroy",
+        "tags": [
+          "OrganizationLogo"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`OrganizationLogosResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OrganizationLogosResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/members": {
       "get": {
         "operationId": "v1.organizations.members.index",
@@ -35915,6 +36861,47 @@
       }
     },
     "responses": {
+      "BrandChanged": {
+        "description": "The brand was changed since `revision` was read (`brand_changed`). Read it again.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
+      "BrandImage": {
+        "description": "The image as PNG, cached for a year. Its address changes when the image does.",
+        "content": {
+          "image/png": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
+      "BrandImageRefused": {
+        "description": "The image was not accepted; `code` says why.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BrandImageRefused"
+            }
+          }
+        }
+      },
+      "BrandingNotAllowed": {
+        "description": "Branding is not part of the billing account's plan (`branding_not_allowed`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
       "Conflict": {
         "description": "The request conflicts with the current state, for example a stale revision.",
         "content": {
@@ -37383,7 +38370,10 @@
               "devices",
               "data_points",
               "retention_days",
-              "organizations"
+              "organizations",
+              "branding",
+              "custom_domain",
+              "hide_powered_by"
             ]
           },
           "value": {
@@ -38310,6 +39300,259 @@
           "past_due_since"
         ],
         "title": "BillingAccountResource"
+      },
+      "BrandImageRefused": {
+        "type": "object",
+        "description": "422 for an image that was not accepted. `code` names the rule it broke: `image_type` (not a PNG, JPEG or WebP image by content), `image_too_large` (over 1 MB, or over the largest dimensions), `image_not_square` (an icon more than 2% off square) or `image_too_small` (an icon under 512 × 512). Without `code`, the `image` field was missing or failed to upload.",
+        "required": [
+          "message",
+          "errors"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "image_type",
+              "image_too_large",
+              "image_not_square",
+              "image_too_small"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "BrandResource": {
+        "type": "object",
+        "properties": {
+          "product_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Shown in titles and on the sign-in page; at most 40 characters."
+          },
+          "short_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The installed app's name; at most 12 characters."
+          },
+          "support_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An `https:` or `mailto:` link."
+          },
+          "logo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "width",
+              "height"
+            ]
+          },
+          "logo_dark": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "width",
+              "height"
+            ]
+          },
+          "icon": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "width",
+              "height"
+            ]
+          },
+          "in_effect": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "description": "Send it back with a change; a brand changed since answers 409."
+          }
+        },
+        "required": [
+          "product_name",
+          "short_name",
+          "support_url",
+          "logo",
+          "logo_dark",
+          "icon",
+          "in_effect",
+          "revision"
+        ],
+        "title": "BrandResource"
+      },
+      "BrandingResource": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "$ref": "#/components/schemas/BrandResource"
+          },
+          "addresses": {
+            "type": "array",
+            "description": "The account's portal addresses. Always empty until addresses are available.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "name",
+                    "domain"
+                  ]
+                },
+                "host": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "waiting_dns",
+                    "active",
+                    "unreachable",
+                    "suspended",
+                    "lapsed"
+                  ]
+                },
+                "main": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "uuid",
+                "kind",
+                "host",
+                "state",
+                "main"
+              ]
+            }
+          },
+          "allowances": {
+            "type": "object",
+            "description": "What the account's plan and overrides turn on.",
+            "properties": {
+              "branding": {
+                "type": "boolean"
+              },
+              "custom_domain": {
+                "type": "boolean"
+              },
+              "hide_powered_by": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "branding",
+              "custom_domain",
+              "hide_powered_by"
+            ]
+          },
+          "addresses_available": {
+            "type": "boolean",
+            "description": "Whether this deployment serves portal addresses at all."
+          },
+          "name_suffix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What follows a claimed name, such as `.example.com`; null when the deployment has no domain for addresses."
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "image_bytes": {
+                "type": "integer"
+              },
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "icon_min": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "image_bytes",
+              "types",
+              "icon_min"
+            ]
+          }
+        },
+        "required": [
+          "brand",
+          "addresses",
+          "allowances",
+          "addresses_available",
+          "name_suffix",
+          "limits"
+        ],
+        "title": "BrandingResource"
       },
       "BulkOnboardingResource": {
         "type": "object",
@@ -42045,6 +43288,126 @@
         ],
         "title": "OrganizationInvitationResource"
       },
+      "OrganizationLogosResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "logo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "width",
+              "height"
+            ]
+          },
+          "logo_dark": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "width",
+              "height"
+            ]
+          },
+          "brand": {
+            "type": "object",
+            "description": "What the portal shows: the organization's own logo, else its billing account's brand while that is in effect.",
+            "properties": {
+              "product_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "logo": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "width": {
+                    "type": "integer"
+                  },
+                  "height": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "url",
+                  "width",
+                  "height"
+                ]
+              },
+              "logo_dark": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "width": {
+                    "type": "integer"
+                  },
+                  "height": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "url",
+                  "width",
+                  "height"
+                ]
+              }
+            },
+            "required": [
+              "product_name",
+              "logo",
+              "logo_dark"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "logo",
+          "logo_dark",
+          "brand"
+        ],
+        "title": "OrganizationLogosResource"
+      },
       "OrganizationNotEmpty": {
         "type": "object",
         "description": "409 when the organization still holds data that blocks deletion (spec 006).",
@@ -42174,7 +43537,7 @@
               "integer",
               "null"
             ],
-            "description": "A whole number within the kind's bounds (retention 1 to 36,500 days, organizations up to 100,000), or null for unlimited, which retention cannot be.",
+            "description": "A whole number within the kind's bounds (retention 1 to 36,500 days, organizations up to 100,000), or null for unlimited, which retention cannot be. `branding`, `custom_domain` and `hide_powered_by` are switches: 1 for on, 0 for off.",
             "minimum": 0,
             "maximum": 1000000000000
           },
@@ -42603,7 +43966,10 @@
               "devices",
               "data_points",
               "retention_days",
-              "organizations"
+              "organizations",
+              "branding",
+              "custom_domain",
+              "hide_powered_by"
             ]
           },
           "value": {
@@ -44680,6 +46046,21 @@
                 ],
                 "minimum": 0,
                 "maximum": 100000
+              },
+              "branding": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "custom_domain": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "hide_powered_by": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
               }
             }
           }
@@ -46148,6 +47529,46 @@
         ],
         "title": "UpdateBillingSettingsRequest"
       },
+      "UpdateBrandRequest": {
+        "type": "object",
+        "description": "A brand's name, short name and support link (spec 036 FR-001). The three are saved\ntogether: one left out or empty is cleared.",
+        "properties": {
+          "product_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "short_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 12
+          },
+          "support_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An `https:` address or a `mailto:` link.",
+            "maxLength": 2048
+          },
+          "revision": {
+            "type": "integer",
+            "description": "The revision the editor read; 0 before anything was saved.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "product_name",
+          "short_name",
+          "support_url",
+          "revision"
+        ],
+        "title": "UpdateBrandRequest"
+      },
       "UpdateDeviceProfileRequest": {
         "type": "object",
         "properties": {
@@ -46301,6 +47722,21 @@
                 ],
                 "minimum": 0,
                 "maximum": 100000
+              },
+              "branding": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "custom_domain": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "hide_powered_by": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1
               }
             }
           },

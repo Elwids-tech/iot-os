@@ -14,6 +14,7 @@ require app_path('Domain/Agents/routes/api.php');
 require app_path('Domain/Support/routes/api.php');
 require app_path('Domain/Billing/routes/api.php');
 require app_path('Domain/SignUp/routes/api.php');
+require app_path('Domain/Branding/routes/api.php');
 require app_path('Domain/Audit/routes/api.php');
 require app_path('Domain/Firmware/routes/api.php');
 require app_path('Domain/Connectivity/routes/api.php');

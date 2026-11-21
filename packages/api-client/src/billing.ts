@@ -5,8 +5,11 @@
 
 import type { RetentionReduction } from "./devices"
 
-/** What a plan can limit. */
-export type AllowanceKind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations"
+/** Allowances that are on (1) or off (0) rather than a number (spec 036). */
+export type SwitchAllowanceKind = "branding" | "custom_domain" | "hide_powered_by"
+
+/** What a plan can limit or turn on. */
+export type AllowanceKind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations" | SwitchAllowanceKind
 
 /**
  * One allowance a plan sets. `value` is null for unlimited; `retention_days` is never

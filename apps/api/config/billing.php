@@ -17,6 +17,10 @@ return [
         'data_points' => null,
         'retention_days' => null,
         'organizations' => 1,
+        // Switches (spec 036): off unless a plan or an override turns them on.
+        'branding' => 0,
+        'custom_domain' => 0,
+        'hide_powered_by' => 0,
     ],
 
     /*
