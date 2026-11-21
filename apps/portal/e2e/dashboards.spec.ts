@@ -1393,12 +1393,19 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
   await page.getByRole("menuitemradio", { name: "Table", exact: true }).click()
   await expect(page.getByRole("columnheader", { name: "Band" })).toBeVisible()
 
+  const header = page.locator('[data-slot="page-header"]').first()
+  await expect(header.getByRole("button", { name: "Assistant", exact: true })).toBeVisible()
+  await expect(header.getByRole("button", { name: "Help", exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Kiosk", exact: true }).click()
   await expect(page).toHaveURL(/kiosk=1/)
   // Focus moves into kiosk and the shell behind it is inert.
   await expect(page.locator("[data-kiosk]")).toBeFocused()
   await expect(page.locator("#root")).toHaveAttribute("inert", "")
   await expect(page.getByRole("button", { name: "Exit kiosk" })).toBeVisible()
+  // The kiosk header leaves out the Assistant and Help.
+  const kioskView = page.locator("[data-kiosk]")
+  await expect(kioskView.getByRole("button", { name: "Assistant", exact: true })).toHaveCount(0)
+  await expect(kioskView.getByRole("button", { name: "Help", exact: true })).toHaveCount(0)
   // Kiosk keeps the time range: a quick range applies, and Escape closes the popover first.
   const kioskRange = await timeRange(page)
   await kioskRange.getByRole("radio", { name: "Last 24 hours", exact: true }).click()
@@ -1410,6 +1417,7 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
   await expect(page).not.toHaveURL(/kiosk=1/)
   await expect(page.getByRole("button", { name: "Kiosk", exact: true })).toBeFocused()
   await expect(page.locator("#root")).not.toHaveAttribute("inert")
+  await expect(header.getByRole("button", { name: "Assistant", exact: true })).toBeVisible()
 
   await page.getByRole("button", { name: "Edit dashboard", exact: true }).click()
   await page.getByRole("button", { name: "Add panel", exact: true }).click()
