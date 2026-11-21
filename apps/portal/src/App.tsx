@@ -1098,6 +1098,11 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
   const profileContext = page === "device-profiles" || (page === "devices" && resource === "onboard" && !onboardingContext)
   const viewedAdapter = page === "device-adapters" && resource && resource !== "new" ? resource : undefined
   const helpContext = helpOverride ?? helpContextForPath(location.pathname)
+  // A dashboard in kiosk mode is for watching: its header keeps the alert bell but not the Assistant or Help.
+  const kiosk = page === "dashboards" && new URLSearchParams(location.search).get("kiosk") === "1"
+  useEffect(() => {
+    if (kiosk) panel.closePanel()
+  }, [kiosk])
   // Every page header carries the alert bell, the Assistant and Help; on phones they shrink to their icons.
   const bellVisible = Boolean(org && devicesCan("view")(org))
   const connection = useConnection()
@@ -1113,19 +1118,23 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
     trigger: (
       <>
         {bellVisible && <AlertBell />}
-        <Button variant="ghost" size="sm" aria-expanded={assistantOpen} onClick={openAssistant}>
-          <SparklesIcon data-icon="inline-start" />
-          <span className="max-sm:sr-only">Assistant</span>
-        </Button>
-        <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}>
-          <BookOpenIcon data-icon="inline-start" />
-          <span className="max-sm:sr-only">Help</span>
-        </Button>
+        {!kiosk && (
+          <>
+            <Button variant="ghost" size="sm" aria-expanded={assistantOpen} onClick={openAssistant}>
+              <SparklesIcon data-icon="inline-start" />
+              <span className="max-sm:sr-only">Assistant</span>
+            </Button>
+            <Button variant="ghost" size="sm" aria-expanded={helpOpen} onClick={openHelp}>
+              <BookOpenIcon data-icon="inline-start" />
+              <span className="max-sm:sr-only">Help</span>
+            </Button>
+          </>
+        )}
       </>
     ),
     onContextChange: setHelpOverride,
     notice,
-  } : notice ? { trigger: null, onContextChange: setHelpOverride, notice } : null, [org?.uuid, bellVisible, assistantOpen, helpOpen, panel, notice])
+  } : notice ? { trigger: null, onContextChange: setHelpOverride, notice } : null, [org?.uuid, bellVisible, assistantOpen, helpOpen, panel, notice, kiosk])
 
   // ⌘K / Ctrl+K opens search from anywhere in the workspace.
   const [searchOpen, setSearchOpen] = useState(false)
