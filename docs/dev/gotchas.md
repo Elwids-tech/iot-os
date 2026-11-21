@@ -154,6 +154,16 @@ Things that have cost time before. Add to this list when something surprises you
   `assertSame`, which also compares key order (spec 024's tests failed only in CI).
   To run tests on PostgreSQL locally, start a throwaway `timescale/timescaledb` container
   and pass `DB_CONNECTION=pgsql` with a database whose name ends in `_test`.
+- **TimescaleDB's compression job deadlocks with statements that touch every
+  chunk.** The policy job starts within seconds of `add_compression_policy` and ends
+  each chunk by raising its lock to `ACCESS EXCLUSIVE`. A statement on the whole
+  hypertable (a `DELETE` by organization with no time range) already holds a weaker
+  lock on every chunk, so one of the two fails with `deadlock detected (SQLSTATE
+  40P01)`; the job retries, the statement does not. Go packages that use
+  `DEVICE_TEST_DATABASE_URL` call `storagetest.StopBackgroundJobs()` from `TestMain`
+  so no job runs beside a test; add the same `TestMain` to a new package that opens
+  the test database. Product code deletes observations one day-chunk at a time
+  (`deleteObservationWindow`); keep it that way.
 - **Extended Python validators stop at a `$ref` into another file.** jsonschema
   picks the validator class from a referenced document's `$schema`, so a
   `validators.extend` subclass (the contract checker's tolerant and secret modes)

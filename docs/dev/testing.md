@@ -164,7 +164,10 @@ only what it ran.
 `go test ./...` runs unit and contract tests. Database and broker integration
 tests skip unless `DEVICE_TEST_DATABASE_URL` and `DEVICE_TEST_NATS_URL` point at
 disposable services (the devices harness below sets them). Use `-race` for
-concurrency-sensitive packages.
+concurrency-sensitive packages. Packages that use the database stop TimescaleDB's
+background jobs in it first (`storagetest.StopBackgroundJobs` in `TestMain`), so the
+compression policy never runs beside a test; they stay stopped until that PostgreSQL
+restarts ([gotchas](gotchas.md#data-and-api-contracts)).
 
 ## Browser tests
 
