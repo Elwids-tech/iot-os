@@ -148,7 +148,9 @@ test("losing the last organization there returns the person to the sign-in page"
   await expect(page.getByText("A One").first()).toBeVisible()
 
   state.refuse = true
-  await page.getByRole("link", { name: "Devices" }).first().click()
+  // The next request is refused. A background poll can get there before the click and
+  // take the page, link and all, to the sign-in page; either way ends there.
+  await page.getByRole("link", { name: "Devices" }).first().click({ timeout: 5000 }).catch(() => undefined)
   await expect(page.getByRole("heading", { name: "Sign in to Acme Monitor" })).toBeVisible()
   await expect(page.getByText("This account cannot sign in at this address. Sign in with an account that belongs here.")).toBeVisible()
   expect(errors).toEqual([])
