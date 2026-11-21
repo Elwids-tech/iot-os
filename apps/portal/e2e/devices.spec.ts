@@ -152,7 +152,7 @@ const dashboard = {
       },
     },
   ],
-  layouts: { lg: [{ i: "voltage", x: 0, y: 0, w: 6, h: 6 }] },
+  layouts: { lg: [{ i: "voltage", x: 0, y: 0, w: 6, h: 12 }] },
   defaults: { range: { mode: "relative", preset: "6h" }, timezone: "browser", refresh: 5 },
   tags: [],
   folder: null,

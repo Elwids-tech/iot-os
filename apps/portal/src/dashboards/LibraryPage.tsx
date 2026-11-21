@@ -36,7 +36,7 @@ import { dashboardPath } from "./model"
 import { dashboardAbilities } from "./access"
 import { forgetDashboardPlace } from "./lastPlace"
 import { ShareDialog } from "./ShareDialog"
-import { definition, downloadJson } from "./importExport"
+import { downloadJson, exported } from "./importExport"
 import type { DashboardTemplate } from "./templates"
 import {
   BlankDialog,
@@ -220,8 +220,8 @@ export function DashboardLibrary({
     })
   }
   function exportRows(list: Dashboard[]) {
-    if (list.length === 1) downloadJson(list[0].name, definition(list[0]))
-    else downloadJson("dashboards", list.map(definition))
+    if (list.length === 1) downloadJson(list[0].name, exported(list[0]))
+    else downloadJson("dashboards", list.map(exported))
   }
 
   const deleting = open?.kind === "delete" ? open.uuids.flatMap((id) => find(id) ?? []) : []

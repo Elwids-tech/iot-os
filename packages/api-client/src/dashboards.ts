@@ -13,7 +13,10 @@ export type DashboardSource = {
   color: string;
   base: DashboardBand;
   thresholds: DashboardThreshold[];
+  /** State history: this panel's colour for a boolean or enum value, over the profile's tone. */
+  state_colors?: DashboardStateColor[];
 };
+export type DashboardStateColor = { value: string | boolean; color: string };
 export type StatusWidgetSource = DashboardSource;
 export type DashboardControlColumns = "auto" | 1 | 2 | 3 | 4;
 export type StatusWidgetConfig = {

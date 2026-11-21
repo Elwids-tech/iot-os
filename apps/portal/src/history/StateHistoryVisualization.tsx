@@ -15,13 +15,17 @@ import {
   validHexColor,
 } from "./model"
 import { stateFor, TONE_COLOR, type StateLabel } from "../dashboards/profileDisplay"
-import { tickFormatter } from "../dashboards/model"
+import { bandColor, tickFormatter } from "../dashboards/model"
 
-function segmentColor(segment: Pick<StateHistorySegment, "value" | "known" | "data_type">, colour: boolean, states: StateLabel[] = []) {
+type StateColor = { value: string | boolean; color: string }
+
+function segmentColor(segment: Pick<StateHistorySegment, "value" | "known" | "data_type">, colour: boolean, states: StateLabel[] = [], colors: StateColor[] = []) {
   if (colour)
     return segment.known && validHexColor(segment.value)
       ? segment.value
       : "var(--muted-foreground)"
+  const chosen = segment.known ? stateFor(colors, segment.value) : undefined
+  if (chosen) return bandColor(chosen.color)
   const state = segment.known ? stateFor(states, segment.value) : undefined
   if (state?.tone) return TONE_COLOR[state.tone]
   return stateColor(segment.value, segment.known, segment.data_type)
@@ -53,6 +57,7 @@ export function StateHistoryVisualization({
   colour = false,
   timezone = "browser",
   states = [],
+  colors = [],
   group,
   recordedIn,
 }: {
@@ -62,6 +67,8 @@ export function StateHistoryVisualization({
   timezone?: "browser" | "utc"
   /** Profile labels and tones for the parameter's values. */
   states?: StateLabel[]
+  /** A dashboard panel's own colours per value, over the profile's tones. */
+  colors?: StateColor[]
   /** The organization a moved device's segments from before the move were recorded in (spec 031). */
   recordedIn?: string
   /** Linked time charts on a dashboard share a crosshair. */
@@ -85,7 +92,7 @@ export function StateHistoryVisualization({
           return {
             from: Date.parse(segment.from),
             to: Date.parse(segment.to),
-            color: segmentColor(segment, colour, states),
+            color: segmentColor(segment, colour, states, colors),
             label: segmentLabel(segment, colour, states),
             detail:
               segment.recorded_in === "source"
@@ -97,7 +104,7 @@ export function StateHistoryVisualization({
           }
         }),
       }),
-    [theme, history, configurations, colour, timezone, JSON.stringify(states), recordedIn],
+    [theme, history, configurations, colour, timezone, JSON.stringify(states), JSON.stringify(colors), recordedIn],
   )
   const observedColours = colour
     ? [
@@ -133,7 +140,7 @@ export function StateHistoryVisualization({
                 className={cn(!duration.known && "history-unknown")}
                 style={{
                   width: `${duration.percentage}%`,
-                  backgroundColor: segmentColor(duration, false, states),
+                  backgroundColor: segmentColor(duration, false, states, colors),
                 }}
               />
             ))}
@@ -151,7 +158,7 @@ export function StateHistoryVisualization({
                     !duration.known && "history-unknown",
                   )}
                   style={{
-                    backgroundColor: segmentColor(duration, false, states),
+                    backgroundColor: segmentColor(duration, false, states, colors),
                   }}
                 />
                 <span className="min-w-0 flex-1 truncate">

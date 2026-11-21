@@ -16,13 +16,12 @@ import { usePanelGap } from "@iot-os/ui/components/skin"
 import { useIsMobile } from "@iot-os/ui/hooks/use-mobile"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
 import { cn } from "@iot-os/ui/lib/utils"
-import { GRID_COLUMNS, resolveRange, responsiveLayouts } from "./model"
+import { GRID_COLUMNS, resolveRange, responsiveLayouts, rowHeight } from "./model"
 import { PanelBody } from "./registry"
 import { useConnection } from "../pwa/connection"
 
 const Grid = WidthProvider(Responsive)
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }
-export const ROW_HEIGHT = 48
 
 /** The devices a panel names: its sources, device health devices and GPS map devices. */
 export function panelDevices(widget: DashboardWidget): string[] {
@@ -131,7 +130,7 @@ export function DashboardGrid({
         layouts={gridLayouts as ResponsiveLayouts}
         breakpoints={BREAKPOINTS}
         cols={GRID_COLUMNS}
-        rowHeight={ROW_HEIGHT}
+        rowHeight={rowHeight(gap)}
         margin={[gap, gap]}
         containerPadding={[0, 0]}
         isDraggable={editable}

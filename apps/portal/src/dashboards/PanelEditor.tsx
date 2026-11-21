@@ -74,6 +74,7 @@ import {
   type PanelType,
 } from "./suggest"
 import { LocationSettings } from "./LocationPanelEditor"
+import { StateColorsSection } from "./StateColorsSection"
 
 type Widget = DashboardWidget
 type SetWidget = (update: (current: Widget) => Widget) => void
@@ -535,6 +536,13 @@ export function PanelEditor({
                 </p>
               )}
             </FormSection>
+          )}
+          {widget.type === "state_history" && (
+            <StateColorsSection
+              source={source}
+              device={source ? devices(source.device_uuid)?.data : undefined}
+              patchSource={patchSource}
+            />
           )}
           {THRESHOLD_TYPES.includes(widget.type) && (
             <ThresholdsSection

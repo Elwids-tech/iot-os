@@ -48,7 +48,7 @@ async function setup(page: Page, commandPermission = true) {
         config: { sources },
       },
     ],
-    layouts: { lg: [{ i: "controls", x: 0, y: 0, w: 12, h: 16 }] },
+    layouts: { lg: [{ i: "controls", x: 0, y: 0, w: 12, h: 32 }] },
     defaults: {
       range: { mode: "relative", preset: "6h" },
       timezone: "browser",

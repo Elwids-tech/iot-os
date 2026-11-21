@@ -228,9 +228,9 @@ final class GpsUseCaseSeeder extends Seeder
                 'description' => 'Active and recent boundary alerts.', 'config' => ['sources' => [], 'workflow_uuid' => $workflow->uuid]],
         ];
         $layout = [
-            ['i' => 'position', 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 4], ['i' => 'accuracy', 'x' => 6, 'y' => 0, 'w' => 6, 'h' => 4],
-            ['i' => 'trail', 'x' => 0, 'y' => 4, 'w' => 12, 'h' => 6], ['i' => 'location', 'x' => 0, 'y' => 10, 'w' => 6, 'h' => 7],
-            ['i' => 'alerts', 'x' => 6, 'y' => 10, 'w' => 6, 'h' => 7],
+            ['i' => 'position', 'x' => 0, 'y' => 0, 'w' => 6, 'h' => 8], ['i' => 'accuracy', 'x' => 6, 'y' => 0, 'w' => 6, 'h' => 8],
+            ['i' => 'trail', 'x' => 0, 'y' => 8, 'w' => 12, 'h' => 12], ['i' => 'location', 'x' => 0, 'y' => 20, 'w' => 6, 'h' => 14],
+            ['i' => 'alerts', 'x' => 6, 'y' => 20, 'w' => 6, 'h' => 14],
         ];
         $dashboard = Dashboard::firstOrCreate(['uuid' => self::DASHBOARD_UUID], ['organization_id' => $organization->id,
             'name' => 'GPS and geofence demo', 'widgets' => $widgets, 'layouts' => ['lg' => $layout],

@@ -114,6 +114,7 @@ export function HistoryStatePanel({
                 history={query.data as StateHistory}
                 configurations={device?.configurations ?? []}
                 colour={colour}
+                colors={colour ? undefined : source.state_colors}
                 timezone={view.timezone}
                 group={group}
                 states={displayStates(

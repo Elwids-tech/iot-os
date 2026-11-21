@@ -28,6 +28,8 @@ import {
   readView,
   resolveRange,
   responsiveLayouts,
+  rowHeight,
+  rowsFor,
   thresholdError,
   valueBands,
   widgetError,
@@ -175,17 +177,17 @@ describe("configuration and layout", () => {
   it("reads one column on phones in the computer layout's order, each panel tall enough", () => {
     const layout = {
       lg: [
-        { i: "table", x: 0, y: 2, w: 4, h: 4 },
-        { i: "chart", x: 4, y: 0, w: 8, h: 4 },
-        { i: "stat", x: 0, y: 0, w: 4, h: 2 },
-        { i: "text", x: 4, y: 4, w: 8, h: 2 },
+        { i: "table", x: 0, y: 4, w: 4, h: 8 },
+        { i: "chart", x: 4, y: 0, w: 8, h: 8 },
+        { i: "stat", x: 0, y: 0, w: 4, h: 4 },
+        { i: "text", x: 4, y: 8, w: 8, h: 4 },
       ],
       // A one-column layout saved from a narrow computer window.
       xs: [
-        { i: "text", x: 0, y: 0, w: 1, h: 2 },
-        { i: "stat", x: 0, y: 2, w: 1, h: 2 },
-        { i: "chart", x: 0, y: 4, w: 1, h: 4 },
-        { i: "table", x: 0, y: 8, w: 1, h: 4 },
+        { i: "text", x: 0, y: 0, w: 1, h: 4 },
+        { i: "stat", x: 0, y: 4, w: 1, h: 4 },
+        { i: "chart", x: 0, y: 8, w: 1, h: 8 },
+        { i: "table", x: 0, y: 16, w: 1, h: 8 },
       ],
     };
     const widgets = [
@@ -197,21 +199,31 @@ describe("configuration and layout", () => {
     const phone = responsiveLayouts(layout, { widgets });
     for (const key of ["xs", "xxs"])
       expect(phone[key]?.map((item) => [item.i, item.x, item.y, item.w, item.h])).toEqual([
-        ["stat", 0, 0, 1, 3],
-        ["chart", 0, 3, 1, 6],
-        ["table", 0, 9, 1, 8],
-        ["text", 0, 17, 1, 2],
+        ["stat", 0, 0, 1, 6],
+        ["chart", 0, 6, 1, 12],
+        ["table", 0, 18, 1, 16],
+        ["text", 0, 34, 1, 4],
       ]);
     // The computer layouts are untouched, and wider screens keep the saved one column.
     expect(phone.lg).toEqual(responsiveLayouts(layout).lg);
     expect(phone.md).toEqual(responsiveLayouts(layout).md);
     expect(responsiveLayouts(layout).xs).toEqual(layout.xs);
-    expect(responsiveLayouts(layout).xxs?.map((item) => item.h)).toEqual([2, 4, 4, 2]);
+    expect(responsiveLayouts(layout).xxs?.map((item) => item.h)).toEqual([4, 8, 8, 4]);
   });
+  it("spans one original 48 px row with two rows and their gap, in every skin", () => {
+    for (const gap of [0, 12]) {
+      expect(2 * rowHeight(gap) + gap).toBe(48)
+      // A saved height of h old rows takes 2h new rows and the same pixels.
+      expect(10 * rowHeight(gap) + 9 * gap).toBe(5 * 48 + 4 * gap)
+      expect(rowsFor(48, gap)).toBe(2)
+      expect(rowsFor(49, gap)).toBe(3)
+    }
+    expect(rowsFor(100000, 12)).toBe(200)
+  })
   it("keeps a panel taller than its phone minimum at its own height", () => {
-    const layout = { lg: [{ i: "chart", x: 0, y: 0, w: 12, h: 9 }] };
+    const layout = { lg: [{ i: "chart", x: 0, y: 0, w: 12, h: 18 }] };
     const phone = responsiveLayouts(layout, { widgets: [{ id: "chart", type: "timeseries" }] });
-    expect(phone.xxs?.[0].h).toBe(9);
+    expect(phone.xxs?.[0].h).toBe(18);
   });
   it("offers last-applied parameters without latest telemetry", () => {
     const device = {
@@ -232,38 +244,38 @@ describe("configuration and layout", () => {
   });
   it("preserves layout IDs and appends independently at each breakpoint", () => {
     const original = {
-      lg: [{ i: "one", x: 0, y: 0, w: 6, h: 5 }],
-      xs: [{ i: "one", x: 0, y: 0, w: 1, h: 5 }],
+      lg: [{ i: "one", x: 0, y: 0, w: 6, h: 10 }],
+      xs: [{ i: "one", x: 0, y: 0, w: 1, h: 10 }],
     };
     const next = appendLayout(original, "two");
-    expect(next.lg?.[1]).toEqual({ i: "two", x: 6, y: 0, w: 6, h: 6 });
+    expect(next.lg?.[1]).toEqual({ i: "two", x: 6, y: 0, w: 6, h: 12 });
     expect(next.xs?.[1].w).toBe(1);
     expect(original.lg).toHaveLength(1);
     expect(cleanLayouts(next)).toEqual(next);
   });
   it("adds below all panels at every breakpoint even when earlier gaps exist", () => {
     const layouts = {
-      lg: [{ i: "one", x: 0, y: 20, w: 6, h: 6 }],
-      xs: [{ i: "one", x: 0, y: 40, w: 1, h: 8 }],
+      lg: [{ i: "one", x: 0, y: 40, w: 6, h: 12 }],
+      xs: [{ i: "one", x: 0, y: 80, w: 1, h: 16 }],
     };
     const result = appendLayout(layouts, "two", "bottom");
-    expect(result.lg?.[1]).toEqual({ i: "two", x: 0, y: 26, w: 6, h: 6 });
-    expect(result.xs?.[1]).toEqual({ i: "two", x: 0, y: 48, w: 1, h: 6 });
+    expect(result.lg?.[1]).toEqual({ i: "two", x: 0, y: 52, w: 6, h: 12 });
+    expect(result.xs?.[1]).toEqual({ i: "two", x: 0, y: 96, w: 1, h: 12 });
     expect(layouts.lg).toHaveLength(1);
   });
   it("adds below the lowest panel, in its columns, so compaction keeps it at the bottom", () => {
     const result = appendLayout(
       {
         lg: [
-          { i: "short", x: 0, y: 0, w: 6, h: 6 },
-          { i: "tall", x: 6, y: 0, w: 6, h: 30 },
+          { i: "short", x: 0, y: 0, w: 6, h: 12 },
+          { i: "tall", x: 6, y: 0, w: 6, h: 60 },
         ],
       },
       "two",
       "bottom",
     );
-    expect(result.lg?.[2]).toEqual({ i: "two", x: 6, y: 30, w: 6, h: 6 });
-    expect(compactLayouts(result).lg?.[2]).toEqual({ i: "two", x: 6, y: 30, w: 6, h: 6 });
+    expect(result.lg?.[2]).toEqual({ i: "two", x: 6, y: 60, w: 6, h: 12 });
+    expect(compactLayouts(result).lg?.[2]).toEqual({ i: "two", x: 6, y: 60, w: 6, h: 12 });
   });
 });
 it("bounds concurrent requests and removes aborted queued work", async () => {

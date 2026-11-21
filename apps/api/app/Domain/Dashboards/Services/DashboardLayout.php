@@ -6,13 +6,17 @@ namespace App\Domain\Dashboards\Services;
 
 /**
  * Where a new panel goes, as `appendLayout` in apps/portal/src/dashboards/model.ts places
- * it: half the columns wide and 6 rows high, at the first free slot or below everything.
+ * it: half the columns wide and 12 rows high (24 px rows), at the first free slot or below
+ * everything.
  * Both are pinned by contracts/dashboards/v1/panel-suggestions.fixture.json.
  */
 final class DashboardLayout
 {
     /** Columns per breakpoint, as the portal's grid. */
     public const COLUMNS = ['lg' => 12, 'md' => 10, 'sm' => 6, 'xs' => 1, 'xxs' => 1];
+
+    /** A new panel's height in rows, as the portal's NEW_PANEL_ROWS. */
+    public const NEW_PANEL_ROWS = 12;
 
     /**
      * Adds panel `$id` to every saved breakpoint, or to `lg` when none is saved yet.
@@ -26,7 +30,7 @@ final class DashboardLayout
         $result = [];
         foreach ($layouts === [] ? ['lg' => []] : $layouts as $breakpoint => $items) {
             $cols = self::COLUMNS[$breakpoint] ?? 12;
-            $result[$breakpoint] = $this->place($items ?? [], $id, $placement, $cols, max(1, intdiv($cols, 2)), 6);
+            $result[$breakpoint] = $this->place($items ?? [], $id, $placement, $cols, max(1, intdiv($cols, 2)), self::NEW_PANEL_ROWS);
         }
 
         return $result;
