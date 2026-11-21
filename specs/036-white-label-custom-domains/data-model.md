@@ -76,7 +76,10 @@ Rules:
   deletes the old row. Its own account can take it back at any time.
 - A `name` follows hostname label rules, 3 to 40 characters, not in the reserved list.
 - A `domain` has at least three labels, is not under the platform's domain, and is not
-  an address literal.
+  an address literal. An account that has a live domain removes it before asking for
+  another.
+- A domain that never served (its request was removed or lapsed) is not held: another
+  account can ask for it at once. One that served is held for 30 days like a name.
 
 ### States
 
@@ -119,8 +122,9 @@ columns with 0 or 1 only. The defaults in `config/billing.php` are 0.
 
 ## Session (changed, no schema)
 
-A session started on a custom domain holds `portal_address_id`. Sessions on the
-platform's domain hold none.
+A session started on a custom domain holds `portal_address`: the address's id and
+when it was activated, so the session ends when the domain is removed, suspended or
+claimed again. Sessions on the platform's domain hold none.
 
 ## Not stored
 

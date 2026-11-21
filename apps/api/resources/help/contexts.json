@@ -211,6 +211,10 @@
     "title": "Settings · Usage",
     "overview": "billing-usage"
   },
+  "billing.branding": {
+    "title": "Billing · Branding and addresses",
+    "overview": "branding"
+  },
   "account.security": {
     "title": "Account · Security",
     "overview": "two-step-sign-in"

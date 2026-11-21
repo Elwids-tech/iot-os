@@ -1316,10 +1316,21 @@ The portal is a progressive web app (spec 033,
   from `document.title` when its module loads, which is after the bootstrap. A test
   that mocks `runtime-config.js` decides the title.
 - **`ApplyPortalAddress` changes configuration for one request.** For a request from a
-  portal address it adds the address to `sanctum.stateful` and the passkey origins,
-  and on an address's own host it clears `session.domain`. That is safe on php-fpm,
-  where every request starts from the files. Octane (ADR-038) must reset configuration
-  between requests, and its pull request has to test this.
+  portal address it adds the address to `sanctum.stateful` and `passkeys.allowed_origins`.
+  On an address's own host it clears `session.domain` and the cookie jar's default
+  domain (queued cookies such as the kept sign-in take that default, not
+  `session.domain`), and on a custom domain it also replaces `sanctum.stateful`,
+  `passkeys.relying_party_id` and `passkeys.allowed_origins` with the host. That is
+  safe on php-fpm, where every request starts from the files. Octane (ADR-038) must
+  reset configuration and the cookie jar between requests, and its pull request has to
+  test this. Tests that send several requests through one application call
+  `PortalAddressFixtures::newRequest()` between them for the same reason.
+- **Passkey settings are read from `passkeys.*`, not `fortify.passkeys.*`.** Fortify
+  copies its `passkeys` block into `passkeys.*` once, when it registers. Changing
+  `fortify.passkeys.allowed_origins` at run time does nothing.
+- **Laravel's test client keeps the last host.** After a request to an absolute URL, a
+  relative one goes to the same host. Tests that move between a custom domain and the
+  platform's hosts give every request its full URL.
 - **Every signed-in route can answer `403 not_available_here`.** `EnsurePortalAccess`
   runs after `auth:sanctum` on a portal address. The portal treats it like a lost
   session; other clients of the session API should too.
