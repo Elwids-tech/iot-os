@@ -119,9 +119,9 @@ const source = (index: number) => ({
 })
 /** On a computer: a stat and a chart side by side, a table under the stat. */
 const layout = [
-  { i: "stat", x: 0, y: 0, w: 4, h: 2 },
-  { i: "chart", x: 4, y: 0, w: 8, h: 4 },
-  { i: "table", x: 0, y: 2, w: 4, h: 4 },
+  { i: "stat", x: 0, y: 0, w: 4, h: 4 },
+  { i: "chart", x: 4, y: 0, w: 8, h: 8 },
+  { i: "table", x: 0, y: 4, w: 4, h: 8 },
 ]
 const dashboard = {
   uuid: dashboardId,
@@ -633,7 +633,7 @@ for (const viewport of viewports) {
       expect(boxes.map((box) => box.y)).toEqual([...boxes.map((box) => box.y)].sort((a, b) => a - b))
       const panelHeight = (title: string) =>
         page.locator(`#panel-${title}`).evaluate((element) => element.getBoundingClientRect().height)
-      // Stat 3 rows, chart 6 and table 8 at least: 48 px rows plus the gaps between them.
+      // Stat 6 rows, chart 12 and table 16 at least: at least 3, 6 and 8 spans of 48 px.
       expect(await panelHeight("stat")).toBeGreaterThanOrEqual(48 * 3)
       expect(await panelHeight("chart")).toBeGreaterThanOrEqual(48 * 6)
       expect(await panelHeight("table")).toBeGreaterThanOrEqual(48 * 8)
@@ -699,13 +699,14 @@ test.describe("computers", () => {
     const [stat, chart, table] = [await box("stat"), await box("chart"), await box("table")]
     // The stat and the chart share the first row; the table sits under the stat.
     const gap = chart.x - (stat.x + stat.width)
-    const rows = (h: number) => 48 * h + gap * (h - 1)
+    // Rows are 24 px including half the gap (model.ts rowHeight).
+    const rows = (h: number) => (24 - gap / 2) * h + gap * (h - 1)
     expect(Math.abs(chart.y - stat.y)).toBeLessThan(1)
     expect(Math.abs(table.x - stat.x)).toBeLessThan(1)
-    // Heights are the saved ones (2, 4 and 4 rows): phone minimums never apply here.
-    expect(Math.abs(stat.height - rows(2))).toBeLessThan(1.5)
-    expect(Math.abs(chart.height - rows(4))).toBeLessThan(1.5)
-    expect(Math.abs(table.height - rows(4))).toBeLessThan(1.5)
+    // Heights are the saved ones (4, 8 and 8 rows): phone minimums never apply here.
+    expect(Math.abs(stat.height - rows(4))).toBeLessThan(1.5)
+    expect(Math.abs(chart.height - rows(8))).toBeLessThan(1.5)
+    expect(Math.abs(table.height - rows(8))).toBeLessThan(1.5)
     expect(Math.abs(table.y - (stat.y + stat.height + gap))).toBeLessThan(1.5)
     expect(state.errors).toEqual([])
   })

@@ -74,8 +74,8 @@ async function setup(
       ],
       layouts: {
         lg: [
-          { i: "status", x: 0, y: 0, w: 6, h: 6 },
-          { i: "chart", x: 6, y: 0, w: 6, h: 6 },
+          { i: "status", x: 0, y: 0, w: 6, h: 12 },
+          { i: "chart", x: 6, y: 0, w: 6, h: 12 },
         ],
       },
       defaults: {
@@ -400,7 +400,7 @@ async function chooseParameters(page: Page, labels: RegExp[]) {
 test("GPS panels use the full-page editor and long canvas drafts survive kiosk mode", async ({ page }) => {
   const { dashboards, calls, errors } = await setup(page)
   // A long canvas: panels stick to the top, so height comes from a tall panel, not a gap.
-  dashboards[0].layouts.lg![1].h = 30
+  dashboards[0].layouts.lg![1].h = 60
   await page.route("**/location-bindings", route => route.fulfill({ json: { data: [{ device_uuid: deviceId, device_name: "Field tracker" }] } }))
   await page.route("**/geofences?**", route => route.fulfill({ json: { data: [{ uuid: parameterId, name: "Pasture" }] } }))
   await page.route("**/location-map/query", route => route.fulfill({ json: { data: { devices: [], geofence: null, trail_window: "24h" } } }))
@@ -922,7 +922,7 @@ test("dashboard settings use a side sheet and panels expose fit height", async (
   expect(
     Object.values(dashboards[0].layouts)
       .flat()
-      .some((item) => item?.i === "status" && item.h < 6),
+      .some((item) => item?.i === "status" && item.h < 12),
   ).toBe(true)
   expect(errors).toEqual([])
 })
@@ -966,7 +966,7 @@ test("dragging and duplication stay in the draft until Save", async ({
 test("panels stick to the top or the panel above, so a drag down never strands one", async ({ page }) => {
   const { dashboards, calls, errors } = await setup(page)
   // Saved with a gap above the chart, as free placement allowed.
-  dashboards[0].layouts.lg![1].y = 24
+  dashboards[0].layouts.lg![1].y = 48
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto(basePath + "/first")
   const status = page.locator("#panel-status")
@@ -1133,7 +1133,7 @@ test("plot zoom updates history and manual refresh keeps absolute bounds", async
 test("time charts on a dashboard share a crosshair by time, whatever their size", async ({ page }) => {
   const { dashboards, errors } = await setup(page)
   dashboards[0].widgets.push(panel("trend", "timeseries", "Temperature trend"))
-  dashboards[0].layouts.lg!.push({ i: "trend", x: 0, y: 6, w: 4, h: 6 })
+  dashboards[0].layouts.lg!.push({ i: "trend", x: 0, y: 12, w: 4, h: 12 })
   await page.setViewportSize({ width: 1440, height: 1100 })
   await page.goto(basePath + "/first")
   const history = page.getByRole("img", { name: /^Temperature history/ })
@@ -1199,7 +1199,7 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   const { dashboards, calls, errors } = await setup(page)
   // Saved workflow location panels remain readable; new location panels use GPS maps.
   dashboards[0].widgets.push({ id: "legacy-location", type: "location", schema_version: 2, title: "Legacy location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } })
-  dashboards[0].layouts.lg.push({ i: "legacy-location", x: 0, y: 12, w: 6, h: 6 })
+  dashboards[0].layouts.lg.push({ i: "legacy-location", x: 0, y: 24, w: 6, h: 12 })
   let unavailable = false
   let locationReads = 0
   await page.route("**/workflows**", async route => {
@@ -1273,7 +1273,7 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
 test("location marker expires with polling paused and newer incomplete evidence stays unknown", async ({ page }) => {
   const { dashboards } = await setup(page)
   dashboards[0].widgets = [{ id: "location", type: "location", schema_version: 2, title: "Location", description: "", config: { sources: [], workflow_uuid: "workflow-one" } }]
-  dashboards[0].layouts = { lg: [{ i: "location", x: 0, y: 0, w: 6, h: 10 }] }
+  dashboards[0].layouts = { lg: [{ i: "location", x: 0, y: 0, w: 6, h: 20 }] }
   let incomplete = false
   await page.route("**/workflows/workflow-one/location-overview", route => {
     const now = new Date().toISOString()
@@ -1640,8 +1640,9 @@ test("library views, filters, stars and row actions", async ({ page }) => {
   })
   expect(single.name).toBe("plant-overview.json")
   expect(Object.keys(single.data).sort()).toEqual(
-    ["defaults", "folder", "layouts", "name", "tags", "widgets"],
+    ["defaults", "folder", "layouts", "name", "row_height", "tags", "widgets"],
   )
+  expect(single.data.row_height).toBe(24)
   expect(single.data.widgets).toHaveLength(2)
 
   await page.getByRole("checkbox", { name: "Select all rows on this page" }).click()
@@ -1872,7 +1873,7 @@ test("GPS map loads its worker, colours membership, and queries selectable dashe
   dashboards[0].widgets = [{ id: "gps", schema_version: 2, type: "location", title: "GPS monitoring", description: "", config: {
     sources: [], location_device_uuids: ids, geofence_uuid: "fence", show_trails: true, trail_window: "24h"
   } }]
-  dashboards[0].layouts = { lg: [{ i: "gps", x: 0, y: 0, w: 12, h: 14 }] }
+  dashboards[0].layouts = { lg: [{ i: "gps", x: 0, y: 0, w: 12, h: 28 }] }
   const requests: { trail_window: string; include_trails: boolean }[] = []
   await page.route("**/location-map/query", route => {
     const input = route.request().postDataJSON()
