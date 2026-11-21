@@ -7,8 +7,11 @@ host the static files of today are served unchanged.
 | Browser path | API route | Cache |
 | --- | --- | --- |
 | `/runtime-config.js` | `GET /api/v1/portal/runtime-config.js` | `no-store` |
-| `/manifest.webmanifest` | `GET /api/v1/portal/manifest.webmanifest` | `no-cache` |
-| `/pwa-64x64.png`, `/pwa-192x192.png`, `/pwa-512x512.png`, `/maskable-icon-512x512.png`, `/apple-touch-icon-180x180.png` | `GET /api/v1/portal/icons/{name}` | `max-age=3600` |
+| `/manifest.webmanifest` (pull request 5) | `GET /api/v1/portal/manifest.webmanifest` | `no-cache` |
+| `/pwa-64x64.png`, `/pwa-192x192.png`, `/pwa-512x512.png`, `/maskable-icon-512x512.png`, `/apple-touch-icon-180x180.png` (pull request 5) | `GET /api/v1/portal/icons/{name}` | `max-age=3600` |
+
+Until the manifest route exists, the portal's bootstrap removes the manifest link on an
+address, so an address offers no installed app rather than the platform's.
 
 The host is the forwarded `Host`. None of the routes needs a session.
 
@@ -28,9 +31,10 @@ window.__IOT_CONFIG__ = {
     "product_name": "Acme Monitor",
     "short_name": "Acme",
     "support_url": "https://support.example.org",
-    "logo": "https://portal.example.org/api/v1/brand-assets/…/logo",
+    "logo": "/api/v1/brand-assets/…/logo",  // on the API's origin: absolute when VITE_API_URL is
     "logo_dark": null,
-    "icon": "/pwa-192x192.png",
+    "icon": "/api/v1/brand-assets/…/192",   // the tab icon, or null
+    "touch_icon": "/api/v1/brand-assets/…/180",
     "powered_by": "IoT OS"                  // the platform's name, or null when the line is hidden
   },
   "sign_up": false
@@ -40,8 +44,10 @@ window.__IOT_CONFIG__ = {
 Rules:
 
 - **Unknown, suspended, lapsed or released host, or branding not allowed**: 200 with
-  `"address": { "state": "not_in_use" }`, no `brand`, and an empty `VITE_API_URL`. The
-  portal shows *This address is not in use* and starts nothing.
+  `"address": { "state": "not_in_use" }`, no `brand`, and every URL empty. The portal
+  shows *This address is not in use* and starts nothing.
+- **A renamed name, for 30 days**: `"address": { "state": "moved", "to": "https://new-name.example.com" }`.
+  The portal goes there, keeping the path.
 - **An address whose brand has no product name yet**: `brand` is null; the portal uses
   the platform's name. This cannot happen through the portal, which asks for the name
   before an address.
@@ -51,9 +57,13 @@ Rules:
   absent means "the platform's own address".
 - Values are JSON-encoded with `JSON_HEX_TAG`, so a product name cannot close the
   script.
+- The portal keeps an address's object in `localStorage` (`iot-runtime-config`) and
+  starts from it when the file cannot be fetched, so an address opened offline is not
+  mistaken for the platform's.
 
-The portal's inline bootstrap and `packages/api-client/src/runtime-config.ts` both test
-against one fixture, `apps/portal/src/lib/__fixtures__/runtime-config.branded.js`.
+The portal's inline bootstrap (`apps/portal/src/lib/brand-bootstrap.js`) and
+`packages/api-client/src/runtime-config.ts` both test against one fixture,
+`apps/portal/src/lib/__fixtures__/runtime-config.branded.js`.
 
 ## `manifest.webmanifest`
 

@@ -1,5 +1,7 @@
 {
     email {$ACME_EMAIL}
+    # Portal addresses (spec 036): the certificate question (generated; empty unless PORTAL_ADDRESSES=on).
+    import /etc/caddy/addresses-global.Caddyfile
 }
 import /etc/caddy/Acme.Caddyfile
 app.{$DOMAIN} {
@@ -39,5 +41,7 @@ ops.{$DOMAIN} {
 }
 # Previous hostnames after a domain change (generated; empty when LEGACY_DOMAIN is unset).
 import /etc/caddy/legacy.Caddyfile
+# Billing accounts' portal addresses (generated; empty unless PORTAL_ADDRESSES=on).
+import /etc/caddy/addresses.Caddyfile
 # Webhook adapter sources (generated; empty unless adapters and IOT_WEBHOOK_PUBLIC_URL are set).
 import /etc/caddy/webhooks.Caddyfile

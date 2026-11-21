@@ -1,8 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   ApiError,
+  NOT_AVAILABLE_HERE_EVENT,
   TWO_STEP_SETUP_REQUIRED_EVENT,
   TwoStepRequiredError,
+  isNotAvailableHere,
+  runtimeBrand,
   type AdministrationCapabilities,
   type AuthenticatedUser,
   type Organization,
@@ -23,6 +26,7 @@ import { Controller, useForm } from "react-hook-form"
 import { AcceptInvitationPage } from "@iot-os/auth/AcceptInvitationPage"
 import { PasswordRecoveryPage } from "@iot-os/auth/PasswordRecoveryPage"
 import { PasskeySignInButton } from "@iot-os/auth/PasskeySignInButton"
+import { SignInFooter, SignInMark } from "@iot-os/auth/SignInBrand"
 import { TwoStepChallenge } from "@iot-os/auth/TwoStepChallenge"
 import { Button } from "@iot-os/ui/components/button"
 import { ErrorBoundary } from "@iot-os/ui/components/error-boundary"
@@ -165,7 +169,7 @@ export function App() {
         <Route
           path="accept-invitation"
           element={
-            <AcceptInvitationPage apiClient={api} adminUrl={adminUrl} organizationUrl={(uuid) => sectionPath(uuid)} />
+            <AcceptInvitationPage apiClient={api} adminUrl={adminUrl || undefined} organizationUrl={(uuid) => sectionPath(uuid)} />
           }
         />
         <Route path="*" element={<Session />} />
@@ -189,7 +193,9 @@ function useStandaloneClass() {
 const SECURITY_PATH = "/account/security"
 const SETUP_PATH = "/account/security/setup"
 
-function Login({ recovered = false }: { recovered?: boolean }) {
+function Login({ recovered = false, notAvailableHere = false }: { recovered?: boolean; notAvailableHere?: boolean }) {
+  // On a billing account's address the page carries its brand (spec 036, FR-006).
+  const brand = runtimeBrand()
   const cache = useQueryClient()
   const [error, setError] = useState<unknown>(null)
   // The password was right and two-step sign-in is on (spec 034): the code step replaces
@@ -206,13 +212,13 @@ function Login({ recovered = false }: { recovered?: boolean }) {
   }
   const top = (
     <div className="mb-4 flex items-center justify-between">
-      <CpuIcon className="text-primary" />
+      <SignInMark fallback={<CpuIcon className="text-primary" />} />
       <ThemePicker />
     </div>
   )
   return (
     // Phones: the card spans the screen with 16 px sides, and its controls are 44 px tall.
-    <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-5 max-md:px-4">
       {/* Phones: the form fills the screen without a card's frame. */}
       <Card className="w-full max-w-md max-md:rounded-none max-md:bg-transparent max-md:shadow-none max-md:[&_[data-slot=card-footer]]:border-0 max-md:[&_[data-slot=card-footer]]:bg-transparent">
         {twoStep ? (
@@ -233,10 +239,12 @@ function Login({ recovered = false }: { recovered?: boolean }) {
         <CardHeader>
           {top}
           <CardTitle>
-            <h1>Welcome to your workspace</h1>
+            <h1>{brand ? `Sign in to ${brand.product_name}` : "Welcome to your workspace"}</h1>
           </CardTitle>
           <CardDescription>
-            {recovered
+            {notAvailableHere
+              ? "This account cannot sign in at this address. Sign in with an account that belongs here."
+              : recovered
               ? "Your session expired. Sign in to reopen this workspace."
               : "Sign in to monitor devices, dashboards and alerts."}
           </CardDescription>
@@ -304,6 +312,7 @@ function Login({ recovered = false }: { recovered?: boolean }) {
         </>
         )}
       </Card>
+      <SignInFooter />
     </main>
   )
 }
@@ -334,6 +343,19 @@ function Session() {
     return () => window.removeEventListener(SIGNED_OUT_HERE, ended)
   }, [signedOut])
   const cache = useQueryClient()
+  // The person lost their last organization at this address (spec 036, FR-023): read the
+  // session again, which now answers the same refusal and shows the sign-in page.
+  // An address on its own host has ended the session by then, so the reason is kept here
+  // for the sign-in page until someone signs in.
+  const [refusedHere, setRefusedHere] = useState(false)
+  useEffect(() => {
+    const refused = () => {
+      setRefusedHere(true)
+      void cache.invalidateQueries({ queryKey: ["session"] })
+    }
+    window.addEventListener(NOT_AVAILABLE_HERE_EVENT, refused)
+    return () => window.removeEventListener(NOT_AVAILABLE_HERE_EVENT, refused)
+  }, [cache])
   const query = useQuery({
     queryKey: ["session"],
     queryFn: () => api.me(),
@@ -341,6 +363,10 @@ function Session() {
     // Started offline, this fails at once to the offline screen instead of waiting.
     networkMode: "always",
   })
+  const signedInNow = query.data !== undefined && !query.error
+  useEffect(() => {
+    if (signedInNow) setRefusedHere(false)
+  }, [signedInNow])
   const connection = useConnection()
   const unreachable = query.error instanceof ApiError && query.error.status === 0
   const { refetch } = query
@@ -359,7 +385,8 @@ function Session() {
       </main>
     )
   if (query.error instanceof ApiError && query.error.status === 401)
-    return <Login />
+    return <Login notAvailableHere={refusedHere} />
+  if (isNotAvailableHere(query.error)) return <Login notAvailableHere />
   // Started offline: nothing from an earlier session is shown, the cache lives in memory
   // only (FR-012). Offline later, the open page stays with its offline notice (FR-013).
   if (unreachable && !query.data)
@@ -539,16 +566,21 @@ function OrganizationLanding({
 function WorkspaceUnavailable({
   organizations,
   ownsBillingAccount,
+  onAddress = false,
 }: {
   organizations: Organization[]
   ownsBillingAccount: boolean
+  /** On a billing account's address only its organizations can be opened (spec 036, FR-021). */
+  onAddress?: boolean
 }) {
   return (
     <>
-      <PageHeader title="Workspace unavailable" />
+      <PageHeader title={onAddress ? "Not available at this address" : "Workspace unavailable"} />
       <div className="flex flex-col gap-4 p-4 md:p-6">
         <p className="text-muted-foreground">
-          You don't have access to this organization.
+          {onAddress
+            ? "This organization cannot be opened at this address. Open it where you usually sign in."
+            : "You don't have access to this organization."}
         </p>
         <OrganizationLinks organizations={organizations} ownsBillingAccount={ownsBillingAccount} />
       </div>
@@ -980,7 +1012,7 @@ function PortalSidebar({
                     </Link>
                   </DropdownMenuItem>
                 )}
-                {user.capabilities.platform_administration && (
+                {user.capabilities.platform_administration && adminUrl && (
                   <DropdownMenuItem asChild>
                     <a href={adminUrl}>
                       <ShieldIcon />
@@ -1162,7 +1194,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
             </div>
           ) : null}
           {params.organizationUuid && !org ? (
-            <WorkspaceUnavailable organizations={user.organizations} ownsBillingAccount={user.capabilities.billing_accounts === true} />
+            <WorkspaceUnavailable organizations={user.organizations} ownsBillingAccount={user.capabilities.billing_accounts === true} onAddress={user.address != null} />
           ) : (
             <>
               {org && <RuntimeStatusBanner />}

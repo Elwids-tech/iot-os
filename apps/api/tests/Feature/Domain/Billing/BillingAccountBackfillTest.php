@@ -21,7 +21,8 @@ final class BillingAccountBackfillTest extends TestCase
         // accounts, so they go first and come back last; PostgreSQL refuses to drop a table
         // others point at. Carried items and archive columns point at device moves. Sign-ups
         // (spec 035) point at billing accounts too, and so do brands and their images (spec
-        // 036), which organizations' logos point at.
+        // 036), which organizations' logos point at, and portal addresses.
+        $addresses = require database_path('migrations/2026_11_30_000100_create_portal_addresses_table.php');
         $logos = require database_path('migrations/2026_11_28_000300_add_logos_to_organizations.php');
         $brands = require database_path('migrations/2026_11_28_000200_create_brands_table.php');
         $brandAssets = require database_path('migrations/2026_11_28_000100_create_brand_assets_table.php');
@@ -34,6 +35,7 @@ final class BillingAccountBackfillTest extends TestCase
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $addresses->down();
         $logos->down();
         $brands->down();
         $brandAssets->down();

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import { toast } from "sonner"
-import { ApiError } from "@iot-os/api-client"
+import { ApiError, isNotAvailableHere } from "@iot-os/api-client"
 import {
   Alert,
   AlertDescription,
@@ -65,6 +65,9 @@ export function errorMessage(error: unknown): string {
       return payload?.offline
         ? "You're offline. Nothing was saved."
         : "The connection dropped before the server answered. Check whether this was saved before trying again."
+    // A billing account's address is not for this person or organization (spec 036): the
+    // API's own sentence says which.
+    if (isNotAvailableHere(error)) return payload?.message ?? "This is not available at this address."
     if (error.status === 409)
       return "Another change was saved while you were editing. Your form has been kept. Review the latest draft before retrying."
     if (error.status === 401)

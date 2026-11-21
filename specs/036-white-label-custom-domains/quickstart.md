@@ -11,9 +11,10 @@ otherwise. Shapes are in [contracts/](contracts/); states are in
   account **B** with one organization (B1).
 - People: **Ann** (member of A1 only), **Bo** (member of B1 only), **Cy** (member of
   A1 and B1), and a super administrator.
-- Dev settings for steps 5 onwards: `PORTAL_ADDRESSES=on` and
-  `PORTAL_ADDRESSES_DNS_CHECK=off` in the root `.env`, then rebuild the API family and
-  `portal`.
+- Dev settings for steps 5 onwards: `PORTAL_ADDRESSES=on` in the root `.env` (and
+  `PORTAL_ADDRESSES_DNS_CHECK=off` from step 9), then rebuild the API family and
+  `portal`. Names are claimed under `localhost`, so A's address is
+  `http://acme.localhost:5173`.
 - Two small PNGs: a wide logo and a 512×512 icon. One 2 MB PNG and one SVG for the
   refusals.
 

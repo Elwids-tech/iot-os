@@ -7,6 +7,7 @@ namespace App\Domain\Billing\Services;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Billing\Models\Invoice;
+use App\Domain\Branding\Services\PortalAddresses;
 use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\Pipes;
@@ -89,6 +90,8 @@ final class BillingAccounts
             }
 
             $locked->delete();
+            // Its portal addresses stop serving; the hosts are held for 30 days (spec 036, FR-018).
+            app(PortalAddresses::class)->releaseAll($locked, $actor, 'account_deleted');
             DeviceAudit::record('billing_account.deleted', null, $actor->getKey(), $locked->uuid, ['name' => $locked->name]);
         });
     }
@@ -154,6 +157,10 @@ final class BillingAccounts
             ]);
 
             $locked->forceFill(['billing_account_id' => $target->getKey()])->save();
+            // An account with no organization left has nobody to serve a portal to (spec 036).
+            if (! $from->organizations()->exists()) {
+                app(PortalAddresses::class)->releaseAll($from, $actor, 'no_organizations');
+            }
             // Readings from before a move are shared only inside one account, and stay stopped if it comes back (FR-052).
             DeviceLink::query()->where('history_included', true)->whereNull('history_stopped_at')
                 ->where(fn ($query) => $query->where('source_organization_id', $locked->getKey())->orWhere('target_organization_id', $locked->getKey()))

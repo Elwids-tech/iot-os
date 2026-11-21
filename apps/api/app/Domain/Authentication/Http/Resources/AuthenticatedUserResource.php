@@ -7,6 +7,7 @@ namespace App\Domain\Authentication\Http\Resources;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Branding\Services\Brands;
+use App\Domain\Branding\Services\PortalAccess;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,9 +21,15 @@ final class AuthenticatedUserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $access = app(PortalAccess::class);
+        $address = $access->address($request);
         $organizations = $this->is_super_admin
-            ? Organization::query()->with(['logo', 'logoDark'])->orderBy('name')->get()
+            ? $access->scope(Organization::query(), $request)->with(['logo', 'logoDark'])->orderBy('name')->get()
             : $this->whenLoaded('organizations');
+        if ($address !== null && ! $this->is_super_admin && $organizations instanceof Collection) {
+            // On a billing account's address, only its organizations (spec 036, FR-021).
+            $organizations = $organizations->filter(fn (Organization $organization): bool => $access->reaches($organization, $request))->values();
+        }
         if ($organizations instanceof Collection) {
             // One pass for every organization's logos and brand (spec 036).
             $organizations->loadMissing(['logo', 'logoDark']);
@@ -54,6 +61,12 @@ final class AuthenticatedUserResource extends JsonResource
                 'billing_accounts' => $this->resource->ownedBillingAccounts()->exists(),
             ],
             'organizations' => OrganizationResource::collection($organizations),
+            /**
+             * The portal address the request came from, or null on the platform's own.
+             *
+             * @var array{kind: 'name'|'domain', host: string}|null
+             */
+            'address' => $address === null ? null : ['kind' => $address->kind->value, 'host' => $address->host],
         ];
     }
 }

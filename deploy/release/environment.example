@@ -83,6 +83,11 @@ IOT_ADAPTER_PORT_LIMIT=19999
 # token (64 hex) authenticates the receiver's reports to the API.
 IOT_WEBHOOK_PUBLIC_URL=
 IOT_WEBHOOK_RECEIVER_TOKEN=
+# Portal addresses (spec 036, docs/ops/release.md): billing accounts' branded portals
+# on names under DOMAIN. Turn on only after the wildcard DNS record *.DOMAIN points at
+# this host. The token (64 hex, `openssl rand -hex 32`) guards the certificate question.
+PORTAL_ADDRESSES=off
+PORTAL_ADDRESSES_TOKEN=
 # Previous base domain after a rename, e.g. staging.elwids.xyz. Its app/admin/api/ops
 # hosts redirect to DOMAIN and mqtt.<LEGACY_DOMAIN> stays on the broker certificate.
 LEGACY_DOMAIN=

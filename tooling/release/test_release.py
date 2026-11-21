@@ -164,6 +164,58 @@ class ReleaseTests(unittest.TestCase):
             caddy = yaml.safe_load((release.RELEASE/'compose.yml').read_text())['services']['caddy']['volumes']
             self.assertIn('${CONFIG_DIR:?}/legacy.Caddyfile:/etc/caddy/legacy.Caddyfile:ro', caddy)
 
+    def test_portal_addresses_are_rendered_only_when_switched_on(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.render()
+            self.assertEqual('', (deployment.config/'addresses.Caddyfile').read_text())
+            self.assertEqual('', (deployment.config/'addresses-global.Caddyfile').read_text())
+            deployment.env.update(PORTAL_ADDRESSES='on', PORTAL_ADDRESSES_TOKEN='ab'*32)
+            deployment.render()
+            site = (deployment.config/'addresses.Caddyfile').read_text()
+            self.assertTrue(site.startswith('https:// {\n    tls {\n        on_demand\n    }'))
+            self.assertIn('respond @internal 404', site)
+            self.assertIn('reverse_proxy portal:80', site)
+            ask = (deployment.config/'addresses-global.Caddyfile').read_text()
+            self.assertIn('on_demand_tls {\n        ask http://api-web:80/api/internal/portal-addresses/ask?token={$PORTAL_ADDRESSES_TOKEN}', ask)
+            # The token is read from Caddy's environment, never written to the config.
+            self.assertNotIn('ab'*32, site + ask)
+            for token in ('', 'short', 'zz'*32):
+                deployment.env['PORTAL_ADDRESSES_TOKEN'] = token
+                with self.assertRaisesRegex(ValueError, 'PORTAL_ADDRESSES_TOKEN'):
+                    deployment.validate()
+            deployment.env.update(PORTAL_ADDRESSES='yes', PORTAL_ADDRESSES_TOKEN='ab'*32)
+            with self.assertRaisesRegex(ValueError, 'PORTAL_ADDRESSES must be on or off'):
+                deployment.validate()
+            compose = yaml.safe_load((release.RELEASE/'compose.yml').read_text())
+            caddy = compose['services']['caddy']
+            self.assertIn('${CONFIG_DIR:?}/addresses.Caddyfile:/etc/caddy/addresses.Caddyfile:ro', caddy['volumes'])
+            self.assertIn('${CONFIG_DIR:?}/addresses-global.Caddyfile:/etc/caddy/addresses-global.Caddyfile:ro', caddy['volumes'])
+            self.assertEqual('${PORTAL_ADDRESSES_TOKEN:-}', caddy['environment']['PORTAL_ADDRESSES_TOKEN'])
+            self.assertEqual('api-web:80', compose['services']['portal']['environment']['API_UPSTREAM'])
+            main = (release.RELEASE/'Caddyfile').read_text()
+            self.assertIn('    import /etc/caddy/addresses-global.Caddyfile\n}', main)
+            self.assertIn('\nimport /etc/caddy/addresses.Caddyfile\n', main)
+
+    def test_portal_address_smoke_checks_an_unclaimed_name_from_inside(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env.update(PORTAL_ADDRESSES='on', PORTAL_ADDRESSES_TOKEN='ab'*32)
+            answers = {'caddy': '  HTTP/1.1 404 Not Found\n', 'portal': 'window.__IOT_CONFIG__ = {"address":{"state":"not_in_use"}};\n'}
+            def compose(*args, **kwargs):
+                return subprocess.CompletedProcess(args, 0, stdout=answers[args[2]])
+            with patch.object(deployment, 'compose', side_effect=compose) as called:
+                deployment.smoke_portal_addresses()
+                self.assertIn('domain=unclaimed-smoke-check.' + deployment.env['DOMAIN'], called.call_args_list[0].args[-1])
+                self.assertNotIn('ab'*32, ' '.join(map(str, called.call_args_list[0].args)))
+                self.assertIn('Host: unclaimed-smoke-check.' + deployment.env['DOMAIN'], called.call_args_list[1].args)
+                answers['caddy'] = '  HTTP/1.1 200 OK\n'
+                with self.assertRaisesRegex(RuntimeError, 'certificate question'):
+                    deployment.smoke_portal_addresses()
+                answers.update(caddy='  HTTP/1.1 404 Not Found\n', portal='window.__IOT_CONFIG__ = {};\n')
+                with self.assertRaisesRegex(RuntimeError, 'as its own host'):
+                    deployment.smoke_portal_addresses()
+
     def test_webhook_receiver_host_is_rendered_only_with_adapters(self):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)

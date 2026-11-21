@@ -58,6 +58,16 @@ services:
       MAIL_FROM_NAME: IoT OS
       NOTIFICATION_INGEST_TOKEN: ${NOTIFICATION_INGEST_TOKEN:-}
       NOTIFICATION_OPERATOR_EMAIL: ${NOTIFICATION_OPERATOR_EMAIL:-}
+      # Portal addresses (spec 036): off unless the root .env says PORTAL_ADDRESSES=on. Names
+      # are claimed under `localhost` (`acme.localhost`), and a name's portal calls the
+      # API on its own host through the portal's nginx (docs/dev/local-setup.md).
+      PORTAL_ADDRESSES: ${PORTAL_ADDRESSES:-off}
+      PORTAL_ADDRESSES_DOMAIN: ${PORTAL_ADDRESSES_DOMAIN:-localhost}
+      PORTAL_ADDRESSES_SAME_ORIGIN: "on"
+      PORTAL_ADDRESSES_DNS_CHECK: ${PORTAL_ADDRESSES_DNS_CHECK:-on}
+      PORTAL_ADDRESSES_TOKEN: ${PORTAL_ADDRESSES_TOKEN:-}
+      PUBLIC_MAP_STYLE_URL: ${IOT_MAP_STYLE_URL:-}
+      DEPLOY_ENVIRONMENT: local
       SANCTUM_STATEFUL_DOMAINS: localhost,localhost:${IOT_PORTAL_PORT:-5173},127.0.0.1:${IOT_PORTAL_PORT:-5173},localhost:${IOT_ADMIN_PORT:-5174},localhost:5175,127.0.0.1,127.0.0.1:${IOT_ADMIN_PORT:-5174},127.0.0.1:5175
       CORS_ALLOWED_ORIGINS: http://localhost:${IOT_PORTAL_PORT:-5173},http://127.0.0.1:${IOT_PORTAL_PORT:-5173},http://localhost:${IOT_ADMIN_PORT:-5174},http://localhost:5175,http://127.0.0.1:${IOT_ADMIN_PORT:-5174},http://127.0.0.1:5175
     volumes:
@@ -194,12 +204,21 @@ services:
         VITE_API_URL: ${IOT_API_URL:-http://127.0.0.1:8001}
         VITE_ADMIN_URL: ${IOT_ADMIN_URL:-http://127.0.0.1:5174}
         VITE_MAP_STYLE_URL: ${IOT_MAP_STYLE_URL:-}
+    environment:
+      # Portal addresses (spec 036): for `*.localhost` hosts nginx asks the API for
+      # runtime-config.js and serves the API on the same host.
+      PORTAL_ADDRESSES: ${PORTAL_ADDRESSES:-off}
+      PORTAL_ADDRESSES_DOMAIN: ${PORTAL_ADDRESSES_DOMAIN:-localhost}
+      API_UPSTREAM: api:8000
     ports:
       - "${IOT_PORTAL_PORT:-5173}:80"
     depends_on:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - default
+      - internal
 
 volumes:
   assistant-private:

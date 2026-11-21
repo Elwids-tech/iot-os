@@ -72,6 +72,14 @@ const vocabulary: Record<string, Status> = {
 
 /** Where the same raw value means something else. */
 const domains = {
+  /** A billing account's portal address (spec 036): a failed check still serves, so it warns. */
+  portal_address: {
+    waiting_dns: { tone: "info", label: "Waiting for DNS" },
+    active: { tone: "good", label: "Active" },
+    unreachable: { tone: "warning", label: "Not reachable" },
+    suspended: { tone: "warning", label: "Suspended" },
+    lapsed: { tone: "muted", label: "Lapsed" },
+  },
   /** Automation deployments: an applied revision is what users call active. */
   automation: { applied: { tone: "good", label: "Active" } },
   /** Notification and webhook deliveries: sent is the finished state. */

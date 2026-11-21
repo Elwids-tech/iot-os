@@ -3,13 +3,16 @@
 A billing account's own product name, logo and icon instead of the platform's, and an
 organization's own logo ([spec 036](../../specs/036-white-label-custom-domains/spec.md),
 [ADR-050](../adr/ADR-050-brands-and-portal-addresses.md)). This page covers what is
-built: brands, logos and the allowances that turn them on. Portal addresses, custom
-domains, branded mail and the branded installed app are later pull requests of the
-same spec.
+built: brands, logos, the allowances that turn them on, and portal addresses under the
+platform's domain. Custom domains, branded mail and the branded installed app are
+later pull requests of the same spec.
 
 Code: [`app/Domain/Branding`](../../apps/api/app/Domain/Branding)
 ([`Brands`](../../apps/api/app/Domain/Branding/Services/Brands.php),
-[`BrandImages`](../../apps/api/app/Domain/Branding/Services/BrandImages.php)), the kit's
+[`BrandImages`](../../apps/api/app/Domain/Branding/Services/BrandImages.php),
+[`PortalAddresses`](../../apps/api/app/Domain/Branding/Services/PortalAddresses.php),
+[`PortalAccess`](../../apps/api/app/Domain/Branding/Services/PortalAccess.php),
+[`PortalBootstrap`](../../apps/api/app/Domain/Branding/Services/PortalBootstrap.php)), the kit's
 [`BrandMark`](../../packages/ui/src/components/brand-mark.tsx),
 [`ImageField`](../../packages/ui/src/components/image-field.tsx) and
 [`BrandEditor`](../../packages/ui/src/components/brand-editor.tsx). Routes and shapes
@@ -73,6 +76,80 @@ for off, never unlimited, and off unless a plan or an override turns them on:
 Owners do not see them in their list of limits; they read them with their branding
 (`GET /api/v1/billing-accounts/{account}/branding`, member `allowances`).
 
+## Portal addresses
+
+A billing account allowed to brand can claim one **name** under the deployment's
+domain: `acme` becomes `acme.<domain>`. The portal opened there carries the account's
+brand from the first thing drawn, and only that account's people get in. Addresses are
+off for a deployment until its operator switches them on
+([release guide](../ops/release.md#portal-addresses)); the account's brand still shows
+inside the portal at the platform's own address.
+
+- **Claiming.** A name is 3 to 40 letters, numbers and single hyphens. The platform's
+  own names (`app`, `admin`, `api`, `ops`, `mqtt`, `www`, `docs`, `mail`) and names
+  starting `c-` are reserved. A name serves at once.
+- **Renaming** releases the old name, which sends visitors to the new one for 30 days.
+- **Removing** stops the address within a minute. A released name is held for 30
+  days: nobody else can claim it, and its account can take it back.
+- **Suspended** (by platform staff) or **without the allowance**, an address shows
+  *This address is not in use* and its owners cannot change it. The name is kept and
+  serves again when the allowance returns.
+- An account's addresses are released when it is deleted or its last organization
+  moves away.
+
+### What an address shows
+
+The portal is one build for every host. Its page has no name of its own: the first
+script it runs is `/runtime-config.js`, and on an address the portal's web server
+sends that request to the API (`GET /api/v1/portal/runtime-config.js`), which answers
+with the address's brand
+([bootstrap contract](../../specs/036-white-label-custom-domains/contracts/portal-bootstrap.md)).
+A small inline script
+([`brand-bootstrap.js`](../../apps/portal/src/lib/brand-bootstrap.js)) then names the
+tab, sets the tab icon and draws the brand's logo or name while the app loads.
+
+- The sign-in, two-step, password reset and invitation pages show the brand's logo or
+  name, its support link as **Help**, and a small **Powered by** line naming the
+  platform. The `hide_powered_by` allowance removes the line.
+- Inside the portal, tab titles end with the brand's product name.
+- An address whose brand has no product name yet shows the platform's name. The
+  portal asks for the product name before it lets an owner claim a name.
+- An address offers no installed app yet: the build's manifest names the platform, so
+  the page drops it. The branded installed app comes with a later pull request.
+- A host that is not an address that serves gets *This address is not in use*, and
+  the app does not start.
+
+### Who gets in
+
+On an account's address ([`PortalAccess`](../../apps/api/app/Domain/Branding/Services/PortalAccess.php)):
+
+- Sign-in succeeds only for people who belong to an organization of that account, and
+  for people with a platform role. Anyone else gets *This account cannot sign in at
+  this address* (`403 not_available_here`), and only after a right password and
+  second step, so the answer tells nobody who has an account.
+- The organization list holds only that account's organizations, for members of
+  several accounts and for super administrators alike. A link to another account's
+  organization answers `404 not_available_here` and the portal says *Not available at
+  this address*.
+- The rule is checked on every request, so a person who loses their last organization
+  under the account is refused on their next one.
+- An invitation is accepted there only into one of the account's organizations.
+- Nobody signs up there.
+
+A billing account still grants no access: an address only narrows what a person
+reaches. Membership stays the only way into an organization.
+
+### How a request finds its address
+
+[`ApplyPortalAddress`](../../apps/api/app/Domain/Branding/Http/Middleware/ApplyPortalAddress.php)
+runs before anything else. A name's portal calls the platform's API host across
+origins, so the browser's `Origin` names the address; the session cookie and passkeys
+of the platform's domain already cover it. A host under the platform's domain that is
+neither one of the platform's own nor an address that serves gets
+`421 address_not_in_use`, which is how a suspended address stops for pages already
+open. The lookup is remembered for 30 seconds and cleared on every change. With
+addresses off the middleware does nothing.
+
 ## Where people do it
 
 - **Portal → Billing accounts → Branding** (owners): the brand's names and link are a
@@ -80,6 +157,9 @@ Owners do not see them in their list of limits; they read them with their brandi
   card and browser tab. A brand changed by someone else answers 409 and the panel
   offers **Reload**. Without the allowance the panel says branding is not part of the
   plan.
+- **Portal → Billing accounts → Addresses** (owners): the name, its state, **Change
+  address** and **Remove**. The panel says so when addresses are not available on the
+  deployment or branding is not part of the plan.
 - **Portal → Settings → General → Organization logo**: upload, replace or remove the
   logo and the dark logo. Read-only without `Organization.update`.
 - **Admin → a billing account's page**: the **Allowances** panel lists the three
@@ -91,9 +171,21 @@ Owners do not see them in their list of limits; they read them with their brandi
 
 `brand.updated` (the changed fields) and `brand.image_changed` on the billing account,
 `organization.logo_changed` on the organization. None carries image bytes.
+`portal_address.claimed`, `.released`, `.suspended` and `.restored` on the billing
+account carry the host.
 
 ## Settings
 
-`config/branding.php` reads `PORTAL_ADDRESSES`, `PORTAL_ADDRESSES_DNS_CHECK`,
-`PORTAL_ADDRESSES_TOKEN` and `PORTAL_ADDRESSES_DOMAIN`. Nothing uses them yet: they
-belong to portal addresses. Brands and logos need no setting.
+Brands and logos need no setting. Portal addresses read, in `config/branding.php`:
+
+| Setting | Meaning |
+| --- | --- |
+| `PORTAL_ADDRESSES` | `on` serves addresses. Off by default |
+| `PORTAL_ADDRESSES_DOMAIN` | The domain names are claimed under: the release's `DOMAIN`, `localhost` in development |
+| `PORTAL_ADDRESSES_TOKEN` | What the proxy sends when it asks whether a host may have a certificate |
+| `PORTAL_ADDRESSES_SAME_ORIGIN` | Development only: a name's portal calls the API on its own host ([local setup](../dev/local-setup.md#portal-addresses)) |
+| `PORTAL_ADDRESSES_DNS_CHECK` | For custom domains, which are not built yet |
+| `PLATFORM_NAME` | The name in the **Powered by** line. `IoT OS` by default |
+
+The portal image reads `PORTAL_ADDRESSES`, `PORTAL_ADDRESSES_DOMAIN` and
+`API_UPSTREAM` to decide which hosts are addresses and where their requests go.

@@ -3,6 +3,7 @@ import { ApiError, type ApiClient } from "@iot-os/api-client"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { Button } from "@iot-os/ui/components/button"
+import { SignInFooter, SignInMark } from "./SignInBrand"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@iot-os/ui/components/field"
 import { Input } from "@iot-os/ui/components/input"
@@ -53,9 +54,10 @@ export function PasswordRecoveryPage({ apiClient, mode }: { apiClient: ApiClient
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-12 max-md:px-4">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-muted/30 px-6 py-12 max-md:px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <SignInMark />
           {complete && <CheckCircle2Icon className="text-primary" />}
           <CardTitle><h1>{complete ? reset ? "Password reset" : "Check your email" : unavailable ? "Reset link unavailable" : reset ? "Choose a new password" : "Forgot your password?"}</h1></CardTitle>
           <CardDescription>
@@ -103,6 +105,7 @@ export function PasswordRecoveryPage({ apiClient, mode }: { apiClient: ApiClient
           </form>
         )}
       </Card>
+      <SignInFooter />
     </main>
   )
 }

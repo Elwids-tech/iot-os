@@ -23,11 +23,14 @@ OpenAPI and `packages/api-client` change in the pull request that adds each rout
   "uuid": "…",
   "kind": "domain",                       // "name" | "domain"
   "host": "portal.example.org",
+  "url": "https://portal.example.org",    // where the portal opens there
   "state": "waiting_dns",                 // waiting_dns | active | unreachable | suspended | lapsed
   "main": false,
-  "record": { "type": "CNAME", "name": "portal.example.org", "value": "c-7k2m….example.com" },   // domain only
   "claimed_at": "…", "activated_at": null, "last_checked_at": "…",
-  "unreachable_since": null, "lapses_at": "…"
+  "unreachable_since": null, "suspended_at": null,
+  // With custom domains (pull request 4):
+  "record": { "type": "CNAME", "name": "portal.example.org", "value": "c-7k2m….example.com" },
+  "lapses_at": "…"
 }
 
 // Branding (what the owner and admin pages read)
@@ -51,7 +54,7 @@ Found through the caller's owned accounts; any other account answers 404.
 | `PUT billing-accounts/{account}/brand` | `product_name`, `short_name`, `support_url`, `revision` | 200 brand · 403 `branding_not_allowed` · 409 `brand_changed` (stale revision) · 422 |
 | `POST billing-accounts/{account}/brand/images/{role}` | Multipart `image`; `role` is `logo`, `logo_dark` or `icon`. POST because PHP reads a multipart body only on POST | 200 brand · 403 · 422 `image_type`, `image_too_large`, `image_not_square`, `image_too_small` |
 | `DELETE billing-accounts/{account}/brand/images/{role}` | Removes that image | 200 brand |
-| `PUT billing-accounts/{account}/addresses/name` | `{ "name": "acme" }`; claims or renames | 200 address · 403 · 409 `addresses_unavailable`, `name_taken`, `name_reserved` · 422 |
+| `PUT billing-accounts/{account}/addresses/name` | `{ "name": "acme" }`; claims or renames | 200 address · 403 `branding_not_allowed` · 409 `addresses_unavailable`, `name_taken`, `name_reserved`, `suspended` · 422 `name_invalid` |
 | `PUT billing-accounts/{account}/addresses/domain` | `{ "host": "portal.example.org" }` | 200 address (waiting) · 403 `custom_domain_not_allowed` · 409 `addresses_unavailable`, `host_taken`, `host_held` · 422 `bare_domain`, `platform_domain` |
 | `POST billing-accounts/{account}/addresses/{address}/check` | Checks DNS now; once a minute | 200 address · 429 |
 | `DELETE billing-accounts/{account}/addresses/{address}` | Releases it; sessions there end | 204 · 409 `suspended` |
@@ -99,15 +102,18 @@ or 1 for `branding`, `custom_domain` and `hide_powered_by`.
 
 | Route | Change |
 | --- | --- |
-| `POST login`, two-step and passkey sign-in, invitation accept | On an account's address, after valid credentials: `403 not_available_here` when the person has no organization there and no platform role |
-| `GET me` | `organizations` lists only the address's account on an account's address. Adds `push_devices_elsewhere` (integer) and `address { kind, host }` or null |
+| `POST login`, two-step and passkey sign-in | On an account's address, after valid credentials: `403 not_available_here` when the person has no organization there and no platform role |
+| Invitation accept | On an account's address: `403 not_available_here` for an invitation to another account's organization or to a platform role; it stays pending |
+| `GET me` | `organizations` lists only the address's account on an account's address. Adds `address { kind, host }` or null, and with push (pull request 5) `push_devices_elsewhere` |
 | Any `organizations/{organization}/…` route | `404 not_available_here` for an organization outside the address's account |
+| Any signed-in route but sign-out | `403 not_available_here` once the person has no organization left at the address. A session on the address's own host is ended; one shared with the platform's address is not |
 | Any authenticated route | `401` when the session belongs to another address (custom domains) |
 | `GET sign-up`, `POST sign-up` | Closed on any address |
 | `GET me/passkeys` | Each passkey gains `relying_party_id` and `usable_here` |
 | `GET auth/passkeys/options` | Offers only passkeys of the request's relying party |
 | `admin/*`, `/mcp`, application sign-in pages | 404 on a custom domain |
-| Any API route | `421 address_not_in_use` on a host that is neither a platform host nor an address that serves |
+| Any API route | `421 address_not_in_use` for a request from, or on, a host under the platform's domain that is neither one of the platform's own nor an address that serves |
+| Any API route but the bootstrap | 404 on a name's own host: a name calls the platform's API host (development serves it on the name) |
 
 ## Internal
 
@@ -118,6 +124,6 @@ or 1 for `branding`, `custom_domain` and `hide_powered_by`.
 ## Activity
 
 `brand.updated`, `brand.image_changed`, `organization.logo_changed`,
-`portal_address.claimed`, `.activated`, `.unreachable`, `.recovered`, `.suspended`,
-`.restored`, `.released`, `.lapsed`. Each carries the actor's `user_id` (null for the
+`portal_address.claimed`, `.suspended`, `.restored`, `.released`, and with custom
+domains `.activated`, `.unreachable`, `.recovered`, `.lapsed`. Each carries the actor's `user_id` (null for the
 scheduled check), the host or the changed fields, and never image bytes.

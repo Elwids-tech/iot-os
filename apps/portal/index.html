@@ -10,7 +10,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <!-- Filled in by main.tsx, so tests can tell two builds apart (spec 033). -->
     <meta name="build-id" content="" />
-    <title>IoT OS</title>
+    <!-- Named by the brand bootstrap below, from the address the page is opened on (spec 036). -->
+    <title></title>
     <script>
       // Skin and dark palette before first paint; SkinProvider and PaletteProvider
       // (packages/ui skin.tsx, palette.tsx) take over after load.
@@ -29,6 +30,8 @@
   <body>
     <div id="root"></div>
     <script src="/runtime-config.js"></script>
+    <!-- src/lib/brand-bootstrap.js, inlined by vite.config.ts. -->
+    <script>/*brand-bootstrap*/</script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

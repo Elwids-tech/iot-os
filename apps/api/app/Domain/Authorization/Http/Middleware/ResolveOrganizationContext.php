@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Authorization\Http\Middleware;
 
+use App\Domain\Branding\Exceptions\BrandingRefusal;
+use App\Domain\Branding\Services\PortalAccess;
 use App\Domain\Shared\Models\Organization;
 use Closure;
 use Illuminate\Http\Request;
@@ -18,6 +20,12 @@ final class ResolveOrganizationContext
 
         if (! $organization instanceof Organization) {
             abort(404, 'Organization not found.');
+        }
+
+        // On a billing account's address only its organizations exist (spec 036, FR-021),
+        // for members of others and for super administrators alike.
+        if (! app(PortalAccess::class)->reaches($organization, $request)) {
+            throw new BrandingRefusal(404, PortalAccess::CODE, 'This organization is not available at this address.');
         }
 
         abort_unless(

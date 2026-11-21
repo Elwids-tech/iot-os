@@ -3967,6 +3967,145 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing-accounts/{billingAccount}/addresses/name": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.addresses.name",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 63
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/AddressRefused"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/AddressNameInvalid"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "description": "Claims or renames a billing account's name on its owners' behalf, without the allowance check."
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/addresses/{address}": {
+      "delete": {
+        "operationId": "v1.admin.billing-accounts.addresses.destroy",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/billing-accounts/{billingAccount}/allowances/{kind}": {
       "put": {
         "operationId": "v1.admin.billing-accounts.allowances.update",
@@ -10937,6 +11076,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -10987,6 +11129,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11042,6 +11187,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
@@ -11164,7 +11312,7 @@
             }
           },
           "403": {
-            "description": "The address has no account but a sign-up waiting for its email to be confirmed, and the password is that sign-up's (`sign_up_unconfirmed`, spec 035). This browser can now send the link again with `POST /v1/sign-up/resend`.",
+            "description": "The address has no account but a sign-up waiting for its email to be confirmed, and the password is that sign-up's (`sign_up_unconfirmed`, spec 035). This browser can now send the link again with `POST /v1/sign-up/resend`. Or the password was right and the person belongs to no organization of the billing account whose portal address the request came from (`not_available_here`, spec 036).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11263,6 +11411,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAvailableHere"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -11405,6 +11556,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/NotAvailableHere"
+          },
           "419": {
             "$ref": "#/components/responses/CsrfExpired"
           },
@@ -11482,6 +11636,159 @@
           }
         ],
         "x-audience": "account"
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/addresses/name": {
+      "put": {
+        "operationId": "v1.billing-accounts.addresses.name",
+        "summary": "Claims a name under the platform's domain, or renames the one the account holds",
+        "tags": [
+          "OwnedPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 63
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/BrandingNotAllowed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/AddressRefused"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/AddressNameInvalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Claims a name under the platform's domain for the billing account, or renames the\none it holds: `acme` becomes `acme.<domain>`. The name serves the branded portal\nat once. A renamed name is released and redirects to the new one for 30 days.\nNeeds the account's `branding` allowance."
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/addresses/{address}": {
+      "delete": {
+        "operationId": "v1.billing-accounts.addresses.destroy",
+        "summary": "Releases an address. Staff lift a suspension first",
+        "tags": [
+          "OwnedPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/AddressRefused"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Releases an address. It stops serving within a minute, people signed in there lose\nthe portal, and no other account can claim the host for 30 days."
       }
     },
     "/v1/billing-accounts/{billingAccount}/brand": {
@@ -12732,6 +13039,16 @@
               }
             }
           },
+          "403": {
+            "description": "The request came from a billing account's portal address and the invitation is to an organization of another account, or to a platform role (`not_available_here`). The invitation stays pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodedError"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -12766,6 +13083,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -13026,6 +13346,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -13066,6 +13389,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -13114,6 +13440,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         },
         "security": [
@@ -13146,6 +13475,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "409": {
             "$ref": "#/components/responses/TwoStepConflict"
           },
@@ -13175,6 +13507,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "$ref": "#/components/responses/TwoStepConflict"
@@ -13234,6 +13569,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "409": {
             "$ref": "#/components/responses/TwoStepConflict"
           },
@@ -13282,6 +13620,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "$ref": "#/components/responses/TwoStepConflict"
@@ -36302,6 +36643,29 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/portal/runtime-config.js": {
+      "get": {
+        "operationId": "v1.portal.runtime-config",
+        "tags": [
+          "PortalBootstrap"
+        ],
+        "responses": {
+          "200": {
+            "description": "The statement.",
+            "content": {
+              "application/javascript": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "description": "What the portal reads before it starts on a host that is not the platform's own\n(specs/036-white-label-custom-domains/contracts/portal-bootstrap.md): one\nJavaScript statement that sets `window.__IOT_CONFIG__`, with the host's brand and\naddress. A host that is not in use gets `address.state` `not_in_use` and no brand.\nPublic and never cached."
+      }
+    },
     "/v1/sign-up": {
       "get": {
         "operationId": "v1.sign-up.show",
@@ -36861,6 +37225,26 @@
       }
     },
     "responses": {
+      "AddressNameInvalid": {
+        "description": "The name is missing, or is not 3 to 40 letters, numbers and single hyphens that start and end with a letter or number (`name_invalid`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "AddressRefused": {
+        "description": "The address cannot be claimed or changed. `code` is `addresses_unavailable` (this deployment does not serve portal addresses), `name_taken` (another account holds the name, or released it less than 30 days ago), `name_reserved`, or `suspended` (platform staff stopped the account's address).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
       "BrandChanged": {
         "description": "The brand was changed since `revision` was read (`brand_changed`). Read it again.",
         "content": {
@@ -36933,7 +37317,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller is not allowed: not a member of the organization, missing a tenant or platform permission, or (integration API) an ability not granted on both the application and the token. On session routes, a person for whom two-step sign-in is required and not set up gets `code: two_step_setup_required` until they set it up (spec 034).",
+        "description": "The caller is not allowed: not a member of the organization, missing a tenant or platform permission, or (integration API) an ability not granted on both the application and the token. On session routes, a person for whom two-step sign-in is required and not set up gets `code: two_step_setup_required` until they set it up (spec 034). On a billing account's portal address, a person who belongs to none of that account's organizations gets `code: not_available_here` (spec 036).",
         "content": {
           "application/json": {
             "schema": {
@@ -36962,8 +37346,18 @@
           }
         }
       },
+      "NotAvailableHere": {
+        "description": "The credentials were right, and the person belongs to no organization of the billing account whose portal address the request came from (`not_available_here`, spec 036). No session was started.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
       "NotFound": {
-        "description": "Not found: an unknown organization or resource, a resource in another organization or not granted to the application, or a malformed identifier (the route does not match).",
+        "description": "Not found: an unknown organization or resource, a resource in another organization or not granted to the application, or a malformed identifier (the route does not match). On a billing account's portal address, an organization of another account answers `code: not_available_here` (spec 036).",
         "content": {
           "application/json": {
             "schema": {
@@ -38711,6 +39105,29 @@
                 }
               }
             }
+          },
+          "address": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The billing account's portal address the request came from (spec 036), or null on the platform's own address. On an address, `organizations` lists only that account's.",
+            "required": [
+              "kind",
+              "host"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "name",
+                  "domain"
+                ]
+              },
+              "host": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -39450,44 +39867,9 @@
           },
           "addresses": {
             "type": "array",
-            "description": "The account's portal addresses. Always empty until addresses are available.",
+            "description": "The account's portal addresses: at most one name and one custom domain.",
             "items": {
-              "type": "object",
-              "properties": {
-                "uuid": {
-                  "type": "string"
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "name",
-                    "domain"
-                  ]
-                },
-                "host": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "waiting_dns",
-                    "active",
-                    "unreachable",
-                    "suspended",
-                    "lapsed"
-                  ]
-                },
-                "main": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "uuid",
-                "kind",
-                "host",
-                "state",
-                "main"
-              ]
+              "$ref": "#/components/schemas/PortalAddressResource"
             }
           },
           "allowances": {
@@ -44557,6 +44939,86 @@
             ]
           }
         }
+      },
+      "PortalAddressResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "name",
+              "domain"
+            ]
+          },
+          "host": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the portal opens on this address."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting_dns",
+              "active",
+              "unreachable",
+              "suspended",
+              "lapsed"
+            ]
+          },
+          "main": {
+            "type": "boolean",
+            "description": "Whether links in mail and alerts use this address (FR-016)."
+          },
+          "claimed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unreachable_since": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspended_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "kind",
+          "host",
+          "url",
+          "state",
+          "main",
+          "claimed_at",
+          "activated_at",
+          "last_checked_at",
+          "unreachable_since",
+          "suspended_at"
+        ],
+        "title": "PortalAddressResource"
       },
       "ProfileParameterDataType": {
         "type": "string",

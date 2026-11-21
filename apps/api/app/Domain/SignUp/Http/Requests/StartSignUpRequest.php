@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SignUp\Http\Requests;
 
+use App\Domain\Branding\Services\PortalAccess;
 use App\Domain\SignUp\Services\SignUpSettings;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,10 +23,10 @@ final class StartSignUpRequest extends FormRequest
         };
     }
 
-    /** A closed sign-up refuses before anything is checked (FR-025). */
+    /** A closed sign-up refuses before anything is checked (FR-025). A portal address is always closed (spec 036, FR-024). */
     public function authorize(): bool
     {
-        return app(SignUpSettings::class)->open();
+        return app(PortalAccess::class)->address($this) === null && app(SignUpSettings::class)->open();
     }
 
     protected function failedAuthorization(): void

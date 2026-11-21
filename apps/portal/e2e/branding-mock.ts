@@ -15,6 +15,20 @@ export const pngFile = (name: string) => ({
   buffer: Buffer.from(ownPixel.slice(ownPixel.indexOf(",") + 1), "base64"),
 })
 
+export type MockAddress = {
+  uuid: string
+  kind: "name" | "domain"
+  host: string
+  url: string
+  state: "waiting_dns" | "active" | "unreachable" | "suspended" | "lapsed"
+  main: boolean
+  claimed_at: string | null
+  activated_at: string | null
+  last_checked_at: string | null
+  unreachable_since: string | null
+  suspended_at: string | null
+}
+
 type Organization = {
   uuid: string
   logo?: MockImage | null
@@ -29,19 +43,30 @@ const json = (route: Route, body: unknown, status = 200) =>
  * `allowed` is the account's Branding switch. `organizations` are the ones the spec's
  * `/api/v1/me` answers with: a logo change updates them, as the API would.
  */
-export async function mockBranding(page: Page, options: { allowed?: boolean; organizations?: () => Organization[] } = {}) {
+export async function mockBranding(
+  page: Page,
+  options: {
+    allowed?: boolean
+    organizations?: () => Organization[]
+    /** The deployment's domain for names, such as `example.com`; without it addresses are not available. */
+    addressesDomain?: string
+    /** The brand already has this product name. */
+    productName?: string
+  } = {},
+) {
   const sent: { method: string; path: string; body: unknown }[] = []
   const state = {
     allowed: options.allowed ?? false,
     brand: {
-      product_name: null as string | null,
+      product_name: (options.productName ?? null) as string | null,
       short_name: null as string | null,
       support_url: null as string | null,
       logo: null as MockImage | null,
       logo_dark: null as MockImage | null,
       icon: null as MockImage | null,
-      revision: 0,
+      revision: options.productName ? 1 : 0,
     },
+    addresses: [] as MockAddress[],
   }
   const providers = new Map<string, Organization["brand"]>()
   const shown = () => ({ ...state.brand, in_effect: state.allowed && state.brand.product_name !== null })
@@ -58,10 +83,10 @@ export async function mockBranding(page: Page, options: { allowed?: boolean; org
       return json(route, {
         data: {
           brand: shown(),
-          addresses: [],
+          addresses: state.addresses,
           allowances: { branding: state.allowed, custom_domain: false, hide_powered_by: false },
-          addresses_available: false,
-          name_suffix: null,
+          addresses_available: options.addressesDomain !== undefined,
+          name_suffix: options.addressesDomain === undefined ? null : `.${options.addressesDomain}`,
           limits: { image_bytes: 1048576, types: ["image/png", "image/jpeg", "image/webp"], icon_min: 512 },
         },
       })
@@ -81,6 +106,30 @@ export async function mockBranding(page: Page, options: { allowed?: boolean; org
       return json(route, { message: "The brand was changed since you opened it. Reload to see the latest version.", code: "brand_changed" }, 409)
     Object.assign(state.brand, { product_name: body.product_name, short_name: body.short_name, support_url: body.support_url, revision: state.brand.revision + 1 })
     return json(route, { data: shown() })
+  })
+
+  // Portal addresses (spec 036 US1): `taken` stands for a name another account holds.
+  await page.route(/\/api\/v1\/billing-accounts\/[^/]+\/addresses\/[^/]+$/, async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === "DELETE") {
+      sent.push({ method: "DELETE", path, body: null })
+      state.addresses = state.addresses.filter((address) => !path.endsWith(`/${address.uuid}`))
+      return route.fulfill({ status: 204 })
+    }
+    const body = request.postDataJSON() as { name: string }
+    sent.push({ method: "PUT", path, body })
+    if (!state.allowed) return json(route, { message: "Branding is not part of this billing account's plan.", code: "branding_not_allowed" }, 403)
+    if (body.name === "taken") return json(route, { message: "This name is taken. Choose another.", code: "name_taken" }, 409)
+    if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(body.name))
+      return json(route, { message: "Use 3 to 40 letters, numbers and single hyphens, starting and ending with a letter or number.", code: "name_invalid", errors: { name: ["Use 3 to 40 letters, numbers and single hyphens, starting and ending with a letter or number."] } }, 422)
+    const host = `${body.name}.${options.addressesDomain}`
+    const address: MockAddress = {
+      uuid: "ad000000-0000-4000-8000-000000000001", kind: "name", host, url: `https://${host}`, state: "active", main: true,
+      claimed_at: new Date().toISOString(), activated_at: new Date().toISOString(), last_checked_at: null, unreachable_since: null, suspended_at: null,
+    }
+    state.addresses = [address]
+    return json(route, { data: address })
   })
 
   await page.route(/\/api\/v1\/organizations\/[^/]+\/logo(\/dark)?$/, async (route) => {

@@ -26,6 +26,12 @@ describe("status vocabulary", () => {
     expect(statusOf("pending", "ingest")).toEqual({ tone: "info", label: "Pending" })
   })
 
+  it("reads a portal address's state, where a failed check warns and still serves", () => {
+    expect(statusOf("waiting_dns", "portal_address")).toEqual({ tone: "info", label: "Waiting for DNS" })
+    expect(statusOf("unreachable", "portal_address")).toEqual({ tone: "warning", label: "Not reachable" })
+    expect(statusOf("active", "portal_address")).toEqual({ tone: "good", label: "Active" })
+  })
+
   it("reads billing allowance sources and plan assignments in their domains", () => {
     expect(statusOf("override", "allowance")).toEqual({ tone: "info", label: "Override" })
     expect(statusOf("default", "allowance")).toEqual({ tone: "muted", label: "Default" })

@@ -33,7 +33,7 @@ const shop = (manage: boolean, provider: MockImage | null = null): Organization 
   capabilities: { devices: { view: true, manage: true, command: true }, manage_administration: manage },
 })
 
-async function setup(page: Page, options: { allowed?: boolean; organization?: Organization } = {}) {
+async function setup(page: Page, options: { allowed?: boolean; organization?: Organization; addressesDomain?: string; productName?: string } = {}) {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   const organizations = [options.organization ?? shop(true)]
@@ -73,7 +73,7 @@ async function setup(page: Page, options: { allowed?: boolean; organization?: Or
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: now } })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
-  const branding = await mockBranding(page, { allowed: options.allowed, organizations: () => organizations })
+  const branding = await mockBranding(page, { allowed: options.allowed, organizations: () => organizations, addressesDomain: options.addressesDomain, productName: options.productName })
   return { errors, organizations, ...branding }
 }
 
@@ -187,5 +187,68 @@ test("without a logo the sidebar keeps the initial, and a member cannot change t
   await expect(panel.getByRole("button", { name: "Upload" }).first()).toBeDisabled()
   await expect(panel.getByRole("button", { name: "Remove" })).toHaveCount(0)
   expect(sent).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test("the Addresses panel says why when the deployment or the plan has no addresses", async ({ page }) => {
+  const { errors } = await setup(page, { allowed: true, productName: "Acme Monitor" })
+  await page.goto("/billing")
+  const panel = page.getByRole("region", { name: "Addresses" })
+  await expect(panel.getByText("Addresses are not available on this deployment")).toBeVisible()
+  await expect(panel.getByRole("textbox")).toHaveCount(0)
+
+  await setup(page, { allowed: false, addressesDomain: "example.com" })
+  await page.reload()
+  await expect(panel.getByText("Addresses come with branding, which is not part of your plan")).toBeVisible()
+  await expect(panel.getByRole("textbox")).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test("an owner claims a name, is told when one is taken, renames it and removes it", async ({ page }) => {
+  const { errors, sent } = await setup(page, { allowed: true, addressesDomain: "example.com", productName: "Acme Monitor" })
+  await page.goto("/billing")
+
+  const panel = page.getByRole("region", { name: "Addresses" })
+  const name = panel.getByRole("textbox", { name: "Name" })
+  await expect(panel.getByText(".example.com")).toBeVisible()
+  await expect(panel.getByRole("button", { name: "Claim address" })).toBeDisabled()
+
+  await name.fill("taken")
+  await panel.getByRole("button", { name: "Claim address" }).click()
+  await expect(panel.getByText("This name is taken. Choose another.")).toBeVisible()
+  await expect(name).toHaveAttribute("aria-invalid", "true")
+
+  await name.fill("acme")
+  await expect(panel.getByText("This name is taken. Choose another.")).toHaveCount(0)
+  await panel.getByRole("button", { name: "Claim address" }).click()
+  await expect(page.getByText("acme.example.com is ready")).toBeVisible()
+  await expect(panel.getByRole("link", { name: "acme.example.com" })).toHaveAttribute("href", "https://acme.example.com")
+  await expect(panel.getByText("Active", { exact: true })).toBeVisible()
+  await expect(panel.getByRole("button", { name: "Change address" })).toBeDisabled()
+
+  await panel.getByRole("textbox", { name: "Change the name" }).fill("acme-monitor")
+  await panel.getByRole("button", { name: "Change address" }).click()
+  await expect(page.getByText("Address changed to acme-monitor.example.com")).toBeVisible()
+  expect(sent.filter((request) => request.method === "PUT").map((request) => request.body)).toEqual([{ name: "taken" }, { name: "acme" }, { name: "acme-monitor" }])
+
+  const results = await new AxeBuilder({ page }).include('section[aria-labelledby="billing-addresses"]').analyze()
+  expect(results.violations).toEqual([])
+
+  await panel.getByRole("button", { name: "Remove" }).click()
+  const dialog = page.getByRole("alertdialog", { name: "Remove acme-monitor.example.com?" })
+  await expect(dialog.getByText("The name is held for 30 days")).toBeVisible()
+  await dialog.getByRole("button", { name: "Remove address" }).click()
+  await expect(page.getByText("acme-monitor.example.com removed")).toBeVisible()
+  await expect(panel.getByRole("link")).toHaveCount(0)
+  await expect(panel.getByRole("textbox", { name: "Name" })).toHaveValue("")
+  expect(errors).toEqual([])
+})
+
+test("a name waits for the brand's product name", async ({ page }) => {
+  const { errors } = await setup(page, { allowed: true, addressesDomain: "example.com" })
+  await page.goto("/billing")
+  const panel = page.getByRole("region", { name: "Addresses" })
+  await expect(panel.getByText("Save a product name in Branding first")).toBeVisible()
+  await expect(panel.getByRole("textbox", { name: "Name" })).toBeDisabled()
   expect(errors).toEqual([])
 })

@@ -15,6 +15,8 @@ use App\Domain\Billing\Console\PruneBilling;
 use App\Domain\Billing\Console\RecordDevicePeaks;
 use App\Domain\Billing\Console\RetentionWarnings;
 use App\Domain\Branding\Console\PruneBrandAssets;
+use App\Domain\Branding\Http\Middleware\ApplyPortalAddress;
+use App\Domain\Branding\Http\Middleware\EnsurePortalAccess;
 use App\Domain\DeviceAdapters\Console\PruneAdapterRecords;
 use App\Domain\DeviceAdapters\Console\TimestampAudit;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
@@ -50,6 +52,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Required two-step (spec 034, R7): once `auth:sanctum` has resolved the person.
         $middleware->appendToGroup('api', RequireTwoStep::class);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, RequireTwoStep::class);
+        // A portal address admits only its account's people (spec 036, R8), on every request.
+        $middleware->appendToGroup('api', EnsurePortalAccess::class);
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, EnsurePortalAccess::class);
         $middleware->appendToGroup('api', NoStorePrivateResponses::class);
         // A signed-out person starting an agent connection signs in on the portal, which
         // then returns to the authorize URL. Other routes keep their behaviour.
@@ -58,6 +63,10 @@ return Application::configure(basePath: dirname(__DIR__))
             : null);
         $middleware->replace(TrustProxies::class, TrustDeploymentProxies::class);
         $middleware->append(OperationRequestLog::class);
+        // Which portal address a request came from (spec 036, R4). Global, so it runs
+        // before Sanctum decides whether the request is stateful and before the session
+        // cookie's domain is read.
+        $middleware->append(ApplyPortalAddress::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ProfileValidationException $exception, Request $request) {

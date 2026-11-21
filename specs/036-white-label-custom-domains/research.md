@@ -102,6 +102,11 @@ and cannot be forged past the proxy. An address under the platform's domain call
 **Rejected**: A header the portal sets (anyone can set it). Routing on the
 `X-Organization-UUID` header (the API has never trusted it).
 
+**As built**: the middleware is global, not first in the `api` and `web` groups, so it
+runs before Sanctum decides whether a request is stateful. `Host` is used for any
+address the portal's proxy passes on, and a name on its own host serves only the
+bootstrap unless the development setting of R16 is on.
+
 ## R5. Addresses under the platform's domain
 
 **Decision**: `<name>.DOMAIN` keeps calling `api.DOMAIN`. The release adds
@@ -112,6 +117,11 @@ origin to the passkey allowed origins for the request.
 
 One session therefore covers `app.DOMAIN` and every `<name>.DOMAIN`. The host limit
 (R8) is applied on each request, not only at sign-in.
+
+**As built**: no wildcard goes into Sanctum's stateful list. The middleware adds an
+address that serves to the list for its own requests, so a name nobody holds is never
+stateful. The CORS pattern is derived from `PORTAL_ADDRESSES` and the domain in
+`config/cors.php`, with no new environment value.
 
 **Why**: Sign-in, kept sign-in and passkeys work unchanged, as ADR-050 says. Serving
 the API on the same host here too would send the `.DOMAIN` cookies and the host's own
@@ -177,9 +187,10 @@ about 50 branded names under its own domain a week. Custom domains are not affec
 A deployment with no route to a public authority leaves the switch off; brands and
 logos still work on the platform's own address.
 
-**To verify in the first address pull request**: that Caddy 2.10 keeps an existing
-query string when it adds `domain` to the `ask` URL. If it does not, the token moves
-into the path.
+**Verified in pull request 3**: Caddy 2.10.2 keeps an existing query string when it
+adds `domain` to the `ask` URL (it asked
+`/api/internal/portal-addresses/ask?domain=…&token=…`), and reads the token from its
+environment, so the generated file holds no secret.
 
 ## R8. Who may use an address
 
@@ -326,6 +337,10 @@ domain they are not reachable at all (R6).
 same-host path with no proxy and no DNS. Names under the platform's domain are covered
 by Pest tests on the resolver, CORS and access rules, and by the release check on a
 test deployment with real DNS, before the pilot.
+
+**As built in pull request 3**: names are claimed under `localhost` in the dev stack,
+and `PORTAL_ADDRESSES_SAME_ORIGIN` (dev only) makes a name's portal call the API on its
+own host through the portal's nginx, as a custom domain will.
 
 **Why**: Browsers resolve `*.localhost` to the loopback address without a hosts file.
 Whether `acme.localhost` and `localhost` count as one site for cookies differs between

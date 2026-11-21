@@ -1303,3 +1303,23 @@ The portal is a progressive web app (spec 033,
   tenant's hardware-facing session, and the simulator raises "The client is not
   currently connected" instead of reconnecting. For anything longer than one deploy, run
   it in a restart loop (`while true; do …; sleep 1; done`).
+- **Never build a portal link from `config('app.frontend_url')` for something an
+  address serves.** Since spec 036 a billing account's people open the portal on its
+  own address. `PortalAddresses::url()` gives an address's URL (the platform's portal
+  URL with the host swapped) and `mainFor()` the account's main address. Mail and
+  alert links still use `frontend_url` until the links pull request of spec 036.
+- **`document.title` is set by the portal's bootstrap, not by `index.html`.** The
+  page ships with an empty `<title>`;
+  `apps/portal/src/lib/brand-bootstrap.js`, inlined into `index.html` by
+  `vite.config.ts`, names the tab from `runtime-config.js` (the brand on a billing
+  account's address, the platform's name elsewhere). `PageHeader` reads the app's name
+  from `document.title` when its module loads, which is after the bootstrap. A test
+  that mocks `runtime-config.js` decides the title.
+- **`ApplyPortalAddress` changes configuration for one request.** For a request from a
+  portal address it adds the address to `sanctum.stateful` and the passkey origins,
+  and on an address's own host it clears `session.domain`. That is safe on php-fpm,
+  where every request starts from the files. Octane (ADR-038) must reset configuration
+  between requests, and its pull request has to test this.
+- **Every signed-in route can answer `403 not_available_here`.** `EnsurePortalAccess`
+  runs after `auth:sanctum` on a portal address. The portal treats it like a lost
+  session; other clients of the session API should too.
