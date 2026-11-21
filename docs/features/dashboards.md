@@ -157,11 +157,14 @@ dragging selects a range. Off-screen charts defer updates.
 
 ### Viewing
 
-The time picker supports relative presets, absolute bounds, browser time or UTC,
-previous/next, zoom and manual refresh; viewing state lives in the URL (`range` or
+The time picker is one **Time range** button in the dashboard's title row, beside the
+page's actions, so it stays in view while the page scrolls. It names the current range
+and opens every control: relative presets, absolute bounds, browser time or UTC,
+previous/next, zoom, compare and manual refresh. Viewing state lives in the URL (`range` or
 `from`/`to`, `timezone`, `refresh`). New dashboards default to the last six hours,
 browser time zone and a five-second refresh; absolute ranges are limited to 400
-days. **Kiosk** (`?kiosk=1`) hides the shell and enlarges values; it is client-only.
+days. **Kiosk** (`?kiosk=1`) hides the shell and enlarges values, and keeps **Time range**
+beside **Exit kiosk**; it is client-only.
 The context rail (active alerts, recent commands, device presence) polls every 30
 seconds; acknowledging from it needs `Device.manage`. **Download CSV** exports
 loaded data with formula-like cells neutralized; line breaks are not exported.

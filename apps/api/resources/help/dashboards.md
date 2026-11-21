@@ -40,7 +40,7 @@ You need device viewing permission. Creating or changing a saved dashboard requi
 ## Steps
 1. Open **Dashboards** and choose a dashboard or create one.
 2. Enter edit mode and choose **Add panel**. Select a panel type, then its devices and parameters.
-3. Arrange and resize panels. Use the time controls to choose the period for historical panels.
+3. Arrange and resize panels. Use **Time range** at the top of the dashboard to choose the period for historical panels.
 4. Choose **Save** to keep dashboard changes.
 5. Return to viewing mode to monitor data. Use the dashboard library for reusable dashboards and panels.
 

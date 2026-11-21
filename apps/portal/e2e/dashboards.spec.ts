@@ -59,6 +59,16 @@ const libraryFields = {
   updated_by_name: null,
 }
 
+/** Opens the title row's **Time range** popover, which holds every time control. */
+async function timeRange(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "Time range" })
+  // The trigger says whether it is open; a popover that is fading out still counts as visible.
+  const trigger = page.getByRole("button", { name: /^Time range/ })
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click()
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
 async function setup(
   page: Page,
   manage = true,
@@ -554,7 +564,7 @@ test("time travel changes chart queries, never latest values or saved defaults",
   await expect(page.getByText(/last valid value received/)).toBeVisible()
   const defaults = structuredClone(dashboards[0].defaults),
     latest = calls.latest
-  await page.getByRole("button", { name: "Custom", exact: true }).click()
+  await timeRange(page)
   await page.getByLabel("From", { exact: true }).fill("2026-09-01T00:00")
   await page.getByLabel("To", { exact: true }).fill("2026-09-02T00:00")
   await page
@@ -571,9 +581,11 @@ test("time travel changes chart queries, never latest values or saved defaults",
     page.getByText(/last valid value received/).locator("time"),
   ).toHaveAttribute("title", /12:00/)
   await page.goBack()
+  await expect(page.getByRole("button", { name: "Time range: Last 6 hours" })).toBeVisible()
   await expect(
-    page.getByRole("radio", { name: "Last 6 hours", exact: true }),
+    (await timeRange(page)).getByRole("radio", { name: "Last 6 hours", exact: true }),
   ).toHaveAttribute("aria-checked", "true")
+  await page.keyboard.press("Escape")
   await page.setViewportSize({ width: 390, height: 844 })
   await expect
     .poll(() =>
@@ -1119,6 +1131,7 @@ test("plot zoom updates history and manual refresh keeps absolute bounds", async
   await expect(page).toHaveURL(/from=/)
   const before = calls.history
   const bounds = new URL(page.url()).searchParams
+  await timeRange(page)
   await page
     .getByRole("button", { name: "Refresh dashboard", exact: true })
     .click()
@@ -1178,8 +1191,7 @@ test("browser timezone rejects nonexistent daylight-saving input", async ({
   const page = await context.newPage()
   await setup(page)
   await page.goto(basePath + "/first")
-  await page.getByRole("radio", { name: "Browser", exact: true }).click()
-  await page.getByRole("button", { name: "Custom", exact: true }).click()
+  await (await timeRange(page)).getByRole("radio", { name: "Browser", exact: true }).click()
   await page.getByLabel("From", { exact: true }).fill("2026-03-08T02:30")
   await page.getByLabel("To", { exact: true }).fill("2026-03-08T04:00")
   await page
@@ -1244,6 +1256,7 @@ test("workflow panels preview, persist, refresh failures and remain usable on mo
   await page.screenshot({ path: info.outputPath("workflow-panels-desktop.png") })
   const before = locationReads
   unavailable = true
+  await timeRange(page)
   await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
   await expect.poll(() => locationReads).toBeGreaterThan(before)
   await expect(page.getByRole("button", { name: "Retry location" })).toBeVisible()
@@ -1290,6 +1303,7 @@ test("location marker expires with polling paused and newer incomplete evidence 
   await expect(page.getByText("Unknown location", { exact: true })).toBeVisible({ timeout: 8000 })
   await expect(page.getByRole("img", { name: "Geofence outline; no current location marker", exact: true })).toBeVisible()
   incomplete = true
+  await timeRange(page)
   await page.getByRole("button", { name: "Refresh dashboard", exact: true }).click()
   await expect(page.getByText("incomplete event", { exact: true })).toBeVisible()
   await expect(page.getByText("51.500000", { exact: true })).toHaveCount(0)
@@ -1308,11 +1322,11 @@ test("chart labels survive repeated layout changes, full-page capture and refres
     )).toBe(true)
     await page.screenshot({fullPage: true})
     const before = calls.history
-    // Phones keep refresh in the Time range popover (spec 033).
-    if (width < 768) await page.getByRole("button", {name: /^Time range/}).click()
+    // Refresh is in the Time range popover at every width.
+    await timeRange(page)
     await page.getByRole("button", {name: "Refresh dashboard", exact: true}).click()
     await expect.poll(() => calls.history).toBeGreaterThan(before)
-    if (width < 768) await page.keyboard.press("Escape")
+    await page.keyboard.press("Escape")
   }
   expect(errors).toEqual([])
 })
@@ -1392,6 +1406,13 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
   const kioskView = page.locator("[data-kiosk]")
   await expect(kioskView.getByRole("button", { name: "Assistant", exact: true })).toHaveCount(0)
   await expect(kioskView.getByRole("button", { name: "Help", exact: true })).toHaveCount(0)
+  // Kiosk keeps the time range: a quick range applies, and Escape closes the popover first.
+  const kioskRange = await timeRange(page)
+  await kioskRange.getByRole("radio", { name: "Last 24 hours", exact: true }).click()
+  await expect(page).toHaveURL(/range=24h/)
+  await page.keyboard.press("Escape")
+  await expect(kioskRange).toBeHidden()
+  await expect(page).toHaveURL(/kiosk=1/)
   await page.keyboard.press("Escape")
   await expect(page).not.toHaveURL(/kiosk=1/)
   await expect(page.getByRole("button", { name: "Kiosk", exact: true })).toBeFocused()

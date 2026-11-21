@@ -163,7 +163,8 @@ export function PageHeader({
           {heading ?? title}
         </h1>
         {meta && (
-          <div className="min-w-0 truncate text-sm text-muted-foreground">
+          // Gives way before the title does when the row is tight.
+          <div className="min-w-0 shrink-[8] truncate text-sm text-muted-foreground">
             {meta}
           </div>
         )}
