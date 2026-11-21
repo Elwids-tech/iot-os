@@ -1,11 +1,12 @@
 import { type FormEvent, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import type { Passkey, SecuritySettings, TwoStepSetup as Setup } from "@iot-os/api-client"
+import { runtimeAddress, type Passkey, type SecuritySettings, type TwoStepSetup as Setup } from "@iot-os/api-client"
 import { ConfirmationCancelled, useConfirmedAction } from "@iot-os/auth/ConfirmIdentityDialog"
 import { addPasskey, passkeyProblem, passkeysSupported } from "@iot-os/auth/passkeys"
 import { RecoveryCodes } from "@iot-os/auth/RecoveryCodes"
 import { TwoStepSetup } from "@iot-os/auth/TwoStepSetup"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
+import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@iot-os/ui/components/dialog"
@@ -16,7 +17,7 @@ import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, Panel
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
 import { SettingsPage } from "@iot-os/ui/templates/settings-page"
-import { FingerprintIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
+import { FingerprintIcon, InfoIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Confirm, LoadError } from "../components/forms"
 import { api } from "../lib/api"
@@ -35,7 +36,7 @@ export default function SecurityPage() {
   const cache = useQueryClient()
   const security = useQuery({ queryKey: securityKey, queryFn: () => api.security() })
   const passkeys = security.data?.passkeys
-  const confirmed = useConfirmedAction(api, { passkey: Boolean(passkeys?.available && passkeys.items.length > 0) })
+  const confirmed = useConfirmedAction(api, { passkey: Boolean(passkeys?.available && passkeys.items.some((passkey) => passkey.usable_here)) })
   const [setup, setSetup] = useState<Setup | null>(null)
   const [codes, setCodes] = useState<string[] | null>(null)
   const [turningOff, setTurningOff] = useState(false)
@@ -256,6 +257,10 @@ function PasskeysPanel({
       ? "This browser does not support passkeys. Use another browser, or two-step sign-in."
       : null
 
+  // Passkeys belong to the address they were made on (spec 036, FR-026). The column
+  // appears only for a person who has one from somewhere else, or is on a custom domain.
+  const onDomain = runtimeAddress()?.kind === "domain"
+  const elsewhere = onDomain || passkeys.items.some((passkey) => !passkey.usable_here)
   const columns: DataColumn<Passkey>[] = [
     {
       id: "name",
@@ -265,6 +270,23 @@ function PasskeysPanel({
       value: (passkey) => passkey.name,
       cell: (passkey) => <span className="max-md:font-medium">{passkey.name}</span>,
     },
+    ...(elsewhere
+      ? [
+          {
+            id: "domain",
+            header: "Works at",
+            mobile: "meta",
+            hideable: false,
+            value: (passkey) => passkey.relying_party_id,
+            cell: (passkey) => (
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="break-all">{passkey.relying_party_id}</span>
+                {passkey.usable_here ? null : <Badge variant="outline">Not this address</Badge>}
+              </span>
+            ),
+          } satisfies DataColumn<Passkey>,
+        ]
+      : []),
     {
       id: "added",
       header: "Added",
@@ -314,6 +336,17 @@ function PasskeysPanel({
             <AlertDescription>{reason}</AlertDescription>
           </Alert>
         )}
+        {!reason && elsewhere && (
+          <Alert>
+            <InfoIcon />
+            <AlertTitle>Passkeys work only at the address they were made on</AlertTitle>
+            <AlertDescription>
+              {passkeys.items.some((passkey) => !passkey.usable_here)
+                ? "A passkey marked Not this address cannot sign you in here. Add one here to use a passkey at this address."
+                : "A passkey you add here signs you in at this address only."}
+            </AlertDescription>
+          </Alert>
+        )}
         {passkeys.items.length > 0 ? (
           <DataTable
             id="passkeys"
@@ -328,7 +361,7 @@ function PasskeysPanel({
           !reason && (
             <p className="flex items-center gap-2 text-body text-muted-foreground">
               <FingerprintIcon className="size-4 shrink-0" />
-              No passkeys yet. A passkey works in both this app and the administration app.
+              {onDomain ? "No passkeys yet." : "No passkeys yet. A passkey works in both this app and the administration app."}
             </p>
           )
         )}

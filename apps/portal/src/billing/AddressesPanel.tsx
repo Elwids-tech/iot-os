@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@iot-os/ui/components/alert-dialog"
+import { Badge } from "@iot-os/ui/components/badge"
 import { Button } from "@iot-os/ui/components/button"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@iot-os/ui/components/field"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
@@ -25,6 +26,7 @@ import { api } from "../lib/api"
 import { errorMessage, RequestError } from "../components/forms"
 import { useUnsavedContribution } from "../lib/unsaved"
 import { brandingKey } from "./BrandingPanel"
+import { CustomDomainSection } from "./CustomDomainSection"
 
 /** What the API says about a name, as one sentence under the field. */
 function nameError(error: unknown): string {
@@ -38,8 +40,8 @@ function nameError(error: unknown): string {
 }
 
 /**
- * The billing account's portal addresses (spec 036 US1): a name under the platform's
- * domain where its people open the portal under its brand. Says why when the plan or
+ * The billing account's portal addresses (spec 036 US1, US3): a name under the platform's
+ * domain where its people open the portal under its brand, and its own domain. Says why when the plan or
  * the deployment does not offer addresses.
  */
 export function AddressesPanel({ accountUuid }: { accountUuid: string }) {
@@ -128,6 +130,7 @@ export function AddressesPanel({ accountUuid }: { accountUuid: string }) {
                   <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden="true" />
                 </a>
                 <Status value={current.state} domain="portal_address" />
+                {current.main && data.addresses.length > 1 ? <Badge variant="secondary">Main address</Badge> : null}
                 {current.claimed_at ? (
                   <span className="text-meta text-muted-foreground">
                     Claimed <RelativeTime at={current.claimed_at} />
@@ -179,14 +182,17 @@ export function AddressesPanel({ accountUuid }: { accountUuid: string }) {
             </div>
           </form>
         ) : null}
+        {data && available ? <CustomDomainSection accountUuid={accountUuid} branding={data} onRemove={setRemoving} /> : null}
       </PanelContent>
       <AlertDialog open={removing !== null} onOpenChange={(open) => !open && !release.isPending && setRemoving(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {removing?.host}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The portal stops opening there within a minute, and people signed in there are signed out of it. The name is held
-              for 30 days, so nobody else can take it and you can claim it again.
+              The portal stops opening there within a minute, and people signed in there are signed out of it.{" "}
+              {removing?.kind === "domain"
+                ? "You can add the domain again later; it then needs a new DNS record."
+                : "The name is held for 30 days, so nobody else can take it and you can claim it again."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <RequestError error={release.error} />

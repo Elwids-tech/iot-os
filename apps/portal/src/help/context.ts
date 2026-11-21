@@ -2,6 +2,7 @@
 export function helpContextForPath(pathname: string): string {
   const [, root, , section, resource, tab] = pathname.split("/");
   if (pathname.startsWith("/account/security")) return "account.security";
+  if (root === "billing") return "billing.branding";
   if (root !== "organizations") return "getting-started";
   switch (section) {
     case "devices":

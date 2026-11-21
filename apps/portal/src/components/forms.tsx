@@ -58,6 +58,7 @@ export function errorMessage(error: unknown): string {
       errors?: Record<string, string[]>
       references?: Array<{ label: string }>
       offline?: boolean
+      code?: string
     } | null
     // Actions fail at once offline and are never queued (FR-013). Sent while the page was
     // already offline, nothing reached the server; otherwise the answer may have been lost.
@@ -68,6 +69,8 @@ export function errorMessage(error: unknown): string {
     // A billing account's address is not for this person or organization (spec 036): the
     // API's own sentence says which.
     if (isNotAvailableHere(error)) return payload?.message ?? "This is not available at this address."
+    // A required second step that is a passkey from another address (spec 036, FR-027).
+    if (payload?.code === "second_step_elsewhere" && payload.message) return payload.message
     if (error.status === 409)
       return "Another change was saved while you were editing. Your form has been kept. Review the latest draft before retrying."
     if (error.status === 401)

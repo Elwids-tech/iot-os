@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import { test, expect, type Page } from "@playwright/test"
-import { mockBranding, ownPixel, pngFile, providerPixel, type MockImage } from "./branding-mock"
+import { mockBranding, ownPixel, pngFile, providerPixel, type MockAddress, type MockImage } from "./branding-mock"
 
 /** Brands and logos in the portal (spec 036 US1 and US2), against a mocked API. */
 const account = { uuid: "d0000000-0000-4000-8000-000000000001", name: "Example Integrations" }
@@ -33,7 +33,10 @@ const shop = (manage: boolean, provider: MockImage | null = null): Organization 
   capabilities: { devices: { view: true, manage: true, command: true }, manage_administration: manage },
 })
 
-async function setup(page: Page, options: { allowed?: boolean; organization?: Organization; addressesDomain?: string; productName?: string } = {}) {
+async function setup(
+  page: Page,
+  options: { allowed?: boolean; organization?: Organization; addressesDomain?: string; productName?: string; customDomain?: boolean; addresses?: MockAddress[] } = {},
+) {
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   const organizations = [options.organization ?? shop(true)]
@@ -73,7 +76,7 @@ async function setup(page: Page, options: { allowed?: boolean; organization?: Or
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: now } })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
-  const branding = await mockBranding(page, { allowed: options.allowed, organizations: () => organizations, addressesDomain: options.addressesDomain, productName: options.productName })
+  const branding = await mockBranding(page, { allowed: options.allowed, organizations: () => organizations, addressesDomain: options.addressesDomain, productName: options.productName, customDomain: options.customDomain, addresses: options.addresses })
   return { errors, organizations, ...branding }
 }
 
@@ -250,5 +253,89 @@ test("a name waits for the brand's product name", async ({ page }) => {
   const panel = page.getByRole("region", { name: "Addresses" })
   await expect(panel.getByText("Save a product name in Branding first")).toBeVisible()
   await expect(panel.getByRole("textbox", { name: "Name" })).toBeDisabled()
+  expect(errors).toEqual([])
+})
+
+test("an owner adds their own domain, sees the record to add, and it turns active when the record is found", async ({ page }) => {
+  const { errors, sent, state } = await setup(page, { allowed: true, customDomain: true, addressesDomain: "example.com", productName: "Acme Monitor" })
+  await page.goto("/billing")
+
+  const section = page.getByRole("region", { name: "Use your own domain" })
+  const domain = section.getByRole("textbox", { name: "Domain" })
+  await expect(section.getByRole("button", { name: "Add domain" })).toBeDisabled()
+
+  await domain.fill("example.org")
+  await section.getByRole("button", { name: "Add domain" }).click()
+  await expect(section.getByText("Use a subdomain such as portal.example.org.")).toBeVisible()
+  await expect(domain).toHaveAttribute("aria-invalid", "true")
+
+  await domain.fill("taken.example.org")
+  await section.getByRole("button", { name: "Add domain" }).click()
+  await expect(section.getByText("This domain is already in use.")).toBeVisible()
+
+  await domain.fill("Portal.Example.org")
+  await section.getByRole("button", { name: "Add domain" }).click()
+  await expect(page.getByText("Add the DNS record for portal.example.org")).toBeVisible()
+  await expect(section.getByText("Waiting for DNS")).toBeVisible()
+  const record = section.getByLabel("DNS record")
+  await expect(record.getByText("CNAME")).toBeVisible()
+  await expect(record.getByText("c-0123456789abcdef0123.example.com")).toBeVisible()
+  await expect(section.getByText("the request lapses on")).toBeVisible()
+  await expect(section.getByRole("button", { name: "Copy record value" })).toBeVisible()
+
+  // The record is not there yet: the check says so and the state stays.
+  await section.getByRole("button", { name: "Check now" }).click()
+  await expect(page.getByText("The DNS record was not found yet")).toBeVisible()
+  await expect(section.getByText("Waiting for DNS")).toBeVisible()
+
+  const results = await new AxeBuilder({ page }).include('section[aria-labelledby="billing-addresses"]').analyze()
+  expect(results.violations).toEqual([])
+
+  state.recordFound = true
+  await section.getByRole("button", { name: "Check now" }).click()
+  await expect(page.getByText("portal.example.org is active")).toBeVisible()
+  await expect(section.getByText("Active", { exact: true })).toBeVisible()
+  await expect(section.getByText("Main address")).toBeVisible()
+  await expect(section.getByRole("link", { name: "portal.example.org" })).toHaveAttribute("href", "https://portal.example.org")
+
+  await section.getByRole("button", { name: "Remove" }).click()
+  const dialog = page.getByRole("alertdialog", { name: "Remove portal.example.org?" })
+  await expect(dialog.getByText("it then needs a new DNS record")).toBeVisible()
+  await dialog.getByRole("button", { name: "Remove address" }).click()
+  await expect(page.getByText("portal.example.org removed")).toBeVisible()
+  await expect(section.getByRole("textbox", { name: "Domain" })).toHaveValue("")
+  expect(sent.filter((request) => request.path.endsWith("/addresses/domain")).map((request) => request.body)).toEqual([
+    { host: "example.org" },
+    { host: "taken.example.org" },
+    { host: "Portal.Example.org" },
+  ])
+  expect(errors).toEqual([])
+})
+
+test("the own-domain section says when the plan has none, when a request lapsed and when the record went missing", async ({ page }) => {
+  const base = { claimed_at: now, activated_at: null, last_checked_at: now, unreachable_since: null, suspended_at: null, lapses_at: null }
+  const record = { type: "CNAME" as const, name: "portal.example.org", value: "c-0123456789abcdef0123.example.com" }
+  const { errors } = await setup(page, { allowed: true, addressesDomain: "example.com", productName: "Acme Monitor" })
+  await page.goto("/billing")
+  const section = page.getByRole("region", { name: "Use your own domain" })
+  await expect(section.getByText("Your own domain is not part of your plan")).toBeVisible()
+  await expect(section.getByRole("textbox")).toHaveCount(0)
+
+  await setup(page, {
+    allowed: true, customDomain: true, addressesDomain: "example.com", productName: "Acme Monitor",
+    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "lapsed", main: false, record }],
+  })
+  await page.reload()
+  await expect(section.getByText("The request for portal.example.org lapsed")).toBeVisible()
+  await expect(section.getByRole("textbox", { name: "Domain" })).toBeEnabled()
+
+  await setup(page, {
+    allowed: true, customDomain: true, addressesDomain: "example.com", productName: "Acme Monitor",
+    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "unreachable", main: false, activated_at: now, unreachable_since: now, record }],
+  })
+  await page.reload()
+  await expect(section.getByText("Not reachable")).toBeVisible()
+  await expect(section.getByText("The DNS record has been missing since")).toBeVisible()
+  await expect(section.getByText("The portal still opens at portal.example.org for now")).toBeVisible()
   expect(errors).toEqual([])
 })
