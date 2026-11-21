@@ -31,7 +31,7 @@ Code: portal [`src/alerts`](../../apps/portal/src/alerts),
 | Devices | Cards, with search and **Filters** above them. |
 | Device detail | Status and last seen in the header, then the latest readings with their age, then the device's alerts, then location, details, connectivity, installation, dashboards it is used in and recent commands. |
 | Dashboards | The list as cards. |
-| A dashboard | Panels in one column, in the order they read on a computer (top to bottom, then left to right). Each kind keeps a readable height: stat panels 3 rows, charts and maps 6, tables and alert lists 8. A wide table scrolls sideways inside its panel. **Time range** opens every time control in one popover: quick ranges, a custom range, stepping, compare, time zone and refresh. |
+| A dashboard | Panels in one column, in the order they read on a computer (top to bottom, then left to right). Each kind keeps a readable height: stat panels 3 rows, charts and maps 6, tables and alert lists 8. A wide table scrolls sideways inside its panel. **Time range** opens every time control in one popover, as on a computer: quick ranges, a custom range, stepping, compare, time zone and refresh. On a phone it has a row of its own under the title. |
 | Personal notification settings | Fits the screen. |
 
 On every page the menu button opens the sidebar with the organization switcher and the

@@ -133,6 +133,12 @@ import { dashboardAbilities } from "./access"
 import { DuplicateDialog, SettingsDialog } from "./LibraryDialogs"
 import { downloadJson, exported } from "./importExport"
 
+/**
+ * A title-row action's label: icon only on small phones, and between 768 and 1280 px,
+ * where the row also holds the time range and the title needs the room.
+ */
+const ACTION_LABEL = "max-sm:sr-only md:max-xl:sr-only"
+
 const COLS = GRID_COLUMNS
 const RAIL_KEY = "iot-dashboard-rail"
 // Per-viewer Status display by panel id; absent means fit automatically.
@@ -891,15 +897,38 @@ export function DashboardWorkspace({
 
   const panels = `${dashboard.widgets.length} ${dashboard.widgets.length === 1 ? "panel" : "panels"}`
   const shareAction = abilities.share ? (
-    <Button variant="outline" onClick={() => setDialog("share")}>
+    <Button variant="outline" title="Share" onClick={() => setDialog("share")}>
       <Share2Icon data-icon="inline-start" />
-      <span className="max-sm:sr-only">Share</span>
+      <span className={ACTION_LABEL}>Share</span>
     </Button>
   ) : (
-    <Button variant="outline" onClick={() => void copy(link(), "Dashboard link")}>
+    <Button variant="outline" title="Copy link" onClick={() => void copy(link(), "Dashboard link")}>
       <LinkIcon data-icon="inline-start" />
-      <span className="max-sm:sr-only">Copy link</span>
+      <span className={ACTION_LABEL}>Copy link</span>
     </Button>
+  )
+  const timeControls = (
+    <TimeControls
+      compact
+      view={view}
+      defaults={saved.defaults}
+      compare={compare}
+      onChange={updateView}
+      onCompare={(on) => setParam("compare", on ? "1" : null)}
+      onRefresh={() => {
+        for (const key of [
+          "dashboard-latest",
+          "dashboard-history",
+          "dashboard-state-history",
+          "dashboard-workflow-location",
+          "dashboard-workflow-alerts",
+          "dashboard-location-map",
+        ])
+          void cache.invalidateQueries({ queryKey: [key, org] })
+      }}
+    >
+      <UpdatedAt org={org} timezone={view.timezone} />
+    </TimeControls>
   )
   return (
     <>
@@ -943,10 +972,11 @@ export function DashboardWorkspace({
         actions={
           draft ? (
             <>
-              <Button ref={kioskButton} variant="outline" onClick={() => setParam("kiosk", "1")}><MonitorIcon data-icon="inline-start" /><span className="max-sm:sr-only">Kiosk</span></Button>
+              {!phone && timeControls}
+              <Button ref={kioskButton} variant="outline" title="Kiosk" onClick={() => setParam("kiosk", "1")}><MonitorIcon data-icon="inline-start" /><span className={ACTION_LABEL}>Kiosk</span></Button>
               <Button variant="outline" disabled={saving} onClick={() => openAdd()}>
                 <PlusIcon data-icon="inline-start" />
-                <span className="max-sm:sr-only">Add panel</span>
+                <span className={ACTION_LABEL}>Add panel</span>
               </Button>
               <Button
                 variant="outline"
@@ -969,6 +999,7 @@ export function DashboardWorkspace({
             <>
               {/* Phones keep Share in view; the other actions go behind More actions. */}
               {phone && shareAction}
+              {!phone && timeControls}
               <Toggle
                 variant="outline"
                 pressed={railOpen}
@@ -985,10 +1016,11 @@ export function DashboardWorkspace({
               <Button
                 ref={kioskButton}
                 variant="outline"
+                title="Kiosk"
                 onClick={() => setParam("kiosk", "1")}
               >
                 <MonitorIcon data-icon="inline-start" />
-                <span className="max-sm:sr-only">Kiosk</span>
+                <span className={ACTION_LABEL}>Kiosk</span>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1057,26 +1089,8 @@ export function DashboardWorkspace({
           )
         }
       >
-        <TimeControls
-          view={view}
-          defaults={saved.defaults}
-          compare={compare}
-          onChange={updateView}
-          onCompare={(on) => setParam("compare", on ? "1" : null)}
-          onRefresh={() => {
-            for (const key of [
-              "dashboard-latest",
-              "dashboard-history",
-              "dashboard-state-history",
-              "dashboard-workflow-location",
-              "dashboard-workflow-alerts",
-              "dashboard-location-map",
-            ])
-              void cache.invalidateQueries({ queryKey: [key, org] })
-          }}
-        >
-          <UpdatedAt org={org} timezone={view.timezone} />
-        </TimeControls>
+        {/* Phones give the time range a row of its own; wider screens keep it in the title row. */}
+        {phone && timeControls}
       </PageHeader>
       <div className="flex min-w-0 flex-col lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">

@@ -27,6 +27,7 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClockIcon,
   RefreshCwIcon,
   ZoomOutIcon,
 } from "lucide-react"
@@ -42,15 +43,16 @@ import {
 } from "./model"
 
 /**
- * Dashboard time bar: quick ranges apply on click; only a custom range needs Apply.
- * Phones (under 768 px) collapse the bar into one **Time range** button whose popover
- * holds every control: quick ranges, the custom range, stepping, compare, time zone and
- * refresh.
+ * Dashboard time controls: quick ranges apply on click; only a custom range needs Apply.
+ * `compact` (the dashboard's title row) and phones (under 768 px) show one **Time range**
+ * button whose popover holds every control: quick ranges, the custom range, stepping,
+ * compare, time zone and refresh. Without `compact`, wider screens get them as a bar.
  */
 export function TimeControls({
   view,
   defaults,
   compare,
+  compact = false,
   children,
   onChange,
   onCompare,
@@ -60,7 +62,9 @@ export function TimeControls({
   /** Saved dashboard defaults; "Back to latest" returns to their relative range. */
   defaults: DashboardView
   compare: boolean
-  /** Right end of the bar, e.g. the "Updated" time. */
+  /** One button for a title row, instead of a bar of its own. */
+  compact?: boolean
+  /** Beside the controls, e.g. the "Updated" time. */
   children?: ReactNode
   onChange: (view: DashboardView) => void
   onCompare: (compare: boolean) => void
@@ -106,7 +110,7 @@ export function TimeControls({
     : PRESET_LABELS[view.range.mode === "relative" ? view.range.preset : "6h"]
   const quickRanges = (
     <SegmentedControl
-      wrap={phone}
+      wrap={phone || compact}
       aria-label="Quick ranges"
       value={view.range.mode === "relative" ? view.range.preset : ""}
       onValueChange={(preset) =>
@@ -302,28 +306,50 @@ export function TimeControls({
       </Button>
     </>
   )
-  if (phone)
+  if (phone || compact)
     return (
       <div
         role="group"
         aria-label="Dashboard time controls"
-        className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 py-0.5"
+        className={cn(
+          "flex items-center gap-2",
+          // A title row keeps the button with the page's actions; a phone gives it a row.
+          phone ? "w-full flex-wrap gap-y-1 py-0.5" : "min-w-0",
+        )}
       >
+        {!phone && children && <span className="shrink-0 max-xl:hidden">{children}</span>}
         <Popover open={open} onOpenChange={begin}>
           <PopoverTrigger asChild>
-            <Button variant={absolute ? "secondary" : "outline"} size="sm" className="max-w-full min-w-0">
+            <Button
+              variant={absolute ? "secondary" : "outline"}
+              size={phone ? "sm" : "default"}
+              className={cn("min-w-0", phone ? "max-w-full" : "max-w-40 xl:max-w-72")}
+              title={phone ? undefined : rangeLabel}
+            >
+              {!phone && <ClockIcon data-icon="inline-start" />}
               <span className="truncate">
                 <span className="sr-only">Time range: </span>
-                {rangeLabel}
+                {/* Under 1280 px a title row has room for the short form only ("6h"). */}
+                {phone || absolute || view.range.mode !== "relative" ? (
+                  rangeLabel
+                ) : (
+                  <>
+                    <span className="xl:hidden">{view.range.preset}</span>
+                    <span className="max-xl:hidden">{rangeLabel}</span>
+                  </>
+                )}
               </span>
               <ChevronDownIcon data-icon="inline-end" />
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            align="start"
+            align={phone ? "start" : "end"}
             collisionPadding={8}
             aria-label="Time range"
-            className="max-h-[80dvh] w-[calc(100vw-1rem)] gap-4 overflow-y-auto"
+            className={cn(
+              "max-h-[80dvh] gap-4 overflow-y-auto",
+              phone ? "w-[calc(100vw-1rem)]" : "w-[min(30rem,calc(100vw-2rem))]",
+            )}
           >
             {quickRanges}
             {backToLatest}
@@ -338,7 +364,7 @@ export function TimeControls({
             <div className="border-t pt-4">{customRange}</div>
           </PopoverContent>
         </Popover>
-        <span className="ml-auto">{children}</span>
+        {phone && <span className="ml-auto">{children}</span>}
       </div>
     )
   return (
