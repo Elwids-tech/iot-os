@@ -1,6 +1,6 @@
 # ADR-048: Two-Step Sign-In and Passkeys Are Built In, With Laravel's Packages
 
-**Status:** Proposed 2026-11-16
+**Status:** Proposed 2026-11-16; amended by [ADR-050](ADR-050-brands-and-portal-addresses.md)
 **Date:** 2026-11-16
 **Amends:** [ADR-008](ADR-008-laravel-sanctum-authentication.md)
 **Relates to:** [spec 034](../../specs/034-two-factor-passkeys/spec.md),

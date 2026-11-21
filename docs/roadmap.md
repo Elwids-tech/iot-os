@@ -64,6 +64,11 @@ Grouped by area. Links point at the decision or doc that explains the item.
   confirms their email and lands in their own organization under a billing account they
   own; super administrators get a push for each sign-up; staff open or close sign-up
   and switch the channels in the admin app.
+- **White labeling and custom domains** ([spec 036](../specs/036-white-label-custom-domains/spec.md),
+  [ADR-050](adr/ADR-050-brands-and-portal-addresses.md)): a billing account sets a
+  brand and serves the portal on its own address, first under the platform's domain and
+  then on a custom domain; each organization shows its own logo; emails, the installed
+  app and push follow the brand. Customer colours come after.
 - **Central tenant scoping.** Organization checks are repeated in every controller
   method; move them into scoped route bindings or a request-scoped global scope, and
   resolve membership and permissions once per request.
