@@ -169,7 +169,7 @@ export function App() {
         <Route
           path="accept-invitation"
           element={
-            <AcceptInvitationPage apiClient={api} adminUrl={adminUrl} organizationUrl={(uuid) => sectionPath(uuid)} />
+            <AcceptInvitationPage apiClient={api} adminUrl={adminUrl || undefined} organizationUrl={(uuid) => sectionPath(uuid)} />
           }
         />
         <Route path="*" element={<Session />} />
@@ -345,8 +345,14 @@ function Session() {
   const cache = useQueryClient()
   // The person lost their last organization at this address (spec 036, FR-023): read the
   // session again, which now answers the same refusal and shows the sign-in page.
+  // An address on its own host has ended the session by then, so the reason is kept here
+  // for the sign-in page until someone signs in.
+  const [refusedHere, setRefusedHere] = useState(false)
   useEffect(() => {
-    const refused = () => void cache.invalidateQueries({ queryKey: ["session"] })
+    const refused = () => {
+      setRefusedHere(true)
+      void cache.invalidateQueries({ queryKey: ["session"] })
+    }
     window.addEventListener(NOT_AVAILABLE_HERE_EVENT, refused)
     return () => window.removeEventListener(NOT_AVAILABLE_HERE_EVENT, refused)
   }, [cache])
@@ -357,6 +363,10 @@ function Session() {
     // Started offline, this fails at once to the offline screen instead of waiting.
     networkMode: "always",
   })
+  const signedInNow = query.data !== undefined && !query.error
+  useEffect(() => {
+    if (signedInNow) setRefusedHere(false)
+  }, [signedInNow])
   const connection = useConnection()
   const unreachable = query.error instanceof ApiError && query.error.status === 0
   const { refetch } = query
@@ -375,7 +385,7 @@ function Session() {
       </main>
     )
   if (query.error instanceof ApiError && query.error.status === 401)
-    return <Login />
+    return <Login notAvailableHere={refusedHere} />
   if (isNotAvailableHere(query.error)) return <Login notAvailableHere />
   // Started offline: nothing from an earlier session is shown, the cache lives in memory
   // only (FR-012). Offline later, the open page stays with its offline notice (FR-013).
@@ -1002,7 +1012,7 @@ function PortalSidebar({
                     </Link>
                   </DropdownMenuItem>
                 )}
-                {user.capabilities.platform_administration && (
+                {user.capabilities.platform_administration && adminUrl && (
                   <DropdownMenuItem asChild>
                     <a href={adminUrl}>
                       <ShieldIcon />

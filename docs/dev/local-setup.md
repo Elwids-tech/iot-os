@@ -82,6 +82,25 @@ device-facing MQTTS port and the portal, admin and API ports listen on all
 interfaces so LAN hardware and demos work. Use one hostname (`localhost` or
 `127.0.0.1`) consistently so session cookies are shared.
 
+### Portal addresses
+
+Billing accounts' branded addresses ([branding](../features/branding.md#portal-addresses))
+are off in the dev stack. To try them:
+
+1. Put `PORTAL_ADDRESSES=on` in the root `.env` and rebuild the API family and
+   `portal`.
+2. In the admin app turn **Branding** on for a billing account, give the brand a
+   product name, and claim a name in **Billing accounts → Addresses**.
+3. Open `http://<name>.localhost:5173`. Browsers resolve `*.localhost` to this machine
+   without a hosts file.
+
+Names are claimed under `localhost`. A real deployment's name calls the platform's API
+host and shares its session cookie; browsers do not treat `acme.localhost` and
+`localhost` as one site, so here the portal's nginx serves the API on the name's own
+host instead (`PORTAL_ADDRESSES_SAME_ORIGIN`, set by the compose file). A sign-in at
+`acme.localhost` is therefore separate from one at `localhost`. The cross-origin path
+is covered by the API's tests and by a test deployment with real DNS.
+
 ## Rebuild one service
 
 After a change, rebuild only what it affects and keep the stack's existing env

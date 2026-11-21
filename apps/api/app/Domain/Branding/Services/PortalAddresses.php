@@ -211,7 +211,11 @@ final class PortalAddresses
             // The account taking back a name it released keeps the row.
             $address = $held ?? new PortalAddress;
             $address->forceFill($values)->save();
-            $current?->forceFill(['redirect_to_id' => $address->getKey()])->save();
+            if ($current !== null) {
+                // The old name, and any name renamed before it, now lead to the new one.
+                PortalAddress::query()->where('redirect_to_id', $current->getKey())->update(['redirect_to_id' => $address->getKey()]);
+                $current->forceFill(['redirect_to_id' => $address->getKey()])->save();
+            }
 
             ActivityLog::record('portal_address.claimed', null, $actor, $account, [
                 'host' => $host,

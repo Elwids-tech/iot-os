@@ -85,6 +85,11 @@ final class PortalAddressNameTest extends TestCase
         $this->assertNull($addresses->resolve('acme.example.com'));
         $this->assertSame('acme-monitor.example.com', $addresses->redirectFor('acme.example.com')?->host);
 
+        // A second rename: both earlier names lead to the newest.
+        $this->putJson($this->url('addresses/name'), ['name' => 'acme-view'])->assertOk();
+        $this->assertSame('acme-view.example.com', $addresses->redirectFor('acme.example.com')?->host);
+        $this->assertSame('acme-view.example.com', $addresses->redirectFor('acme-monitor.example.com')?->host);
+
         // Another account cannot take the old name while it is held (FR-018).
         $other = User::factory()->create();
         $theirs = BillingAccount::factory()->ownedBy($other)->create();

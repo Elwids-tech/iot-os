@@ -59,7 +59,8 @@
     "billing_plans", "billing_plan_allowances", "billing_plan_assignments", "billing_usage",
     "billing_invoices", "billing_payments", "billing_provider_events",
     "kept_sign_ins", "push_devices", "push_organization_mutes", "push_summaries",
-    "passkeys", "sign_ups", "sign_up_settings"
+    "passkeys", "sign_ups", "sign_up_settings",
+    "brands", "brand_assets", "portal_addresses"
   ],
   "columns": {
     "organization_invitations": ["grants_super_admin"],

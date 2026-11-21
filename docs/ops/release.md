@@ -79,6 +79,37 @@ environment label).
   to it; people then sign in with their password and code and add their passkeys
   again.
 
+## Portal addresses
+
+Billing accounts can serve the portal under their own brand on a name under `DOMAIN`
+([branding](../features/branding.md#portal-addresses), ADR-050). This is off until you
+turn it on:
+
+1. Add one wildcard DNS record, `*.DOMAIN`, pointing at this host. The records for
+   `app`, `admin`, `api`, `mqtt` and `ops` stay and take precedence.
+2. Set `PORTAL_ADDRESSES_TOKEN` to 64 hex characters (`openssl rand -hex 32`; `init`
+   generates one for a new environment file) and `PORTAL_ADDRESSES=on`.
+3. Deploy. `render` writes the proxy's catch-all site and its certificate question
+   into `addresses.Caddyfile` and `addresses-global.Caddyfile`; both are empty while
+   the switch is off.
+
+What to know:
+
+- **Certificates are issued one per name, on first use.** Before asking for one, the
+  proxy asks the API (`/api/internal/portal-addresses/ask`) whether the host is an
+  address that serves. Any other name gets no certificate and no page. The first
+  visit to a new name waits a few seconds for its certificate.
+- **About 50 new names a week.** The public certificate authority limits new
+  certificates per registered domain, so a deployment can add about 50 branded names
+  under `DOMAIN` in a week. Renewals do not count.
+- **No route to a public authority?** Leave the switch off. Brands and logos still
+  work at the platform's own address.
+- **Turning it off** stops every address at the next deploy. Names stay claimed.
+- Addresses are allowed per billing account by the **Branding** allowance, which is
+  off for every account until staff turn it on.
+- `smoke` checks, from inside, that a name nobody claimed is refused a certificate and
+  reaches the API as its own host.
+
 ## First installation
 
 1. Provision the host: copy `deploy/ansible/inventory.example.yml` privately and run

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ApiClient, ApiError, ConfirmationRequiredError, TWO_STEP_SETUP_REQUIRED_EVENT, TwoStepRequiredError, TwoStepSetupRequiredError } from "./index"
+import { ApiClient, ApiError, ConfirmationRequiredError, NOT_AVAILABLE_HERE_EVENT, isNotAvailableHere, TWO_STEP_SETUP_REQUIRED_EVENT, TwoStepRequiredError, TwoStepSetupRequiredError } from "./index"
 
 /** Two-step sign-in (spec 034) in the client. */
 describe("ApiClient two-step sign-in", () => {
@@ -104,6 +104,26 @@ describe("ApiClient two-step sign-in", () => {
     expect(refused).toBeInstanceOf(ApiError)
     expect(refused).not.toBeInstanceOf(TwoStepSetupRequiredError)
     expect(vi.mocked(window.dispatchEvent)).not.toHaveBeenCalled()
+  })
+
+  it("fires an event when a signed-in request is refused at a portal address, but not for sign-in itself", async () => {
+    const refusal = { code: "not_available_here", message: "This account cannot sign in at this address." }
+    const { client } = api(() => json(403, refusal))
+    const error = await client.organizationSecurity("org-1").catch((e: unknown) => e)
+    expect(isNotAvailableHere(error)).toBe(true)
+    expect(vi.mocked(window.dispatchEvent).mock.calls.map(([event]) => event.type)).toEqual([NOT_AVAILABLE_HERE_EVENT])
+
+    // The sign-in page shows its own refusal, and reading the session shows it too.
+    const { client: guest } = api(() => json(403, refusal))
+    expect(isNotAvailableHere(await guest.login({ email: "bo@example.test", password: "password" }).catch((e: unknown) => e))).toBe(true)
+    expect(isNotAvailableHere(await guest.me().catch((e: unknown) => e))).toBe(true)
+    expect(vi.mocked(window.dispatchEvent)).not.toHaveBeenCalled()
+
+    // Another account's organization is a 404 with the same code, and no event.
+    const { client: elsewhere } = api(() => json(404, { code: "not_available_here", message: "This organization is not available at this address." }))
+    expect(isNotAvailableHere(await elsewhere.organizationSecurity("org-2").catch((e: unknown) => e))).toBe(true)
+    expect(vi.mocked(window.dispatchEvent)).not.toHaveBeenCalled()
+    expect(isNotAvailableHere(new ApiError(403, { message: "This action is unauthorized." }))).toBe(false)
   })
 
   it("reads and changes an organization's two-step requirement", async () => {

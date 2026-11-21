@@ -26,6 +26,23 @@ hostname (`localhost` or `127.0.0.1`) in every tab so cookies are shared.
   capabilities, which the UI uses to show or hide features. The API enforces the
   same rules independently.
 
+### On a billing account's address
+
+A billing account can serve the portal on its own address
+([branding](branding.md#portal-addresses), spec 036). There:
+
+- only people in that account's organizations, and people with a platform role, can
+  sign in; others get `403 not_available_here` after a right password and second step;
+- `GET /api/v1/me` lists only that account's organizations and carries
+  `address { kind, host }` (null on the platform's own address);
+- another account's organization answers `404 not_available_here`;
+- sign-up is closed, and an invitation is accepted only into the account's
+  organizations.
+
+A name under the platform's domain shares the platform's session cookie, kept sign-in
+and passkeys, so someone signed in at the platform's address is signed in there too if
+they belong. The rule above is checked on every request.
+
 ### Keep me signed in
 
 The portal's sign-in and its **Restore your session** dialog offer **Keep me signed

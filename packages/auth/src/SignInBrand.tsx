@@ -36,7 +36,7 @@ export function SignInFooter() {
           href={brand.support_url}
           target={brand.support_url.startsWith("mailto:") ? undefined : "_blank"}
           rel="noreferrer"
-          className="underline underline-offset-4 hover:text-foreground max-md:inline-flex max-md:min-h-11 max-md:items-center"
+          className="underline underline-offset-4 hover:text-foreground max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center"
         >
           Help
         </a>

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-// The one fixture the portal's inline bootstrap also tests against (spec 036).
-import fixture from "../../../apps/portal/src/lib/__fixtures__/runtime-config.branded.js?raw"
 import { runtimeAddress, runtimeApiUrl, runtimeBrand, runtimeConfig } from "./runtime-config"
+
+// The one fixture the portal's inline bootstrap also tests against (spec 036). It is a
+// script that sets window.__IOT_CONFIG__, so it is run, not parsed.
+const fixture = "../../../apps/portal/src/lib/__fixtures__/runtime-config.branded.js"
 
 function load(script: string, origin = "https://acme.example.com") {
   const window: Record<string, unknown> = { location: { origin } }
@@ -12,8 +14,9 @@ function load(script: string, origin = "https://acme.example.com") {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("runtime config", () => {
-  it("reads the brand and address of a name under the platform's domain", () => {
-    load(fixture)
+  it("reads the brand and address of a name under the platform's domain", async () => {
+    vi.stubGlobal("window", { location: { origin: "https://acme.example.com" } })
+    await import(/* @vite-ignore */ new URL(fixture, import.meta.url).href)
 
     expect(runtimeAddress()).toEqual({ kind: "name", host: "acme.example.com", state: "active" })
     expect(runtimeBrand()).toMatchObject({ product_name: "Acme Monitor", short_name: "Acme", powered_by: "IoT OS", logo_dark: null })

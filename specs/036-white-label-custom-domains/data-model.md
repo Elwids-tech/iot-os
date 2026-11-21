@@ -55,7 +55,7 @@ logo stays with the organization when it moves to another account.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `billing_account_id` | FK, nullable | Null once released |
+| `billing_account_id` | FK, nullable | Kept after a release, so a renamed name can redirect and its account can take it back; null once the account is deleted |
 | `kind` | varchar(16) | `name` (under the platform's domain) or `domain` (custom) |
 | `host` | varchar(253), unique | Lower case, punycode. For `name`, the full host `<name>.DOMAIN` |
 | `state` | varchar(16) | See below |
@@ -71,8 +71,9 @@ Rules:
 
 - At most one live `name` and one live `domain` per account (partial unique indexes on
   `billing_account_id, kind` where the state is not `released` or `lapsed`) (FR-012).
-- `host` is unique across all rows, so a released name cannot be claimed until its row
-  is deleted, 30 days after `released_at` (FR-018).
+- `host` is unique across all rows, so a released name cannot be claimed by another
+  account until 30 days after `released_at` (FR-018); the claim that takes it then
+  deletes the old row. Its own account can take it back at any time.
 - A `name` follows hostname label rules, 3 to 40 characters, not in the reserved list.
 - A `domain` has at least three labels, is not under the platform's domain, and is not
   an address literal.
