@@ -51,6 +51,10 @@ final class PlanAssignmentTest extends TestCase
                 ['kind' => 'data_points', 'value' => null, 'source' => 'default', 'note' => null],
                 ['kind' => 'retention_days', 'value' => null, 'source' => 'default', 'note' => null],
                 ['kind' => 'organizations', 'value' => 1, 'source' => 'default', 'note' => null],
+                // Switches (spec 036): off unless a plan or an override turns them on.
+                ['kind' => 'branding', 'value' => 0, 'source' => 'default', 'note' => null],
+                ['kind' => 'custom_domain', 'value' => 0, 'source' => 'default', 'note' => null],
+                ['kind' => 'hide_powered_by', 'value' => 0, 'source' => 'default', 'note' => null],
             ]);
     }
 

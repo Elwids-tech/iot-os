@@ -8,7 +8,8 @@ namespace App\Domain\Billing\Enums;
  * What a plan can limit (ADR-035). Allowances are rows keyed by these values, so a
  * new limit is a new case, not a new column. A `null` value is unlimited, except for
  * retention, which is never unlimited: a missing retention row means the platform's
- * retention setting applies.
+ * retention setting applies. The switch kinds (spec 036) are 0 or 1, never unlimited,
+ * and off unless a plan or an override turns them on.
  */
 enum AllowanceKind: string
 {
@@ -18,10 +19,19 @@ enum AllowanceKind: string
     case DataPoints = 'data_points';
     case RetentionDays = 'retention_days';
     case Organizations = 'organizations';
+    case Branding = 'branding';
+    case CustomDomain = 'custom_domain';
+    case HidePoweredBy = 'hide_powered_by';
+
+    /** On or off rather than a number: stored as 1 or 0. */
+    public function isSwitch(): bool
+    {
+        return in_array($this, [self::Branding, self::CustomDomain, self::HidePoweredBy], true);
+    }
 
     public function allowsUnlimited(): bool
     {
-        return $this !== self::RetentionDays;
+        return $this !== self::RetentionDays && ! $this->isSwitch();
     }
 
     /** Counted per calendar month in UTC; the others are levels or settings. */
@@ -40,6 +50,9 @@ enum AllowanceKind: string
             self::DataPoints => 'data point allowance',
             self::RetentionDays => 'retention period',
             self::Organizations => 'organization limit',
+            self::Branding => 'branding',
+            self::CustomDomain => 'custom domain',
+            self::HidePoweredBy => 'hidden "Powered by" line',
         };
     }
 
@@ -51,6 +64,7 @@ enum AllowanceKind: string
     public function maximum(): int
     {
         return match ($this) {
+            self::Branding, self::CustomDomain, self::HidePoweredBy => 1,
             self::RetentionDays => 36500,
             self::Organizations => 100000,
             default => 1_000_000_000_000,

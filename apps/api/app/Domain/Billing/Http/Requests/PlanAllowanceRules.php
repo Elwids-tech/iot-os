@@ -65,6 +65,9 @@ final class PlanAllowanceRules
             'allowances.data_points' => 'data point allowance',
             'allowances.retention_days' => 'retention',
             'allowances.organizations' => 'organization limit',
+            'allowances.branding' => 'branding',
+            'allowances.custom_domain' => 'custom domain',
+            'allowances.hide_powered_by' => 'hidden "Powered by" line',
         ];
     }
 }

@@ -27,7 +27,7 @@ final class OverrideAllowanceRequest extends FormRequest
         return [
             /** Applies a change that shortens organizations' telemetry retention, after the 409 named them. */
             'confirm_retention' => ['sometimes', 'boolean'],
-            /** A whole number within the kind's bounds (retention 1 to 36,500 days, organizations up to 100,000), or null for unlimited, which retention cannot be. */
+            /** A whole number within the kind's bounds (retention 1 to 36,500 days, organizations up to 100,000), or null for unlimited, which retention cannot be. `branding`, `custom_domain` and `hide_powered_by` are switches: 1 for on, 0 for off. */
             'value' => ['present', 'nullable', 'integer', 'min:0', 'max:'.AllowanceKind::Alerts->maximum()],
             'note' => ['required', 'string', 'max:1000'],
         ];
@@ -46,6 +46,13 @@ final class OverrideAllowanceRequest extends FormRequest
                 }
                 $kind = AllowanceKind::from((string) $this->route('kind'));
                 $value = $this->input('value');
+                if ($kind->isSwitch()) {
+                    if (! in_array($value, [0, 1], true)) {
+                        $validator->errors()->add('value', 'Choose on (1) or off (0).');
+                    }
+
+                    return;
+                }
                 if ($value === null) {
                     if (! $kind->allowsUnlimited()) {
                         $validator->errors()->add('value', 'Retention cannot be unlimited. Enter a number of days.');

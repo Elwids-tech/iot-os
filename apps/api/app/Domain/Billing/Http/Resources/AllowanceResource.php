@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * One of a billing account's allowances and where it comes from (ADR-035). `value` is
  * null for unlimited; for `retention_days`, null means the platform setting applies.
+ * `branding`, `custom_domain` and `hide_powered_by` are switches: 1 is on, 0 is off.
  *
  * @extends JsonResource<ResolvedAllowance>
  */
@@ -30,7 +31,7 @@ final class AllowanceResource extends JsonResource
         $allowance = $this->resource;
 
         return [
-            /** @var 'alerts'|'sms'|'devices'|'data_points'|'retention_days'|'organizations' */
+            /** @var 'alerts'|'sms'|'devices'|'data_points'|'retention_days'|'organizations'|'branding'|'custom_domain'|'hide_powered_by' */
             'kind' => $allowance->kind->value,
             'value' => $allowance->value === null ? null : (int) $allowance->value,
             /** @var 'override'|'plan'|'default' */

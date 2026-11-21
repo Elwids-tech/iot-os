@@ -101,16 +101,18 @@ final class PlanHistory
             [$from, $to] = is_array($change)
                 ? [array_key_exists('from', $change) ? $change['from'] : 'default', array_key_exists('to', $change) ? $change['to'] : 'default']
                 : ['default', $change];
-            $list[] = new BillingAccountChange((string) $kind, self::allowance($from), self::allowance($to));
+            $list[] = new BillingAccountChange((string) $kind, self::allowance($from, (string) $kind), self::allowance($to, (string) $kind));
         }
 
         return $list;
     }
 
-    private static function allowance(mixed $value): string
+    private static function allowance(mixed $value, string $kind): string
     {
         return match (true) {
             $value === 'default' => 'Default',
+            // A switch (spec 036) reads On or Off, not 1 or 0.
+            (bool) AllowanceKind::tryFrom($kind)?->isSwitch() => (int) $value === 1 ? 'On' : 'Off',
             $value === null => 'Unlimited',
             default => number_format((int) $value),
         };

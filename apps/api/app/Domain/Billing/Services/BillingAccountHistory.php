@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Billing\Services;
 
+use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
 use App\Domain\Billing\Support\Money;
@@ -147,8 +148,8 @@ final class BillingAccountHistory
                         'billing_account.allowance_overridden', 'billing_account.allowance_override_removed' => ['changes' => [
                             new BillingAccountChange(
                                 self::allowanceField((string) ($details['kind'] ?? '')),
-                                self::allowanceText($details['from'] ?? null),
-                                self::allowanceText($details['to'] ?? null),
+                                self::allowanceText($details['from'] ?? null, (string) ($details['kind'] ?? '')),
+                                self::allowanceText($details['to'] ?? null, (string) ($details['kind'] ?? '')),
                             ),
                         ]],
                         default => [],
@@ -212,8 +213,13 @@ final class BillingAccountHistory
         return $kind === 'organizations' ? 'organization_limit' : $kind;
     }
 
-    private static function allowanceText(mixed $value): string
+    private static function allowanceText(mixed $value, string $kind): string
     {
+        // A switch (spec 036) reads On or Off, not 1 or 0.
+        if (AllowanceKind::tryFrom($kind)?->isSwitch()) {
+            return (int) $value === 1 ? 'On' : 'Off';
+        }
+
         return $value === null ? 'Unlimited' : (string) $value;
     }
 

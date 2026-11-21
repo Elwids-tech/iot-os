@@ -1,0 +1,126 @@
+# Brands and logos (spec 036, specs/036-white-label-custom-domains/contracts/branding-api.md).
+# Statuses and bodies inference missed. Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    BrandImageRefused:
+      type: object
+      description: >-
+        422 for an image that was not accepted. `code` names the rule it broke:
+        `image_type` (not a PNG, JPEG or WebP image by content), `image_too_large` (over
+        1 MB, or over the largest dimensions), `image_not_square` (an icon more than 2%
+        off square) or `image_too_small` (an icon under 512 × 512). Without `code`, the
+        `image` field was missing or failed to upload.
+      required: [message, errors]
+      properties:
+        message: {type: string}
+        code: {type: string, enum: [image_type, image_too_large, image_not_square, image_too_small]}
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: {type: string}
+  responses:
+    BrandImage:
+      description: The image as PNG, cached for a year. Its address changes when the image does.
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+    BrandImageRefused:
+      description: The image was not accepted; `code` says why.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BrandImageRefused'
+    BrandChanged:
+      description: The brand was changed since `revision` was read (`brand_changed`). Read it again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
+    BrandingNotAllowed:
+      description: >-
+        Branding is not part of the billing account's plan (`branding_not_allowed`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
+operations:
+  GET /v1/brand-assets/{asset}/{variant}:
+    description: |-
+      A brand image, public because the sign-in page shows it before anyone signs in.
+      `asset` is the image's uuid followed by the first 12 characters of its content
+      hash; `variant` is `logo`, or for an icon `512`, `192`, `180`, `64` or `maskable`.
+    responses:
+      '200':
+        $ref: '#/components/responses/BrandImage'
+      '404':
+        $ref: '#/components/responses/NotFound'
+  GET /v1/billing-accounts/{billingAccount}/branding:
+    description: |-
+      What the branding page reads for a billing account the signed-in person owns: its
+      brand, its portal addresses, what its plan allows and the image limits. Reading
+      works without the `branding` allowance, so the page can say so.
+  PUT /v1/billing-accounts/{billingAccount}/brand:
+    description: |-
+      Saves the brand's product name, short name and support link together. Needs the
+      account's `branding` allowance. The brand takes effect once it has a product name.
+    responses:
+      '403':
+        $ref: '#/components/responses/BrandingNotAllowed'
+      '409':
+        $ref: '#/components/responses/BrandChanged'
+  POST /v1/billing-accounts/{billingAccount}/brand/images/{role}:
+    description: |-
+      Sets the brand's `logo`, `logo_dark` or `icon` from a multipart `image`: PNG, JPEG
+      or WebP by content, at most 1 MB. The image is re-encoded; a logo is scaled to fit
+      480 × 160 and an icon, square and at least 512 × 512, is stored in every size the
+      installed app needs. It is a POST because a multipart body is only read on POST.
+    responses:
+      '403':
+        $ref: '#/components/responses/BrandingNotAllowed'
+      '422':
+        $ref: '#/components/responses/BrandImageRefused'
+  DELETE /v1/billing-accounts/{billingAccount}/brand/images/{role}:
+    responses:
+      '403':
+        $ref: '#/components/responses/BrandingNotAllowed'
+  GET /v1/admin/billing-accounts/{billingAccount}/branding:
+    description: Any billing account's branding, for platform staff.
+  PUT /v1/admin/billing-accounts/{billingAccount}/brand:
+    description: |-
+      Saves a billing account's brand on its owners' behalf. The allowance is not
+      checked: the brand takes effect only once `branding` is on for the account.
+    responses:
+      '409':
+        $ref: '#/components/responses/BrandChanged'
+  POST /v1/admin/billing-accounts/{billingAccount}/brand/images/{role}:
+    responses:
+      '422':
+        $ref: '#/components/responses/BrandImageRefused'
+  POST /v1/organizations/{organization}/logo:
+    description: |-
+      Sets the organization's own logo from a multipart `image`, under the same rules as
+      a brand's logo. Needs `Organization.update` and no allowance.
+    requestBody: &logoBody
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [image]
+            properties:
+              image:
+                type: string
+                format: binary
+                contentMediaType: application/octet-stream
+    responses:
+      '422':
+        $ref: '#/components/responses/BrandImageRefused'
+  POST /v1/organizations/{organization}/logo/dark:
+    description: Sets the logo shown on dark appearance. Without it, the logo is shown on both.
+    requestBody: *logoBody
+    responses:
+      '422':
+        $ref: '#/components/responses/BrandImageRefused'

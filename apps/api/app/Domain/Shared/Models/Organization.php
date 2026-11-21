@@ -7,6 +7,7 @@ namespace App\Domain\Shared\Models;
 use App\Domain\Authorization\Models\Role;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\BillingAccountAssignment;
+use App\Domain\Branding\Models\BrandAsset;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -74,6 +75,25 @@ class Organization extends Model
     public function billingAccount(): BelongsTo
     {
         return $this->belongsTo(BillingAccount::class);
+    }
+
+    /**
+     * The organization's own logo (spec 036 US2); it stays with the organization when it
+     * moves to another billing account.
+     *
+     * @return BelongsTo<BrandAsset, $this>
+     */
+    public function logo(): BelongsTo
+    {
+        return $this->belongsTo(BrandAsset::class, 'logo_asset_id');
+    }
+
+    /**
+     * @return BelongsTo<BrandAsset, $this>
+     */
+    public function logoDark(): BelongsTo
+    {
+        return $this->belongsTo(BrandAsset::class, 'logo_dark_asset_id');
     }
 
     /**
