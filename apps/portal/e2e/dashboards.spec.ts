@@ -1399,6 +1399,13 @@ test("panel exports, kiosk, new panel types, editor back and undo", async ({
   await expect(page.locator("[data-kiosk]")).toBeFocused()
   await expect(page.locator("#root")).toHaveAttribute("inert", "")
   await expect(page.getByRole("button", { name: "Exit kiosk" })).toBeVisible()
+  // Kiosk keeps the time range: a quick range applies, and Escape closes the popover first.
+  const kioskRange = await timeRange(page)
+  await kioskRange.getByRole("radio", { name: "Last 24 hours", exact: true }).click()
+  await expect(page).toHaveURL(/range=24h/)
+  await page.keyboard.press("Escape")
+  await expect(kioskRange).toBeHidden()
+  await expect(page).toHaveURL(/kiosk=1/)
   await page.keyboard.press("Escape")
   await expect(page).not.toHaveURL(/kiosk=1/)
   await expect(page.getByRole("button", { name: "Kiosk", exact: true })).toBeFocused()

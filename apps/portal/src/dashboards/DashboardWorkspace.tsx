@@ -868,46 +868,8 @@ export function DashboardWorkspace({
     </Dialog>
   )
 
-  if (kiosk)
-    // Portaled outside #root, which is inert meanwhile, so the shell is out of
-    // the tab order and screen reader browse mode.
-    return createPortal(
-      <div
-        ref={kioskView}
-        data-kiosk
-        tabIndex={-1}
-        aria-label={`${dashboard.name}, kiosk`}
-        role="region"
-        className="fixed inset-0 z-40 flex flex-col overflow-auto bg-background outline-none"
-      >
-        <PageHeader
-          title={dashboard.name}
-          meta={<UpdatedAt org={org} timezone={view.timezone} />}
-          actions={
-            <Button variant="outline" size="sm" onClick={() => setParam("kiosk", null)}>
-              Exit kiosk
-            </Button>
-          }
-        />
-        <div className="p-4">{grid}</div>
-        {fullscreen}
-      </div>,
-      document.body,
-    )
-
-  const panels = `${dashboard.widgets.length} ${dashboard.widgets.length === 1 ? "panel" : "panels"}`
-  const shareAction = abilities.share ? (
-    <Button variant="outline" title="Share" onClick={() => setDialog("share")}>
-      <Share2Icon data-icon="inline-start" />
-      <span className={ACTION_LABEL}>Share</span>
-    </Button>
-  ) : (
-    <Button variant="outline" title="Copy link" onClick={() => void copy(link(), "Dashboard link")}>
-      <LinkIcon data-icon="inline-start" />
-      <span className={ACTION_LABEL}>Copy link</span>
-    </Button>
-  )
-  const timeControls = (
+  // `updated` is false where the page already shows the "Updated" time itself (kiosk).
+  const timeControls = (updated = true) => (
     <TimeControls
       compact
       view={view}
@@ -927,8 +889,53 @@ export function DashboardWorkspace({
           void cache.invalidateQueries({ queryKey: [key, org] })
       }}
     >
-      <UpdatedAt org={org} timezone={view.timezone} />
+      {updated && <UpdatedAt org={org} timezone={view.timezone} />}
     </TimeControls>
+  )
+  if (kiosk)
+    // Portaled outside #root, which is inert meanwhile, so the shell is out of
+    // the tab order and screen reader browse mode.
+    return createPortal(
+      <div
+        ref={kioskView}
+        data-kiosk
+        tabIndex={-1}
+        aria-label={`${dashboard.name}, kiosk`}
+        role="region"
+        className="fixed inset-0 z-40 flex flex-col overflow-auto bg-background outline-none"
+      >
+        <PageHeader
+          title={dashboard.name}
+          meta={<UpdatedAt org={org} timezone={view.timezone} />}
+          actions={
+            <>
+              {!phone && timeControls(false)}
+              <Button variant="outline" onClick={() => setParam("kiosk", null)}>
+                Exit kiosk
+              </Button>
+            </>
+          }
+        >
+          {/* A phone keeps Exit kiosk in view and gives the time range a row. */}
+          {phone && timeControls(false)}
+        </PageHeader>
+        <div className="p-4">{grid}</div>
+        {fullscreen}
+      </div>,
+      document.body,
+    )
+
+  const panels = `${dashboard.widgets.length} ${dashboard.widgets.length === 1 ? "panel" : "panels"}`
+  const shareAction = abilities.share ? (
+    <Button variant="outline" title="Share" onClick={() => setDialog("share")}>
+      <Share2Icon data-icon="inline-start" />
+      <span className={ACTION_LABEL}>Share</span>
+    </Button>
+  ) : (
+    <Button variant="outline" title="Copy link" onClick={() => void copy(link(), "Dashboard link")}>
+      <LinkIcon data-icon="inline-start" />
+      <span className={ACTION_LABEL}>Copy link</span>
+    </Button>
   )
   return (
     <>
@@ -972,7 +979,7 @@ export function DashboardWorkspace({
         actions={
           draft ? (
             <>
-              {!phone && timeControls}
+              {!phone && timeControls()}
               <Button ref={kioskButton} variant="outline" title="Kiosk" onClick={() => setParam("kiosk", "1")}><MonitorIcon data-icon="inline-start" /><span className={ACTION_LABEL}>Kiosk</span></Button>
               <Button variant="outline" disabled={saving} onClick={() => openAdd()}>
                 <PlusIcon data-icon="inline-start" />
@@ -999,7 +1006,7 @@ export function DashboardWorkspace({
             <>
               {/* Phones keep Share in view; the other actions go behind More actions. */}
               {phone && shareAction}
-              {!phone && timeControls}
+              {!phone && timeControls()}
               <Toggle
                 variant="outline"
                 pressed={railOpen}
@@ -1090,7 +1097,7 @@ export function DashboardWorkspace({
         }
       >
         {/* Phones give the time range a row of its own; wider screens keep it in the title row. */}
-        {phone && timeControls}
+        {phone && timeControls()}
       </PageHeader>
       <div className="flex min-w-0 flex-col lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
