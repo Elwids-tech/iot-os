@@ -14,6 +14,7 @@ import { Button } from "@iot-os/ui/components/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@iot-os/ui/components/dialog"
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
@@ -28,7 +29,7 @@ import { Textarea } from "@iot-os/ui/components/textarea"
 import { AlertCircleIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useDiscardGuard } from "../hooks/use-discard-guard"
-import { allowanceKinds, allowanceMaximum, allowanceText, allowsUnlimited } from "../lib/allowances"
+import { allowanceKinds, allowanceMaximum, allowanceText, allowsUnlimited, isSwitch } from "../lib/allowances"
 import { apiClient } from "../lib/api-client"
 import { fieldMessages, validationErrors } from "../lib/errors"
 import { RetentionConfirmDialog, retentionConfirmation } from "./RetentionConfirmDialog"
@@ -45,7 +46,9 @@ function valuesOf(plan: BillingPlan | null): Values {
     description: plan?.description ?? "",
     allowances: Object.fromEntries(
       allowanceKinds.map((kind) => {
-        const value = set.get(kind)
+        const stored = set.get(kind)
+        // A switch stored as 0 is the same as not set: off.
+        const value = isSwitch(kind) && stored === 0 ? undefined : stored
         return [kind, { value: value === undefined || value === null ? "" : String(value), unlimited: set.has(kind) && value === null }]
       }),
     ) as Record<AllowanceKind, AllowanceInput>,
@@ -211,6 +214,23 @@ export function PlanDialog({
                     const input = values.allowances[kind]
                     const id = `plan-allowance-${kind}`
                     const kindErrors = field(`allowances.${kind}`)
+                    // A switch (spec 036): on is 1; off leaves it to the deployment's default, which is off.
+                    if (isSwitch(kind))
+                      return (
+                        <Field key={kind} orientation="horizontal" data-invalid={Boolean(kindErrors)}>
+                          <Switch
+                            id={id}
+                            checked={input.value === "1"}
+                            aria-describedby={`${id}-help`}
+                            onCheckedChange={(on) => setAllowance(kind, { value: on ? "1" : "" })}
+                          />
+                          <FieldContent>
+                            <FieldLabel htmlFor={id}>{allowanceText[kind].label}</FieldLabel>
+                            <FieldDescription id={`${id}-help`}>{allowanceText[kind].help}</FieldDescription>
+                            <FieldError errors={kindErrors} />
+                          </FieldContent>
+                        </Field>
+                      )
                     return (
                       <Field key={kind} data-invalid={Boolean(kindErrors)}>
                         <FieldLabel htmlFor={id}>{allowanceText[kind].label}</FieldLabel>

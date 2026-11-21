@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { mockBranding } from "./branding-mock"
 
 /** Card payments for billing account owners (spec 029 US7), against a mocked API and a stand-in for Stripe's pages. */
 const org = "a0000000-0000-4000-8000-000000000001"
@@ -142,6 +143,7 @@ async function setup(page: Page, options: Options = {}) {
       return json({ data: { state: "operational", live_data: "available", automations: "running", automation_fault: null, since: null, checked_at: ago(0) } })
     return json({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } })
   })
+  await mockBranding(page)
   return { errors, state }
 }
 

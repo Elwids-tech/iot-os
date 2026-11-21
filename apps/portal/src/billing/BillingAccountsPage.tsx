@@ -24,6 +24,7 @@ import { toast } from "sonner"
 import { LoadError } from "../components/forms"
 import { api } from "../lib/api"
 import { InvoiceDetail } from "./InvoiceDetail"
+import { BrandingPanel } from "./BrandingPanel"
 import { cardName, PaymentMethodPanel } from "./PaymentMethodPanel"
 import { addCard, checkoutReturned, payable, payOnline } from "./payments"
 import {
@@ -530,6 +531,7 @@ export default function BillingAccountsPage() {
           </PanelContent>
         </Panel>
       ) : null}
+      <BrandingPanel accountUuid={account.uuid} accountName={account.name} />
       <Panel aria-labelledby="billing-organizations">
         <PanelHeader>
           <PanelTitle id="billing-organizations">Organizations</PanelTitle>

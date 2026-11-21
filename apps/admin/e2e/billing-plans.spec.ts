@@ -1,4 +1,5 @@
 import { expect, test as base, type Page, type Route } from "@playwright/test"
+import { mockBranding } from "./branding-mock"
 
 // Plans and allowances in the admin app (spec 028 US1 and US2), against a mocked API.
 
@@ -12,9 +13,9 @@ const superAdmin = {
   organizations: [],
 }
 
-type Kind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations"
+type Kind = "alerts" | "sms" | "devices" | "data_points" | "retention_days" | "organizations" | "branding" | "custom_domain" | "hide_powered_by"
 
-const kinds: Kind[] = ["alerts", "sms", "devices", "data_points", "retention_days", "organizations"]
+const kinds: Kind[] = ["alerts", "sms", "devices", "data_points", "retention_days", "organizations", "branding", "custom_domain", "hide_powered_by"]
 const defaults: Record<Kind, number | null> = {
   alerts: null,
   sms: 0,
@@ -22,6 +23,10 @@ const defaults: Record<Kind, number | null> = {
   data_points: null,
   retention_days: null,
   organizations: 1,
+  // Switches (spec 036): off by default.
+  branding: 0,
+  custom_domain: 0,
+  hide_powered_by: 0,
 }
 
 type Plan = {
@@ -240,7 +245,10 @@ async function mockApi(page: Page) {
     return json(route, { message: `Unmocked ${method} ${path}` }, 404)
   })
 
-  return { sent }
+  // The Branding switch (spec 036) is the first account's override, read at each request.
+  const brand = await mockBranding(page, () => accounts.some((account) => account.overrides.branding?.value === 1))
+
+  return { sent, brand }
 }
 
 const test = base.extend<{ consoleMessages: string[] }>({
@@ -252,7 +260,8 @@ const test = base.extend<{ consoleMessages: string[] }>({
       })
       page.on("pageerror", (error) => messages.push(`pageerror: ${error.message}`))
       await use(messages)
-      expect(messages.filter((message) => !message.includes("409"))).toEqual([])
+      // Confirmations answer 409 and a refused brand image 422, both on purpose.
+      expect(messages.filter((message) => !message.includes("409") && !message.includes("422"))).toEqual([])
     },
     { auto: true },
   ],
@@ -426,4 +435,58 @@ test("plan pages fit a phone without sideways scrolling", async ({ page }) => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow, path).toBeLessThanOrEqual(0)
   }
+})
+
+test("turns Branding on for an account and edits its brand on the owner's behalf", async ({ page }) => {
+  const { sent, brand } = await mockApi(page)
+  await page.goto("/billing-accounts/33333333-3333-4333-8333-333333333333")
+
+  // Off by default: the brand can be prepared, and the panel says it is not shown.
+  await expect(page.getByRole("row", { name: /Branding Off Default/ })).toBeVisible()
+  const panel = page.getByRole("region", { name: "Branding" })
+  await expect(panel.getByText("Branding is off for this account")).toBeVisible()
+  await expect(panel.getByText("Not shown", { exact: true })).toBeVisible()
+
+  // The override is a switch, not a number.
+  await page.getByRole("button", { name: "Actions for Branding" }).click()
+  await page.getByRole("menuitem", { name: "Override" }).click()
+  const dialog = page.getByRole("dialog", { name: "Override branding" })
+  await expect(dialog.getByText("Now Off, from the deployment default.", { exact: false })).toBeVisible()
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0)
+  await dialog.getByRole("switch", { name: "Branding" }).click()
+  await dialog.getByRole("textbox", { name: "Note" }).fill("Agreed with the integrator")
+  await dialog.getByRole("button", { name: "Save override" }).click()
+  await expect(page.getByText("Branding for Corner Shop is now On")).toBeVisible()
+  expect(sent.at(-1)?.body).toEqual({ value: 1, note: "Agreed with the integrator" })
+  await expect(page.getByRole("row", { name: /Branding On Override Agreed with the integrator/ })).toBeVisible()
+  await expect(panel.getByText("Branding is off for this account")).toHaveCount(0)
+
+  // Names and the link are a draft until Save.
+  await expect(panel.getByRole("button", { name: "Save" })).toBeDisabled()
+  await panel.getByRole("textbox", { name: "Product name" }).fill("Acme Monitor")
+  await expect(panel.getByText("Sign in to Acme Monitor")).toBeVisible()
+  await panel.getByRole("textbox", { name: "Support link" }).fill("https://support.example.com")
+  await panel.getByRole("button", { name: "Save" }).click()
+  await expect(page.getByText("Brand of Corner Shop saved")).toBeVisible()
+  expect(brand.sent.at(-1)?.body).toEqual({ product_name: "Acme Monitor", short_name: null, support_url: "https://support.example.com", revision: 0 })
+  await expect(panel.getByText("Shown", { exact: true })).toBeVisible()
+
+  // An image is saved when it is picked; a refusal shows its reason under the field.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64")
+  await panel.getByLabel("Logo", { exact: true }).setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png })
+  await expect(panel.getByRole("img", { name: "Current logo" })).toBeVisible()
+  await panel.getByLabel("Icon", { exact: true }).setInputFiles({ name: "refused.png", mimeType: "image/png", buffer: png })
+  await expect(panel.getByText("The icon must be square.")).toBeVisible()
+  await panel.getByLabel("Icon", { exact: true }).setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") })
+  await expect(panel.getByText("Choose a PNG, JPEG or WebP image.")).toBeVisible()
+
+  // Someone else saved meanwhile: the draft is kept and Reload reads the latest.
+  brand.brand.revision = 9
+  brand.brand.product_name = "Acme Cloud"
+  await panel.getByRole("textbox", { name: "Product name" }).fill("Acme Monitoring")
+  await panel.getByRole("button", { name: "Save" }).click()
+  await expect(panel.getByText("The brand was changed by someone else")).toBeVisible()
+  await expect(panel.getByRole("textbox", { name: "Product name" })).toHaveValue("Acme Monitoring")
+  await panel.getByRole("button", { name: "Reload" }).click()
+  await expect(panel.getByRole("textbox", { name: "Product name" })).toHaveValue("Acme Cloud")
 })

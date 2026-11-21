@@ -22,6 +22,7 @@ import { useAdministration } from "../members/shared"
 import { AiAppsSettings } from "../agents/AiAppsSettings"
 import { agentAccessOffered } from "../agents/model"
 import { SecuritySettings } from "./Security"
+import { OrganizationLogoPanel } from "./OrganizationLogo"
 
 /** One place for organization and personal settings. */
 export default function SettingsRoutes() {
@@ -95,6 +96,7 @@ function GeneralSettings() {
           />
         </PanelContent>
       </Panel>
+      <OrganizationLogoPanel />
       <Panel>
         <PanelHeader>
           <PanelTitle>Appearance</PanelTitle>

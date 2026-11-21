@@ -41,6 +41,7 @@ import { AlertCircleIcon, Building2Icon, ReceiptTextIcon, UserRoundXIcon, Wallet
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { AllowanceOverrideDialog } from "../components/AllowanceOverrideDialog"
+import { BrandingPanel } from "../components/BrandingPanel"
 import { atLimit, organizationsOfLimit } from "../components/BillingAccountChoice"
 import { BillingAccountDialog } from "../components/BillingAccountDialog"
 import { BillingDetailsDialog } from "../components/BillingDetailsDialog"
@@ -664,6 +665,7 @@ export function BillingAccountPage() {
           </PanelContent>
         </Panel>
       </div>
+      <BrandingPanel account={account} />
       <div className="grid min-w-0 gap-(--panel-gap) xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel aria-labelledby="billing-prices">
           <PanelHeader>
