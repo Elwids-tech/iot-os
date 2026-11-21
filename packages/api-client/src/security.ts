@@ -31,6 +31,10 @@ export type PasskeyUnavailableReason = "not_https"
 export type Passkey = {
   id: number
   name: string
+  /** The domain the passkey was made on: the platform's own, or a billing account's custom domain (spec 036). */
+  relying_party_id: string
+  /** Whether it was made on the domain this page is on. A passkey works only on its domain. */
+  usable_here: boolean
   created_at: string | null
   last_used_at: string | null
 }

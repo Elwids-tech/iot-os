@@ -23,6 +23,9 @@ use Illuminate\Support\Carbon;
  * @property PortalAddressKind $kind
  * @property string $host
  * @property PortalAddressState $state
+ * @property string|null $claim_token
+ * @property int $failed_checks
+ * @property Carbon|null $last_reachable_at
  * @property int|null $claimed_by
  * @property int|null $suspended_by
  * @property Carbon|null $claimed_at

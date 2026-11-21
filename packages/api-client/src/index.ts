@@ -1735,6 +1735,20 @@ export class ApiClient {
     return this.data(this.brandPath(billingAccountUuid, admin, "addresses/name"), "PUT", { name })
   }
 
+  /**
+   * Asks for a custom domain such as `portal.example.org`. The answer carries the CNAME
+   * `record` to add; the address serves once a check finds it. A refusal's `code` is a
+   * `PortalDomainRefusal`.
+   */
+  async claimPortalDomain(billingAccountUuid: string, host: string, admin = false): Promise<import("./branding").PortalAddress> {
+    return this.data(this.brandPath(billingAccountUuid, admin, "addresses/domain"), "PUT", { host })
+  }
+
+  /** Looks a custom domain's DNS record up now. 429 `checked_recently` within a minute of the last time. */
+  async checkPortalAddress(billingAccountUuid: string, addressUuid: string, admin = false): Promise<import("./branding").PortalAddress> {
+    return this.data(this.brandPath(billingAccountUuid, admin, `addresses/${encodeURIComponent(addressUuid)}/check`), "POST")
+  }
+
   /** Releases an address: it stops serving within a minute and its host is held for 30 days. 409 `suspended` for an owner. */
   async releasePortalAddress(billingAccountUuid: string, addressUuid: string, admin = false): Promise<void> {
     await this.request(this.brandPath(billingAccountUuid, admin, `addresses/${encodeURIComponent(addressUuid)}`), { method: "DELETE" })

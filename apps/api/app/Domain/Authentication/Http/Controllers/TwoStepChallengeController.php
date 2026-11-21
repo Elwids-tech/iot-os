@@ -34,6 +34,8 @@ final class TwoStepChallengeController
 
     public const ATTEMPTS = 5;
 
+    public const ELSEWHERE = 'second_step_elsewhere';
+
     public function __construct(
         private readonly CompleteSignIn $complete,
         private readonly SecurityAudit $audit,
@@ -49,8 +51,17 @@ final class TwoStepChallengeController
         // passkey is asked for the passkey alone (FR-022).
         $methods = $user->hasEnabledTwoFactorAuthentication() ? ['code', 'recovery_code'] : [];
         // A passkey also finishes the sign-in, and counts as both steps (FR-017).
-        if (app(PasskeyAvailability::class)->available() && $user->hasPasskeysEnabled()) {
+        // Only a passkey made on this domain can answer here (spec 036, FR-026).
+        if (app(PasskeyAvailability::class)->available() && $user->passkeysHere()->exists()) {
             $methods[] = 'passkey';
+        }
+        // Their only second step is a passkey from another domain. The password alone
+        // never starts their session (FR-027), so there is nothing to offer here.
+        if ($methods === []) {
+            return response()->json([
+                'code' => self::ELSEWHERE,
+                'message' => 'Your passkey belongs to another address, so it cannot finish signing in here. Sign in where you made it and add an authenticator app, or ask an administrator to reset your two-step sign-in.',
+            ], 403);
         }
 
         $request->session()->put(self::SESSION_KEY, [

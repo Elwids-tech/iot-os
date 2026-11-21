@@ -42,6 +42,14 @@ final class PortalAddressResource extends JsonResource
             'last_checked_at' => $address->last_checked_at?->toIso8601String(),
             'unreachable_since' => $address->unreachable_since?->toIso8601String(),
             'suspended_at' => $address->suspended_at?->toIso8601String(),
+            /**
+             * The DNS record that proves control of a custom domain and points it here. Null for a name.
+             *
+             * @var array{type: 'CNAME', name: string, value: string}|null
+             */
+            'record' => $addresses->record($address),
+            /** When a domain still waiting for its record lapses. */
+            'lapses_at' => $addresses->lapsesAt($address)?->toIso8601String(),
         ];
     }
 }

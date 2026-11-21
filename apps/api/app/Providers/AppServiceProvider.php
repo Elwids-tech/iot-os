@@ -6,6 +6,8 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Billing\Contracts\SmsAllowance;
 use App\Domain\Billing\Services\Usage;
+use App\Domain\Branding\Contracts\DnsResolver;
+use App\Domain\Branding\Services\SystemDnsResolver;
 use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\DeviceProfiles\Services\UnitCatalogue;
 use App\Domain\Shared\Models\User;
@@ -33,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(UnitCatalogue::class);
         // Spec 011's SMS sender reserves parts in the billing account's allowance (spec 028).
         $this->app->bind(SmsAllowance::class, Usage::class);
+        // The custom domain check (spec 036) reads DNS through this; tests swap a fake in.
+        $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
     }
 
     /**

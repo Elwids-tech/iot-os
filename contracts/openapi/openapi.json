@@ -3967,6 +3967,91 @@
         "x-platform-permission": "PlatformAdministration.manage-organizations"
       }
     },
+    "/v1/admin/billing-accounts/{billingAccount}/addresses/domain": {
+      "put": {
+        "operationId": "v1.admin.billing-accounts.addresses.domain",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "maxLength": 260
+                  }
+                },
+                "required": [
+                  "host"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/DomainRefused"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/DomainInvalid"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "description": "Asks for a custom domain on a billing account's owners' behalf, without the allowance check."
+      }
+    },
     "/v1/admin/billing-accounts/{billingAccount}/addresses/name": {
       "put": {
         "operationId": "v1.admin.billing-accounts.addresses.name",
@@ -4104,6 +4189,86 @@
         ],
         "x-audience": "platform-admin",
         "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/billing-accounts/{billingAccount}/addresses/{address}/check": {
+      "post": {
+        "operationId": "v1.admin.billing-accounts.addresses.check",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "description": "The billing account UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "429": {
+            "description": "The address was checked less than a minute ago (`checked_recently`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodedError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "description": "Looks a billing account's custom domain record up now, at most once a minute for each address."
       }
     },
     "/v1/admin/billing-accounts/{billingAccount}/allowances/{kind}": {
@@ -11312,7 +11477,7 @@
             }
           },
           "403": {
-            "description": "The address has no account but a sign-up waiting for its email to be confirmed, and the password is that sign-up's (`sign_up_unconfirmed`, spec 035). This browser can now send the link again with `POST /v1/sign-up/resend`. Or the password was right and the person belongs to no organization of the billing account whose portal address the request came from (`not_available_here`, spec 036).",
+            "description": "The address has no account but a sign-up waiting for its email to be confirmed, and the password is that sign-up's (`sign_up_unconfirmed`, spec 035). This browser can now send the link again with `POST /v1/sign-up/resend`. Or the password was right and the person belongs to no organization of the billing account whose portal address the request came from (`not_available_here`, spec 036). Or the person must use two-step sign-in and their only second step is a passkey made on another domain, which cannot answer here (`second_step_elsewhere`, spec 036).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11638,6 +11803,101 @@
         "x-audience": "account"
       }
     },
+    "/v1/billing-accounts/{billingAccount}/addresses/domain": {
+      "put": {
+        "operationId": "v1.billing-accounts.addresses.domain",
+        "summary": "Asks for a custom domain. It serves once its CNAME record is found",
+        "tags": [
+          "OwnedPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "maxLength": 260
+                  }
+                },
+                "required": [
+                  "host"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/CustomDomainNotAllowed"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/DomainRefused"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/DomainInvalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Asks for a custom domain for the billing account, such as `portal.example.org`.\nThe answer carries the CNAME `record` to add at the domain's DNS provider. The\naddress waits (`waiting_dns`) until a check finds the record, then serves the\nbranded portal and becomes the account's main address. A request whose record is\nnot found within 7 days lapses (`lapses_at`). Needs the account's `branding` and\n`custom_domain` allowances. Asking again for the same domain returns the same\nrecord."
+      }
+    },
     "/v1/billing-accounts/{billingAccount}/addresses/name": {
       "put": {
         "operationId": "v1.billing-accounts.addresses.name",
@@ -11789,6 +12049,86 @@
         ],
         "x-audience": "account",
         "description": "Releases an address. It stops serving within a minute, people signed in there lose\nthe portal, and no other account can claim the host for 30 days."
+      }
+    },
+    "/v1/billing-accounts/{billingAccount}/addresses/{address}/check": {
+      "post": {
+        "operationId": "v1.billing-accounts.addresses.check",
+        "summary": "Looks the domain's DNS record up now, at most once a minute",
+        "tags": [
+          "OwnedPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "billingAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "429": {
+            "description": "The address was checked less than a minute ago (`checked_recently`). `Retry-After` says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodedError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "description": "Looks the custom domain's DNS record up now instead of waiting for the scheduled\ncheck, at most once a minute for each address, and returns the address as it then\nstands. A name under the platform's domain is returned unchanged."
       }
     },
     "/v1/billing-accounts/{billingAccount}/brand": {
@@ -37306,6 +37646,36 @@
           }
         }
       },
+      "CustomDomainNotAllowed": {
+        "description": "A custom domain is not part of the billing account's plan (`custom_domain_not_allowed`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
+      "DomainInvalid": {
+        "description": "The host is missing or is not a domain name (`host_invalid`), is a bare domain such as `example.org` (`bare_domain`: use a subdomain, which can carry a CNAME record), or is under the platform's own domain (`platform_domain`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "DomainRefused": {
+        "description": "The domain cannot be claimed. `code` is `addresses_unavailable` (this deployment does not serve portal addresses), `host_taken` (another account uses or has asked for it), `host_held` (another account's portal was served there less than 30 days ago) or `domain_exists` (the account already has a domain; remove it first).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CodedError"
+            }
+          }
+        }
+      },
       "DraftConflict": {
         "description": "The device-profile draft changed since the caller read it (`code: profile.draft_conflict`). Reload it before saving.",
         "content": {
@@ -39867,7 +40237,7 @@
           },
           "addresses": {
             "type": "array",
-            "description": "The account's portal addresses: at most one name and one custom domain.",
+            "description": "The account's portal addresses: at most one name and one custom domain. A\ndomain request that lapsed is listed until the account asks again.",
             "items": {
               "$ref": "#/components/schemas/PortalAddressResource"
             }
@@ -44240,6 +44610,8 @@
         "required": [
           "id",
           "name",
+          "relying_party_id",
+          "usable_here",
           "created_at",
           "last_used_at"
         ],
@@ -44251,6 +44623,14 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 60
+          },
+          "relying_party_id": {
+            "type": "string",
+            "description": "The domain the passkey was made on (spec 036): the deployment's own, or a billing account's custom domain. A passkey works only on its domain."
+          },
+          "usable_here": {
+            "type": "boolean",
+            "description": "Whether the passkey was made on the domain the request came from."
           },
           "created_at": {
             "type": [
@@ -45003,6 +45383,37 @@
               "string",
               "null"
             ]
+          },
+          "record": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The DNS record that proves control of a custom domain and points it here. Null for a name.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "CNAME"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "value"
+            ]
+          },
+          "lapses_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a domain still waiting for its record lapses."
           }
         },
         "required": [
@@ -45016,7 +45427,9 @@
           "activated_at",
           "last_checked_at",
           "unreachable_since",
-          "suspended_at"
+          "suspended_at",
+          "record",
+          "lapses_at"
         ],
         "title": "PortalAddressResource"
       },

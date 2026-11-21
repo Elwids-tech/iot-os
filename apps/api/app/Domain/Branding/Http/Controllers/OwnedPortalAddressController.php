@@ -42,6 +42,31 @@ final class OwnedPortalAddressController
         return new PortalAddressResource($address);
     }
 
+    /** Asks for a custom domain. It serves once its CNAME record is found. */
+    public function domain(Request $request, string $billingAccount): PortalAddressResource
+    {
+        $account = $this->account($request, $billingAccount);
+        if (! $this->allowances->allows($account, AllowanceKind::Branding) || ! $this->allowances->allows($account, AllowanceKind::CustomDomain)) {
+            throw new BrandingRefusal(403, 'custom_domain_not_allowed', 'A custom domain is not part of this billing account\'s plan.');
+        }
+        $host = (string) $request->validate(['host' => ['required', 'string', 'max:260']])['host'];
+        $address = $this->addresses->claimDomain($account, $host, $request->user());
+        $address->wasRecentlyCreated = false;
+
+        return new PortalAddressResource($address);
+    }
+
+    /** Looks the domain's DNS record up now, at most once a minute. */
+    public function check(Request $request, string $billingAccount, string $address): PortalAddressResource
+    {
+        $account = $this->account($request, $billingAccount);
+        /** @var PortalAddress|null $found */
+        $found = $this->addresses->for($account)->firstWhere('uuid', $address);
+        abort_if($found === null, 404);
+
+        return new PortalAddressResource($this->addresses->checkNow($found));
+    }
+
     /** Releases an address. Staff lift a suspension first. */
     public function destroy(Request $request, string $billingAccount, string $address): Response
     {

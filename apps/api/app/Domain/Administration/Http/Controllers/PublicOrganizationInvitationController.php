@@ -64,6 +64,8 @@ final class PublicOrganizationInvitationController
 
         if ($request->hasSession()) {
             $request->session()->regenerate();
+            // As any sign-in: a session started on a custom domain works only there.
+            $this->access->bind($request);
         }
 
         return AuthenticatedUserResource::make($user->fresh('organizations'));

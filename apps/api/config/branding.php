@@ -24,6 +24,12 @@ return [
     // A released name cannot be claimed by another account, and a renamed one redirects, for this long.
     'hold_days' => 30,
 
+    // A custom domain: how long a request waits for its record, how many failed checks
+    // make it not reachable, and how often a serving one is looked at again.
+    'claim_days' => 7,
+    'unreachable_after' => 3,
+    'recheck_minutes' => 15,
+
     /*
     | Development only: a name's portal calls the API on its own host, through the
     | portal's nginx, instead of on the platform's API host. Browsers do not treat

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication;
 
+use App\Domain\Authentication\Passkeys\DomainRegistrationOptions;
+use App\Domain\Authentication\Passkeys\DomainStorePasskey;
+use App\Domain\Authentication\Passkeys\DomainVerificationOptions;
+use App\Domain\Authentication\Passkeys\DomainVerifyPasskey;
 use App\Domain\Authentication\Services\PerUserTwoFactorProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Cache\Repository;
@@ -13,6 +17,10 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Actions\GenerateRegistrationOptions;
+use Laravel\Passkeys\Actions\GenerateVerificationOptions;
+use Laravel\Passkeys\Actions\StorePasskey;
+use Laravel\Passkeys\Actions\VerifyPasskey;
 use PragmaRX\Google2FA\Google2FA;
 
 /**
@@ -25,6 +33,12 @@ final class AuthenticationServiceProvider extends ServiceProvider
     public function register(): void
     {
         Fortify::ignoreRoutes();
+
+        // Passkeys belong to the domain they were made on (spec 036, FR-026).
+        $this->app->bind(StorePasskey::class, DomainStorePasskey::class);
+        $this->app->bind(VerifyPasskey::class, DomainVerifyPasskey::class);
+        $this->app->bind(GenerateVerificationOptions::class, DomainVerificationOptions::class);
+        $this->app->bind(GenerateRegistrationOptions::class, DomainRegistrationOptions::class);
 
         $this->app->singleton(TwoFactorAuthenticationProvider::class, fn ($app) => new PerUserTwoFactorProvider(
             $app->make(Google2FA::class),
