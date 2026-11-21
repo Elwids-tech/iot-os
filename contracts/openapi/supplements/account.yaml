@@ -217,10 +217,18 @@ components:
         One of the person's passkeys (spec 034). Its credential and credential id never
         leave the API.
       additionalProperties: false
-      required: [id, name, created_at, last_used_at]
+      required: [id, name, relying_party_id, usable_here, created_at, last_used_at]
       properties:
         id: {type: integer}
         name: {type: string, minLength: 1, maxLength: 60}
+        relying_party_id:
+          type: string
+          description: >-
+            The domain the passkey was made on (spec 036): the deployment's own, or a
+            billing account's custom domain. A passkey works only on its domain.
+        usable_here:
+          type: boolean
+          description: Whether the passkey was made on the domain the request came from.
         created_at: {type: [string, 'null'], format: date-time}
         last_used_at:
           type: [string, 'null']
@@ -320,7 +328,9 @@ operations:
           browser can now send the link again with `POST /v1/sign-up/resend`. Or the
           password was right and the person belongs to no organization of the billing
           account whose portal address the request came from (`not_available_here`,
-          spec 036).
+          spec 036). Or the person must use two-step sign-in and their only second step
+          is a passkey made on another domain, which cannot answer here
+          (`second_step_elsewhere`, spec 036).
         content:
           application/json:
             schema:

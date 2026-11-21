@@ -77,6 +77,15 @@ final class ResumeKeptSignIn
             return $next($request);
         }
 
+        // A kept sign-in from a custom domain resumes only there, and not after the domain
+        // was removed and claimed again (spec 036, research R6). Browsers never send the
+        // cookie to another host; this refuses a copied one.
+        if ($record->portal_address !== $this->access->sessionMark($request)) {
+            Cookie::queue($this->cookie->forget());
+
+            return $next($request);
+        }
+
         // A kept sign-in does not open an address its person may not use (spec 036,
         // FR-020). The cookie stays: on the platform's domain it is theirs elsewhere.
         if (! $this->access->admits($user, $request)) {
@@ -85,6 +94,7 @@ final class ResumeKeptSignIn
 
         $guard->login($user);
         $session->regenerate();
+        $this->access->bind($request);
         $session->put([
             KeptSignInCookie::SESSION_KEY => $record->getKey(),
             // As Sanctum's AuthenticateSession stores it, so a later password change

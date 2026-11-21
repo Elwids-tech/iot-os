@@ -73,7 +73,22 @@ export type PortalAddress = {
   last_checked_at: string | null
   unreachable_since: string | null
   suspended_at: string | null
+  /** The DNS record that proves control of a custom domain and points it here. Null for a name. */
+  record: { type: "CNAME"; name: string; value: string } | null
+  /** When a domain still waiting for its record lapses. */
+  lapses_at: string | null
 }
+
+/** Why a custom domain was not claimed: a 403, 409 or 422 `code`. */
+export type PortalDomainRefusal =
+  | "addresses_unavailable"
+  | "custom_domain_not_allowed"
+  | "host_taken"
+  | "host_held"
+  | "domain_exists"
+  | "host_invalid"
+  | "bare_domain"
+  | "platform_domain"
 
 /** Why a name was not claimed: a 409 or 422 `code`. */
 export type PortalAddressRefusal = "addresses_unavailable" | "name_taken" | "name_reserved" | "name_invalid" | "suspended" | "branding_not_allowed"

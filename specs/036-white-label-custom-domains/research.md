@@ -155,6 +155,27 @@ Caddy) the same behaviour. Per-request configuration is safe on php-fpm.
 and two certificates per customer). `SameSite=None` cookies on `api.DOMAIN` (blocked
 as third-party in Safari and soon elsewhere).
 
+**Built in pull request 4**:
+
+- The portal's nginx sends `X-Portal-Address` with every request it passes on for a
+  host that is not the platform's own. The API needs it to tell an unknown host
+  pointed at the deployment (not in use, 421) from one of its own hosts, which it
+  cannot list reliably (service names, health checks).
+- Queued cookies (the kept sign-in) take the cookie jar's default domain, not
+  `session.domain`, so the middleware clears both.
+- The session holds the address's id and activation time, not the id alone, so a
+  domain removed and claimed again does not revive an old session.
+- Passkeys: the package reads `passkeys.*`. Pull request 3 set
+  `fortify.passkeys.allowed_origins`, which nothing reads after start-up, so passkeys
+  on a name under the platform's domain were refused; fixed here. The package's
+  actions are replaced by subclasses that scope to the request's relying party.
+- A person required to use two-step whose only second step is a passkey from another
+  domain is refused after a right password (`second_step_elsewhere`), instead of being
+  let in by the password alone and sent to setup (FR-027).
+- Development: no resolver finds a made-up customer domain, so with
+  `PORTAL_ADDRESSES_DNS_CHECK=off` a name two levels under `localhost`
+  (`portal.acme.localhost`) is accepted as a domain and its record counts as found.
+
 **Risk**: When ADR-038 lands, Octane resets configuration between requests from the
 base repository, which fits this design. The Octane pull request must test it; a note
 goes in `docs/dev/gotchas.md`.

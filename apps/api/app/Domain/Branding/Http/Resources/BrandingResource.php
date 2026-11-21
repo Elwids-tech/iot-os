@@ -7,6 +7,7 @@ namespace App\Domain\Branding\Http\Resources;
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Services\Allowances;
+use App\Domain\Branding\Enums\PortalAddressKind;
 use App\Domain\Branding\Services\BrandImages;
 use App\Domain\Branding\Services\Brands;
 use App\Domain\Branding\Services\PortalAddresses;
@@ -39,11 +40,16 @@ final class BrandingResource extends JsonResource
         $brand = $brands->for($account);
         $addresses = app(PortalAddresses::class);
         $domain = $addresses->domain();
+        $live = $addresses->for($account);
+        $lapsed = $addresses->lapsedFor($account);
 
         return [
             'brand' => new BrandResource($brand, $brands->inEffect($account, $brand)),
-            /** The account's portal addresses: at most one name and one custom domain. */
-            'addresses' => PortalAddressResource::collection($addresses->for($account)),
+            /**
+             * The account's portal addresses: at most one name and one custom domain. A
+             * domain request that lapsed is listed until the account asks again.
+             */
+            'addresses' => PortalAddressResource::collection($live->contains('kind', PortalAddressKind::Domain) || $lapsed === null ? $live : $live->push($lapsed)),
             /** What the account's plan and overrides turn on. */
             'allowances' => [
                 'branding' => $allowances[AllowanceKind::Branding->value]->value === 1,

@@ -45,9 +45,13 @@ final class CompleteSignIn
         $this->kept->record($request)?->end(KeptSignIn::SIGNED_OUT);
         $request->session()->forget(KeptSignInCookie::SESSION_KEY);
         $request->session()->regenerate();
+        // A session started on a custom domain works only there (spec 036, research R6).
+        $this->access->bind($request);
 
         if ($remember) {
             [$record, $secret] = KeptSignIn::issue($user, $this->kept->label($request->userAgent()));
+            // Kept only where it was started (spec 036, research R6).
+            $record->forceFill(['portal_address' => $this->access->sessionMark($request)])->save();
             $request->session()->put(KeptSignInCookie::SESSION_KEY, $record->getKey());
             Cookie::queue($this->kept->make($record, $secret));
         } elseif ($this->kept->present($request)) {

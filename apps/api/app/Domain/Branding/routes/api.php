@@ -51,6 +51,12 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 Route::put('billing-accounts/{billingAccount}/addresses/name', [PlatformPortalAddressController::class, 'name'])
                     ->whereUuid('billingAccount')
                     ->name('billing-accounts.addresses.name');
+                Route::put('billing-accounts/{billingAccount}/addresses/domain', [PlatformPortalAddressController::class, 'domain'])
+                    ->whereUuid('billingAccount')
+                    ->name('billing-accounts.addresses.domain');
+                Route::post('billing-accounts/{billingAccount}/addresses/{address}/check', [PlatformPortalAddressController::class, 'check'])
+                    ->whereUuid(['billingAccount', 'address'])
+                    ->name('billing-accounts.addresses.check');
                 Route::delete('billing-accounts/{billingAccount}/addresses/{address}', [PlatformPortalAddressController::class, 'destroy'])
                     ->whereUuid(['billingAccount', 'address'])
                     ->name('billing-accounts.addresses.destroy');
@@ -76,6 +82,13 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->whereUuid('billingAccount')
             ->middleware('throttle:30,1')
             ->name('billing-accounts.addresses.name');
+        Route::put('billing-accounts/{billingAccount}/addresses/domain', [OwnedPortalAddressController::class, 'domain'])
+            ->whereUuid('billingAccount')
+            ->middleware('throttle:30,1')
+            ->name('billing-accounts.addresses.domain');
+        Route::post('billing-accounts/{billingAccount}/addresses/{address}/check', [OwnedPortalAddressController::class, 'check'])
+            ->whereUuid(['billingAccount', 'address'])
+            ->name('billing-accounts.addresses.check');
         Route::delete('billing-accounts/{billingAccount}/addresses/{address}', [OwnedPortalAddressController::class, 'destroy'])
             ->whereUuid(['billingAccount', 'address'])
             ->name('billing-accounts.addresses.destroy');

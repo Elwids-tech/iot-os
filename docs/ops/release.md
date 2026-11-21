@@ -109,6 +109,13 @@ What to know:
   off for every account until staff turn it on.
 - `smoke` checks, from inside, that a name nobody claimed is refused a certificate and
   reaches the API as its own host.
+- **Custom domains use the same switch.** An account with the **Custom domain**
+  allowance adds a CNAME from its own subdomain to a name under `DOMAIN`, which the
+  wildcard record answers. Nothing is added to the proxy: the catch-all site serves
+  the domain once the API says it serves, and the API host must be able to resolve
+  public DNS (the scheduler looks the record up every few minutes). Custom domains do
+  not count toward the 50 names a week. A customer whose DNS provider proxies the
+  record must turn that off, or the CNAME is not visible.
 
 ## First installation
 

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\Contracts\PasskeyUser;
@@ -20,6 +21,8 @@ use Laravel\Fortify\Events\RecoveryCodeReplaced;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Passkeys\Passkey;
+use Laravel\Passkeys\Passkeys;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -98,6 +101,17 @@ class User extends Authenticatable implements OAuthenticatable, PasskeyUser
     public function remainingRecoveryCodes(): int
     {
         return $this->two_factor_recovery_codes === null ? 0 : count($this->recoveryCodes());
+    }
+
+    /**
+     * The person's passkeys that work on the request's domain (spec 036, FR-026): those
+     * made on the deployment's own domain, or on the custom domain being used.
+     *
+     * @return HasMany<Passkey, $this>
+     */
+    public function passkeysHere(): HasMany
+    {
+        return $this->passkeys()->where('relying_party_id', strtolower(Passkeys::relyingPartyId()));
     }
 
     /**

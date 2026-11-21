@@ -55,8 +55,8 @@ Found through the caller's owned accounts; any other account answers 404.
 | `POST billing-accounts/{account}/brand/images/{role}` | Multipart `image`; `role` is `logo`, `logo_dark` or `icon`. POST because PHP reads a multipart body only on POST | 200 brand · 403 · 422 `image_type`, `image_too_large`, `image_not_square`, `image_too_small` |
 | `DELETE billing-accounts/{account}/brand/images/{role}` | Removes that image | 200 brand |
 | `PUT billing-accounts/{account}/addresses/name` | `{ "name": "acme" }`; claims or renames | 200 address · 403 `branding_not_allowed` · 409 `addresses_unavailable`, `name_taken`, `name_reserved`, `suspended` · 422 `name_invalid` |
-| `PUT billing-accounts/{account}/addresses/domain` | `{ "host": "portal.example.org" }` | 200 address (waiting) · 403 `custom_domain_not_allowed` · 409 `addresses_unavailable`, `host_taken`, `host_held` · 422 `bare_domain`, `platform_domain` |
-| `POST billing-accounts/{account}/addresses/{address}/check` | Checks DNS now; once a minute | 200 address · 429 |
+| `PUT billing-accounts/{account}/addresses/domain` | `{ "host": "portal.example.org" }`. The same host again returns the same claim | 200 address (waiting) · 403 `custom_domain_not_allowed` · 409 `addresses_unavailable`, `host_taken`, `host_held`, `domain_exists` (remove the current domain first) · 422 `host_invalid`, `bare_domain`, `platform_domain` |
+| `POST billing-accounts/{account}/addresses/{address}/check` | Checks DNS now; once a minute for each address | 200 address · 429 `checked_recently` |
 | `DELETE billing-accounts/{account}/addresses/{address}` | Releases it; sessions there end | 204 · 409 `suspended` |
 
 ## Platform staff
@@ -103,6 +103,7 @@ or 1 for `branding`, `custom_domain` and `hide_powered_by`.
 | Route | Change |
 | --- | --- |
 | `POST login`, two-step and passkey sign-in | On an account's address, after valid credentials: `403 not_available_here` when the person has no organization there and no platform role |
+| `POST login` | `403 second_step_elsewhere` after a right password when the person must use two-step and their only second step is a passkey made on another domain (FR-027) |
 | Invitation accept | On an account's address: `403 not_available_here` for an invitation to another account's organization or to a platform role; it stays pending |
 | `GET me` | `organizations` lists only the address's account on an account's address. Adds `address { kind, host }` or null, and with push (pull request 5) `push_devices_elsewhere` |
 | Any `organizations/{organization}/…` route | `404 not_available_here` for an organization outside the address's account |
@@ -110,9 +111,9 @@ or 1 for `branding`, `custom_domain` and `hide_powered_by`.
 | Any authenticated route | `401` when the session belongs to another address (custom domains) |
 | `GET sign-up`, `POST sign-up` | Closed on any address |
 | `GET me/passkeys` | Each passkey gains `relying_party_id` and `usable_here` |
-| `GET auth/passkeys/options` | Offers only passkeys of the request's relying party |
-| `admin/*`, `/mcp`, application sign-in pages | 404 on a custom domain |
-| Any API route | `421 address_not_in_use` for a request from, or on, a host under the platform's domain that is neither one of the platform's own nor an address that serves |
+| `GET auth/passkeys/options`, confirmation and registration options | The relying party is the request's domain; only its passkeys are offered, excluded or accepted |
+| `admin/*`, `agent-authorizations`, `/mcp`, `/oauth/*`, `/.well-known/*`, `stripe/*` | 404 on a custom domain |
+| Any API route | `421 address_not_in_use` for a request from, or on, a host under the platform's domain that is neither one of the platform's own nor an address that serves, and for any other host the portal's web server passed on (`X-Portal-Address`) that is not an address that serves |
 | Any API route but the bootstrap | 404 on a name's own host: a name calls the platform's API host (development serves it on the name) |
 
 ## Internal

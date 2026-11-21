@@ -46,6 +46,8 @@ Schedule::command('passport:purge')->dailyAt('03:35')->withoutOverlapping();
 Schedule::command('auth:prune-kept-sign-ins')->dailyAt('03:55')->withoutOverlapping();
 Schedule::command('sign-ups:prune')->dailyAt('04:10')->withoutOverlapping();
 Schedule::command('branding:prune-assets')->dailyAt('04:20')->withoutOverlapping();
+// Custom domains (spec 036): waiting requests each run, serving ones every 15 minutes.
+Schedule::command('branding:check-addresses')->everyTwoMinutes()->withoutOverlapping();
 
 Schedule::call(function (): void {
     if (config('deployment.ops_enabled')) {

@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
  * @property CarbonImmutable|null $last_used_at
  * @property CarbonImmutable|null $ended_at
  * @property string|null $end_reason
+ * @property string|null $portal_address
  */
 final class KeptSignIn extends Model
 {

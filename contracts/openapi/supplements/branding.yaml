@@ -56,6 +56,33 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CodedError'
+    CustomDomainNotAllowed:
+      description: >-
+        A custom domain is not part of the billing account's plan
+        (`custom_domain_not_allowed`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
+    DomainRefused:
+      description: >-
+        The domain cannot be claimed. `code` is `addresses_unavailable` (this deployment
+        does not serve portal addresses), `host_taken` (another account uses or has asked
+        for it), `host_held` (another account's portal was served there less than 30 days
+        ago) or `domain_exists` (the account already has a domain; remove it first).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CodedError'
+    DomainInvalid:
+      description: >-
+        The host is missing or is not a domain name (`host_invalid`), is a bare domain
+        such as `example.org` (`bare_domain`: use a subdomain, which can carry a CNAME
+        record), or is under the platform's own domain (`platform_domain`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
     AddressNameInvalid:
       description: >-
         The name is missing, or is not 3 to 40 letters, numbers and single hyphens that
@@ -155,6 +182,34 @@ operations:
         $ref: '#/components/responses/AddressRefused'
       '422':
         $ref: '#/components/responses/AddressNameInvalid'
+  PUT /v1/billing-accounts/{billingAccount}/addresses/domain:
+    description: |-
+      Asks for a custom domain for the billing account, such as `portal.example.org`.
+      The answer carries the CNAME `record` to add at the domain's DNS provider. The
+      address waits (`waiting_dns`) until a check finds the record, then serves the
+      branded portal and becomes the account's main address. A request whose record is
+      not found within 7 days lapses (`lapses_at`). Needs the account's `branding` and
+      `custom_domain` allowances. Asking again for the same domain returns the same
+      record.
+    responses:
+      '403':
+        $ref: '#/components/responses/CustomDomainNotAllowed'
+      '409':
+        $ref: '#/components/responses/DomainRefused'
+      '422':
+        $ref: '#/components/responses/DomainInvalid'
+  POST /v1/billing-accounts/{billingAccount}/addresses/{address}/check:
+    description: |-
+      Looks the custom domain's DNS record up now instead of waiting for the scheduled
+      check, at most once a minute for each address, and returns the address as it then
+      stands. A name under the platform's domain is returned unchanged.
+    responses:
+      '429':
+        description: The address was checked less than a minute ago (`checked_recently`). `Retry-After` says when to try again.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodedError'
   DELETE /v1/billing-accounts/{billingAccount}/addresses/{address}:
     description: |-
       Releases an address. It stops serving within a minute, people signed in there lose
@@ -169,6 +224,22 @@ operations:
         $ref: '#/components/responses/AddressRefused'
       '422':
         $ref: '#/components/responses/AddressNameInvalid'
+  PUT /v1/admin/billing-accounts/{billingAccount}/addresses/domain:
+    description: Asks for a custom domain on a billing account's owners' behalf, without the allowance check.
+    responses:
+      '409':
+        $ref: '#/components/responses/DomainRefused'
+      '422':
+        $ref: '#/components/responses/DomainInvalid'
+  POST /v1/admin/billing-accounts/{billingAccount}/addresses/{address}/check:
+    description: Looks a billing account's custom domain record up now, at most once a minute for each address.
+    responses:
+      '429':
+        description: The address was checked less than a minute ago (`checked_recently`).
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodedError'
   GET /v1/portal/runtime-config.js:
     description: |-
       What the portal reads before it starts on a host that is not the platform's own

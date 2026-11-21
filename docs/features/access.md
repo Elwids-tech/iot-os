@@ -151,6 +151,15 @@ side is `@laravel/passkeys`.
   portal and admin app (the release's `DOMAIN`), so one passkey works in both. The
   allowed origins are `FRONTEND_URL` and `ADMIN_FRONTEND_URL`. Changing the domain
   makes every passkey stop working; people sign in with their password and code.
+- **One domain each.** A passkey works only on the domain it was made on
+  (`passkeys.relying_party_id`). On a billing account's
+  [custom domain](branding.md#custom-domains) the relying party is that domain, so a
+  person adds a passkey there to use one there; `GET /api/v1/me/security` lists each
+  passkey's `relying_party_id` and whether it is `usable_here`, and options and
+  verification consider only the request's domain. Names under the platform's domain
+  share the platform's relying party. A person who must use two-step sign-in and whose
+  only second step is a passkey from another domain is refused after a right password
+  (`403 second_step_elsewhere`): the password alone never starts their session.
 - **When they are offered.** Only when both front-end URLs are `https`, or their host
   is `localhost` (`PasskeyAvailability`). Otherwise every passkey route answers `404`,
   `GET /api/v1/me/security` says `unavailable_reason: "not_https"`, the sign-in pages

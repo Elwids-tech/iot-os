@@ -101,6 +101,15 @@ host instead (`PORTAL_ADDRESSES_SAME_ORIGIN`, set by the compose file). A sign-i
 `acme.localhost` is therefore separate from one at `localhost`. The cross-origin path
 is covered by the API's tests and by a test deployment with real DNS.
 
+To try a [custom domain](../features/branding.md#custom-domains), also put
+`PORTAL_ADDRESSES_DNS_CHECK=off` in the root `.env`, turn **Custom domain** on for the
+account, and add a name two levels under `localhost`, such as `portal.acme.localhost`,
+in **Use your own domain**. With the DNS check off such a name is allowed to stand in
+for a customer's domain and its record always counts as found, so **Check now** turns
+it active. Open `http://portal.acme.localhost:5173`: the portal's nginx treats every
+host but `localhost` and `127.0.0.1` as an address. The record lookup itself and
+certificates need a test deployment with real DNS.
+
 ## Rebuild one service
 
 After a change, rebuild only what it affects and keep the stack's existing env

@@ -3,9 +3,9 @@
 A billing account's own product name, logo and icon instead of the platform's, and an
 organization's own logo ([spec 036](../../specs/036-white-label-custom-domains/spec.md),
 [ADR-050](../adr/ADR-050-brands-and-portal-addresses.md)). This page covers what is
-built: brands, logos, the allowances that turn them on, and portal addresses under the
-platform's domain. Custom domains, branded mail and the branded installed app are
-later pull requests of the same spec.
+built: brands, logos, the allowances that turn them on, and portal addresses: names
+under the platform's domain and custom domains. Branded mail and the branded installed
+app are later pull requests of the same spec.
 
 Code: [`app/Domain/Branding`](../../apps/api/app/Domain/Branding)
 ([`Brands`](../../apps/api/app/Domain/Branding/Services/Brands.php),
@@ -97,6 +97,55 @@ inside the portal at the platform's own address.
 - An account's addresses are released when it is deleted or its last organization
   moves away.
 
+### Custom domains
+
+An account with the `custom_domain` allowance (and `branding`) can also serve the
+portal on one domain of its own, such as `portal.example.org`
+([`PortalAddresses::claimDomain`](../../apps/api/app/Domain/Branding/Services/PortalAddresses.php)).
+
+- **Claiming.** The host must be a subdomain: at least three labels, not an address
+  literal and not under the platform's domain (`422 bare_domain`, `host_invalid`,
+  `platform_domain`). The claim answers with the DNS record to add: a CNAME from the
+  host to `c-<token>.<domain>`, a name only that claim knows. The deployment's wildcard
+  record makes that name point at the deployment, so the one record both proves control
+  and routes the traffic. An account has one domain at a time
+  (`409 domain_exists`); a host another account uses or waits on is `host_taken`.
+- **States.**
+
+  | State | Means | Serves |
+  | --- | --- | --- |
+  | `waiting_dns` | The record has not been found yet. Lapses 7 days after the claim | No |
+  | `active` | The record was found. The account's main address | Yes |
+  | `unreachable` | Three checks in a row did not find the record. Shows since when | Yes |
+  | `suspended` | Stopped by platform staff | No |
+  | `lapsed` | The record was never found. Shown until the account asks again | No |
+
+- **Checks.** `branding:check-addresses` runs every two minutes: every waiting domain
+  each run, every serving one every 15 minutes. An owner's **Check now** looks at once,
+  at most once a minute for each address (`429 checked_recently`). A check only reads
+  DNS, through the [`DnsResolver`](../../apps/api/app/Domain/Branding/Contracts/DnsResolver.php)
+  contract. One good check brings an unreachable domain back.
+- **Main address.** The domain while it is `active`, else the name, else the
+  platform's portal address (`PortalAddresses::mainFor`). An unreachable domain keeps
+  serving, since its certificate and sessions are still good, but is no longer main.
+- **Holding.** A removed domain that had served is held for 30 days against other
+  accounts (`host_held`); its own account can ask again at once and gets a new record.
+  A request that never found its record, removed or lapsed, holds nothing.
+- **A custom domain is its own site.** Browsers send no cookie of the platform's
+  domain there, so the portal on a custom domain calls the API on the domain itself:
+  the portal's web server proxies `/api/` and `/sanctum/` to the API for every host
+  but the platform's own. For such a request the API makes the session and kept
+  sign-in cookies host-only and treats only that host as a first-party page. A
+  session started there carries the address and its activation, works nowhere else
+  (`401`), and ends when the domain is removed, suspended or claimed again. The admin
+  app, agent connections, application sign-in and payment webhooks answer 404 there.
+- **Passkeys belong to the domain they were made on.** On a custom domain the passkey
+  relying party is the domain, so a person adds a passkey there to use one there. The
+  security page lists where each passkey works. See
+  [access](access.md#passkeys).
+- **Certificates** are issued by the deployment's proxy on first use, only for a host
+  the API says serves ([release guide](../ops/release.md#portal-addresses)).
+
 ### What an address shows
 
 The portal is one build for every host. Its page has no name of its own: the first
@@ -144,10 +193,12 @@ reaches. Membership stays the only way into an organization.
 [`ApplyPortalAddress`](../../apps/api/app/Domain/Branding/Http/Middleware/ApplyPortalAddress.php)
 runs before anything else. A name's portal calls the platform's API host across
 origins, so the browser's `Origin` names the address; the session cookie and passkeys
-of the platform's domain already cover it. A host under the platform's domain that is
-neither one of the platform's own nor an address that serves gets
-`421 address_not_in_use`, which is how a suspended address stops for pages already
-open. The lookup is remembered for 30 seconds and cleared on every change. With
+of the platform's domain already cover it. A custom domain's portal calls the API on
+the domain itself, so the request's `Host` names the address. The portal's web server
+marks every request it passes on for a host that is not the platform's own with
+`X-Portal-Address`, so a host the API does not know as a serving address, under the
+platform's domain or not, gets `421 address_not_in_use`, which is how a suspended or
+removed address stops for pages already open. The lookup is remembered for 30 seconds and cleared on every change. With
 addresses off the middleware does nothing.
 
 ## Where people do it
@@ -159,7 +210,12 @@ addresses off the middleware does nothing.
   plan.
 - **Portal → Billing accounts → Addresses** (owners): the name, its state, **Change
   address** and **Remove**. The panel says so when addresses are not available on the
-  deployment or branding is not part of the plan.
+  deployment or branding is not part of the plan. **Use your own domain** below it
+  takes the host, shows the DNS record with copy buttons, the state, when the request
+  lapses, **Check now** and **Remove**, and says so when a custom domain is not part
+  of the plan.
+- **Portal → your user menu → Security**: each passkey shows where it works once a
+  person has one from another address, or is on a custom domain.
 - **Portal → Settings → General → Organization logo**: upload, replace or remove the
   logo and the dark logo. Read-only without `Organization.update`.
 - **Admin → a billing account's page**: the **Allowances** panel lists the three
@@ -172,7 +228,8 @@ addresses off the middleware does nothing.
 `brand.updated` (the changed fields) and `brand.image_changed` on the billing account,
 `organization.logo_changed` on the organization. None carries image bytes.
 `portal_address.claimed`, `.released`, `.suspended` and `.restored` on the billing
-account carry the host.
+account carry the host. A custom domain's checks add `.activated`, `.unreachable`,
+`.recovered` and `.lapsed`, recorded with no actor.
 
 ## Settings
 
@@ -183,6 +240,7 @@ Brands and logos need no setting. Portal addresses read, in `config/branding.php
 | `PORTAL_ADDRESSES` | `on` serves addresses. Off by default |
 | `PORTAL_ADDRESSES_DOMAIN` | The domain names are claimed under: the release's `DOMAIN`, `localhost` in development |
 | `PORTAL_ADDRESSES_TOKEN` | What the proxy sends when it asks whether a host may have a certificate |
+| `PORTAL_ADDRESSES_DNS_CHECK` | `off` only in development: every custom domain's record counts as found, and a deeper name under the platform's domain (`portal.acme.localhost`) may stand in for a customer's domain |
 | `PORTAL_ADDRESSES_SAME_ORIGIN` | Development only: a name's portal calls the API on its own host ([local setup](../dev/local-setup.md#portal-addresses)) |
 | `PORTAL_ADDRESSES_DNS_CHECK` | For custom domains, which are not built yet |
 | `PLATFORM_NAME` | The name in the **Powered by** line. `IoT OS` by default |

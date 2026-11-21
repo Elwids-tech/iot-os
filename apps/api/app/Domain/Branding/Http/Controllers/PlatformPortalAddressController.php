@@ -29,6 +29,24 @@ final class PlatformPortalAddressController
         return new PortalAddressResource($address);
     }
 
+    public function domain(Request $request, BillingAccount $billingAccount): PortalAddressResource
+    {
+        $host = (string) $request->validate(['host' => ['required', 'string', 'max:260']])['host'];
+        $address = $this->addresses->claimDomain($billingAccount, $host, $request->user());
+        $address->wasRecentlyCreated = false;
+
+        return new PortalAddressResource($address);
+    }
+
+    public function check(BillingAccount $billingAccount, string $address): PortalAddressResource
+    {
+        /** @var PortalAddress|null $found */
+        $found = $this->addresses->for($billingAccount)->firstWhere('uuid', $address);
+        abort_if($found === null, 404);
+
+        return new PortalAddressResource($this->addresses->checkNow($found));
+    }
+
     public function destroy(Request $request, BillingAccount $billingAccount, string $address): Response
     {
         /** @var PortalAddress|null $found */

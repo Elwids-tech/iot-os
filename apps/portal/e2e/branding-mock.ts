@@ -27,6 +27,8 @@ export type MockAddress = {
   last_checked_at: string | null
   unreachable_since: string | null
   suspended_at: string | null
+  record: { type: "CNAME"; name: string; value: string } | null
+  lapses_at: string | null
 }
 
 type Organization = {
@@ -50,6 +52,10 @@ export async function mockBranding(
     organizations?: () => Organization[]
     /** The deployment's domain for names, such as `example.com`; without it addresses are not available. */
     addressesDomain?: string
+    /** The account's Custom domain switch. */
+    customDomain?: boolean
+    /** Addresses the account already has. */
+    addresses?: MockAddress[]
     /** The brand already has this product name. */
     productName?: string
   } = {},
@@ -66,7 +72,9 @@ export async function mockBranding(
       icon: null as MockImage | null,
       revision: options.productName ? 1 : 0,
     },
-    addresses: [] as MockAddress[],
+    addresses: [...(options.addresses ?? [])] as MockAddress[],
+    /** Whether the domain's DNS record is in place: a check then activates it. */
+    recordFound: false,
   }
   const providers = new Map<string, Organization["brand"]>()
   const shown = () => ({ ...state.brand, in_effect: state.allowed && state.brand.product_name !== null })
@@ -84,7 +92,7 @@ export async function mockBranding(
         data: {
           brand: shown(),
           addresses: state.addresses,
-          allowances: { branding: state.allowed, custom_domain: false, hide_powered_by: false },
+          allowances: { branding: state.allowed, custom_domain: options.customDomain ?? false, hide_powered_by: false },
           addresses_available: options.addressesDomain !== undefined,
           name_suffix: options.addressesDomain === undefined ? null : `.${options.addressesDomain}`,
           limits: { image_bytes: 1048576, types: ["image/png", "image/jpeg", "image/webp"], icon_min: 512 },
@@ -127,8 +135,43 @@ export async function mockBranding(
     const address: MockAddress = {
       uuid: "ad000000-0000-4000-8000-000000000001", kind: "name", host, url: `https://${host}`, state: "active", main: true,
       claimed_at: new Date().toISOString(), activated_at: new Date().toISOString(), last_checked_at: null, unreachable_since: null, suspended_at: null,
+      record: null, lapses_at: null,
     }
-    state.addresses = [address]
+    state.addresses = [address, ...state.addresses.filter((each) => each.kind === "domain")]
+    return json(route, { data: address })
+  })
+
+  // Custom domains (spec 036 US3): a claim waits for its record; a check finds it once `recordFound` is set.
+  await page.route(/\/api\/v1\/billing-accounts\/[^/]+\/addresses\/domain$/, async (route) => {
+    const request = route.request()
+    const body = request.postDataJSON() as { host: string }
+    sent.push({ method: "PUT", path: new URL(request.url()).pathname, body })
+    if (!(options.customDomain ?? false)) return json(route, { message: "A custom domain is not part of this billing account's plan.", code: "custom_domain_not_allowed" }, 403)
+    const host = body.host.trim().toLowerCase()
+    if (host.split(".").length < 3) {
+      const message = `Use a subdomain such as portal.${host}. A bare domain cannot point here with a CNAME record.`
+      return json(route, { message, code: "bare_domain", errors: { host: [message] } }, 422)
+    }
+    if (host === "taken.example.org") return json(route, { message: "This domain is already in use.", code: "host_taken" }, 409)
+    const address: MockAddress = {
+      uuid: "ad000000-0000-4000-8000-000000000002", kind: "domain", host, url: `https://${host}`, state: "waiting_dns", main: false,
+      claimed_at: new Date().toISOString(), activated_at: null, last_checked_at: null, unreachable_since: null, suspended_at: null,
+      record: { type: "CNAME", name: host, value: `c-0123456789abcdef0123.${options.addressesDomain}` },
+      lapses_at: new Date(Date.UTC(2031, 0, 15)).toISOString(),
+    }
+    state.addresses = [...state.addresses.filter((each) => each.kind === "name"), address]
+    return json(route, { data: address })
+  })
+  await page.route(/\/api\/v1\/billing-accounts\/[^/]+\/addresses\/[^/]+\/check$/, async (route) => {
+    const path = new URL(route.request().url()).pathname
+    sent.push({ method: "POST", path, body: null })
+    const address = state.addresses.find((each) => path.includes(`/${each.uuid}/`))
+    if (!address) return json(route, { message: "Not Found" }, 404)
+    address.last_checked_at = new Date().toISOString()
+    if (state.recordFound) {
+      Object.assign(address, { state: "active", main: true, activated_at: new Date().toISOString(), lapses_at: null })
+      state.addresses.filter((each) => each !== address).forEach((each) => (each.main = false))
+    }
     return json(route, { data: address })
   })
 

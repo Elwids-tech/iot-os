@@ -6,6 +6,7 @@ namespace App\Domain\Branding\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Branding\Contracts\DnsResolver;
 use App\Domain\Branding\Enums\PortalAddressKind;
 use App\Domain\Branding\Enums\PortalAddressState;
 use App\Domain\Branding\Exceptions\BrandingRefusal;
@@ -13,13 +14,17 @@ use App\Domain\Branding\Models\PortalAddress;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
+use Throwable;
 
 /**
  * Portal addresses (spec 036, ADR-050, research R4 and R7): the hosts a billing
- * account's branded portal is served on. This pull request has names under the
- * platform's domain; custom domains come with the next one.
+ * account's branded portal is served on: a name under the platform's domain, and a
+ * custom domain the account proves it controls with a CNAME record.
  */
 final class PortalAddresses
 {
@@ -27,6 +32,11 @@ final class PortalAddresses
     public const CACHE_SECONDS = 30;
 
     private const CACHE_PREFIX = 'portal-address:';
+
+    /** A custom domain's states that the scheduled check looks at. */
+    private const CHECKED = [PortalAddressState::WaitingDns, PortalAddressState::Active, PortalAddressState::Unreachable];
+
+    public function __construct(private readonly DnsResolver $dns) {}
 
     /** Whether this deployment serves addresses at all: the switch and a domain to put names under. */
     public function enabled(): bool
@@ -227,6 +237,246 @@ final class PortalAddresses
         });
     }
 
+    /**
+     * Claims a custom domain for the account (FR-011). It waits for the CNAME record
+     * {@see record()} names, and serves once {@see check()} finds it.
+     */
+    public function claimDomain(BillingAccount $account, string $host, ?User $actor): PortalAddress
+    {
+        if (! $this->enabled()) {
+            throw new BrandingRefusal(409, 'addresses_unavailable', 'Portal addresses are not available on this deployment.');
+        }
+        $host = $this->domainHost($host);
+
+        try {
+            $address = DB::transaction(function () use ($account, $host, $actor): PortalAddress {
+                BillingAccount::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
+                $current = PortalAddress::query()
+                    ->where('billing_account_id', $account->getKey())
+                    ->where('kind', PortalAddressKind::Domain)
+                    ->whereNotIn('state', [PortalAddressState::Released, PortalAddressState::Lapsed])
+                    ->lockForUpdate()->first();
+                if ($current?->host === $host) {
+                    return $current;
+                }
+                if ($current !== null) {
+                    throw new BrandingRefusal(409, 'domain_exists', 'This billing account already has a domain. Remove it before adding another.');
+                }
+
+                $held = PortalAddress::query()->where('host', $host)->lockForUpdate()->first();
+                if ($held !== null && $held->billing_account_id !== $account->getKey()) {
+                    if ($held->state->isLive()) {
+                        throw new BrandingRefusal(409, 'host_taken', 'This domain is already in use.');
+                    }
+                    // Only a domain that served is held: a request that never found its record frees the name at once.
+                    if ($held->activated_at !== null && $held->released_at !== null && $held->released_at->gt(now()->subDays((int) config('branding.hold_days')))) {
+                        throw new BrandingRefusal(409, 'host_held', 'This domain was used by another account recently. Try again later, or contact support.');
+                    }
+                    $held->delete();
+                    $held = null;
+                }
+
+                $address = $held ?? new PortalAddress;
+                $address->forceFill([
+                    'billing_account_id' => $account->getKey(),
+                    'kind' => PortalAddressKind::Domain,
+                    'host' => $host,
+                    'state' => PortalAddressState::WaitingDns,
+                    'claim_token' => bin2hex(random_bytes(10)),
+                    'claimed_by' => $actor?->getKey(),
+                    'claimed_at' => now(),
+                    'activated_at' => null,
+                    'last_checked_at' => null,
+                    'last_reachable_at' => null,
+                    'failed_checks' => 0,
+                    'unreachable_since' => null,
+                    'suspended_at' => null,
+                    'suspended_by' => null,
+                    'released_at' => null,
+                    'redirect_to_id' => null,
+                ])->save();
+
+                ActivityLog::record('portal_address.claimed', null, $actor, $account, ['host' => $host, 'kind' => PortalAddressKind::Domain->value]);
+
+                return $address;
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw new BrandingRefusal(409, 'host_taken', 'This domain is already in use.');
+        }
+        $this->forget($host);
+
+        return $address->setRelation('billingAccount', $account);
+    }
+
+    /**
+     * The DNS record that proves control of a custom domain and points it here: a CNAME
+     * to a name only this claim knows, under the platform's domain.
+     *
+     * @return array{type: 'CNAME', name: string, value: string}|null
+     */
+    public function record(PortalAddress $address): ?array
+    {
+        if ($address->kind !== PortalAddressKind::Domain || $address->claim_token === null || $this->domain() === null) {
+            return null;
+        }
+
+        return ['type' => 'CNAME', 'name' => $address->host, 'value' => config('branding.claim_prefix').$address->claim_token.'.'.$this->domain()];
+    }
+
+    /** When a domain still waiting for its record lapses. */
+    public function lapsesAt(PortalAddress $address): ?Carbon
+    {
+        return $address->state === PortalAddressState::WaitingDns && $address->claimed_at !== null
+            ? $address->claimed_at->copy()->addDays((int) config('branding.claim_days'))
+            : null;
+    }
+
+    /**
+     * Looks a custom domain's record up and moves the address between its states
+     * (data-model.md "States"): waiting → active or, after 7 days, lapsed; active →
+     * unreachable after three failed checks; unreachable → active on one good check.
+     * An unreachable address keeps serving; only links fall back to the name.
+     */
+    public function check(PortalAddress $address): PortalAddress
+    {
+        if ($address->kind !== PortalAddressKind::Domain || ! in_array($address->state, self::CHECKED, true)) {
+            return $address;
+        }
+        $found = $this->pointsHere($address);
+        $now = now();
+        $before = $address->state;
+        $event = null;
+        $changes = ['last_checked_at' => $now];
+
+        if ($found) {
+            $changes += ['last_reachable_at' => $now, 'failed_checks' => 0, 'unreachable_since' => null, 'state' => PortalAddressState::Active];
+            if ($before === PortalAddressState::WaitingDns) {
+                // A new activation: sessions from an earlier one do not carry over.
+                $changes['activated_at'] = $now;
+                $event = 'portal_address.activated';
+            } elseif ($before === PortalAddressState::Unreachable) {
+                $event = 'portal_address.recovered';
+            }
+        } elseif ($before === PortalAddressState::WaitingDns) {
+            if ($address->claimed_at === null || $address->claimed_at->lte($now->copy()->subDays((int) config('branding.claim_days')))) {
+                $changes += ['state' => PortalAddressState::Lapsed, 'released_at' => $now];
+                $event = 'portal_address.lapsed';
+            }
+        } elseif ($before === PortalAddressState::Active) {
+            $changes['failed_checks'] = $address->failed_checks + 1;
+            if ($changes['failed_checks'] >= (int) config('branding.unreachable_after')) {
+                $changes += ['state' => PortalAddressState::Unreachable, 'unreachable_since' => $now];
+                $event = 'portal_address.unreachable';
+            }
+        } else {
+            $changes['failed_checks'] = $address->failed_checks + 1;
+        }
+
+        $address->forceFill($changes)->save();
+        if ($event !== null) {
+            $this->forget($address->host);
+            // Recorded with no actor: the scheduled check, or the owner's **Check now**, only read DNS.
+            ActivityLog::record($event, null, null, $address->billingAccount, ['host' => $address->host]);
+        }
+
+        return $address;
+    }
+
+    /** {@see check()} for a person who asked, at most once a minute for each address. */
+    public function checkNow(PortalAddress $address): PortalAddress
+    {
+        $key = 'portal-address-check:'.$address->getKey();
+        if (RateLimiter::tooManyAttempts($key, 1)) {
+            $wait = RateLimiter::availableIn($key);
+            throw new HttpResponseException(response()->json(
+                ['message' => 'This address was checked a moment ago. Try again in a minute.', 'code' => 'checked_recently'],
+                429,
+                ['Retry-After' => (string) $wait],
+            ));
+        }
+        RateLimiter::hit($key, 60);
+
+        return $this->check($address);
+    }
+
+    /**
+     * The custom domains due a check: each one still waiting, and each serving one not
+     * looked at for 15 minutes.
+     *
+     * @return Collection<int, PortalAddress>
+     */
+    public function due(): Collection
+    {
+        $recheck = now()->subMinutes((int) config('branding.recheck_minutes'));
+
+        return PortalAddress::query()->with('billingAccount')
+            ->where('kind', PortalAddressKind::Domain)
+            ->where(fn ($query) => $query
+                ->where('state', PortalAddressState::WaitingDns)
+                ->orWhere(fn ($serving) => $serving
+                    ->whereIn('state', [PortalAddressState::Active, PortalAddressState::Unreachable])
+                    ->where(fn ($checked) => $checked->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', $recheck))))
+            ->orderBy('id')
+            ->get();
+    }
+
+    /** The account's last domain request that lapsed, shown until it asks again. */
+    public function lapsedFor(BillingAccount $account): ?PortalAddress
+    {
+        return PortalAddress::query()
+            ->where('billing_account_id', $account->getKey())
+            ->where('kind', PortalAddressKind::Domain)
+            ->where('state', PortalAddressState::Lapsed)
+            ->latest('released_at')
+            ->first()
+            ?->setRelation('billingAccount', $account);
+    }
+
+    private function pointsHere(PortalAddress $address): bool
+    {
+        // Development has no DNS for a made-up domain.
+        if (! config('branding.dns_check')) {
+            return true;
+        }
+        $target = $this->record($address)['value'] ?? null;
+        if ($target === null) {
+            return false;
+        }
+        try {
+            return in_array(strtolower($target), $this->dns->cnames($address->host), true);
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /** A custom domain as it is stored, or the refusal that explains what is wrong with it. */
+    private function domainHost(string $host): string
+    {
+        $host = self::host((string) preg_replace('#^[a-z][a-z0-9+.-]*://#i', '', trim($host)));
+        $host = explode('/', $host, 2)[0];
+        if (preg_match('/[^\x20-\x7e]/', $host) === 1 && function_exists('idn_to_ascii')) {
+            $host = (string) idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+        }
+        $label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+        if (strlen($host) > 253 || preg_match('/^'.$label.'(?:\.'.$label.')*$/', $host) !== 1 || filter_var($host, FILTER_VALIDATE_IP) !== false || preg_match('/\.[0-9]+$/', $host) === 1) {
+            throw new BrandingRefusal(422, 'host_invalid', 'Enter a domain name such as portal.example.org.', 'host');
+        }
+        $domain = (string) $this->domain();
+        if ($host === $domain || str_ends_with($host, '.'.$domain)) {
+            // Development only: with the DNS check off, a deeper name under `localhost`
+            // stands in for a customer's domain, which no local resolver could find.
+            $standIn = ! config('branding.dns_check') && substr_count(substr($host, 0, -strlen('.'.$domain)), '.') >= 1;
+            if (! $standIn) {
+                throw new BrandingRefusal(422, 'platform_domain', 'This name is under the platform\'s own domain. Choose a name there instead.', 'host');
+            }
+        }
+        if (substr_count($host, '.') < 2) {
+            throw new BrandingRefusal(422, 'bare_domain', 'Use a subdomain such as portal.'.$host.'. A bare domain cannot point here with a CNAME record.', 'host');
+        }
+
+        return $host;
+    }
+
     /** Gives an address up. Its host is held for 30 days, and whoever is signed in there loses the portal. */
     public function release(PortalAddress $address, ?User $actor, string $reason = 'removed'): void
     {
@@ -261,7 +511,13 @@ final class PortalAddresses
         if ($address->state === PortalAddressState::Suspended) {
             // A name serves at once. A custom domain goes back to waiting for its record.
             $state = $address->kind === PortalAddressKind::Name ? PortalAddressState::Active : PortalAddressState::WaitingDns;
-            $address->forceFill(['state' => $state, 'suspended_at' => null, 'suspended_by' => null])->save();
+            $address->forceFill([
+                'state' => $state,
+                'suspended_at' => null,
+                'suspended_by' => null,
+                // A domain gets a fresh seven days to show its record again.
+                ...($state === PortalAddressState::WaitingDns ? ['claimed_at' => now(), 'failed_checks' => 0, 'unreachable_since' => null] : []),
+            ])->save();
             $this->forget($address->host);
             ActivityLog::record('portal_address.restored', null, $actor, $address->billingAccount, ['host' => $address->host]);
         }

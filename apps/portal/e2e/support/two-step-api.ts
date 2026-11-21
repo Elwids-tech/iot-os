@@ -56,7 +56,8 @@ export function fakeAccount(options: { user?: typeof me; platform?: boolean; org
   return account
 }
 
-export type FakePasskey = { id: number; credentialId: string; name: string; created_at: string; last_used_at: string | null }
+/** `relying_party_id` is where the passkey was made (spec 036); one from another address is not usable here. */
+export type FakePasskey = { id: number; credentialId: string; name: string; created_at: string; last_used_at: string | null; relying_party_id?: string }
 
 const base64url = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url")
 const challenge = () => base64url(crypto.getRandomValues(new Uint8Array(32)))
@@ -271,7 +272,7 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
         const passkey: FakePasskey = { id: account.passkeys.length + 1, credentialId: String(credential?.id), name: label, created_at: new Date().toISOString(), last_used_at: null }
         account.passkeys.push(passkey)
         account.mails.push(`passkey_added:${label}`)
-        return json({ data: { id: passkey.id, name: passkey.name, created_at: passkey.created_at, last_used_at: null } }, 201)
+        return json({ data: { id: passkey.id, name: passkey.name, relying_party_id: "localhost", usable_here: true, created_at: passkey.created_at, last_used_at: null } }, 201)
       }
       const removing = /^\/api\/v1\/me\/passkeys\/(\d+)$/.exec(path)
       if (removing && method === "DELETE") {
@@ -296,7 +297,14 @@ export async function serve(page: Page, account: FakeAccount, name: string, { si
           passkeys: {
             available: !account.passkeysUnavailable,
             unavailable_reason: account.passkeysUnavailable ? "not_https" : null,
-            items: account.passkeys.map(({ id, name: label, created_at, last_used_at }) => ({ id, name: label, created_at, last_used_at })),
+            items: account.passkeys.map(({ id, name: label, created_at, last_used_at, relying_party_id }) => ({
+              id,
+              name: label,
+              relying_party_id: relying_party_id ?? "localhost",
+              usable_here: relying_party_id === undefined,
+              created_at,
+              last_used_at,
+            })),
           },
         },
       })
