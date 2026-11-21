@@ -28,6 +28,14 @@ Things that have cost time before. Add to this list when something surprises you
 - **A malformed uuid in a `where('uuid', …)` is a 500 on PostgreSQL.** A uuid column
   rejects a non-uuid string (`22P02`) where SQLite simply finds nothing. Check
   `Str::isUuid()` before querying with a value from a session, cookie or payload.
+- **PHP reads a multipart body only on POST.** A `PUT` or `PATCH` with
+  `multipart/form-data` reaches Laravel with no fields and no files, while a feature
+  test passes because the test client builds the request itself. Routes that take an
+  upload are `POST` (brand images and organization logos, spec 036).
+- **A resource of a model saved in the same request answers 201.** `JsonResource`
+  sets 201 when the model's `wasRecentlyCreated` is true, so a `PUT` whose first call
+  creates the row answers 201 once and 200 afterwards, and the contract check fails on
+  the 201. `Brands::save` clears the flag after the first save.
 - **PHPUnit runs on SQLite.** [`apps/api/phpunit.xml`](../../apps/api/phpunit.xml)
   forces an in-memory SQLite database. SQLite never raises Postgres's `22P02`
   invalid-UUID error, so a malformed id that would be a 500 on Postgres passes in

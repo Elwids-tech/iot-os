@@ -15,7 +15,7 @@ OpenAPI and `packages/api-client` change in the pull request that adds each rout
   "logo_dark": null,
   "icon": { "url": "…/512", "width": 512, "height": 512 },
   "in_effect": true,                      // allowance on and a product name set
-  "revision": 4
+  "revision": 4                           // 0 before anything is saved
 }
 
 // Address
@@ -48,8 +48,8 @@ Found through the caller's owned accounts; any other account answers 404.
 | Method and path | Does | Answers |
 | --- | --- | --- |
 | `GET billing-accounts/{account}/branding` | Reads the shape above | 200 |
-| `PUT billing-accounts/{account}/brand` | `product_name`, `short_name`, `support_url`, `revision` | 200 brand · 403 `branding_not_allowed` · 409 stale revision · 422 |
-| `PUT billing-accounts/{account}/brand/images/{role}` | Multipart `image`; `role` is `logo`, `logo_dark` or `icon` | 200 brand · 403 · 422 `image_type`, `image_too_large`, `image_not_square`, `image_too_small` |
+| `PUT billing-accounts/{account}/brand` | `product_name`, `short_name`, `support_url`, `revision` | 200 brand · 403 `branding_not_allowed` · 409 `brand_changed` (stale revision) · 422 |
+| `POST billing-accounts/{account}/brand/images/{role}` | Multipart `image`; `role` is `logo`, `logo_dark` or `icon`. POST because PHP reads a multipart body only on POST | 200 brand · 403 · 422 `image_type`, `image_too_large`, `image_not_square`, `image_too_small` |
 | `DELETE billing-accounts/{account}/brand/images/{role}` | Removes that image | 200 brand |
 | `PUT billing-accounts/{account}/addresses/name` | `{ "name": "acme" }`; claims or renames | 200 address · 403 · 409 `addresses_unavailable`, `name_taken`, `name_reserved` · 422 |
 | `PUT billing-accounts/{account}/addresses/domain` | `{ "host": "portal.example.org" }` | 200 address (waiting) · 403 `custom_domain_not_allowed` · 409 `addresses_unavailable`, `host_taken`, `host_held` · 422 `bare_domain`, `platform_domain` |
@@ -63,7 +63,7 @@ Under `admin/`, with `can:PlatformAdministration.manage-organizations`.
 | Method and path | Does |
 | --- | --- |
 | `GET admin/billing-accounts/{account}/branding` | The same shape |
-| `PUT`, `DELETE` on `admin/billing-accounts/{account}/brand…` and `…/addresses…` | As for owners, without the allowance check |
+| `PUT`, `POST`, `DELETE` on `admin/billing-accounts/{account}/brand…` and `…/addresses…` | As for owners, without the allowance check |
 | `POST admin/portal-addresses/{address}/suspend` · `…/restore` | 200 address |
 | `GET admin/portal-addresses?state=&search=&page=` | Paginated list with `billing_account { uuid, name }` |
 
@@ -75,8 +75,8 @@ or 1 for `branding`, `custom_domain` and `hide_powered_by`.
 
 | Method and path | Permission | Does |
 | --- | --- | --- |
-| `PUT organizations/{organization}/logo` · `…/logo/dark` | `Organization.update` | Multipart `image`; 200 organization |
-| `DELETE organizations/{organization}/logo` · `…/logo/dark` | `Organization.update` | 200 organization |
+| `POST organizations/{organization}/logo` · `…/logo/dark` | `Organization.update` | Multipart `image`; 200 `{ uuid, logo, logo_dark, brand }` |
+| `DELETE organizations/{organization}/logo` · `…/logo/dark` | `Organization.update` | 200 `{ uuid, logo, logo_dark, brand }` |
 
 `OrganizationResource` gains:
 

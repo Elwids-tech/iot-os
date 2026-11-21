@@ -30,6 +30,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 - [Access](features/access.md): sign-in, organizations, roles, permission ceilings, platform administration
 - [Portal on phones](features/portal-on-phones.md): pages that work at phone width, the filter sheet, what stays desktop-only, installing the portal as an app, offline behaviour, updates
 - [Billing](features/billing.md): plans, allowances and usage, invoices, card payments and trials for billing accounts
+- [Branding](features/branding.md): a billing account's product name, logo and icon, an organization's logo, image rules
 - [Support tickets](features/support.md): bug reports, feature requests and improvements, the team's queue
 - [Activity log](features/activity-log.md): the audit trail of who changed what, and the admin timeline
 

@@ -34,9 +34,10 @@ each month on ([Prices and invoices](#prices-and-invoices)). Each allowance has 
 | `data_points` | stored readings per month | unlimited |
 | `retention_days` | days of telemetry history (1 to 36,500) | the platform's retention setting |
 | `organizations` | organizations owners may create under the account | 1 |
+| `branding`, `custom_domain`, `hide_powered_by` | switches for [branding](branding.md#allowances): 1 is on, 0 is off | off |
 
 A value is a whole number of 0 or more, or **unlimited** (`null`). Retention is never
-unlimited. A plan lists only the kinds it sets; a kind it leaves out falls back to
+unlimited, and a switch is only 0 or 1. A plan lists only the kinds it sets; a kind it leaves out falls back to
 the deployment default. The plan requests take each kind as optional, in the contract
 too, since leaving retention out is how a plan keeps the platform's period. An edit's
 `allowances` is the plan's complete set, so an empty one puts every kind back on the
