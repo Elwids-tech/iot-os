@@ -98,6 +98,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
+import { usePortalOrigin } from "../lib/portal-origin"
 import { Confirm, errorMessage, RequestError } from "../components/forms"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
 import {
@@ -232,6 +233,7 @@ export function DashboardWorkspace({
   const window = useMemo(() => resolveRange(view.range), [rangeKey])
   const compare = params.get("compare") === "1"
   const kiosk = params.get("kiosk") === "1"
+  const linkOrigin = usePortalOrigin(org)
   const editorParam = params.get("edit-panel")
   const list = useQuery({
     queryKey: ["dashboards", org],
@@ -553,7 +555,7 @@ export function DashboardWorkspace({
     const next = writeView(params, view)
     for (const key of ["kiosk", "edit-panel", "panel"]) next.delete(key)
     for (const [key, value] of Object.entries(extra)) next.set(key, value)
-    return `${globalThis.location.origin}${location.pathname}?${next}`
+    return `${linkOrigin}${location.pathname}?${next}`
   }
   async function copy(url: string, what: string) {
     try {

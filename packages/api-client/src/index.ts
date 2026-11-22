@@ -86,6 +86,8 @@ export type Organization = {
   devices_count?: number
   /** Admin directory and admin writes only; members never see it (spec 023). */
   billing_account?: { uuid: string; name: string }
+  /** Organization context only: the portal on the main address of its billing account, for copied links (spec 036). Null without an address. */
+  portal_url?: string | null
   /** Every member must use two-step sign-in (spec 034). Older payloads omit it. */
   two_step_required?: boolean
   /** The organization's own logos (spec 036). Older payloads omit them. */

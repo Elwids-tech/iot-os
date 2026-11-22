@@ -7,10 +7,12 @@ namespace Tests\Feature\Domain\Branding;
 use App\Domain\Billing\Enums\AllowanceKind;
 use App\Domain\Billing\Models\AllowanceOverride;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Branding\Contracts\CertificateReader;
 use App\Domain\Branding\Contracts\DnsResolver;
 use App\Domain\Branding\Models\Brand;
 use App\Domain\Branding\Models\PortalAddress;
 use App\Domain\Branding\Services\PortalAddresses;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -92,6 +94,35 @@ trait PortalAddressFixtures
         $this->app->forgetInstance(PortalAddresses::class);
 
         return $dns;
+    }
+
+    /**
+     * A reader of certificates the test sets: `$reader->expires['host']` is what the
+     * proxy serves for a host, and a host without one cannot be read.
+     */
+    protected function fakeCertificates(bool $enabled = true): object
+    {
+        $reader = new class($enabled) implements CertificateReader
+        {
+            /** @var array<string, string> */
+            public array $expires = [];
+
+            public function __construct(private readonly bool $on) {}
+
+            public function enabled(): bool
+            {
+                return $this->on;
+            }
+
+            public function expiresAt(string $host): ?CarbonImmutable
+            {
+                return isset($this->expires[$host]) ? CarbonImmutable::parse($this->expires[$host]) : null;
+            }
+        };
+        $this->app->instance(CertificateReader::class, $reader);
+        $this->app->forgetInstance(PortalAddresses::class);
+
+        return $reader;
     }
 
     /** A custom domain for the account that has found its record and serves. */

@@ -6,6 +6,7 @@ namespace App\Domain\Branding\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Branding\Contracts\CertificateReader;
 use App\Domain\Branding\Contracts\DnsResolver;
 use App\Domain\Branding\Enums\PortalAddressKind;
 use App\Domain\Branding\Enums\PortalAddressState;
@@ -36,7 +37,10 @@ final class PortalAddresses
     /** A custom domain's states that the scheduled check looks at. */
     private const CHECKED = [PortalAddressState::WaitingDns, PortalAddressState::Active, PortalAddressState::Unreachable];
 
-    public function __construct(private readonly DnsResolver $dns) {}
+    public function __construct(
+        private readonly DnsResolver $dns,
+        private readonly CertificateReader $certificates,
+    ) {}
 
     /** Whether this deployment serves addresses at all: the switch and a domain to put names under. */
     public function enabled(): bool
@@ -372,6 +376,17 @@ final class PortalAddresses
             $changes['failed_checks'] = $address->failed_checks + 1;
         }
 
+        // A serving domain's certificate is read from the proxy on the same run. A read
+        // that fails keeps the last known expiry, so a renewal that keeps failing shows
+        // as a date coming closer.
+        if (in_array($changes['state'] ?? $before, [PortalAddressState::Active, PortalAddressState::Unreachable], true) && $this->certificates->enabled()) {
+            $changes['certificate_checked_at'] = $now;
+            $expires = $this->certificates->expiresAt($address->host);
+            if ($expires !== null) {
+                $changes['certificate_expires_at'] = $expires;
+            }
+        }
+
         $address->forceFill($changes)->save();
         if ($event !== null) {
             $this->forget($address->host);
@@ -418,6 +433,19 @@ final class PortalAddresses
                     ->where(fn ($checked) => $checked->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', $recheck))))
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Whether a serving custom domain's certificate is overdue for renewal: expired, or
+     * expiring within `branding.certificate_warning_days`. The proxy renews well before
+     * that, so true means renewal keeps failing.
+     */
+    public function certificateExpiring(PortalAddress $address): bool
+    {
+        return $address->kind === PortalAddressKind::Domain
+            && in_array($address->state, [PortalAddressState::Active, PortalAddressState::Unreachable], true)
+            && $address->certificate_expires_at !== null
+            && $address->certificate_expires_at->lte(now()->addDays((int) config('branding.certificate_warning_days')));
     }
 
     /** The account's last domain request that lapsed, shown until it asks again. */

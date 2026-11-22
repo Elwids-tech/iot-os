@@ -49,6 +49,28 @@ final class PortalLinksTest extends TestCase
         $this->assertSame('https://portal.example.org', app(PortalLinks::class)->forOrganization($this->organization));
     }
 
+    public function test_the_organization_context_says_where_a_copied_link_should_open(): void
+    {
+        // Spec 036 FR-033: a link a person copies opens on the account's main address,
+        // whichever address they copied it at.
+        $staff = User::factory()->create(['is_super_admin' => true]);
+        $context = fn (Organization $organization): ?string => $this->actingAs($staff, 'sanctum')
+            ->getJson("/api/v1/organizations/{$organization->uuid}/context")->assertOk()->json('data.portal_url');
+
+        $this->assertSame('https://acme.example.com', $context($this->organization));
+        // Reading the account's address does not put the billing account in the answer.
+        $this->actingAs($staff, 'sanctum')->getJson("/api/v1/organizations/{$this->organization->uuid}/context")->assertOk()->assertJsonMissingPath('data.billing_account');
+
+        $this->activeDomain($this->account, 'portal.example.org', $this->fakeDns());
+        $this->assertSame('https://portal.example.org', $context($this->organization));
+
+        // An account without an address: null, and the portal keeps the address it is on.
+        $plain = Organization::factory()->forBillingAccount(BillingAccount::factory()->create())->create();
+        $this->assertNull($context($plain));
+        // Lists of organizations do not carry it.
+        $this->assertArrayNotHasKey('portal_url', $this->actingAs($staff, 'sanctum')->getJson('/api/v1/me')->assertOk()->json('data.organizations.0') ?? []);
+    }
+
     public function test_they_fall_back_to_the_name_when_the_domain_is_unreachable_or_absent(): void
     {
         $this->assertSame('https://acme.example.com/alerts', $this->links->forOrganization($this->organization, '/alerts'));

@@ -337,5 +337,14 @@ test("the own-domain section says when the plan has none, when a request lapsed 
   await expect(section.getByText("Not reachable")).toBeVisible()
   await expect(section.getByText("The DNS record has been missing since")).toBeVisible()
   await expect(section.getByText("The portal still opens at portal.example.org for now")).toBeVisible()
+
+  // A serving domain whose certificate is not renewing: the owner sees it before visitors do.
+  await setup(page, {
+    allowed: true, customDomain: true, addressesDomain: "example.com", productName: "Acme Monitor",
+    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "active", main: true, activated_at: now, record, certificate_expires_at: "2099-03-04T08:00:00+00:00", certificate_expiring: true }],
+  })
+  await page.reload()
+  await expect(section.getByText(/The secure connection for this domain expires on .*2099/)).toBeVisible()
+  await expect(section.getByText("It renews by itself, and that has not worked.")).toBeVisible()
   expect(errors).toEqual([])
 })

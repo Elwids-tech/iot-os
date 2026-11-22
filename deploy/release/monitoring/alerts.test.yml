@@ -78,3 +78,27 @@ tests:
         exp_alerts:
           - exp_labels: {environment: staging, job: api, instance: "api-web:80", severity: critical}
             exp_annotations: {summary: "Automation evaluation is paused; see the workflow checkpoint recovery runbook"}
+  - name: a custom domain whose certificate renews in time does not alert
+    interval: 1m
+    input_series:
+      - series: iot_portal_address_certificate_expiry_timestamp_seconds{environment="staging",job="api",instance="api-web:80",host="portal.example.org"}
+        values: 5184000+0x120
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: PortalAddressCertificateExpiry
+        exp_alerts: []
+  - name: a custom domain whose certificate is close to expiring or was never read alerts
+    interval: 1m
+    input_series:
+      - series: iot_portal_address_certificate_expiry_timestamp_seconds{environment="staging",job="api",instance="api-web:80",host="portal.example.org"}
+        values: 864000+0x120
+      - series: iot_portal_address_certificate_expiry_timestamp_seconds{environment="staging",job="api",instance="api-web:80",host="unread.example.org"}
+        values: 0+0x120
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: PortalAddressCertificateExpiry
+        exp_alerts:
+          - exp_labels: {severity: critical, environment: staging, job: api, instance: "api-web:80", host: portal.example.org}
+            exp_annotations: {summary: "The certificate for portal address portal.example.org expires in less than 14 days or could not be read"}
+          - exp_labels: {severity: critical, environment: staging, job: api, instance: "api-web:80", host: unread.example.org}
+            exp_annotations: {summary: "The certificate for portal address unread.example.org expires in less than 14 days or could not be read"}

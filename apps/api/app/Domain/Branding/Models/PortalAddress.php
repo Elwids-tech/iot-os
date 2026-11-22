@@ -59,6 +59,8 @@ final class PortalAddress extends Model
             'unreachable_since' => 'datetime',
             'suspended_at' => 'datetime',
             'released_at' => 'datetime',
+            'certificate_expires_at' => 'datetime',
+            'certificate_checked_at' => 'datetime',
             'failed_checks' => 'integer',
         ];
     }

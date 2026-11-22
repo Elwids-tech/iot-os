@@ -31,6 +31,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { api } from "../lib/api"
+import { usePortalOrigin } from "../lib/portal-origin"
 import { Confirm, errorMessage, RequestError } from "../components/forms"
 import { dashboardPath } from "./model"
 import { dashboardAbilities } from "./access"
@@ -104,6 +105,7 @@ export function DashboardLibrary({
   capabilities: DashboardCapabilities
 }) {
   const canCreate = capabilities.create
+  const linkOrigin = usePortalOrigin(org)
   // The library filters archived dashboards itself, so it reads them with the others.
   const query = useQuery({
     queryKey: ["dashboards", org, "library"],
@@ -576,7 +578,7 @@ export function DashboardLibrary({
         <ShareDialog
           org={org}
           dashboard={target}
-          link={`${globalThis.location.origin}${dashboardPath(org, target.uuid)}`}
+          link={`${linkOrigin}${dashboardPath(org, target.uuid)}`}
           onClose={() => setOpen(null)}
           onSaved={() => void cache.invalidateQueries({ queryKey: ["dashboards", org] })}
         />
