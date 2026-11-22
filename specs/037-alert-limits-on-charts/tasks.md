@@ -216,4 +216,28 @@ Tests and docs together: T038, T040, T043, T045
 
 ## Phase 9: Convergence
 
-- [ ] T050 After pull request 3 merges, run `/speckit-converge`, add any unbuilt work here, and mark the **Alert limits on charts** entry in docs/roadmap.md as built
+- [x] T050 After pull request 3 merges, run `/speckit-converge`, add any unbuilt work here, and mark the **Alert limits on charts** entry in docs/roadmap.md as built
+
+Convergence on main at 867419ee (2026-11-22), after pull requests #288, #289 and #290.
+Every functional requirement was checked against the code and its tests; none is
+unbuilt. The roadmap lists only open work, so its entry now names what is left.
+
+What differs from the plan as first written, each recorded where it happened:
+
+- The alert filters changed after all, so a commanded first binding is not matched
+  (research R5, #288).
+- A hysteresis on a false branch is left out; its values do not swap roles
+  (research R3, #289).
+- Panels ask through a batcher behind per-device queries, with no provider in the
+  workspace, and **Refresh** also reloads limits (plan, #290).
+- The line is the foreground colour, not the warning colour (research R7, #290).
+- An automation's alert is recorded by `automation-worker`, so that is the container to
+  rebuild for pull request 1 (quickstart).
+
+Open, and not blocking:
+
+- [ ] T051 Finish T048: a designer's look at the line styles and the legend, including the light theme in the running portal (FR-011)
+- [ ] T052 Keep a long line label inside the plot at phone width in packages/charts/src/timeSeries.ts, or shorten it there and leave the treatment to the legend (FR-010, FR-018)
+- [ ] T053 Move apps/api/app/Domain/Automation/Services/AlertTrigger.php (#287) onto `DeploymentGraph`, so one walk of the graph serves the alert detail and the charts
+- [ ] T054 Owner to confirm or change the rule for which 8 limits are drawn: those nearest the values on the chart (FR-015)
+- [ ] T055 Check a suspended automation's legend row on the running stack; it is covered by tests only (FR-014a)
