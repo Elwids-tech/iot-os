@@ -82,7 +82,7 @@ name, identifier and state). It must cover at least:
 | Two conditions joined with AND, and with OR | two limits, `combined` true |
 | Alert on the `false` branch | operator inverted |
 | Hysteresis | a `raise` and a `clear` limit |
-| Hysteresis on the `false` branch | roles swapped |
+| Hysteresis on the `false` branch | no limits |
 | Converted unit, same family | value in the binding's unit |
 | Conversion whose `from` is not the binding's unit | no limits |
 | Arithmetic before the comparison | no limits |

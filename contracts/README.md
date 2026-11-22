@@ -13,7 +13,7 @@ valid and invalid examples.
 | [`devices/v2`](devices/v2) | `device-configuration.v2` (adds incoming conversions); conversion parity cases | Laravel configuration snapshots, runtime |
 | [`events/v1`](events/README.md) | `telemetry.committed.v1` | Runtime committed-telemetry feed and its consumers |
 | [`rules/v1`](rules/v1) | Workflow v1, `geofence-rule.v1` definition, state, transition, deployment, simulation request and expected trace | Geofence rules |
-| [`rules/v2`](rules/v2) | `automation-workflow.v2` DAG schema and a reference graph | DAG automation |
+| [`rules/v2`](rules/v2) | `automation-workflow.v2` DAG schema and a reference graph; `alert-limits`: golden graphs with the alert limits read from each, tested by the control plane's `DeploymentGraph` and probed on the runtime's evaluator (spec 037) | DAG automation, alert limits |
 | [`dashboards/v1`](dashboards/v1) | Panel suggestion parity cases: the **Add panel** ranking with its reasons, every panel type's incompatibility, new-source defaults, panel placement and the band colours for named tones | `PanelSuggestionsContractTest` (PHP), `suggest.test.ts` and `model.test.ts` (portal) |
 | [`push/v1`](push/v1) | `alert-push.v1`: the encrypted body of every push alert (spec 033) | `AlertPushPayload` and its tests (PHP), the portal's service worker formatter |
 | [`location/v1`](location/v1) | `location-binding.v1`, `location-fix.v1`, 30 location scenarios | Location resolver, geofences, integration API |

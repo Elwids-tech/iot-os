@@ -309,6 +309,22 @@ Things that have cost time before. Add to this list when something surprises you
   (`401`). Before a request as someone else, call `$this->flushSession()` and
   `$this->app['auth']->forgetGuards()`, as the `as()` helper in `RequireTwoStepTest`
   does. In production every request gets a fresh guard.
+- **A new automation step draws no alert limit until `DeploymentGraph` learns it.**
+  The alert limits a dashboard draws are read from the stored graph by
+  `App\Domain\Automation\Services\DeploymentGraph`, a second reading of what the Go
+  evaluator does. It gives up on any step type it does not list, so a new step is
+  safe but silent. To make limits pass through it, add the case to
+  `contracts/rules/v2/alert-limits.fixture.json` first: the PHP test must return the
+  case's limits and, where the case has a `probe`, the Go test runs the evaluator at
+  and beside each limit. The unit table in `DeploymentGraph` is a copy of the
+  runtime's `convert`; the `converted` cases fail if they drift.
+- **`contract:export` before a new endpoint's tests pass.** Feature tests check each
+  response against `contracts/openapi/openapi.json`, so a test of a route that is not
+  exported yet fails with "the operation is not in the contract".
+- **An automation's alert is recorded by `automation-worker`, not `api`.** The runtime
+  posts the intent to the API, but `AutomationWorker` runs `DagActions::tick`, which
+  calls `AlertProjector`. Rebuild that worker to see a change to how alerts are
+  recorded.
 
 ## Billing
 

@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/rules/v2/alert-limits.schema.json",
+  "title": "Alert limits of automation-workflow.v2 graphs",
+  "description": "Golden cases: an automation graph and the alert limits read from it (spec 037). The control plane's DeploymentGraph must return exactly `limits`, ordered as here; the runtime's evaluator is probed on the cases that say how. A case with no limits is one that cannot be placed on the reading's own value axis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "automation-alert-limits.v1"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "why",
+          "workflow",
+          "limits"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "why": {
+            "type": "string"
+          },
+          "workflow": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "bindings",
+              "nodes",
+              "edges"
+            ],
+            "description": "An automation-workflow.v2 graph. Cases with no limits may hold steps or units the runtime refuses."
+          },
+          "limits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/limit"
+            }
+          },
+          "probe": {
+            "enum": [
+              "exact",
+              "near",
+              "hysteresis"
+            ],
+            "description": "How the runtime's evaluator is checked against the limits: `exact` at the value and just either side, `near` just either side only (a conversion was undone), `hysteresis` across both values."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_uuid",
+        "parameter_uuid",
+        "role",
+        "operator",
+        "value",
+        "unit",
+        "aggregate",
+        "window_seconds",
+        "held_seconds",
+        "combined"
+      ],
+      "properties": {
+        "device_uuid": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The device whose reading is compared."
+        },
+        "parameter_uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "role": {
+          "enum": [
+            "raise",
+            "clear"
+          ],
+          "description": "Whether crossing the value raises the alert or clears it. `clear` comes only from a hysteresis condition."
+        },
+        "operator": {
+          "enum": [
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "eq"
+          ],
+          "description": "The side of the value on which the alert is raised, or for `clear` on which it clears, after any inversion."
+        },
+        "value": {
+          "type": "number",
+          "description": "In the parameter's own unit; rounded to 10 significant digits when a conversion was undone."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The binding's unit."
+        },
+        "aggregate": {
+          "enum": [
+            "average",
+            "min",
+            "max",
+            null
+          ],
+          "description": "The window treatment before comparing."
+        },
+        "window_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "held_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "How long the condition must hold before the alert is raised."
+        },
+        "combined": {
+          "type": "boolean",
+          "description": "True when the alert also depends on another condition."
+        }
+      }
+    }
+  }
+}

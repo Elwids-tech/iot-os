@@ -215,6 +215,34 @@ export type WorkflowDeploymentStatus =
   | "applied"
   | "failed"
   | "suspended";
+/**
+ * A row of GET workflows/alert-limits: a value on a device parameter at which an
+ * applied automation raises or clears an alert (spec 037). It is worked out from the
+ * applied deployment on each request; a condition that cannot be placed exactly on the
+ * reading's own value axis gives no row.
+ */
+export type AlertLimit = {
+  workflow_uuid: string;
+  workflow_name: string;
+  /** A suspended automation is not checking: list its limit, never draw it. */
+  state: "running" | "suspended";
+  device_uuid: string;
+  parameter_uuid: string;
+  /** Whether crossing the value raises the alert or clears it; `clear` comes only from hysteresis. */
+  role: "raise" | "clear";
+  /** The side of the value on which the alert is raised (for `clear`, on which it clears). */
+  operator: "gt" | "gte" | "lt" | "lte" | "eq";
+  /** In the parameter's own unit. */
+  value: number;
+  unit: string;
+  /** The window treatment before the comparison; null when the reading is compared directly. */
+  aggregate: "average" | "min" | "max" | null;
+  window_seconds: number | null;
+  /** How long the condition must hold before the alert is raised. */
+  held_seconds: number | null;
+  /** True when the alert also depends on another condition. */
+  combined: boolean;
+};
 /** Fields of GET workflows and workflows/{uuid} used for activate and disable. */
 export type AutomationWorkflow = {
   uuid: string;

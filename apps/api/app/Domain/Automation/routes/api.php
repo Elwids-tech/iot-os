@@ -26,6 +26,7 @@ Route::prefix('v1/organizations/{organization}/workflows')->whereUuid(['organiza
     Route::get('{workflow}/timeline', [DagController::class, 'timeline']);
     Route::get('{workflow}/timeline/{evaluation}', [DagController::class, 'timeline']);
     Route::get('node-types', [WorkflowController::class, 'nodeTypes']);
+    Route::get('alert-limits', [WorkflowController::class, 'alertLimits']);
     Route::get('', [WorkflowController::class, 'index']);
     Route::post('', [WorkflowController::class, 'store']);
     Route::get('{workflow}', [WorkflowController::class, 'show']);

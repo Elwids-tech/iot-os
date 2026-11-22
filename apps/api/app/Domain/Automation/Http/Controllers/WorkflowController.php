@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Http\Controllers;
 
+use App\Domain\Automation\Http\Resources\AlertLimitResource;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\DagAuthorization;
+use App\Domain\Automation\Services\DeploymentGraph;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
@@ -17,6 +19,7 @@ use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Devices\Services\RuntimeClient;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -247,6 +250,35 @@ final class WorkflowController
             'total' => (int) $counts->total,
             'recent' => $query->orderByDesc('id')->limit(10)->get()->map(fn ($alert) => $alert->only(['uuid', 'episode', 'activated_at', 'cleared_at', 'acknowledged_at'])),
         ]];
+    }
+
+    /**
+     * The alert limits on a set of devices: each value at which an applied automation
+     * raises or clears an alert on one of their parameters (spec 037). Read from the
+     * applied deployments only, so a draft or a pending change shows nothing new. A
+     * limit that cannot be placed exactly on the reading's own value axis is left out.
+     * Devices of another organization, and unknown ones, give no rows.
+     */
+    public function alertLimits(Request $request, Organization $organization): AnonymousResourceCollection
+    {
+        $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization);
+        $input = $request->validate(['device' => ['required', 'array', 'min:1', 'max:100'], 'device.*' => ['uuid']]);
+        $asked = Device::where('organization_id', $organization->id)->whereIn('uuid', $input['device'])->pluck('uuid')->flip();
+        $workflows = $asked->isEmpty() ? collect() : Workflow::where('organization_id', $organization->id)->whereNull('archived_at')->whereNotNull('applied_deployment_uuid')
+            ->get(['id', 'uuid', 'name', 'applied_deployment_uuid', 'deployment_status'])->keyBy('applied_deployment_uuid');
+        $rows = [];
+        foreach ($workflows->isEmpty() ? [] : Deployment::whereIn('uuid', $workflows->keys())->get(['uuid', 'definition', 'stopped_reason']) as $deployment) {
+            $workflow = $workflows[$deployment->uuid];
+            $state = $deployment->stopped_reason !== null || $workflow->deployment_status === 'suspended' ? 'suspended' : 'running';
+            foreach (DeploymentGraph::of($deployment->definition)->alertLimits() as $limit) {
+                if ($asked->has($limit['device_uuid'])) {
+                    $rows[] = ['workflow_uuid' => $workflow->uuid, 'workflow_name' => $workflow->name, 'state' => $state, ...$limit];
+                }
+            }
+        }
+        usort($rows, fn (array $a, array $b): int => [$a['device_uuid'], $a['parameter_uuid'], $a['workflow_name'], $a['value'], $a['workflow_uuid'], $a['role']] <=> [$b['device_uuid'], $b['parameter_uuid'], $b['workflow_name'], $b['value'], $b['workflow_uuid'], $b['role']]);
+
+        return AlertLimitResource::collection($rows)->additional(['meta' => ['checked_at' => now()->toIso8601String()]]);
     }
 
     private function view(Workflow $workflow): array

@@ -99,8 +99,10 @@ repository root.
 - **Rationale**: FR-007 forbids approximating. Giving up on unknown node types means a
   node added to the runtime later draws nothing until the resolver and the fixture
   learn it.
-- **Inversion**: `gt` becomes `lte`, `gte` becomes `lt`, and the reverse. For
-  hysteresis the two values swap roles.
+- **Inversion**: `gt` becomes `lte`, `gte` becomes `lt`, and the reverse. A
+  hysteresis on a false branch is left out (found while building): there the alert
+  depends on whether the reading was above the upper value before, not on one value,
+  so on a fresh execution it is raised anywhere below the upper value.
 - **Conversion**: the eight units convert with a positive linear formula, so the side
   of the limit is unchanged. The converted value is rounded to 10 significant digits.
 - **Alternatives considered**: solving `math.v1` with a constant (reading × 2 > 50).
@@ -119,6 +121,11 @@ repository root.
 - **Rationale**: FR-016 allows a minute. One request per dashboard keeps the cost flat
   as panels are added. An organization's applied automations are expected to be few
   (tens to low hundreds) and their graphs small; this has not been measured.
+- **Measured (T024, 2026-11-22)**: on PostgreSQL, 200 applied automations of one
+  comparison each and a request for 100 devices took a median of 23 ms in the test
+  application (10 runs, slowest 26 ms) and 4 queries, the same 4 as with one
+  automation. Real graphs are larger, but there is ample room under SC-004, so the
+  query is not narrowed.
 - **Alternatives considered**: a request per panel or per device, like
   `useDeviceActivity`. Rejected: twenty panels would walk every graph twenty times. A
   PostgreSQL JSON predicate to load only deployments that bind the asked devices.
@@ -207,4 +214,4 @@ repository root.
   alerts; a workflow alert shows its main device. Nothing reads wrongly with several
   devices listed. Its "used in dashboards" list still looks at the main device only;
   left as it is, since another open change is rewriting that page.
-- A measured run with 200 applied automations and 100 devices, to confirm R4.
+- **Measured (T024):** see R4.

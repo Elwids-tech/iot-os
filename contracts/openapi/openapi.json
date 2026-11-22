@@ -34561,6 +34561,93 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/workflows/alert-limits": {
+      "get": {
+        "operationId": "workflow.alertLimits",
+        "summary": "The alert limits on a set of devices: each value at which an applied automation\nraises or clears an alert on one of their parameters (spec 037). Read from the\napplied deployments only, so a draft or a pending change shows nothing new. A\nlimit that cannot be placed exactly on the reading's own value axis is left out.\nDevices of another organization, and unknown ones, give no rows",
+        "tags": [
+          "Workflow"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device[]",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "format": "uuid",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of `AlertLimitResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AlertLimitResource"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "checked_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "checked_at"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/workflows/dag": {
       "get": {
         "operationId": "dag.index",
@@ -36416,7 +36503,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_206",
+        "operationId": "domain.automation.scenario.save_207",
         "tags": [
           "Scenario"
         ],
@@ -36532,7 +36619,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_207",
+        "operationId": "domain.automation.scenario.save_208",
         "tags": [
           "Scenario"
         ],
@@ -39419,6 +39506,106 @@
             "$ref": "#/components/schemas/IntegrationAlert"
           }
         }
+      },
+      "AlertLimitResource": {
+        "type": "object",
+        "properties": {
+          "workflow_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflow_name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`suspended` when the applied deployment has stopped checking; such a limit is listed, never drawn.",
+            "enum": [
+              "running",
+              "suspended"
+            ]
+          },
+          "device_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parameter_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "description": "Whether crossing the value raises the alert or clears it. `clear` comes only from a hysteresis condition.",
+            "enum": [
+              "raise",
+              "clear"
+            ]
+          },
+          "operator": {
+            "type": "string",
+            "description": "The side of the value on which the alert is raised (for `clear`, on which it clears).",
+            "enum": [
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "eq"
+            ]
+          },
+          "value": {
+            "description": "In the parameter's own unit.",
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "aggregate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The window treatment before the comparison; null when the reading is compared directly.",
+            "enum": [
+              "average",
+              "min",
+              "max",
+              null
+            ]
+          },
+          "window_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "held_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "How long the condition must hold before the alert is raised."
+          },
+          "combined": {
+            "type": "boolean",
+            "description": "True when the alert also depends on another condition."
+          }
+        },
+        "required": [
+          "workflow_uuid",
+          "workflow_name",
+          "state",
+          "device_uuid",
+          "parameter_uuid",
+          "role",
+          "operator",
+          "value",
+          "unit",
+          "aggregate",
+          "window_seconds",
+          "held_seconds",
+          "combined"
+        ],
+        "title": "AlertLimitResource"
       },
       "AlertNotificationResource": {
         "type": "object",
