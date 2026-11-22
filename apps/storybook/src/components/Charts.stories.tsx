@@ -34,7 +34,7 @@ const lines: TimeLine[] = [
   { key: "l3", name: "Voltage L3 · Line 2 main meter", color: "var(--series-3)", points: phase(229.6, 2.9, 2) },
 ]
 
-function Voltage({ compare = false, group }: { compare?: boolean; group?: string }) {
+function Voltage({ compare = false, group, limits = false }: { compare?: boolean; group?: string; limits?: boolean }) {
   const theme = useChartTheme()
   const option = useMemo(
     () =>
@@ -48,12 +48,20 @@ function Voltage({ compare = false, group }: { compare?: boolean; group?: string
         formatTime: (time) => stamp.format(time),
         formatValue: (value) => `${value.toFixed(1)} V`,
         thresholds: [{ value: 245, color: "var(--warning)", label: "Warning 245 V" }],
+        limits: limits
+          ? [
+              { value: 245, label: "Overvoltage > 245 V · 10 s average" },
+              { value: 238, label: "Overvoltage clears < 238 V", clears: true },
+              // Outside the readings: not drawn, and the value axis does not move for it.
+              { value: 400, label: "Surge > 400 V" },
+            ]
+          : [],
         bands: [{ from: 245, to: null, color: "var(--warning)" }],
         areas: [{ from: start + 201 * 5 * minute, to: start + 209 * 5 * minute, color: "var(--warning)" }],
         markers: [{ at: start + 230 * 5 * minute, color: "var(--commanded)" }],
         selectable: true,
       }),
-    [theme, compare],
+    [theme, compare, limits],
   )
   return <EChart option={option} group={group} label="Phase voltage over time" className="h-64 w-full" onSelectRange={() => {}} />
 }
@@ -71,6 +79,25 @@ export const TimeSeries: StoryObj = {
       </PanelHeader>
       <PanelContent>
         <Voltage />
+      </PanelContent>
+    </Panel>
+  ),
+}
+
+/**
+ * Alert limits: the value a running automation raises its alert at, and the lower
+ * value a hysteresis clears at. They sit beside a panel threshold at the same value:
+ * heavier, with their own dash patterns, labelled at the start of the line where a
+ * threshold is labelled at its end. A limit outside the readings is left off the plot.
+ */
+export const AlertLimits: StoryObj = {
+  render: () => (
+    <Panel className="max-w-4xl">
+      <PanelHeader>
+        <PanelTitle>Phase voltage with alert limits</PanelTitle>
+      </PanelHeader>
+      <PanelContent>
+        <Voltage limits />
       </PanelContent>
     </Panel>
   ),

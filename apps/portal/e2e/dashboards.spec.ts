@@ -1168,6 +1168,181 @@ test("time charts on a dashboard share a crosshair by time, whatever their size"
   expect(errors).toEqual([])
 })
 
+// A row of GET workflows/alert-limits (spec 037) on the boiler room's temperature.
+const alertLimit = (extra: Record<string, unknown> = {}) => ({
+  workflow_uuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  workflow_name: "Boiler safety",
+  state: "running",
+  device_uuid: deviceId,
+  parameter_uuid: parameterId,
+  role: "raise",
+  operator: "gt",
+  value: 22,
+  unit: "C",
+  aggregate: null,
+  window_seconds: null,
+  held_seconds: null,
+  combined: false,
+  ...extra,
+})
+/** Answers the alert limits request from `state`, which a test may change while the page is open. */
+async function alertLimits(page: Page, state: { rows: unknown[]; status?: number; asked: number }) {
+  await page.route("**/workflows/alert-limits**", (route) => {
+    state.asked++
+    return state.status && state.status !== 200
+      ? route.fulfill({ status: state.status, json: { message: "Unavailable" } })
+      : route.fulfill({ json: { data: state.rows, meta: { checked_at: new Date().toISOString() } } })
+  })
+}
+/** The signed-in person, with the capabilities a test needs. */
+async function person(page: Page, capabilities: Record<string, unknown>) {
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          id: 1,
+          name: "Dashboard operator",
+          email: "operator@example.test",
+          email_verified_at: "2026-01-01",
+          is_super_admin: false,
+          capabilities: { platform_administration: false },
+          organizations: [{ uuid: org, name: "Acme Manufacturing", slug: "acme", capabilities }],
+        },
+      },
+    }),
+  )
+}
+const limitList = (page: Page) => page.getByRole("list", { name: "Alert limits, current rules" })
+const lineLabel = (page: Page, text: string) =>
+  page.getByRole("img", { name: /^Temperature history/ }).locator("svg text", { hasText: text })
+
+test("a time series panel draws and lists the alert limits of running automations", async ({ page }) => {
+  const { errors } = await setup(page)
+  const state = {
+    asked: 0,
+    rows: [
+      alertLimit({ aggregate: "average", window_seconds: 10, held_seconds: 300, combined: true }),
+      alertLimit({ workflow_uuid: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", workflow_name: "Far limit", value: 500 }),
+      alertLimit({ workflow_uuid: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", workflow_name: "Paused rule", value: 21, state: "suspended" }),
+      alertLimit({ workflow_uuid: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", workflow_name: "Fahrenheit rule", value: 70, unit: "F" }),
+      // Another parameter's limit is not this panel's.
+      alertLimit({ workflow_name: "Pressure rule", parameter_uuid: secondParameter, value: 23 }),
+    ],
+  }
+  await alertLimits(page, state)
+  await page.goto(basePath + "/first")
+  await expect(plotted(page)).toBeVisible()
+
+  // Drawn on the chart with what it means; the others are listed only, each saying why.
+  await expect(lineLabel(page, "Boiler safety > 22 C · 10 s average · for 5 min · with other conditions")).toBeVisible()
+  for (const absent of ["Far limit", "Paused rule", "Fahrenheit rule", "Pressure rule"])
+    await expect(lineLabel(page, absent)).toHaveCount(0)
+  const rows = limitList(page).getByRole("listitem")
+  await expect(rows).toHaveCount(4)
+  await expect(rows.filter({ hasText: "Boiler safety" })).toContainText("> 22 C")
+  await expect(rows.filter({ hasText: "Boiler safety" })).toContainText("10 s average · for 5 min · with other conditions")
+  await expect(rows.filter({ hasText: "Far limit" })).toContainText("above the chart")
+  await expect(rows.filter({ hasText: "Paused rule" })).toContainText("Suspended")
+  await expect(rows.filter({ hasText: "Paused rule" })).toContainText("not checking")
+  await expect(rows.filter({ hasText: "Fahrenheit rule" })).toContainText("not drawn: in F")
+  await expect(limitList(page)).not.toContainText("Pressure rule")
+  // The name is plain text for a person without automation access.
+  await expect(limitList(page).getByRole("link")).toHaveCount(0)
+  // One request for the whole dashboard.
+  expect(state.asked).toBe(1)
+  const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).include('[aria-label="Alert limits, current rules"]').analyze()
+  expect(audit.violations.map((violation) => violation.id)).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test("the automation's name opens it for a person who may open automations", async ({ page }) => {
+  await setup(page)
+  await person(page, { devices: { manage: false, view: true }, automation: { view: true, manage: false, activate: false } })
+  await alertLimits(page, { asked: 0, rows: [alertLimit()] })
+  await page.goto(basePath + "/first")
+  await expect(limitList(page).getByRole("link", { name: "Boiler safety" })).toHaveAttribute(
+    "href",
+    `/organizations/${org}/automation/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,
+  )
+})
+
+test("alert limits follow the automation, say when they are unavailable, and can be turned off", async ({ page }) => {
+  const { dashboards } = await setup(page)
+  const state: { asked: number; rows: unknown[]; status?: number } = { asked: 0, rows: [alertLimit()] }
+  await alertLimits(page, state)
+  await page.goto(basePath + "/first")
+  await expect(lineLabel(page, "Boiler safety > 22 C")).toBeVisible()
+  // The panel asks again by itself every 45 seconds; Refresh asks at once, with no reload.
+  const refresh = async () => {
+    const before = state.asked
+    await (await timeRange(page)).getByRole("button", { name: "Refresh dashboard", exact: true }).click()
+    await expect.poll(() => state.asked).toBeGreaterThan(before)
+    await page.keyboard.press("Escape")
+  }
+
+  // The automation is activated with a new value: the line moves.
+  state.rows = [alertLimit({ value: 23 })]
+  await refresh()
+  await expect(lineLabel(page, "Boiler safety > 23 C")).toBeVisible()
+  await expect(lineLabel(page, "Boiler safety > 22 C")).toHaveCount(0)
+
+  // Deactivated: the line and its row go. Activated again: they return.
+  state.rows = []
+  await refresh()
+  await expect(lineLabel(page, "Boiler safety")).toHaveCount(0)
+  await expect(limitList(page)).toHaveCount(0)
+  state.rows = [alertLimit()]
+  await refresh()
+  await expect(lineLabel(page, "Boiler safety > 22 C")).toBeVisible()
+
+  // The request and its one retry fail: no line is shown as current, and the panel says so; readings stay.
+  state.status = 500
+  const failed = state.asked
+  await refresh()
+  await expect(page.getByText("Alert limits are unavailable.")).toBeVisible()
+  expect(state.asked).toBe(failed + 2)
+  await expect(lineLabel(page, "Boiler safety")).toHaveCount(0)
+  await expect(plotted(page)).toBeVisible()
+  state.status = 200
+  await refresh()
+  await expect(lineLabel(page, "Boiler safety > 22 C")).toBeVisible()
+  await expect(page.getByText("Alert limits are unavailable.")).toHaveCount(0)
+
+  // Turned off for the panel: nothing is asked, drawn or listed.
+  dashboards[0].widgets.find((widget) => widget.id === "chart")!.config.alert_limits = false
+  const asked = state.asked
+  await page.reload()
+  await expect(plotted(page)).toBeVisible()
+  await expect(lineLabel(page, "Boiler safety")).toHaveCount(0)
+  await expect(limitList(page)).toHaveCount(0)
+  expect(state.asked).toBe(asked)
+})
+
+test("a person who cannot view devices sees no alert limits and no message about them", async ({ page }) => {
+  await setup(page)
+  await person(page, { devices: { manage: false, view: false }, dashboards: { view: true, create: false, manage: false } })
+  const state = { asked: 0, rows: [alertLimit()] }
+  await alertLimits(page, state)
+  await page.goto(basePath + "/first")
+  await expect(plotted(page)).toBeVisible()
+  await expect(limitList(page)).toHaveCount(0)
+  await expect(page.getByText("Alert limits are unavailable.")).toHaveCount(0)
+  expect(state.asked).toBe(0)
+})
+
+test("the panel editor turns alert limits off for one panel", async ({ page }) => {
+  const { dashboards } = await setup(page)
+  await alertLimits(page, { asked: 0, rows: [alertLimit()] })
+  await page.goto(basePath + "/first?edit-panel=chart")
+  const toggle = page.getByRole("switch", { name: "Show alert limits" })
+  await expect(toggle).toBeChecked()
+  await toggle.click()
+  await page.getByRole("button", { name: "Apply to dashboard", exact: true }).click()
+  await page.getByRole("button", { name: "Save dashboard", exact: true }).click()
+  await expect.poll(() => dashboards[0].widgets.find((widget) => widget.id === "chart")!.config.alert_limits).toBe(false)
+  await expect(limitList(page)).toHaveCount(0)
+})
+
 test("relative charts poll in place without replacing rendered data", async ({
   page,
 }) => {
@@ -1976,3 +2151,4 @@ test("a copied dashboard link opens on the billing account's main address", asyn
   expect(copied.origin).toBe("https://portal.example.org")
   expect(copied.pathname).toBe(basePath + "/first")
 })
+

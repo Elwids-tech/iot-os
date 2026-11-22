@@ -10,6 +10,7 @@ import type {
 import { Button } from "@iot-os/ui/components/button"
 import { PageHeader } from "@iot-os/ui/components/page-header"
 import { StatusMark } from "@iot-os/ui/components/status-mark"
+import { Switch } from "@iot-os/ui/components/switch"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -441,6 +442,27 @@ export function PanelEditor({
                     />
                   )}
                 </FieldGroup>
+              )}
+              {widget.type === "timeseries" && (
+                <Field>
+                  <Field orientation="horizontal">
+                    <Switch
+                      id="alert-limits"
+                      aria-describedby="alert-limits-help"
+                      checked={widget.config.alert_limits !== false}
+                      onCheckedChange={(shown) => {
+                        // Shown is the absent key, so turning it back on leaves nothing behind.
+                        const { alert_limits: _off, ...config } = widget.config
+                        setWidget({ ...widget, config: shown ? config : { ...config, alert_limits: false } })
+                      }}
+                    />
+                    <FieldLabel htmlFor="alert-limits">Show alert limits</FieldLabel>
+                  </Field>
+                  <FieldDescription id="alert-limits-help">
+                    Draws the value each running automation alerts at on these readings. They follow the
+                    automation; this panel&apos;s own thresholds are separate.
+                  </FieldDescription>
+                </Field>
               )}
               {widget.type === "controls" && (
                 <Field>

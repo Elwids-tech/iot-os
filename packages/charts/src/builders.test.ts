@@ -57,6 +57,53 @@ describe("timeSeriesOption", () => {
     expect(lines[1]).toMatchObject({ xAxis: 2200 })
   })
 
+  it("draws alert limits apart from thresholds and leaves the other overlays as they were", () => {
+    const overlays = {
+      thresholds: [{ value: 2, color: "rgb(9, 9, 9)", label: "High 2 V" }],
+      bands: [{ from: 2, to: null, color: "rgb(9, 9, 9)" }],
+      areas: [{ from: 1500, to: 2500, color: "rgb(8, 8, 8)" }],
+      markers: [{ at: 2200, color: "rgb(7, 7, 7)" }],
+    }
+    const base = { ...format, lines: [line("now")], from: 0, to: 4000, ...overlays }
+    const without = timeSeriesOption(theme, base) as any
+    const option = timeSeriesOption(theme, {
+      ...base,
+      limits: [{ value: 2, label: "Pump safety > 2 V" }, { value: 1.5, label: "Pump safety clears < 1.5 V", clears: true }],
+    }) as any
+    const [threshold, raises, clears, marker] = option.series[0].markLine.data
+    expect(threshold).toEqual(without.series[0].markLine.data[0])
+    expect(marker).toEqual(without.series[0].markLine.data[1])
+    expect(option.series[0].markArea).toEqual(without.series[0].markArea)
+    expect(raises).toMatchObject({ yAxis: 2, label: { show: true, formatter: "Pump safety > 2 V", position: "insideStartTop" } })
+    expect(clears).toMatchObject({ yAxis: 1.5, label: { formatter: "Pump safety clears < 1.5 V" } })
+    // Told apart without colour: dash pattern and weight differ from a threshold and from each other, and the labels sit at opposite ends.
+    expect(new Set([threshold, raises, clears].map((mark) => JSON.stringify(mark.lineStyle.type))).size).toBe(3)
+    expect(raises.lineStyle.width).toBeGreaterThan(threshold.lineStyle.width)
+    expect(threshold.label.position).not.toBe(raises.label.position)
+    // The value axis follows the readings, never an overlay.
+    expect(JSON.stringify(option.yAxis)).toBe(JSON.stringify(without.yAxis))
+    expect(option.yAxis.min).toBeUndefined()
+    expect(option.yAxis.max).toBeUndefined()
+  })
+
+  it("leaves a limit outside the readings off the plot without widening the axis", () => {
+    const chart = init(null, undefined, { renderer: "svg", ssr: true, width: 400, height: 200 })
+    try {
+      const draw = (limits: { value: number; label: string }[]) => {
+        chart.setOption(timeSeriesOption(theme, { ...format, lines: [line("now", { points: [{ time: 1000, value: 1 }, { time: 2000, value: 2 }, { time: 3000, value: 3 }] })], from: 0, to: 4000, limits }), { notMerge: true })
+        const range = (chart as any).getModel().getComponent("yAxis", 0).axis.scale.getExtent()
+        return { range, svg: chart.renderToSVGString() }
+      }
+      const inside = draw([{ value: 2, label: "Inside limit" }])
+      const outside = draw([{ value: 500, label: "Far limit" }])
+      expect(outside.range).toEqual(inside.range)
+      expect(inside.svg).toContain("Inside limit")
+      expect(outside.svg).not.toContain("Far limit")
+    } finally {
+      chart.dispose()
+    }
+  })
+
   it("lists every line in the tooltip and says when one has no sample", () => {
     const option = timeSeriesOption(theme, { ...format, lines: [line("L1"), line("L2")] }) as any
     const html: string = option.tooltip.formatter([

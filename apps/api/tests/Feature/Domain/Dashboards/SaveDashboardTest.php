@@ -106,6 +106,29 @@ final class SaveDashboardTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    public function test_a_time_series_panel_keeps_alert_limits_off_and_never_stores_them_on(): void
+    {
+        $definition = app(DashboardDefinition::class);
+        $config = fn (array $extra): array => ['sources' => [$this->source($this->organization)], ...$extra];
+        $read = fn (array $extra, string $type = 'timeseries'): array => $definition->validateDocument($this->document('Boiler', [$this->panel($type, $config($extra))]), $this->organization, false)['widgets'][0]['config'];
+
+        // Off is kept; on is the absent key, so a saved dashboard never gains it (spec 037, FR-020).
+        $this->assertFalse($read(['alert_limits' => false])['alert_limits']);
+        $this->assertArrayNotHasKey('alert_limits', $read(['alert_limits' => true]));
+        $this->assertArrayNotHasKey('alert_limits', $read([]));
+        $this->assertThrows(fn () => $read(['alert_limits' => 'sometimes']), ValidationException::class);
+        // No other panel type takes the setting.
+        foreach (['status', 'gauge', 'table'] as $type) {
+            $this->assertThrows(fn () => $read(['alert_limits' => false, ...($type === 'gauge' ? ['min' => 0, 'max' => 100] : [])], $type), ValidationException::class);
+        }
+
+        // Saved without the key, it reads back without it.
+        $dashboard = app(SaveDashboard::class)->create($this->organization, $this->user, $this->document('Plain', [$this->panel('timeseries', $config([]))]));
+        $this->assertArrayNotHasKey('alert_limits', $dashboard->fresh()->widgets[0]['config']);
+        $off = app(SaveDashboard::class)->create($this->organization, $this->user, $this->document('Quiet', [$this->panel('timeseries', $config(['alert_limits' => false]))]));
+        $this->assertFalse($off->fresh()->widgets[0]['config']['alert_limits']);
+    }
+
     private function document(string $name, array $widgets = []): array
     {
         return ['name' => $name, 'widgets' => $widgets, 'layouts' => [], 'defaults' => DashboardDefinition::defaults()];

@@ -1,8 +1,10 @@
 import { RelativeTime } from "@iot-os/ui/components/freshness"
-import { useMemo, type CSSProperties } from "react"
+import { useMemo, useState, type CSSProperties } from "react"
+import { Link } from "react-router-dom"
 import { EChart, timeSeriesOption, useChartTheme, type TimeLine } from "@iot-os/charts"
 import { Button } from "@iot-os/ui/components/button"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
+import { Status } from "@iot-os/ui/components/status-mark"
 import {
   Empty,
   EmptyDescription,
@@ -11,6 +13,17 @@ import {
 } from "@iot-os/ui/components/empty"
 import { formatNumber } from "@iot-os/ui/lib/format"
 import { errorMessage } from "../components/forms"
+import { useCanOpenAutomations } from "./access"
+import {
+  comparisonText,
+  deviceNames,
+  drawnLimits,
+  limitDevices,
+  limitLabel,
+  limitNote,
+  panelLimits,
+  treatmentText,
+} from "./alertLimits"
 import {
   bandColor,
   profilePrecision,
@@ -21,7 +34,7 @@ import {
   timeLabel,
   valueBands,
 } from "./model"
-import { recordedInName, useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
+import { recordedInName, useAlertLimits, useDeviceActivity, useDevices, useHistory, useLatest, useNow } from "./panelData"
 import { readingTime } from "./ReadoutPanels"
 import type { PanelProps } from "./registry"
 
@@ -139,6 +152,23 @@ export default function TimeSeriesPanel({
     }]
   })
   const hasData = series.some((s) => s.points.some((p) => p.value !== null))
+  // Alert limits (spec 037): what running automations alert at on these readings, taken
+  // from the automations and never from the panel's own thresholds.
+  const limitsAsked = limitDevices(widget.config)
+  const limitData = useAlertLimits(org, limitsAsked)
+  const canOpenAutomations = useCanOpenAutomations(org)
+  const severalDevices = new Set(deviceIds).size > 1
+  const limits = limitsAsked.length
+    ? panelLimits(sources, limitData.limits, (id) =>
+        devices(id)?.data?.name ?? sources.find((s) => s.device_uuid === id)?.device_name ?? "Device")
+    : []
+  const drawnValues = series.flatMap((s) => s.points.flatMap((p) => (p.value === null ? [] : [p.value])))
+  const limitLines = drawnLimits(
+    limits,
+    drawnValues.length ? { min: Math.min(...drawnValues), max: Math.max(...drawnValues) } : null,
+  )
+  // The chart's value axis once drawn, to say which limits fall outside it.
+  const [extent, setExtent] = useState<{ min: number; max: number } | null>(null)
   const failed = queries.flatMap((query, index) =>
     query.error ? [{ query, index }] : [],
   )
@@ -156,6 +186,7 @@ export default function TimeSeriesPanel({
     episodes.map((e) => `${e.uuid}:${e.cleared_at ?? ""}`).join(),
     commands.map((c) => c.uuid).join(),
     JSON.stringify(sources),
+    limitLines.map((limit) => `${limit.key}:${limitLabel(limit, severalDevices)}`).join(),
   ].join("|")
   const option = useMemo(() => {
     if (!hasData) return null
@@ -191,6 +222,11 @@ export default function TimeSeriesPanel({
         value: threshold.value,
         color: bandColor(threshold.color),
         label: `${threshold.label.charAt(0).toUpperCase()}${threshold.label.slice(1)} ${formatNumber(threshold.value)}${unit ? ` ${unit}` : ""}`,
+      })),
+      limits: limitLines.map((limit) => ({
+        value: limit.value,
+        label: limitLabel(limit, severalDevices),
+        clears: limit.role === "clear",
       })),
       bands: bands.map((band) => ({ from: band.from, to: band.to, color: bandColor(band.color) })),
       selectable: Boolean(onZoom),
@@ -234,6 +270,7 @@ export default function TimeSeriesPanel({
               group={group}
               label={`${widget.title || "Time series"}: ${unit || "values"} over time`}
               className="min-h-36 w-full flex-1"
+              onValueExtent={(min, max) => setExtent({ min, max })}
               onSelectRange={
                 onZoom
                   ? (start, end) => onZoom(new Date(start).toISOString(), new Date(end).toISOString())
@@ -374,6 +411,59 @@ export default function TimeSeriesPanel({
             </li>
           )}
         </ul>
+        {limitData.unavailable && limitsAsked.length > 0 ? (
+          <p role="status" className="mt-1 border-t pt-1 text-muted-foreground">
+            Alert limits are unavailable.
+          </p>
+        ) : (
+          limits.length > 0 && (
+            <div className="mt-1 border-t pt-1">
+              <p aria-hidden className="pb-0.5 text-muted-foreground">Alert limits · current rules</p>
+              <ul aria-label="Alert limits, current rules">
+                {limits.map((limit) => {
+                  const note = limitNote(limit, limitLines, hasData ? extent : null)
+                  const treatment = treatmentText(limit)
+                  return (
+                    <li key={limit.key} className="flex min-h-6 flex-wrap items-center gap-x-2">
+                      <svg aria-hidden width="16" height="8" className="shrink-0">
+                        <path
+                          d="M0 4H16"
+                          stroke="currentColor"
+                          strokeWidth={limit.role === "clear" ? 1.5 : 2}
+                          strokeDasharray={limit.role === "clear" ? "1 3" : "7 2 2 2"}
+                        />
+                      </svg>
+                      {canOpenAutomations ? (
+                        <Link
+                          to={`/organizations/${encodeURIComponent(org)}/automation/${encodeURIComponent(limit.workflow_uuid)}`}
+                          className="min-w-0 truncate font-medium underline decoration-border underline-offset-2 hover:decoration-foreground"
+                          title={`Open ${limit.workflow_name}`}
+                        >
+                          {limit.workflow_name}
+                        </Link>
+                      ) : (
+                        <span className="min-w-0 truncate font-medium" title={limit.workflow_name}>
+                          {limit.workflow_name}
+                        </span>
+                      )}
+                      <span className="font-mono tabular-nums">{comparisonText(limit)}</span>
+                      {severalDevices && <span className="text-muted-foreground">{deviceNames(limit.devices)}</span>}
+                      {treatment && <span className="text-muted-foreground">{treatment}</span>}
+                      {limit.state === "suspended" ? (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Status value="suspended" domain="automation" />
+                          not checking
+                        </span>
+                      ) : (
+                        note && <span className="text-muted-foreground">{note}</span>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        )}
       </div>
     </div>
   )

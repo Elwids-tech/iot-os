@@ -5,6 +5,7 @@ export { axisStyle, tooltipStyle } from "./styles"
 export {
   timeSeriesOption,
   type TimeArea,
+  type LimitLine,
   type TimeLine,
   type TimeMarker,
   type TimePoint,

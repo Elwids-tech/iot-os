@@ -40,7 +40,7 @@
   "required_capabilities": [
     "devices.view"
   ],
-  "revision": 5,
+  "revision": 6,
   "summary": "**Alerts** records live conditions and the team’s response, including acknowledgment, assignment, and comments. It lists automation alerts and the offline alerts the platform raises by itself. Its Event log tab and **My notifications** replace the notification center.",
   "questions": [
     "Does acknowledging an alert clear it?",
