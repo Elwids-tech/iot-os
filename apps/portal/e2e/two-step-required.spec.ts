@@ -208,3 +208,19 @@ test.describe("with passkeys", () => {
     expect(errors).toEqual([])
   })
 })
+
+test("on a billing account's address the setup page carries its brand, not the platform's mark", async ({ page }) => {
+  // Spec 036 FR-006: the pages around sign-in show the brand of the address.
+  const brand = { product_name: "Acme Monitor", short_name: "Acme", support_url: "https://support.example.org/help", logo: null, logo_dark: null, icon: null, touch_icon: null, powered_by: "IoT OS" }
+  await page.route("**/runtime-config.js", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: `window.__IOT_CONFIG__ = ${JSON.stringify({ VITE_API_URL: "", address: { kind: "name", host: "127.0.0.1", state: "active" }, brand })};` }),
+  )
+  const { errors } = await serve(page, fakeAccount({ platform: true }), "laptop", { signedIn: true })
+  await page.goto(`/organizations/${acme.uuid}/devices`)
+
+  await expect(page.getByRole("heading", { name: "Set up two-step sign-in" })).toBeVisible()
+  await expect(page.getByRole("main").getByText("Acme Monitor", { exact: true })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Help" })).toHaveAttribute("href", brand.support_url)
+  await expect(page.getByText("Powered by IoT OS")).toBeVisible()
+  expect(errors).toEqual([])
+})

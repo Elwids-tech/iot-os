@@ -37,6 +37,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 ## Reference
 
 - [API surface](reference/api.md)
+- [Branding API](reference/branding-api.md): brands, portal addresses and what a host learns before the portal starts
 - [Events and messaging](reference/events.md): JetStream, control messages, runtime events, committed telemetry, integration events
 - [Sparkplug B](reference/sparkplug.md)
 - Contracts: [`contracts/`](../contracts/README.md)

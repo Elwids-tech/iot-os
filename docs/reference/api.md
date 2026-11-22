@@ -55,7 +55,7 @@ pull requests.
 | --- | --- | --- | --- |
 | `/api/v1/auth/*`, `/api/v1/me` | Portal, admin | Session (`auth:sanctum`, stateful) | [access](../features/access.md#signing-in) |
 | `/api/v1/invitations/{token}` | Invitees | None (token in path) | [access](../features/access.md#in-the-portal) |
-| `/api/v1/portal/runtime-config.js`, `/api/v1/portal/manifest.webmanifest`, `/api/v1/portal/icons/{name}` | The portal's web server, for a host that is a billing account's portal address | None | [branding](../features/branding.md#what-an-address-shows) |
+| `/api/v1/portal/runtime-config.js`, `/api/v1/portal/manifest.webmanifest`, `/api/v1/portal/icons/{name}` | The portal's web server, for a host that is a billing account's portal address | None | [branding API](branding-api.md#what-a-host-learns-before-the-portal-starts) |
 | `/api/v1/organizations/{organization}/…` | Portal | Session + organization membership (`ResolveOrganizationContext`: 404 unknown, 403 non-member) + permission | Per domain, below |
 | `/api/v1/admin/…` | Admin | Session + `PlatformAdministration.*` | [access](../features/access.md#platform-administration) |
 | `/api/v1/admin/tickets/…` | Admin | Session + super administrator | [support tickets](../features/support.md#api) |

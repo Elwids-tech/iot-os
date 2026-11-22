@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { AuthenticatedUser, TwoStepSetup as Setup } from "@iot-os/api-client"
 import { ConfirmationCancelled, useConfirmedAction } from "@iot-os/auth/ConfirmIdentityDialog"
 import { passkeysSupported } from "@iot-os/auth/passkeys"
+import { SignInFooter, SignInMark } from "@iot-os/auth/SignInBrand"
 import { TwoStepSetup } from "@iot-os/auth/TwoStepSetup"
 import { Button } from "@iot-os/ui/components/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@iot-os/ui/components/card"
@@ -74,11 +75,12 @@ export default function SetupRequiredPage() {
   const satisfied = (security.data?.two_step.satisfied ?? false) && setup === null
 
   return (
-    <main className="flex min-h-svh items-center justify-center p-5 max-md:px-4">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-5 max-md:px-4">
       <Card className="w-full max-w-lg max-md:rounded-none max-md:bg-transparent max-md:shadow-none max-md:[&_[data-slot=card-footer]]:border-0 max-md:[&_[data-slot=card-footer]]:bg-transparent">
         <CardHeader>
           <div className="mb-4 flex items-center justify-between">
-            <CpuIcon className="text-primary" />
+            {/* On a billing account's address the page carries its brand, as the sign-in pages do. */}
+            <SignInMark fallback={<CpuIcon className="text-primary" />} />
             <ThemePicker />
           </div>
           <CardTitle>
@@ -137,6 +139,7 @@ export default function SetupRequiredPage() {
           </CardFooter>
         )}
       </Card>
+      <SignInFooter className="max-w-lg" />
       <AddPasskeyDialog
         open={addingPasskey}
         run={confirmed.run}

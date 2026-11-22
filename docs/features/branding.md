@@ -1,11 +1,11 @@
 # Branding
 
 A billing account's own product name, logo and icon instead of the platform's, and an
-organization's own logo ([spec 036](../../specs/036-white-label-custom-domains/spec.md),
-[ADR-050](../adr/ADR-050-brands-and-portal-addresses.md)). This page covers what is
-built: brands, logos, the allowances that turn them on, and portal addresses: names
-under the platform's domain and custom domains, and what follows the brand out of the
-portal: mail, links, the installed app and push.
+organization's own logo ([ADR-050](../adr/ADR-050-brands-and-portal-addresses.md);
+built from [spec 036](../../specs/036-white-label-custom-domains/spec.md), now frozen).
+This page covers brands, logos, the allowances that turn them on, portal addresses
+(names under the platform's domain and custom domains), and what follows the brand out
+of the portal: mail, links, the installed app and push.
 
 Code: [`app/Domain/Branding`](../../apps/api/app/Domain/Branding)
 ([`Brands`](../../apps/api/app/Domain/Branding/Services/Brands.php),
@@ -18,7 +18,7 @@ Code: [`app/Domain/Branding`](../../apps/api/app/Domain/Branding)
 [`BrandMark`](../../packages/ui/src/components/brand-mark.tsx),
 [`ImageField`](../../packages/ui/src/components/image-field.tsx) and
 [`BrandEditor`](../../packages/ui/src/components/brand-editor.tsx). Routes and shapes
-are in the [branding contract](../../specs/036-white-label-custom-domains/contracts/branding-api.md).
+are in the [branding API reference](../reference/branding-api.md).
 
 ## Who shows what
 
@@ -71,12 +71,16 @@ for off, never unlimited, and off unless a plan or an override turns them on:
 
 | Kind | Turns on | Used |
 | --- | --- | --- |
-| `branding` | The account's brand and, later, its portal addresses | Now |
-| `custom_domain` | A custom domain for the account | From the custom-domain pull request |
-| `hide_powered_by` | Removing the "Powered by" line | From the address pull request |
+| `branding` | The account's brand and its portal addresses | In the portal, in mail, on its addresses |
+| `custom_domain` | A custom domain for the account. Needs `branding` too | When claiming a domain, and while it serves |
+| `hide_powered_by` | Removing the "Powered by" line | On the sign-in pages of its addresses |
 
 Owners do not see them in their list of limits; they read them with their branding
 (`GET /api/v1/billing-accounts/{account}/branding`, member `allowances`).
+
+Withdrawing an allowance deletes nothing and releases nothing: the brand, the name and
+the domain are kept for as long as the account exists and work again when the allowance
+returns ([what staff see](../ops/release.md#when-an-allowance-is-withdrawn)).
 
 ## Portal addresses
 
@@ -144,14 +148,17 @@ portal on one domain of its own, such as `portal.example.org`
   but the platform's own. For such a request the API makes the session and kept
   sign-in cookies host-only and treats only that host as a first-party page. A
   session started there carries the address and its activation, works nowhere else
-  (`401`), and ends when the domain is removed, suspended or claimed again. The admin
+  (`401`), as does a kept sign-in (`kept_sign_ins.portal_address`), and ends when the domain is removed, suspended or claimed again. The admin
   app, agent connections, application sign-in and payment webhooks answer 404 there.
 - **Passkeys belong to the domain they were made on.** On a custom domain the passkey
   relying party is the domain, so a person adds a passkey there to use one there. The
   security page lists where each passkey works. See
   [access](access.md#passkeys).
 - **Certificates** are issued by the deployment's proxy on first use, only for a host
-  the API says serves ([release guide](../ops/release.md#portal-addresses)).
+  the API says serves ([release guide](../ops/release.md#portal-addresses)). A renamed
+  name counts for the 30 days it sends visitors on, since it cannot redirect without
+  one. Nothing watches a custom domain's certificate yet: release monitoring probes
+  only the platform's own hosts.
 
 ### What an address shows
 
@@ -159,21 +166,27 @@ The portal is one build for every host. Its page has no name of its own: the fir
 script it runs is `/runtime-config.js`, and on an address the portal's web server
 sends that request to the API (`GET /api/v1/portal/runtime-config.js`), which answers
 with the address's brand
-([bootstrap contract](../../specs/036-white-label-custom-domains/contracts/portal-bootstrap.md)).
+([what it answers](../reference/branding-api.md#what-a-host-learns-before-the-portal-starts)).
 A small inline script
 ([`brand-bootstrap.js`](../../apps/portal/src/lib/brand-bootstrap.js)) then names the
 tab, sets the tab icon and draws the brand's logo or name while the app loads.
 
-- The sign-in, two-step, password reset and invitation pages show the brand's logo or
-  name, its support link as **Help**, and a small **Powered by** line naming the
+- The sign-in, two-step, forced two-step setup, password reset and invitation pages
+  show the brand's logo or name, its support link as **Help**, and a small **Powered by** line naming the
   platform. The `hide_powered_by` allowance removes the line.
 - Inside the portal, tab titles end with the brand's product name.
 - An address whose brand has no product name yet shows the platform's name. The
   portal asks for the product name before it lets an owner claim a name.
 - The installed app is the address's own: its manifest and icons are answered per
   host ([the installed app](#the-installed-app)).
+- A brand without an icon keeps the platform's tab icon, touch icon and installed-app
+  icons; only its name and logo show. A product name is all a brand needs to take
+  effect.
 - A host that is not an address that serves gets *This address is not in use*, and
   the app does not start.
+- The portal keeps what an address answered in the browser (`iot-runtime-config`) and
+  starts from it when the file cannot be fetched, so an address opened offline is not
+  mistaken for the platform's. What another host kept is ignored.
 
 ### Who gets in
 
@@ -188,7 +201,10 @@ On an account's address ([`PortalAccess`](../../apps/api/app/Domain/Branding/Ser
   organization answers `404 not_available_here` and the portal says *Not available at
   this address*.
 - The rule is checked on every request, so a person who loses their last organization
-  under the account is refused on their next one.
+  under the account is refused on their next one (`403 not_available_here`). On a
+  custom domain that request also ends the session, which exists only there. On a name
+  the session is the one shared with the platform's address, so it stays and every
+  request at the name keeps being refused.
 - An invitation is accepted there only into one of the account's organizations.
 - Nobody signs up there.
 
@@ -272,7 +288,7 @@ name written anywhere else under `apps/portal/src` or `packages/auth/src`
 On an address the portal's web server sends `/manifest.webmanifest` and the five fixed
 icon paths (`/pwa-64x64.png`, `/pwa-192x192.png`, `/pwa-512x512.png`,
 `/maskable-icon-512x512.png`, `/apple-touch-icon-180x180.png`) to the API
-([bootstrap contract](../../specs/036-white-label-custom-domains/contracts/portal-bootstrap.md)):
+([paths and caching](../reference/branding-api.md#what-a-host-learns-before-the-portal-starts)):
 
 - the manifest is the build's own with `name` and `short_name` from the brand
   (`config/branding.php` keeps a copy of the build's manifest; a test compares it with
@@ -352,3 +368,24 @@ Brands and logos need no setting. Portal addresses read, in `config/branding.php
 
 The portal image reads `PORTAL_ADDRESSES`, `PORTAL_ADDRESSES_DOMAIN` and
 `API_UPSTREAM` to decide which hosts are addresses and where their requests go.
+
+## Where the build differs from the spec folder
+
+The spec folder is history and is not corrected. Where it and this page disagree, this
+page and the code are right:
+
+- A name or domain whose allowance stays off is kept without limit. The spec's 30 days
+  apply only to a released name and a removed domain.
+- Platform staff suspend and restore addresses in the admin app. Claiming, renaming,
+  removing and checking for an account have admin routes but no admin screen: owners do
+  them in the portal.
+- A dashboard or kiosk link a person copies is on the address they copied it at. Only
+  links the server writes (mail, push) move to the account's main address.
+- A lapsed request and an unreachable domain show on the billing page and in the
+  activity log. No mail or notification is sent.
+- A lapsed address shows no time of lapsing.
+- The release check asks about an unclaimed name only (no certificate, *not in use*).
+- Mail templates are in `resources/views/mail`, not `views/vendor`, which neither git
+  nor the image build includes. Tests are under `tests/Feature/Domain/Branding`. There
+  is no service provider. Images are uploaded with `POST`. Sign-up mail carries the
+  platform's name.
