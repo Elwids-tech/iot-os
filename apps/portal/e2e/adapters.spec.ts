@@ -529,6 +529,10 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
 }) => {
   const { errors, requests } = await setup(page);
   await page.goto(base + "/new");
+  // One question first: the four sources, and nothing else to fill in yet.
+  await expect(page.getByRole("radio")).toHaveCount(4);
+  await expect(page.getByLabel("Adapter name", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page
     .getByLabel("Adapter name", { exact: true })
     .fill("Workshop manufacturer meter");
@@ -536,7 +540,6 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
     .getByRole("combobox", { name: "Published device profile" })
     .click();
   await page.getByRole("option", { name: "Water meter · revision 1" }).click();
-  await page.getByRole("button", { name: "Continue to connection" }).click();
   await page
     .getByRole("button", { name: "Save connection", exact: true })
     .click();
@@ -547,7 +550,7 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
   expect(
     requests.find((r) => r.path.endsWith("/device-adapters"))?.body.code,
   ).toContain("input.payload");
-  await page.getByRole("tab", { name: "3 · Decode & test" }).click();
+  await page.getByRole("tab", { name: "Decode" }).click();
   await page.getByRole("button", { name: "Run sample tests" }).click();
   await expect(
     page.getByText("All samples passed", { exact: true }),
@@ -559,14 +562,14 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
   await expect(
     page.getByRole("button", { name: "Deploy tested revision" }),
   ).toBeEnabled();
-  await page.getByRole("tab", { name: "3 · Decode & test" }).click();
+  await page.getByRole("tab", { name: "Decode" }).click();
   const editor = page.locator(".cm-content[contenteditable=true]").first();
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.insertText(
     "function decode(input){throw Error('Review this draft')} ",
   );
-  await page.getByRole("tab", { name: "4 · Review & deploy" }).click();
+  await page.getByRole("tab", { name: "Deploy" }).click();
   await expect(
     page.getByRole("button", { name: "Deploy tested revision" }),
   ).toBeDisabled();
@@ -583,6 +586,9 @@ test("hardware kit download and discovered serial activation stay in the tenant 
 }) => {
   const { errors, requests } = await setup(page);
   await page.goto(base + "/" + id);
+  // A live adapter opens on its overview; the kits sit with the source.
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Source", exact: true }).click();
   await page.getByLabel("Hardware credential label").fill("Meter WM-1042");
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Create & download kit" }).click();
@@ -590,7 +596,7 @@ test("hardware kit download and discovered serial activation stay in the tenant 
   await expect(
     page.getByText("test-only-password", { exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("tab", { name: "5 · Devices" }).click();
+  await page.getByRole("tab", { name: "Devices" }).click();
   await page.getByRole("button", { name: "Activate", exact: true }).click();
   const activate = page.getByRole("dialog", { name: "Activate WM-1042" });
   await expect(activate.getByLabel("Device name", { exact: true })).toHaveValue("WM-1042");
@@ -703,7 +709,7 @@ test("an adapter's publisher is left out of Gateways, and its gateway page opens
 test("retained samples cannot activate physical devices", async ({ page }) => {
   const { requests } = await setup(page, true);
   await page.goto(base + "/" + id);
-  await page.getByRole("tab", { name: "5 · Devices" }).click();
+  await page.getByRole("tab", { name: "Devices" }).click();
   await expect(
     page.getByRole("button", { name: "Activate", exact: true }),
   ).toBeDisabled();
@@ -713,22 +719,22 @@ test("retained samples cannot activate physical devices", async ({ page }) => {
 const settled = (page: Page) =>
   page.waitForFunction(() => document.getAnimations().length === 0);
 
-async function newAdapter(page: Page, name: string) {
+async function newAdapter(page: Page, name: string, source?: string) {
   await page.goto(base + "/new");
+  if (source) await page.getByRole("radio", { name: source }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByLabel("Adapter name", { exact: true }).fill(name);
   await page
     .getByRole("combobox", { name: "Published device profile" })
     .click();
   await page.getByRole("option", { name: "Water meter · revision 1" }).click();
-  await page.getByRole("button", { name: "Continue to connection" }).click();
 }
 
 test("a webhook source shows its ingest URL and manages secrets shown once", async ({
   page,
 }) => {
   const { errors, requests } = await setup(page);
-  await newAdapter(page, "Vendor cloud meter");
-  await page.getByRole("radio", { name: "Vendor cloud sends webhooks" }).click();
+  await newAdapter(page, "Vendor cloud meter", "Vendor cloud sends webhooks");
   await expect(page.getByLabel("Signature header")).toHaveValue("x-signature");
   await expect(page.getByLabel("Manufacturer topic filters")).toHaveCount(0);
   await page.getByLabel("Timestamp header").fill("X-Timestamp");
@@ -811,8 +817,7 @@ test("a polling source saves only its settings, fetches records and adds one as 
   page,
 }) => {
   const { errors, requests } = await setup(page);
-  await newAdapter(page, "Asset trackers");
-  await page.getByRole("radio", { name: "Poll a vendor API" }).click();
+  await newAdapter(page, "Asset trackers", "Poll a vendor API");
   await page
     .getByLabel("URL", { exact: true })
     .fill("https://api.vendor.example/accounts/A1/streams/{start}");
@@ -882,7 +887,7 @@ test("a polling source saves only its settings, fetches records and adds one as 
   await expect(page.getByText("Added as fixture 2.", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Fetch now" })).toBeDisabled();
 
-  await page.getByRole("tab", { name: "3 · Decode & test" }).click();
+  await page.getByRole("tab", { name: "Decode" }).click();
   await expect(page.locator(".cm-content").nth(1)).toContainText("TRK-1001");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.", { exact: false })).toBeVisible();
@@ -908,32 +913,32 @@ test("a polling source saves only its settings, fetches records and adds one as 
   expect(errors).toEqual([]);
 });
 
-test("the setup checklist shows each step's state and opens its tab", async ({
+test("setup shows four steps with their states, says what is next and opens its tab", async ({
   page,
 }) => {
-  const { errors } = await setup(page, false, "webhook");
+  const { errors, current } = await setup(page, false, "webhook");
+  // Not deployed yet, so the page is still the setup steps.
+  Object.assign(current(), { applied_revision_uuid: null, status: "draft" });
   const empty = (r: any) =>
     r.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) });
   await page.route("**/deliveries**", empty);
   await page.route("**/candidates", empty);
   await page.goto(base + "/" + id);
-  const list = page.getByRole("region", { name: "Setup checklist" });
-  const steps = list.getByRole("listitem");
-  await expect(steps).toHaveCount(6);
-  await expect(list).toContainText("1 of 6 done · next: Connect");
-  await expect(steps.nth(0)).toContainText("Done");
-  await expect(steps.nth(1)).toContainText("Waiting");
-  await expect(steps.nth(1)).toContainText("Waiting for the first delivery");
-  await expect(steps.nth(2)).toContainText("Needs attention");
-  await expect(steps.nth(3)).toContainText("Not started");
-  await list.getByRole("button", { name: "5 · Test and deploy" }).click();
-  await expect(
-    page.getByRole("tab", { name: "4 · Review & deploy" }),
-  ).toHaveAttribute("aria-selected", "true");
-  await list.getByRole("button", { name: "3 · Capture samples" }).click();
-  await expect(
-    page.getByRole("tab", { name: "3 · Decode & test" }),
-  ).toHaveAttribute("aria-selected", "true");
+  const steps = page.getByRole("tablist", { name: "Adapter setup" });
+  await expect(steps.getByRole("tab")).toHaveCount(5);
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveCount(0);
+  // Each step takes the state of its first unfinished part.
+  await expect(steps.getByRole("tab", { name: "Waiting: Source" })).toHaveAttribute("aria-selected", "true");
+  await expect(steps.getByRole("tab", { name: "Needs attention: Decode" })).toBeVisible();
+  await expect(steps.getByRole("tab", { name: "Not started: Deploy" })).toBeVisible();
+  await expect(steps.getByRole("tab", { name: "Not started: Devices" })).toBeVisible();
+  const next = page.locator('[data-slot="setup-next"]');
+  await expect(next).toContainText("Next:");
+  await expect(next).toContainText("Waiting for the first delivery");
+  await steps.getByRole("tab", { name: "Deploy" }).click();
+  await next.getByRole("button", { name: "Connect" }).click();
+  await expect(steps.getByRole("tab", { name: "Source" })).toHaveAttribute("aria-selected", "true");
+  await steps.getByRole("tab", { name: "Decode" }).click();
   const waiting = page.locator('[data-slot="empty-state"]').filter({
     hasText: "Waiting for the first delivery",
   });
@@ -1057,10 +1062,8 @@ test("the onboarding assistant works in the workspace panel beside the workbench
   await page.goto(base + "/" + id);
   // The assistant is a conversation in the panel, not a tab of the workbench.
   await expect(page.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
-  await page
-    .getByRole("region", { name: "Setup checklist" })
-    .getByRole("button", { name: "Ask the assistant" })
-    .click();
+  await page.getByRole("button", { name: "More adapter actions" }).click();
+  await page.getByRole("menuitem", { name: "Ask the assistant" }).click();
   const chat = page
     .getByRole("complementary", { name: "Assistant", exact: true })
     .getByRole("region", { name: "Onboarding assistant" });
@@ -1079,9 +1082,9 @@ test("the onboarding assistant works in the workspace panel beside the workbench
   });
   await expect(chat).toContainText("Applied a change to the adapter draft");
   // The suggested step opens its workbench tab beside the panel.
-  await page.getByRole("tab", { name: "4 · Review & deploy" }).click();
+  await page.getByRole("tab", { name: "Deploy" }).click();
   await chat.getByRole("button", { name: "Create a webhook secret" }).click();
-  await expect(page.getByRole("tab", { name: "2 · Connection" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Source", exact: true })).toHaveAttribute("aria-selected", "true");
   expect(errors).toEqual([]);
 });
 
@@ -1378,7 +1381,7 @@ test("Activity lists webhook outcomes and rejections, and a failed delivery beco
     .getByRole("button", { name: "Add failed delivery /uplink as fixture" })
     .click();
   await expect(page.getByText("Added as fixture 2.", { exact: false })).toBeVisible();
-  await page.getByRole("tab", { name: "3 · Decode & test" }).click();
+  await page.getByRole("tab", { name: "Decode" }).click();
   await expect(page.locator(".cm-content").nth(1)).toContainText("vendor-cloud");
   expect(errors).toEqual([]);
 });

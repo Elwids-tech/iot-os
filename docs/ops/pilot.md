@@ -182,7 +182,7 @@ a release:
 
 1. On the application host, `docker pull` the `ADAPTER_RUNTIME_IMAGE` from the
    release's `release.json`.
-2. Redeploy each running adapter: **Review & deploy → Deploy tested revision** on its
+2. Redeploy each running adapter: **Deploy → Deploy tested revision** on its
    page in the portal. The first deploy after an image change can time out while the
    old webhook source stops; deploying again succeeds.
 3. Check that the adapter's activated devices come back online. The publisher

@@ -187,7 +187,7 @@ export function Samples({
         inset
         icon={<InboxIcon />}
         title="No captured records yet"
-        description="Run Fetch now on the Connection tab and add records from its result, or wait for failed records after deployment."
+        description="Run Fetch now on the Source tab and add records from its result, or wait for failed records after deployment."
       />
     ) : (
       <EmptyState

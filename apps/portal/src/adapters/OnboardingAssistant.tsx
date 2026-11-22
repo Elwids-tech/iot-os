@@ -116,7 +116,7 @@ const STEP_TABS: Record<OnboardingStep, string> = {
   activate: "devices",
   cursor: "activity",
 };
-// A suggested step disappears once the setup checklist says it is done.
+// A suggested step disappears once the adapter's checklist says it is done.
 const CHECKLIST_STEPS: Record<OnboardingStep, string | null> = {
   credentials: "connect",
   secret: "connect",
@@ -848,7 +848,7 @@ export default function OnboardingAssistantBody({
             <Alert>
               <AlertTitle>Assistant unavailable</AlertTitle>
               <AlertDescription>
-                The setup checklist and every step still work without it.
+                Every setup step still works without it.
               </AlertDescription>
             </Alert>
           </div>
@@ -1261,7 +1261,7 @@ function AdapterProposalReview({
           )}
           <p className="text-meta text-muted-foreground">
             {proposal.kind === "create" ? (
-              "Applying creates a draft adapter without credentials. Enter them in its Connection tab."
+              "Applying creates a draft adapter without credentials. Enter them in its Source tab."
             ) : proposal.kind === "change" ? (
               "Applying saves a new draft revision. Tests and deployment stay with you."
             ) : (

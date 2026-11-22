@@ -219,7 +219,7 @@ export function appendFixture(text: string, fixture: AdapterFixture) {
 }
 
 export const checklistSteps: Record<ChecklistStep, { label: string; tab: string }> = {
-  type: { label: "Device type", tab: "type" },
+  type: { label: "Device type", tab: "source" },
   connect: { label: "Connect", tab: "source" },
   samples: { label: "Capture samples", tab: "decoder" },
   decoder: { label: "Decoder", tab: "decoder" },

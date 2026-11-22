@@ -156,13 +156,27 @@ under **Build → Device adapters** for users with `Device.manage`.
 
 ([Mermaid source](diagrams/device-integration-02-onboarding.mmd))
 
-The workbench shows a **setup checklist** above its tabs, worked out from the
-adapter's saved state: device type, connect, capture samples, decoder, test and
-deploy, activate devices. Each step says what is done, what it is waiting for (for
-example **Waiting for the first delivery**) and opens the place to act. The **device
-onboarding assistant** ([assistant](assistant.md#device-onboarding-assistant)) walks
-the same steps in the workspace panel: **Ask the assistant** on the checklist, or the
-header **Assistant** on any adapter page.
+Setting an adapter up and running it are two views of the same page. Until the
+first deployment the page is four steps, **Source**, **Decode**, **Deploy** and
+**Devices** (plus **Activity**). Each step's mark comes from the adapter's saved
+state (the six checklist items: device type, connect, capture samples, decoder,
+test and deploy, activate devices): a check when done, otherwise waiting, needs
+attention or not started. One line under the steps says what is next and why (for
+example **Waiting for the first delivery**) and opens the place to act. A new
+adapter starts with one question, how the data reaches the platform, and shows the
+name, device type and that source's settings only after the answer; **Change
+source** brings the question back.
+
+Once a revision is deployed the page is a record that opens on **Overview**: the
+source, the decoder and the devices it feeds at a glance, each opening its tab
+(**Devices**, **Source**, **Decoder**, **Deploy**, **Activity**), and one notice
+when a saved draft is not live yet. The header names a source or publisher only
+when it is not connected.
+
+The **device onboarding assistant**
+([assistant](assistant.md#device-onboarding-assistant)) walks the same steps in the
+workspace panel: **Ask the assistant** beside the steps during setup, in the
+adapter's ⋯ menu once it is live, or the header **Assistant** on any adapter page.
 
 1. Create an adapter: pick a published profile and name the reusable device-type
    adapter. Once devices are active through it, the adapter can move only to another
