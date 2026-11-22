@@ -506,10 +506,14 @@ final class PortalAddresses
         return $address;
     }
 
+    /**
+     * Staff lift a suspension. A name serves at once. A custom domain goes back to
+     * waiting and is checked now: it serves again if its record is still there, as a new
+     * activation, so nothing signed in before the suspension carries over.
+     */
     public function restore(PortalAddress $address, User $actor): PortalAddress
     {
         if ($address->state === PortalAddressState::Suspended) {
-            // A name serves at once. A custom domain goes back to waiting for its record.
             $state = $address->kind === PortalAddressKind::Name ? PortalAddressState::Active : PortalAddressState::WaitingDns;
             $address->forceFill([
                 'state' => $state,
@@ -520,6 +524,7 @@ final class PortalAddresses
             ])->save();
             $this->forget($address->host);
             ActivityLog::record('portal_address.restored', null, $actor, $address->billingAccount, ['host' => $address->host]);
+            $this->check($address);
         }
 
         return $address;

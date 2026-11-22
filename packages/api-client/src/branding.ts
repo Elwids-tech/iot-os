@@ -79,6 +79,19 @@ export type PortalAddress = {
   lapses_at: string | null
 }
 
+/**
+ * A portal address as platform staff see it. `serving` is false for an `active` or
+ * `unreachable` address while its account's allowance is off: the address is kept and
+ * serves again when the allowance is back.
+ */
+export type PlatformPortalAddress = PortalAddress & {
+  serving: boolean
+  /** Null once the billing account is deleted. */
+  billing_account: { uuid: string; name: string } | null
+  /** The staff member who suspended it. */
+  suspended_by_user_id: number | null
+}
+
 /** Why a custom domain was not claimed: a 403, 409 or 422 `code`. */
 export type PortalDomainRefusal =
   | "addresses_unavailable"

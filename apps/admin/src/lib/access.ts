@@ -8,6 +8,7 @@ import type { AuthenticatedUser } from "@iot-os/api-client"
 export const organizationPaths = [
   "/organizations",
   "/billing-accounts",
+  "/portal-addresses",
   "/plans",
   "/billing/invoices",
   "/users",
