@@ -8,6 +8,7 @@ use App\Domain\Billing\Enums\PlanAssignmentKind;
 use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\PlanAssignment;
 use App\Domain\Billing\Services\Payments;
+use App\Domain\Branding\Services\PortalLinks;
 use Carbon\CarbonImmutable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -77,7 +78,7 @@ final class TrialMail extends Mailable
                 default => sprintf('After that, the account stays on %s.', $this->planName),
             },
             'action' => ! $this->charged && $this->card === null && $this->payments ? 'Add a card' : 'Open the billing account',
-            'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid,
+            'link' => app(PortalLinks::class)->platform('billing').'?account='.$this->accountUuid,
             'footer' => 'You receive this as an owner of this billing account.',
         ]);
     }

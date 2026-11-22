@@ -76,6 +76,11 @@ where the portal normally lands. **Install app** is hidden inside the installed 
 On iPhone and iPad the installed app keeps its own storage and sign-in, separate from
 Safari's, so the person signs in once inside it.
 
+On a billing account's [portal address](branding.md#the-installed-app) the installed
+app carries that account's product name and icon instead: the manifest and the icon
+files are answered per host. An app installed from one address is separate from one
+installed from another, or from the platform's.
+
 The icon is drawn from one SVG, `apps/portal/icons/app-icon.svg`. After changing it,
 run `pnpm --filter @iot-os/portal icons` and commit the PNGs it writes to
 `apps/portal/public/`; the image build needs no image tooling.
@@ -136,6 +141,13 @@ of the button. Elsewhere it works in the browser and in the installed app alike.
 A device is one browser profile: the installed app and the browser on the same phone
 share it on Android, and are separate on iPhone and iPad, where the app has its own
 storage.
+
+Push belongs to the address it was turned on at. Someone who has push on at the
+platform's address and then opens a billing account's
+[portal address](branding.md#push) is told once that alerts must be turned on again
+there. A notification opens on the address that subscribed and shows that address's
+icon; a device at one account's address gets no alerts of another account's
+organizations.
 
 ## Signing out
 

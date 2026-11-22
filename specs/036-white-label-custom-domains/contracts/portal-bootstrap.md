@@ -10,9 +10,6 @@ host the static files of today are served unchanged.
 | `/manifest.webmanifest` (pull request 5) | `GET /api/v1/portal/manifest.webmanifest` | `no-cache` |
 | `/pwa-64x64.png`, `/pwa-192x192.png`, `/pwa-512x512.png`, `/maskable-icon-512x512.png`, `/apple-touch-icon-180x180.png` (pull request 5) | `GET /api/v1/portal/icons/{name}` | `max-age=3600` |
 
-Until the manifest route exists, the portal's bootstrap removes the manifest link on an
-address, so an address offers no installed app rather than the platform's.
-
 The host is the forwarded `Host`. None of the routes needs a session.
 
 ## `runtime-config.js`
@@ -81,8 +78,12 @@ host that is not in use: 404.
 ## Icons
 
 `{name}` is one of the five file names. The API answers the brand icon's matching size
-(`64`, `192`, `512`, `maskable`, `180`), or the platform's own file when the brand has
-no icon. For a host that is not in use: 404.
+(`64`, `192`, `512`, `maskable`, `180`). When the brand has no icon it answers `204`
+with `X-Accel-Redirect: /platform-files/{name}`, and the portal's nginx sends the
+platform's own file from that internal location. For a host that is not in use: 404.
+
+The service worker does not precache the manifest or the five icons, so they are
+always the host's.
 
 ## What does not change
 

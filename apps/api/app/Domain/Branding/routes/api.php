@@ -13,6 +13,7 @@ use App\Domain\Branding\Http\Controllers\PlatformPortalAddressController;
 use App\Domain\Branding\Http\Controllers\PortalAddressAskController;
 use App\Domain\Branding\Http\Controllers\PortalBootstrapController;
 use App\Domain\Branding\Models\BrandAsset;
+use App\Domain\Branding\Services\PortalBootstrap;
 use Illuminate\Support\Facades\Route;
 
 // Brands and logos (spec 036, ADR-050, specs/036-white-label-custom-domains/contracts/branding-api.md).
@@ -28,6 +29,11 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     // (contracts/portal-bootstrap.md). The portal's proxy sends `/runtime-config.js` here.
     Route::get('portal/runtime-config.js', [PortalBootstrapController::class, 'runtimeConfig'])
         ->name('portal.runtime-config');
+    Route::get('portal/manifest.webmanifest', [PortalBootstrapController::class, 'manifest'])
+        ->name('portal.manifest');
+    Route::get('portal/icons/{name}', [PortalBootstrapController::class, 'icon'])
+        ->whereIn('name', array_keys(PortalBootstrap::ICONS))
+        ->name('portal.icons');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::prefix('admin')->name('admin.')

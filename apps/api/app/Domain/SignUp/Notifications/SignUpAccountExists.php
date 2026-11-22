@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SignUp\Notifications;
 
+use App\Domain\Branding\Services\PortalLinks;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -30,7 +31,7 @@ final class SignUpAccountExists extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $portal = rtrim((string) config('app.frontend_url'), '/');
+        $portal = app(PortalLinks::class)->platform();
 
         return (new MailMessage)
             ->subject('You already have an account')

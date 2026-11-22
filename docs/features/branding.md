@@ -4,14 +4,16 @@ A billing account's own product name, logo and icon instead of the platform's, a
 organization's own logo ([spec 036](../../specs/036-white-label-custom-domains/spec.md),
 [ADR-050](../adr/ADR-050-brands-and-portal-addresses.md)). This page covers what is
 built: brands, logos, the allowances that turn them on, and portal addresses: names
-under the platform's domain and custom domains. Branded mail and the branded installed
-app are later pull requests of the same spec.
+under the platform's domain and custom domains, and what follows the brand out of the
+portal: mail, links, the installed app and push.
 
 Code: [`app/Domain/Branding`](../../apps/api/app/Domain/Branding)
 ([`Brands`](../../apps/api/app/Domain/Branding/Services/Brands.php),
 [`BrandImages`](../../apps/api/app/Domain/Branding/Services/BrandImages.php),
 [`PortalAddresses`](../../apps/api/app/Domain/Branding/Services/PortalAddresses.php),
 [`PortalAccess`](../../apps/api/app/Domain/Branding/Services/PortalAccess.php),
+[`PortalLinks`](../../apps/api/app/Domain/Branding/Services/PortalLinks.php),
+[`MailBrand`](../../apps/api/app/Domain/Branding/Services/MailBrand.php),
 [`PortalBootstrap`](../../apps/api/app/Domain/Branding/Services/PortalBootstrap.php)), the kit's
 [`BrandMark`](../../packages/ui/src/components/brand-mark.tsx),
 [`ImageField`](../../packages/ui/src/components/image-field.tsx) and
@@ -38,7 +40,7 @@ member of the organization in `GET /api/v1/me` and the organization context):
 
 An organization's own logo is never mixed with its account's dark logo. The logo stays
 with the organization when it moves to another billing account. `product_name` is the
-brand's while it is in effect and null otherwise; nothing reads it for page titles yet.
+brand's while it is in effect and null otherwise.
 
 ## Images
 
@@ -163,8 +165,8 @@ tab, sets the tab icon and draws the brand's logo or name while the app loads.
 - Inside the portal, tab titles end with the brand's product name.
 - An address whose brand has no product name yet shows the platform's name. The
   portal asks for the product name before it lets an owner claim a name.
-- An address offers no installed app yet: the build's manifest names the platform, so
-  the page drops it. The branded installed app comes with a later pull request.
+- The installed app is the address's own: its manifest and icons are answered per
+  host ([the installed app](#the-installed-app)).
 - A host that is not an address that serves gets *This address is not in use*, and
   the app does not start.
 
@@ -200,6 +202,99 @@ marks every request it passes on for a host that is not the platform's own with
 platform's domain or not, gets `421 address_not_in_use`, which is how a suspended or
 removed address stops for pages already open. The lookup is remembered for 30 seconds and cleared on every change. With
 addresses off the middleware does nothing.
+
+## What follows the brand
+
+Everything the platform writes for a person about an organization carries the brand of
+that organization's billing account, and returns to its **main address**: the custom
+domain while that serves, else the name under the platform's domain, else the
+platform's portal. With no brand in effect nothing differs from before brands existed.
+
+### Links
+
+[`PortalLinks`](../../apps/api/app/Domain/Branding/Services/PortalLinks.php) is the one
+place that decides the host of a link:
+
+| Method | For | Opens on |
+| --- | --- | --- |
+| `forOrganization` | Alerts, invitations, the welcome, support tickets | The account's main address |
+| `forRequest`, or `origin()` then `at()` in queued mail | Password reset, security notices | The address the request came from |
+| `platform` | Invoices, payment and usage mail, staff invitations, sign-up | The platform's portal |
+
+Queued mail has no request when a worker builds it. A message that follows the request
+keeps `origin()` (the address's host) when it is made and gives it to `at()` when it is
+sent; an address that stopped serving in between falls back to the platform's portal.
+
+Links for AI agents (`Agents\Mcp\PortalUrls`) stay on the platform's portal: agents
+connect on the platform's domain.
+
+### Mail
+
+[`MailBrand`](../../apps/api/app/Domain/Branding/Services/MailBrand.php) carries the
+product name, a logo and the support link. With a brand:
+
+- the sender's display name is the product name; the sending address stays `MAIL_FROM_ADDRESS`;
+- notification mail (invitation, welcome, password reset, security notices) shows the
+  logo, or the name, in its header and the support link in its footer, through the
+  message templates published in `resources/views/vendor`;
+- the alert and support ticket mails are plain text: their sender and links follow the brand;
+- subjects and greetings that named the platform name the product.
+
+The organization's own logo, when it has one, is the header's. Brands are read fresh
+for every mail: the worker that sends mail outlives a change to a brand.
+
+Invoices, payment, usage and trial mail keep the platform operator's name and link to
+the platform's portal: the operator is the party that bills. So do the platform team's
+copy of ticket mail and invitations to administer the platform. Sign-up mail is the
+platform's, since sign-up is closed on every address.
+
+Without a brand each mail is byte for byte what Laravel's own templates give
+(`BrandedMailTest` compares them).
+
+### Product name in text
+
+`Brands::nameFor($organization)` is the product's name in text written for an
+organization: assistant prompts and the comments and README of generated firmware
+files. Portal copy takes it from `useProductName()`
+([`product-name.ts`](../../apps/portal/src/lib/product-name.ts)), which reads the
+organization's brand, then the address's, then `PLATFORM_NAME` in `@iot-os/api-client`,
+the one place the web apps spell the platform's name. The portal's lint fails on the
+name written anywhere else under `apps/portal/src` or `packages/auth/src`
+(`packages/ui/scripts/check-product-name.mjs`).
+
+### The installed app
+
+On an address the portal's web server sends `/manifest.webmanifest` and the five fixed
+icon paths (`/pwa-64x64.png`, `/pwa-192x192.png`, `/pwa-512x512.png`,
+`/maskable-icon-512x512.png`, `/apple-touch-icon-180x180.png`) to the API
+([bootstrap contract](../../specs/036-white-label-custom-domains/contracts/portal-bootstrap.md)):
+
+- the manifest is the build's own with `name` and `short_name` from the brand
+  (`config/branding.php` keeps a copy of the build's manifest; a test compares it with
+  `apps/portal/vite.config.ts`);
+- each icon path answers the brand's icon in that size. A brand without an icon gets
+  the platform's own file: the API answers `204` with `X-Accel-Redirect`, and the
+  web server sends the file from `/platform-files/`, which nothing outside can ask for;
+- a host that is not in use gets `404` for both.
+
+Notifications name the same icon paths, so a push on an address shows the brand's icon
+with no change to the service worker. The worker does not precache the manifest or
+these icons, so a changed brand icon shows without a new release.
+
+### Push
+
+A push device remembers the address it was turned on at
+(`push_devices.portal_address_id`; null on the platform's own address). A tap opens on
+the address that subscribed, so an alert is pushed only to:
+
+- devices turned on at the platform's own address, which get everything, and
+- devices at an address of the alert's organization's billing account.
+
+A person in two accounts therefore gets no push at one account's address for the
+other's organization. `GET /api/v1/me` carries `push_devices_elsewhere`: how many
+browsers the person has push on in at other addresses. When it is above zero and this
+browser has no subscription here, the portal says once per browser that alerts must be
+turned on again at this address, with **Turn on alerts**.
 
 ## Where people do it
 
@@ -242,7 +337,6 @@ Brands and logos need no setting. Portal addresses read, in `config/branding.php
 | `PORTAL_ADDRESSES_TOKEN` | What the proxy sends when it asks whether a host may have a certificate |
 | `PORTAL_ADDRESSES_DNS_CHECK` | `off` only in development: every custom domain's record counts as found, and a deeper name under the platform's domain (`portal.acme.localhost`) may stand in for a customer's domain |
 | `PORTAL_ADDRESSES_SAME_ORIGIN` | Development only: a name's portal calls the API on its own host ([local setup](../dev/local-setup.md#portal-addresses)) |
-| `PORTAL_ADDRESSES_DNS_CHECK` | For custom domains, which are not built yet |
 | `PLATFORM_NAME` | The name in the **Powered by** line. `IoT OS` by default |
 
 The portal image reads `PORTAL_ADDRESSES`, `PORTAL_ADDRESSES_DOMAIN` and

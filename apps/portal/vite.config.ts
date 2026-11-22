@@ -16,6 +16,8 @@ function buildId(): string {
   }
 }
 
+const PER_HOST_FILES = ["manifest.webmanifest", "pwa-64x64.png", "pwa-192x192.png", "pwa-512x512.png", "maskable-icon-512x512.png", "apple-touch-icon-180x180.png"]
+
 export default defineConfig({
   plugins: [
     react(),
@@ -60,6 +62,10 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,woff2,png,svg}"],
         // Deployment settings are written when the container starts; the worker fetches them network-first.
         globIgnores: ["runtime-config.js"],
+        // The manifest and the five icon paths are answered per host (spec 036, research
+        // R10): a billing account's address gives its brand's. Kept out of the precache
+        // so a changed brand icon is not held until the next release.
+        manifestTransforms: [(entries) => ({ manifest: entries.filter((entry) => !PER_HOST_FILES.includes(entry.url)), warnings: [] })],
       },
     }),
   ],

@@ -24,7 +24,7 @@ const notHere = { code: "not_available_here", message: "This account cannot sign
 
 async function open(page: Page, config: object = { ...fixture, VITE_API_URL: "", brand: { ...fixture.brand, logo: null, icon: null, touch_icon: null } }) {
   const errors: string[] = []
-  const state = { user: null as string | null, refuse: false }
+  const state = { user: null as string | null, refuse: false, elsewhere: 0 }
   page.on("pageerror", (error) => errors.push(error.message))
   // Every title the tab ever had, from before the first script.
   await page.addInitScript(() => {
@@ -42,7 +42,7 @@ async function open(page: Page, config: object = { ...fixture, VITE_API_URL: "",
     const path = new URL(request.url()).pathname
     const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) })
     const me = () => ({
-      data: { id: 7, name: people[state.user!].name, email: state.user, email_verified_at: now, is_super_admin: false, capabilities: { platform_administration: false }, organizations: [a1], address: { kind: "name", host: "acme.localhost" } },
+      data: { id: 7, name: people[state.user!].name, email: state.user, email_verified_at: now, is_super_admin: false, capabilities: { platform_administration: false }, organizations: [a1], address: { kind: "name", host: "acme.localhost" }, push_devices_elsewhere: state.elsewhere },
     })
     if (path === "/api/v1/me") return state.refuse ? json(notHere, 403) : state.user ? json(me()) : json({ message: "Unauthenticated." }, 401)
     if (path === "/api/v1/auth/login") {
@@ -55,6 +55,8 @@ async function open(page: Page, config: object = { ...fixture, VITE_API_URL: "",
     }
     if (path.startsWith("/api/v1/auth/passkeys")) return json({ message: "Not Found" }, 404)
     if (state.refuse) return json(notHere, 403)
+    if (path === "/api/v1/notifications/push")
+      return json({ data: { available: true, public_key: "BElmLWtleS1mb3ItdGVzdHMtb25seS1ub3QtcmVhbC1wMjU2LXBvaW50LWJ5dGVzLTAwMDAwMDAwMDAwMDAwMDAwMDAwMDA", enabled: true, levels: null, revision: 0, muted_organizations: [], devices: [] } })
     if (path.endsWith("/context")) return json({ data: a1 })
     if (path.endsWith("/sites")) return json({ data: [], organization_timezone: null })
     if (path.endsWith("/overview"))
@@ -86,8 +88,8 @@ test("the sign-in page carries the account's brand from the first paint", async 
   await expect(footer.getByRole("link", { name: "Help" })).toHaveAttribute("href", "https://support.example.org/help")
   const text = await page.locator("body").innerText()
   expect(text.replace("Powered by IoT OS", "")).not.toContain("IoT OS")
-  // Nothing offers the platform's installed app, or signing up, on an address.
-  await expect(page.locator('link[rel="manifest"]')).toHaveCount(0)
+  // The installed app is the address's own (its manifest is answered per host); nothing offers signing up.
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest")
   await expect(page.getByRole("link", { name: /start free|sign up|create an account/i })).toHaveCount(0)
 
   // The other pages before sign-in carry it too.
@@ -124,6 +126,27 @@ test("a member signs in, and a link to another account's organization says it is
   await expect(page.getByText("This organization cannot be opened at this address.")).toBeVisible()
   await expect(page.getByRole("link", { name: /A One/ })).toBeVisible()
   expect(await page.locator("body").innerText()).not.toContain("IoT OS")
+  expect(errors).toEqual([])
+})
+
+test("someone with push on at another address is told once that alerts must be turned on here", async ({ page }) => {
+  const { errors, state } = await open(page)
+  state.elsewhere = 2
+  // A headless browser refuses notifications; a person's has not been asked yet.
+  await page.addInitScript(() => Object.defineProperty(Notification, "permission", { get: () => "default" }))
+  await page.goto(`${address}/`)
+  await signIn(page, "cy@example.test")
+
+  const notice = page.getByRole("listitem").filter({ hasText: "Alerts are not on at this address" })
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText("Push alerts you turned on at another address do not arrive here.")
+  await expect(notice.getByRole("button", { name: "Turn on alerts" })).toBeVisible()
+
+  // Once per browser at this address: the next start says nothing.
+  await page.reload()
+  await expect(page.getByText("A One").first()).toBeVisible()
+  await page.waitForTimeout(1500)
+  await expect(page.getByText("Alerts are not on at this address")).toHaveCount(0)
   expect(errors).toEqual([])
 })
 

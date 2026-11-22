@@ -80,7 +80,8 @@ final class DeliverPushSummary implements ShouldQueue
             }
 
             $payload = AlertPushPayload::summary($org, $count, $summary->window_ends_at);
-            $devices = PushDevice::query()->where('user_id', $user->id)->orderBy('id')->get();
+            // Not the devices at another account's address, where a tap could not open this (spec 036).
+            $devices = PushDevice::query()->where('user_id', $user->id)->reaching($org)->orderBy('id')->get();
             $fanOut = PushFanOut::send($sender, $devices, $payload, AlertPushPayload::options($payload));
             $summary->alert_count = $count;
             $summary->attempts++;

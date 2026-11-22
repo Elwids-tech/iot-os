@@ -11,9 +11,10 @@ import { support } from "./push-support"
 /**
  * Once per sign-in: brings this browser's push subscription and the API's device back in
  * step (spec 033, T091). A subscription the API no longer knows tells the person, who can
- * turn push on again with one tap.
+ * turn push on again with one tap. `elsewhere` is how many browsers the person has push
+ * on in at other portal addresses (`GET me`).
  */
-export function PushSync({ user }: { user: number }) {
+export function PushSync({ user, elsewhere = 0 }: { user: number; elsewhere?: number }) {
   const cache = useQueryClient()
   const turnOn = useTurnOnPush(user)
   const { run } = turnOn
@@ -26,8 +27,21 @@ export function PushSync({ user }: { user: number }) {
         .then((settings) => (key = settings.available ? settings.public_key : null))
     // sync() runs once per sign-in however often this mounts (React runs effects twice in development).
     sync(user, publicKey)
-      .then((outcome) => {
+      .then(async (outcome) => {
         if (outcome === "none") return
+        if (outcome === "off") {
+          // Push belongs to the address it was turned on at (spec 036, FR-032): said once
+          // per browser at this address, to someone who has it on at another.
+          if (elsewhere < 1 || !firstTimeHere(user)) return
+          const here = await publicKey().catch(() => null)
+          if (!here) return
+          toast("Alerts are not on at this address", {
+            description: "Push alerts you turned on at another address do not arrive here.",
+            duration: 30_000,
+            action: { label: "Turn on alerts", onClick: () => run(here) },
+          })
+          return
+        }
         void cache.invalidateQueries({ queryKey: pushSettingsKey })
         if (outcome === "stopped" && key) {
           const again = key
@@ -43,6 +57,22 @@ export function PushSync({ user }: { user: number }) {
     // Once per sign-in, not again when `run` changes.
   }, [user])
   return null
+}
+
+/** Kept when signing out (pwa/personal-state.ts): the notice is about this browser at this address. */
+export const ELSEWHERE_NOTICE_KEY = "iot-os.push-elsewhere-notice"
+
+/** True the first time this is asked for the person in this browser at this address. */
+function firstTimeHere(user: number): boolean {
+  try {
+    const told = (window.localStorage.getItem(ELSEWHERE_NOTICE_KEY) ?? "").split(",")
+    if (told.includes(String(user))) return false
+    window.localStorage.setItem(ELSEWHERE_NOTICE_KEY, [...told.filter(Boolean), String(user)].join(","))
+    return true
+  } catch {
+    // Private browsing: say nothing rather than say it on every start.
+    return false
+  }
 }
 
 /**

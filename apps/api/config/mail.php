@@ -115,4 +115,13 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    | The message template that carries a billing account's brand in its header and
+    | footer (spec 036). Laravel's own components are used for everything else.
+    */
+    'markdown' => [
+        'theme' => 'default',
+        'paths' => [resource_path('views/vendor/mail')],
+    ],
+
 ];

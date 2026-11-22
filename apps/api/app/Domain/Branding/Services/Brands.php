@@ -64,6 +64,21 @@ final class Brands
     }
 
     /**
+     * The product's name in text written for an organization (FR-009): the name its
+     * account gave it, else the platform's. With no organization given, the one the
+     * request is about.
+     */
+    public function nameFor(?Organization $organization = null): string
+    {
+        $organization ??= request()->attributes->get('organization');
+        $account = $organization instanceof Organization ? $organization->billingAccount : null;
+        // Read fresh, not from the request's memo: queue workers write text too, and theirs never ends.
+        $brand = $account === null ? null : $this->for($account);
+
+        return $account !== null && $this->inEffect($account, $brand) ? (string) $brand->product_name : (string) config('branding.platform_name');
+    }
+
+    /**
      * Resolves the brands of many organizations in one pass, before a list of them is
      * rendered.
      *

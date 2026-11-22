@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Support\Mail;
 
+use App\Domain\Branding\Services\MailBrand;
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Support\Enums\TicketEventKind;
 use App\Domain\Support\Enums\TicketStatus;
 use App\Domain\Support\Models\Ticket;
@@ -34,7 +36,8 @@ final class TicketActivityMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: sprintf('[#%d] %s', $this->ticket->id, $this->ticket->title));
+        // The platform's team reads tickets in the admin app, under the platform's name.
+        return new Envelope(from: $this->team ? null : MailBrand::forOrganization($this->ticket->organization)->sender(), subject: sprintf('[#%d] %s', $this->ticket->id, $this->ticket->title));
     }
 
     public function content(): Content
@@ -89,6 +92,6 @@ final class TicketActivityMail extends Mailable
             return rtrim((string) config('app.admin_url'), '/').'/tickets/'.$this->ticket->uuid;
         }
 
-        return rtrim((string) config('app.frontend_url'), '/').'/organizations/'.$this->ticket->organization?->uuid.'/support/'.$this->ticket->uuid;
+        return app(PortalLinks::class)->forOrganization($this->ticket->organization, 'organizations/'.$this->ticket->organization?->uuid.'/support/'.$this->ticket->uuid);
     }
 }

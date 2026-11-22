@@ -7,7 +7,7 @@
     "dev": "vite --port 5173 --strictPort",
     "build": "tsc -b && tsc -p tsconfig.sw.json && vite build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
-    "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json && node ../../packages/ui/scripts/check-ui.mjs src",
+    "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json && node ../../packages/ui/scripts/check-ui.mjs src && node ../../packages/ui/scripts/check-product-name.mjs src ../../packages/auth/src",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "icons": "pwa-assets-generator && mv icons/*.png public/"

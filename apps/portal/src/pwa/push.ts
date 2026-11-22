@@ -150,8 +150,9 @@ export async function turnOn(publicKey: string, user: number): Promise<TurnOnRes
  * - `released`: it was someone else's; both sides forgot it.
  * - `unknown`: the API had no device for a subscription nobody here registered.
  * - `stopped`: this person had push on here and the API no longer has the device.
+ * - `off`: this browser has no push subscription at this address.
  */
-export type SyncOutcome = "none" | "mine" | "registered" | "released" | "unknown" | "stopped"
+export type SyncOutcome = "none" | "off" | "mine" | "registered" | "released" | "unknown" | "stopped"
 
 /** Who this page load already synced for; signing out starts over. */
 let syncedFor: number | null = null
@@ -172,7 +173,7 @@ export async function sync(user: number, publicKey: () => Promise<string | null>
     // Permission was taken back, or the browser dropped it: the API forgets the device at
     // its next push.
     if (stored) save(null)
-    return "none"
+    return "off"
   }
   const key = await publicKey()
   if (!key) return "none"

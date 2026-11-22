@@ -27,6 +27,7 @@ import {
 } from "@iot-os/ui/components/table";
 import { CopyIcon, DownloadIcon } from "lucide-react";
 import { api } from "../lib/api";
+import { useProductName } from "../lib/product-name";
 import { RequestError } from "../components/forms";
 import { downloadFile, saveArchive } from "../lib/download";
 import {
@@ -319,6 +320,7 @@ function WritingFirmware({
   canDownload: boolean;
   onProvisioned: () => void;
 }) {
+  const product = useProductName();
   const [writing, setWriting] = useState(false);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState<"starter" | "kit" | null>(null),
@@ -377,7 +379,7 @@ function WritingFirmware({
             I’m writing the firmware
           </FieldLabel>
           <FieldDescription>
-            Get a starter project with the IoT OS SDK and this profile's
+            Get a starter project with the {product} SDK and this profile's
             metrics, ready for you or an AI coding agent.
           </FieldDescription>
         </FieldContent>

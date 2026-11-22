@@ -6,6 +6,8 @@ namespace App\Domain\Automation\Mail;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Services\AlertQuery;
+use App\Domain\Branding\Services\MailBrand;
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -36,7 +38,7 @@ final class AlertEmail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'IoT alert '.($this->condition === 'activated' ? 'active' : 'cleared').': '.$this->title);
+        return new Envelope(from: MailBrand::forOrganization($this->organization)->sender(), subject: 'IoT alert '.($this->condition === 'activated' ? 'active' : 'cleared').': '.$this->title);
     }
 
     public function content(): Content
@@ -58,6 +60,6 @@ final class AlertEmail extends Mailable
 
     private function portal(string $path): string
     {
-        return rtrim((string) config('app.frontend_url'), '/').'/organizations/'.$this->organization->uuid.'/'.$path;
+        return app(PortalLinks::class)->forOrganization($this->organization, 'organizations/'.$this->organization->uuid.'/'.$path);
     }
 }

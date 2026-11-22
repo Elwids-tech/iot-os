@@ -406,7 +406,7 @@ function Session() {
     return <Navigate to={`${SETUP_PATH}?${new URLSearchParams({ return: location.pathname + location.search + location.hash })}`} replace />
   return (
     <>
-      <PushSync user={user.id} />
+      <PushSync user={user.id} elsewhere={user.push_devices_elsewhere} />
       <Routes>
         {/* An AI agent asking to connect: a standalone page, outside the workspace shell. */}
         <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />

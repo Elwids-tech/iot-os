@@ -18,6 +18,15 @@ use Illuminate\Support\Str;
  */
 final class PortalBootstrap
 {
+    /** The fixed icon paths the manifest, the page and notifications name, and the icon variant behind each. */
+    public const ICONS = [
+        'pwa-64x64.png' => '64',
+        'pwa-192x192.png' => '192',
+        'pwa-512x512.png' => '512',
+        'maskable-icon-512x512.png' => 'maskable',
+        'apple-touch-icon-180x180.png' => '180',
+    ];
+
     public function __construct(
         private readonly PortalAddresses $addresses,
         private readonly Brands $brands,
@@ -77,6 +86,50 @@ final class PortalBootstrap
             ],
             'sign_up' => false,
         ];
+    }
+
+    /**
+     * The web app manifest for a host: the build's own, under the brand's name. Null
+     * for a host that is not in use.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function manifest(string $host): ?array
+    {
+        $address = $this->addresses->resolve($host);
+        if ($address === null) {
+            return null;
+        }
+        $manifest = (array) config('branding.manifest');
+        $account = $address->billingAccount;
+        $brand = $account === null ? null : $this->brands->for($account);
+        if ($account !== null && $brand !== null && $this->brands->inEffect($account, $brand)) {
+            $manifest['name'] = (string) $brand->product_name;
+            $manifest['short_name'] = $brand->short_name ?? Str::limit((string) $brand->product_name, 12, '');
+        }
+
+        return $manifest;
+    }
+
+    /**
+     * The brand's icon behind one of the fixed icon paths (research R10): the asset and
+     * its variant, `true` for the platform's own file when the brand has no icon, or
+     * null for a host that is not in use or a name that is not one of the five.
+     *
+     * @return array{0: BrandAsset, 1: string}|true|null
+     */
+    public function icon(string $host, string $name): array|bool|null
+    {
+        $variant = self::ICONS[$name] ?? null;
+        $address = $this->addresses->resolve($host);
+        if ($variant === null || $address === null) {
+            return null;
+        }
+        $account = $address->billingAccount;
+        $brand = $account === null ? null : $this->brands->for($account);
+        $icon = $account !== null && $brand !== null && $this->brands->inEffect($account, $brand) ? $brand->icon : null;
+
+        return $icon === null || ! isset($icon->variants[$variant]) ? true : [$icon, $variant];
     }
 
     /** The one statement `runtime-config.js` holds. `JSON_HEX_TAG` keeps a product name from closing the script. */

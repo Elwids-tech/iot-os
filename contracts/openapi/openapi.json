@@ -36983,6 +36983,138 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/portal/icons/{name}": {
+      "get": {
+        "operationId": "v1.portal.icons",
+        "summary": "One of the five fixed icon paths. A brand without an icon gets the platform's own\nfile, which only the portal's proxy holds: it is told to send it",
+        "tags": [
+          "PortalBootstrap"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?:pwa-64x64.png|pwa-192x192.png|pwa-512x512.png|maskable-icon-512x512.png|apple-touch-icon-180x180.png)$"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/BrandImage"
+          },
+          "204": {
+            "description": "The brand has no icon. `X-Accel-Redirect` tells the portal's proxy to send the platform's own file, so a browser never sees this answer."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "description": "One of the five fixed icon files the manifest, the page and notifications name\n(`pwa-64x64.png`, `pwa-192x192.png`, `pwa-512x512.png`,\n`maskable-icon-512x512.png`, `apple-touch-icon-180x180.png`), answered with the\nbrand's icon in that size. Public."
+      }
+    },
+    "/v1/portal/manifest.webmanifest": {
+      "get": {
+        "operationId": "v1.portal.manifest",
+        "summary": "The build's manifest under the brand's name, so the installed app is the brand's (FR-031)",
+        "tags": [
+          "PortalBootstrap"
+        ],
+        "responses": {
+          "200": {
+            "description": "The manifest.",
+            "content": {
+              "application/manifest+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "short_name",
+                    "description",
+                    "id",
+                    "start_url",
+                    "scope",
+                    "display",
+                    "background_color",
+                    "theme_color",
+                    "lang",
+                    "icons"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "short_name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "start_url": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "display": {
+                      "type": "string"
+                    },
+                    "background_color": {
+                      "type": "string"
+                    },
+                    "theme_color": {
+                      "type": "string"
+                    },
+                    "lang": {
+                      "type": "string"
+                    },
+                    "icons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "src",
+                          "sizes",
+                          "type"
+                        ],
+                        "properties": {
+                          "src": {
+                            "type": "string"
+                          },
+                          "sizes": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "x-audience": "account",
+        "description": "The web app manifest for a host that is not the platform's own: the one the portal\nbuilds, with `name` and `short_name` from the host's brand, so the installed app\ncarries the brand. The portal's proxy sends `/manifest.webmanifest` here. Public."
+      }
+    },
     "/v1/portal/runtime-config.js": {
       "get": {
         "operationId": "v1.portal.runtime-config",

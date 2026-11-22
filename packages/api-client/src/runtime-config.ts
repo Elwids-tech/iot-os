@@ -32,6 +32,12 @@ export function runtimeAddress(): Extract<RuntimeAddress, { host: string }> | nu
 export function runtimeBrand(): RuntimeBrand | null {
   return (runtimeAddress() && config()?.brand) || null
 }
+/** The platform's own product name: the one place the web apps spell it (spec 036, FR-009). */
+export const PLATFORM_NAME = "IoT OS"
+/** What the product is called on this page's host: the address's brand, else the platform's name. */
+export function productName(): string {
+  return runtimeBrand()?.product_name ?? PLATFORM_NAME
+}
 /**
  * The API's origin. On an address an empty `VITE_API_URL` means the page's own origin
  * (a custom domain serves the API itself); elsewhere it means "use the build's value".

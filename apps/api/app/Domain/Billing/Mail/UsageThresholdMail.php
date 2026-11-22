@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Billing\Mail;
 
 use App\Domain\Billing\Enums\AllowanceKind;
+use App\Domain\Branding\Services\PortalLinks;
 use Carbon\CarbonImmutable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -67,7 +68,7 @@ final class UsageThresholdMail extends Mailable
                 AllowanceKind::Devices => 'At the limit, activating another device is refused until one is deactivated. Registering devices and editing their configuration are not affected.',
                 default => null,
             },
-            'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid,
+            'link' => app(PortalLinks::class)->platform('billing').'?account='.$this->accountUuid,
             'footer' => $kind->isMonthly()
                 ? 'You receive this because you own this billing account. Allowances reset on the first day of each month (UTC).'
                 : 'You receive this because you own this billing account.',

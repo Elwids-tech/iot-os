@@ -6,6 +6,7 @@ namespace App\Domain\Notifications\Http\Controllers;
 
 use App\Domain\Authentication\Models\KeptSignIn;
 use App\Domain\Authentication\Services\KeptSignInCookie;
+use App\Domain\Branding\Services\PortalAccess;
 use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Notifications\Services\AlertPushPayload;
 use App\Domain\Notifications\Services\Preferences;
@@ -141,6 +142,8 @@ final class PushDeviceController
         return [
             'session_id' => $session?->getId(),
             'kept_sign_in_id' => $session?->get(KeptSignInCookie::SESSION_KEY),
+            // The address push was turned on at; a later sync from the same browser is the same address.
+            'portal_address_id' => app(PortalAccess::class)->address($request)?->getKey(),
         ];
     }
 

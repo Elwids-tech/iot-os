@@ -5,6 +5,7 @@
 // Plain ES5 with no imports: brand-bootstrap.test.ts runs this same text.
 ;(function (window, document) {
   var KEPT = "iot-runtime-config"
+  // product-name: allow (this script runs before any module; it matches PLATFORM_NAME in @iot-os/api-client)
   var PLATFORM = "IoT OS"
   var config = window.__IOT_CONFIG__
   var storage = null
@@ -67,14 +68,11 @@
   document.title = brand ? brand.product_name : PLATFORM
   if (!address) return
 
-  // The installed app is named by the build until addresses get their own manifest,
-  // so an address offers no install rather than the platform's name.
-  if (manifest) manifest.parentNode.removeChild(manifest)
+  // The manifest and the fixed icon paths are answered per host (research R10), so the
+  // installed app carries the brand's name and icon, or the platform's icon when the
+  // brand has none.
   var touch = document.querySelector('link[rel="apple-touch-icon"]')
-  if (touch) {
-    if (brand && brand.touch_icon) touch.setAttribute("href", brand.touch_icon)
-    else touch.parentNode.removeChild(touch)
-  }
+  if (touch && brand && brand.touch_icon) touch.setAttribute("href", brand.touch_icon)
   if (!brand) return
   if (brand.icon) {
     var icon = document.createElement("link")

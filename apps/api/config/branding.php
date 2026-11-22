@@ -47,6 +47,30 @@ return [
         'environment' => (string) env('DEPLOY_ENVIRONMENT', 'local'),
     ],
 
+    /*
+    | The web app manifest the portal's build writes (apps/portal/vite.config.ts), kept
+    | here so an address can be given the same one under its brand's name. A test
+    | compares the two.
+    */
+    'manifest' => [
+        'name' => 'IoT OS',
+        'short_name' => 'IoT OS',
+        'description' => 'Monitor devices, dashboards and alerts.',
+        'id' => '/',
+        'start_url' => '/',
+        'scope' => '/',
+        'display' => 'standalone',
+        'background_color' => '#f3f6f9',
+        'theme_color' => '#f3f6f9',
+        'lang' => 'en',
+        'icons' => [
+            ['src' => 'pwa-64x64.png', 'sizes' => '64x64', 'type' => 'image/png'],
+            ['src' => 'pwa-192x192.png', 'sizes' => '192x192', 'type' => 'image/png'],
+            ['src' => 'pwa-512x512.png', 'sizes' => '512x512', 'type' => 'image/png'],
+            ['src' => 'maskable-icon-512x512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+        ],
+    ],
+
     'images' => [
         'max_bytes' => 1048576,
         'icon_min' => 512,

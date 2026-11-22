@@ -6,6 +6,8 @@ namespace App\Domain\Administration\Notifications;
 
 use App\Domain\Administration\Services\OrganizationGrants;
 use App\Domain\Automation\Permissions\WorkflowPermission;
+use App\Domain\Branding\Services\MailBrand;
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Dashboards\Permissions\DashboardPermission;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Shared\Models\Organization;
@@ -49,14 +51,11 @@ final class OrganizationWelcomeNotification extends Notification implements Shou
         $held = app(OrganizationGrants::class)->heldBy($notifiable, $this->organization);
         $can = static fn (BackedEnum $permission): bool => in_array($permission->value, $held, true);
         $name = $this->organization->name;
-        $homeUrl = sprintf(
-            '%s/organizations/%s/home',
-            rtrim((string) config('app.frontend_url'), '/'),
-            $this->organization->uuid,
-        );
+        $homeUrl = app(PortalLinks::class)->forOrganization($this->organization, sprintf('organizations/%s/home', $this->organization->uuid));
+        $brand = MailBrand::forOrganization($this->organization);
 
-        return (new MailMessage)
-            ->subject(sprintf('Welcome to %s on IoT OS', $name))
+        return $brand->apply((new MailMessage)
+            ->subject(sprintf('Welcome to %s on %s', $name, $brand->or('IoT OS')))
             ->greeting(sprintf('Welcome, %s', $notifiable->name))
             ->line(sprintf('You are now a member of %s. Your role decides what you can do there; here is where to start.', $name))
             ->lineIf($can(DevicePermission::VIEW), '**Follow your devices.** **Devices** shows live readings, history and meter consumption by hour, day or month. Stale and invalid readings are marked, never shown as good data.')
@@ -70,6 +69,6 @@ final class OrganizationWelcomeNotification extends Notification implements Shou
             ->lineIf($can(UserPermission::CREATE), '**Invite your team.** Add colleagues and give them roles in **Settings → Members**.')
             ->line('**Get help.** Every page has a step-by-step guide behind its **Help** button, and **Support** takes bug reports and feature requests. Choose which alerts reach your inbox and your phone in **My notifications** in your user menu.')
             ->action(sprintf('Open %s', $name), $homeUrl)
-            ->line(sprintf('You receive this because you accepted an invitation to %s.', $name));
+            ->line(sprintf('You receive this because you accepted an invitation to %s.', $name)));
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Notifications;
 
+use App\Domain\Branding\Services\MailBrand;
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,10 +36,17 @@ final class SecurityChanged extends Notification implements ShouldQueue
     public const TWO_STEP_RESET = 'person.two_step_reset';
 
     /**
+     * The address the change was made at: the worker that sends this has no request
+     * (spec 036, FR-029). Null by default, so a message queued before a release still sends.
+     */
+    public ?string $origin = null;
+
+    /**
      * @param  array{remaining?: int, name?: string, source?: string}  $details
      */
-    public function __construct(public readonly string $event, public readonly array $details = [])
+    public function __construct(public readonly string $event, public readonly array $details = [], ?string $origin = null)
     {
+        $this->origin = $origin ?? app(PortalLinks::class)->origin();
         $this->onConnection('alerts')->onQueue('alerts');
         $this->afterCommit();
     }
@@ -58,9 +67,9 @@ final class SecurityChanged extends Notification implements ShouldQueue
             $message->line($line);
         }
 
-        return $message
-            ->action('Review your security settings', rtrim((string) config('app.frontend_url'), '/').'/account/security')
-            ->line('If you did not make this change, reset your password now and contact your administrator.');
+        return MailBrand::forHost($this->origin)->apply($message
+            ->action('Review your security settings', app(PortalLinks::class)->at($this->origin, 'account/security'))
+            ->line('If you did not make this change, reset your password now and contact your administrator.'));
     }
 
     /**
