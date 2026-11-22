@@ -3077,6 +3077,11 @@ export class ApiClient {
   workflowLocationOverview(org: string, id: string, signal?: AbortSignal) {
     return this.data<import("./dashboards").WorkflowLocationOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/location-overview`, "GET", undefined, signal)
   }
+  /** Alert limits of applied automations on up to 100 devices (spec 037). Needs Device.view. */
+  alertLimits(org: string, deviceIds: string[], signal?: AbortSignal) {
+    const query = deviceIds.map((id) => `device[]=${encodeURIComponent(id)}`).join("&")
+    return this.request<{ data: import("./alerts").AlertLimit[]; meta: { checked_at: string } }>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/alert-limits?${query}`, { signal })
+  }
   workflowAlertOverview(org: string, id: string, signal?: AbortSignal) {
     return this.data<import("./dashboards").WorkflowAlertOverview>(`/api/v1/organizations/${encodeURIComponent(org)}/workflows/${encodeURIComponent(id)}/alert-overview`, "GET", undefined, signal)
   }

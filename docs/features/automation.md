@@ -271,8 +271,45 @@ Under `/api/v1/organizations/{organization}/workflows`
 | `POST {w}/restore` | Bring back, off | `Workflow.manage` |
 | `GET {w}/execution`, `{w}/actions`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` |
 
+| `GET alert-limits?device[]=…` | Alert limits on up to 100 devices | `Device.view` |
+
 Organization Admin has all three `Workflow.*` permissions; Moderators and Members
 have `Workflow.view`.
+
+#### Alert limits
+
+`GET alert-limits` returns, for the asked devices, each value on a device parameter at
+which an applied automation raises or clears an alert
+([spec 037](../../specs/037-alert-limits-on-charts/spec.md)). It is what a dashboard
+uses to draw the limit an automation really alerts at, so it needs `Device.view`, the
+same as the alerts list, and no automation permission. Each row names the automation,
+the device and parameter, `role` (`raise`, or `clear` for the lower value of a
+hysteresis), the `operator` on whose side the alert is raised, the `value` in the
+parameter's own unit, the window `aggregate` and `window_seconds` when an average,
+minimum or maximum is compared, `held_seconds` when the condition must hold first, and
+`combined` when the alert also depends on another condition.
+
+- Rows come from the **applied** deployment only. A draft, an activation the runtime
+  has not answered, and a deactivated or archived automation give nothing; a change
+  waiting over an applied deployment shows the applied limit. A suspended automation's
+  rows have `state: suspended`: it is not checking.
+- [`DeploymentGraph`](../../apps/api/app/Domain/Automation/Services/DeploymentGraph.php)
+  walks the stored graph from each alert step to its conditions and from each
+  condition to the one reading it compares. Nothing is asked of the runtime.
+- A limit that cannot be placed exactly on the reading's own value axis is **left
+  out**, never approximated: arithmetic before the comparison, two readings compared
+  with each other, a count or sum window, a window of a window, a conversion that does
+  not start from the parameter's unit or crosses unit families, "not equal", a
+  hysteresis on a false branch, a geofence, and any step the walk does not know.
+- An alert on a **false branch** is raised on the opposite side, so `gt` is returned
+  as `lte`. A limit after a unit conversion is converted back and rounded to 10
+  significant digits.
+- The cases, and what each returns, are
+  [`contracts/rules/v2/alert-limits.fixture.json`](../../contracts/rules/v2/alert-limits.fixture.json).
+  The API is tested on every case and the runtime's evaluator is run at and beside
+  each probed limit, so the two cannot drift apart unnoticed.
+- Devices of another organization and unknown devices give no rows, and the response
+  does not say which.
 
 Reference graph: [`contracts/rules/v2/workflow.fixture.json`](../../contracts/rules/v2/workflow.fixture.json).
 

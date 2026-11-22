@@ -1,0 +1,3367 @@
+{
+  "schema_version": "automation-alert-limits.v1",
+  "cases": [
+    {
+      "name": "direct_gt",
+      "why": "The reading is compared directly (gt).",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "direct_gte",
+      "why": "The reading is compared directly (gte).",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gte",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gte",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "direct_lt",
+      "why": "The reading is compared directly (lt).",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "lt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "lt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "direct_lte",
+      "why": "The reading is compared directly (lte).",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "lte",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "lte",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "direct_eq",
+      "why": "The reading is compared directly (eq).",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "eq",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "eq",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "window_average",
+      "why": "A average over a 60 second window is compared.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "average"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": "average",
+          "window_seconds": 60,
+          "held_seconds": null,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "window_min",
+      "why": "A min over a 60 second window is compared.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "min"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": "min",
+          "window_seconds": 60,
+          "held_seconds": null,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "window_max",
+      "why": "A max over a 60 second window is compared.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "max"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": "max",
+          "window_seconds": 60,
+          "held_seconds": null,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "held",
+      "why": "The condition must hold for 300 seconds.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "hold",
+            "type": "sustained.v1",
+            "config": {
+              "seconds": 300
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "hold",
+            "target_port": "in"
+          },
+          {
+            "source": "hold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": 300,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "held_twice",
+      "why": "Two hold steps add up.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "hold",
+            "type": "sustained.v1",
+            "config": {
+              "seconds": 60
+            }
+          },
+          {
+            "id": "hold_more",
+            "type": "sustained.v1",
+            "config": {
+              "seconds": 30
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "hold",
+            "target_port": "in"
+          },
+          {
+            "source": "hold",
+            "source_port": "out",
+            "target": "hold_more",
+            "target_port": "in"
+          },
+          {
+            "source": "hold_more",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": 90,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "cooldown",
+      "why": "A cooldown passes the condition through.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "rest",
+            "type": "cooldown.v1",
+            "config": {
+              "seconds": 600
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "rest",
+            "target_port": "in"
+          },
+          {
+            "source": "rest",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "combined_and",
+      "why": "Two conditions on two devices joined with AND.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "temperature",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "pressure",
+            "device_uuid": "55555555-5555-4555-a555-555555555555",
+            "configuration_uuid": "66666666-6666-4666-a666-666666666666",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "number",
+            "unit": "kPa",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "temperature",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "temperature"
+            }
+          },
+          {
+            "id": "pressure",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "pressure"
+            }
+          },
+          {
+            "id": "join",
+            "type": "join.v1",
+            "config": {
+              "mode": "latest"
+            }
+          },
+          {
+            "id": "hot",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "high",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 100
+            }
+          },
+          {
+            "id": "both",
+            "type": "boolean.v1",
+            "config": {
+              "operator": "and"
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Pump safety"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "temperature",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "a"
+          },
+          {
+            "source": "pressure",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "b"
+          },
+          {
+            "source": "join",
+            "source_port": "a",
+            "target": "hot",
+            "target_port": "in"
+          },
+          {
+            "source": "join",
+            "source_port": "b",
+            "target": "high",
+            "target_port": "in"
+          },
+          {
+            "source": "hot",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "a"
+          },
+          {
+            "source": "high",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "b"
+          },
+          {
+            "source": "both",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": true
+        },
+        {
+          "device_uuid": "55555555-5555-4555-a555-555555555555",
+          "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+          "role": "raise",
+          "operator": "gt",
+          "value": 100,
+          "unit": "kPa",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": true
+        }
+      ]
+    },
+    {
+      "name": "combined_or",
+      "why": "Two conditions on two devices joined with OR.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "temperature",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "pressure",
+            "device_uuid": "55555555-5555-4555-a555-555555555555",
+            "configuration_uuid": "66666666-6666-4666-a666-666666666666",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "number",
+            "unit": "kPa",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "temperature",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "temperature"
+            }
+          },
+          {
+            "id": "pressure",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "pressure"
+            }
+          },
+          {
+            "id": "join",
+            "type": "join.v1",
+            "config": {
+              "mode": "latest"
+            }
+          },
+          {
+            "id": "hot",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "high",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 100
+            }
+          },
+          {
+            "id": "both",
+            "type": "boolean.v1",
+            "config": {
+              "operator": "or"
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Pump safety"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "temperature",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "a"
+          },
+          {
+            "source": "pressure",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "b"
+          },
+          {
+            "source": "join",
+            "source_port": "a",
+            "target": "hot",
+            "target_port": "in"
+          },
+          {
+            "source": "join",
+            "source_port": "b",
+            "target": "high",
+            "target_port": "in"
+          },
+          {
+            "source": "hot",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "a"
+          },
+          {
+            "source": "high",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "b"
+          },
+          {
+            "source": "both",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": true
+        },
+        {
+          "device_uuid": "55555555-5555-4555-a555-555555555555",
+          "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+          "role": "raise",
+          "operator": "gt",
+          "value": 100,
+          "unit": "kPa",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": true
+        }
+      ]
+    },
+    {
+      "name": "combined_then_held",
+      "why": "A hold after the conditions are combined applies to each.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "temperature",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "pressure",
+            "device_uuid": "55555555-5555-4555-a555-555555555555",
+            "configuration_uuid": "66666666-6666-4666-a666-666666666666",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "number",
+            "unit": "kPa",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "temperature",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "temperature"
+            }
+          },
+          {
+            "id": "pressure",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "pressure"
+            }
+          },
+          {
+            "id": "join",
+            "type": "join.v1",
+            "config": {
+              "mode": "latest"
+            }
+          },
+          {
+            "id": "hot",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "high",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 100
+            }
+          },
+          {
+            "id": "both",
+            "type": "boolean.v1",
+            "config": {
+              "operator": "and"
+            }
+          },
+          {
+            "id": "hold",
+            "type": "sustained.v1",
+            "config": {
+              "seconds": 120
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Pump safety"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "temperature",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "a"
+          },
+          {
+            "source": "pressure",
+            "source_port": "out",
+            "target": "join",
+            "target_port": "b"
+          },
+          {
+            "source": "join",
+            "source_port": "a",
+            "target": "hot",
+            "target_port": "in"
+          },
+          {
+            "source": "join",
+            "source_port": "b",
+            "target": "high",
+            "target_port": "in"
+          },
+          {
+            "source": "hot",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "a"
+          },
+          {
+            "source": "high",
+            "source_port": "out",
+            "target": "both",
+            "target_port": "b"
+          },
+          {
+            "source": "both",
+            "source_port": "out",
+            "target": "hold",
+            "target_port": "in"
+          },
+          {
+            "source": "hold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": 120,
+          "combined": true
+        },
+        {
+          "device_uuid": "55555555-5555-4555-a555-555555555555",
+          "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+          "role": "raise",
+          "operator": "gt",
+          "value": 100,
+          "unit": "kPa",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": 120,
+          "combined": true
+        }
+      ]
+    },
+    {
+      "name": "inverted",
+      "why": "The alert is on the false branch, so it is raised when the comparison is not met.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "split",
+            "type": "branch.v1",
+            "config": {}
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Cold"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "split",
+            "target_port": "in"
+          },
+          {
+            "source": "split",
+            "source_port": "false",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "lte",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "true_branch",
+      "why": "The true branch keeps the comparison as written.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "split",
+            "type": "branch.v1",
+            "config": {}
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "split",
+            "target_port": "in"
+          },
+          {
+            "source": "split",
+            "source_port": "true",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "inverted_gte",
+      "why": "Not greater-or-equal is less-than.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gte",
+              "value": 25
+            }
+          },
+          {
+            "id": "split",
+            "type": "branch.v1",
+            "config": {}
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Cold"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "split",
+            "target_port": "in"
+          },
+          {
+            "source": "split",
+            "source_port": "false",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "lt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "exact"
+    },
+    {
+      "name": "hysteresis",
+      "why": "Turns on above one value and off below another.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "band",
+            "type": "hysteresis.v1",
+            "config": {
+              "activate_above": 30,
+              "clear_below": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "band",
+            "target_port": "in"
+          },
+          {
+            "source": "band",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "clear",
+          "operator": "lt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        },
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 30,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "hysteresis"
+    },
+    {
+      "name": "converted",
+      "why": "The reading is converted from C to F before a comparison in F; the limit is given in C.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "to_f",
+            "type": "convert.v1",
+            "config": {
+              "from": "C",
+              "to": "F"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 77
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "to_f",
+            "target_port": "in"
+          },
+          {
+            "source": "to_f",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "near"
+    },
+    {
+      "name": "converted_pressure",
+      "why": "A limit in Pa on a reading in kPa.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "kPa",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "to_pa",
+            "type": "convert.v1",
+            "config": {
+              "from": "kPa",
+              "to": "Pa"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 150000
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "to_pa",
+            "target_port": "in"
+          },
+          {
+            "source": "to_pa",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 150,
+          "unit": "kPa",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ],
+      "probe": "near"
+    },
+    {
+      "name": "converted_average",
+      "why": "A windowed average, then a conversion.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "average"
+            }
+          },
+          {
+            "id": "to_k",
+            "type": "convert.v1",
+            "config": {
+              "from": "C",
+              "to": "K"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 300
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "to_k",
+            "target_port": "in"
+          },
+          {
+            "source": "to_k",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 26.85,
+          "unit": "C",
+          "aggregate": "average",
+          "window_seconds": 60,
+          "held_seconds": null,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "two_alerts",
+      "why": "Two alert steps, each with its own limit.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "warm",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "hot",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 40
+            }
+          },
+          {
+            "id": "warn",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Warm"
+            }
+          },
+          {
+            "id": "alarm",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "warm",
+            "target_port": "in"
+          },
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "hot",
+            "target_port": "in"
+          },
+          {
+            "source": "warm",
+            "source_port": "out",
+            "target": "warn",
+            "target_port": "in"
+          },
+          {
+            "source": "hot",
+            "source_port": "out",
+            "target": "alarm",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": [
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 25,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        },
+        {
+          "device_uuid": "22222222-2222-4222-a222-222222222222",
+          "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+          "role": "raise",
+          "operator": "gt",
+          "value": 40,
+          "unit": "C",
+          "aggregate": null,
+          "window_seconds": null,
+          "held_seconds": null,
+          "combined": false
+        }
+      ]
+    },
+    {
+      "name": "conversion_from_another_unit",
+      "why": "The conversion starts from F, but the parameter is in C.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "to_c",
+            "type": "convert.v1",
+            "config": {
+              "from": "F",
+              "to": "C"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "to_c",
+            "target_port": "in"
+          },
+          {
+            "source": "to_c",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "conversion_across_families",
+      "why": "Temperature cannot become pressure.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "odd",
+            "type": "convert.v1",
+            "config": {
+              "from": "C",
+              "to": "kPa"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "odd",
+            "target_port": "in"
+          },
+          {
+            "source": "odd",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "arithmetic",
+      "why": "Arithmetic comes before the comparison.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "two",
+            "type": "constant.v1",
+            "config": {
+              "value": 2
+            }
+          },
+          {
+            "id": "double",
+            "type": "math.v1",
+            "config": {
+              "operator": "multiply"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 50
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "double",
+            "target_port": "a"
+          },
+          {
+            "source": "two",
+            "source_port": "out",
+            "target": "double",
+            "target_port": "b"
+          },
+          {
+            "source": "double",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "difference_of_two_readings",
+      "why": "Two readings are compared with each other.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "temperature",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "pressure",
+            "device_uuid": "55555555-5555-4555-a555-555555555555",
+            "configuration_uuid": "66666666-6666-4666-a666-666666666666",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "temperature",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "temperature"
+            }
+          },
+          {
+            "id": "other",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "pressure"
+            }
+          },
+          {
+            "id": "gap",
+            "type": "math.v1",
+            "config": {
+              "operator": "subtract"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 5
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "temperature",
+            "source_port": "out",
+            "target": "gap",
+            "target_port": "a"
+          },
+          {
+            "source": "other",
+            "source_port": "out",
+            "target": "gap",
+            "target_port": "b"
+          },
+          {
+            "source": "gap",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "window_count",
+      "why": "A count over a window is not on the reading's own axis.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "count"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "window_sum",
+      "why": "A sum over a window is not on the reading's own axis.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "sum"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "two_windows",
+      "why": "A window of a window.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "window",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 60,
+              "slide_seconds": 60,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "average"
+            }
+          },
+          {
+            "id": "longer",
+            "type": "window.v1",
+            "config": {
+              "duration_seconds": 600,
+              "slide_seconds": 600,
+              "lateness_seconds": 5,
+              "minimum_samples": 1,
+              "aggregate": "max"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "window",
+            "target_port": "in"
+          },
+          {
+            "source": "window",
+            "source_port": "out",
+            "target": "longer",
+            "target_port": "in"
+          },
+          {
+            "source": "longer",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "inverted_eq",
+      "why": "Not equal has no side.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "eq",
+              "value": 25
+            }
+          },
+          {
+            "id": "split",
+            "type": "branch.v1",
+            "config": {}
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "split",
+            "target_port": "in"
+          },
+          {
+            "source": "split",
+            "source_port": "false",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "inverted_hysteresis",
+      "why": "On the false branch the alert depends on what happened before, not on one value.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "band",
+            "type": "hysteresis.v1",
+            "config": {
+              "activate_above": 30,
+              "clear_below": 25
+            }
+          },
+          {
+            "id": "split",
+            "type": "branch.v1",
+            "config": {}
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "band",
+            "target_port": "in"
+          },
+          {
+            "source": "band",
+            "source_port": "out",
+            "target": "split",
+            "target_port": "in"
+          },
+          {
+            "source": "split",
+            "source_port": "false",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "command_only",
+      "why": "The condition leads only to a command.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "pump",
+            "device_uuid": "55555555-5555-4555-a555-555555555555",
+            "configuration_uuid": "66666666-6666-4666-a666-666666666666",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "boolean",
+            "unit": "",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "stop",
+            "type": "action.command.v1",
+            "config": {
+              "binding": "pump",
+              "value": false,
+              "cooldown_seconds": 60,
+              "ttl_seconds": 30
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "stop",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "event_only",
+      "why": "The condition leads only to an integration event.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "tell",
+            "type": "action.event.v1",
+            "config": {
+              "name": "hot",
+              "cooldown_seconds": 60
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "tell",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "geofence",
+      "why": "A geofence has no value on a reading's axis.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "latitude",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "deg",
+            "fresh_seconds": 120
+          },
+          {
+            "role": "longitude",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "77777777-7777-4777-a777-777777777777",
+            "data_type": "number",
+            "unit": "deg",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "latitude",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "latitude"
+            }
+          },
+          {
+            "id": "longitude",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "longitude"
+            }
+          },
+          {
+            "id": "fence",
+            "type": "geofence.v1",
+            "config": {
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      1,
+                      1
+                    ],
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                ]
+              },
+              "uncertainty_metres": 10,
+              "condition": "outside"
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Left the yard"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "latitude",
+            "source_port": "out",
+            "target": "fence",
+            "target_port": "latitude"
+          },
+          {
+            "source": "longitude",
+            "source_port": "out",
+            "target": "fence",
+            "target_port": "longitude"
+          },
+          {
+            "source": "fence",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "unknown_step",
+      "why": "A step this contract does not know.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "smooth",
+            "type": "smooth.v9",
+            "config": {
+              "factor": 0.5
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "smooth",
+            "target_port": "in"
+          },
+          {
+            "source": "smooth",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "not_a_number",
+      "why": "The parameter is not numeric.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "string",
+            "unit": "",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "constant_only",
+      "why": "A constant is compared, not a reading.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "fixed",
+            "type": "constant.v1",
+            "config": {
+              "value": 30
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          },
+          {
+            "id": "alert",
+            "type": "action.alert.v1",
+            "config": {
+              "title": "Hot"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "fixed",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          },
+          {
+            "source": "threshold",
+            "source_port": "out",
+            "target": "alert",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    },
+    {
+      "name": "no_alert",
+      "why": "No alert step at all.",
+      "workflow": {
+        "schema_version": "automation-workflow.v2",
+        "uuid": "11111111-1111-4111-a111-111111111111",
+        "version_uuid": "33333333-3333-4333-a333-333333333333",
+        "organization_uuid": "11111111-1111-4111-a111-111111111111",
+        "bindings": [
+          {
+            "role": "sensor",
+            "device_uuid": "22222222-2222-4222-a222-222222222222",
+            "configuration_uuid": "33333333-3333-4333-a333-333333333333",
+            "generation": 1,
+            "parameter_uuid": "44444444-4444-4444-a444-444444444444",
+            "data_type": "number",
+            "unit": "C",
+            "fresh_seconds": 120
+          }
+        ],
+        "nodes": [
+          {
+            "id": "source",
+            "type": "source.parameter.v1",
+            "config": {
+              "binding": "sensor"
+            }
+          },
+          {
+            "id": "threshold",
+            "type": "compare.v1",
+            "config": {
+              "operator": "gt",
+              "value": 25
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "source",
+            "source_port": "out",
+            "target": "threshold",
+            "target_port": "in"
+          }
+        ]
+      },
+      "limits": []
+    }
+  ]
+}
