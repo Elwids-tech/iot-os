@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Administration\Notifications;
 
 use App\Domain\Administration\Models\OrganizationInvitation;
+use App\Domain\Branding\Services\MailBrand;
+use App\Domain\Branding\Services\PortalLinks;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -28,13 +30,12 @@ final class OrganizationInvitationNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $acceptUrl = sprintf(
-            '%s/accept-invitation?token=%s',
-            rtrim((string) config('app.frontend_url'), '/'),
-            urlencode($this->token),
-        );
+        $path = 'accept-invitation?token='.urlencode($this->token);
 
+        // Platform staff are invited to the platform, under its own name.
         if ($this->invitation->grants_super_admin) {
+            $acceptUrl = app(PortalLinks::class)->platform($path);
+
             return (new MailMessage)
                 ->subject('You have been invited to administer IoT OS')
                 ->greeting('You have been invited to IoT OS')
@@ -43,11 +44,15 @@ final class OrganizationInvitationNotification extends Notification
                 ->line(sprintf('This invitation expires on %s.', $this->invitation->expires_at->toDayDateTimeString()));
         }
 
-        return (new MailMessage)
-            ->subject(sprintf('Join %s on IoT OS', $this->invitation->organization->name))
-            ->greeting('You have been invited to IoT OS')
-            ->line(sprintf('Join %s to access its IoT workspace.', $this->invitation->organization->name))
-            ->action('Accept invitation', $acceptUrl)
-            ->line(sprintf('This invitation expires on %s.', $this->invitation->expires_at->toDayDateTimeString()));
+        $organization = $this->invitation->organization;
+        $brand = MailBrand::forOrganization($organization);
+        $product = $brand->or('IoT OS');
+
+        return $brand->apply((new MailMessage)
+            ->subject(sprintf('Join %s on %s', $organization->name, $product))
+            ->greeting(sprintf('You have been invited to %s', $product))
+            ->line(sprintf('Join %s to access its IoT workspace.', $organization->name))
+            ->action('Accept invitation', app(PortalLinks::class)->forOrganization($organization, $path))
+            ->line(sprintf('This invitation expires on %s.', $this->invitation->expires_at->toDayDateTimeString())));
     }
 }

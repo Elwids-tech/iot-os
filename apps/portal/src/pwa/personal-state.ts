@@ -33,6 +33,8 @@ export const PER_BROWSER_KEYS: readonly (string | RegExp)[] = [
   "iot-dashboard-rail",
   // @iot-os/ui data-table.tsx: each table's page size, columns and grouping.
   /^iot-table:/,
+  // pwa/PushSync.tsx: who was already told that push must be turned on again at this address.
+  "iot-os.push-elsewhere-notice",
 ]
 
 const matches = (patterns: readonly (string | RegExp)[], key: string) =>

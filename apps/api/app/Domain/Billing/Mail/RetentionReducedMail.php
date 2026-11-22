@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Billing\Mail;
 
+use App\Domain\Branding\Services\PortalLinks;
 use Carbon\CarbonImmutable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -43,7 +44,7 @@ final class RetentionReducedMail extends Mailable
                 : sprintf('A change to the billing account %s shortened telemetry retention of %s from %d to %d days.', $this->accountName, $this->organizationName, $this->fromDays, $this->toDays),
             'grace' => sprintf('History is kept for %d days until %s. From then on, measurements older than %d days are deleted, and deleted history cannot be restored.', $this->fromDays, $date, $this->toDays),
             'undo' => 'If this is not what you want, ask the platform operator to change it back before that date: nothing is deleted then.',
-            'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid,
+            'link' => app(PortalLinks::class)->platform('billing').'?account='.$this->accountUuid,
             'footer' => 'You receive this because you own this billing account.',
         ]);
     }

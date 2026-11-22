@@ -1306,8 +1306,32 @@ The portal is a progressive web app (spec 033,
 - **Never build a portal link from `config('app.frontend_url')` for something an
   address serves.** Since spec 036 a billing account's people open the portal on its
   own address. `PortalAddresses::url()` gives an address's URL (the platform's portal
-  URL with the host swapped) and `mainFor()` the account's main address. Mail and
-  alert links still use `frontend_url` until the links pull request of spec 036.
+  URL with the host swapped) and `mainFor()` the account's main address. Use
+  `PortalLinks` (`forOrganization`, `forRequest`, `platform`): it is the one place that
+  decides a link's host.
+- **Queued mail has no request.** A message whose link follows the request (password
+  reset, security notices) keeps `PortalLinks::origin()` when it is constructed and
+  passes it to `at()` when the worker builds the mail. Reading the request in `toMail`
+  gives the platform's address every time.
+- **`request()` in a queue worker lives as long as the worker.** `Brands::forOrganization`
+  memoises on the request, which is right for one HTTP request and stale for hours in
+  a worker. Text written in a job (mail through `MailBrand`, assistant prompts through
+  `Brands::nameFor`) reads the brand fresh instead.
+- **Never put a view under `resources/views/vendor`.** `.gitignore` and
+  `.dockerignore` both ignore every folder named `vendor`, so `vendor:publish` output
+  is neither committed nor in the image, and tests on the working tree still pass. The
+  branded mail templates live in `resources/views/mail`.
+- **A mail component of ours replaces only itself.** `mail.markdown.paths` lists
+  `resources/views/mail`; Laravel still finds every component not there in the
+  framework. Keep our `message` and `layout` identical to the
+  framework's when no brand is passed: `BrandedMailTest` compares the bytes, so a
+  framework upgrade that changes its templates fails there and the copies are updated.
+- **The manifest in `config/branding.php` is a copy of the portal build's.** Change
+  `apps/portal/vite.config.ts` and that file together; `PortalBootstrapTest` compares
+  them when both are checked out.
+- **Headless Chromium reports `Notification.permission` as `denied`.** The portal then
+  treats push as blocked and `PushSync` does nothing. A browser test of push stubs the
+  permission (`e2e/push-settings.spec.ts`, `e2e/branded-address.spec.ts`).
 - **`document.title` is set by the portal's bootstrap, not by `index.html`.** The
   page ships with an empty `<title>`;
   `apps/portal/src/lib/brand-bootstrap.js`, inlined into `index.html` by

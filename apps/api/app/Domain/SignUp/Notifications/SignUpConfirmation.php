@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SignUp\Notifications;
 
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\SignUp\Services\SignUps;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +32,7 @@ final class SignUpConfirmation extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $url = sprintf('%s/sign-up/confirm#token=%s', rtrim((string) config('app.frontend_url'), '/'), urlencode($this->token));
+        $url = app(PortalLinks::class)->platform('sign-up/confirm').'#token='.urlencode($this->token);
 
         return (new MailMessage)
             ->subject('Confirm your email to finish signing up')

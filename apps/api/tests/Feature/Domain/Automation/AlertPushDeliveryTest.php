@@ -11,6 +11,10 @@ use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
 use App\Domain\Automation\Services\WorkflowDeploymentService;
+use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Branding\Models\Brand;
+use App\Domain\Branding\Models\PortalAddress;
+use App\Domain\Branding\Services\PortalAddresses;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Notifications\Jobs\DeliverPushSummary;
@@ -27,12 +31,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Feature\Domain\Branding\PortalAddressFixtures;
 use Tests\Support\PushFixtures;
 use Tests\TestCase;
 
 /** Spec 033 US2: who gets a push, what each send checks, and what is recorded. */
 final class AlertPushDeliveryTest extends TestCase
 {
+    use PortalAddressFixtures;
     use PushFixtures;
     use RefreshDatabase;
 
@@ -275,6 +281,49 @@ final class AlertPushDeliveryTest extends TestCase
     private function nextExecution(): Deployment
     {
         return Deployment::create(['automation_workflow_id' => $this->workflow->id, 'generation' => 2, 'draft_revision' => 2, 'target' => 'active', 'status' => 'succeeded', 'definition' => $this->deployment->definition, 'definition_hash' => str_repeat('b', 64), 'created_by' => $this->workflow->updated_by, 'created_at' => now()]);
+    }
+
+    public function test_a_push_skips_a_device_turned_on_at_another_accounts_address(): void
+    {
+        // Spec 036 (research R12): a tap opens on the address that subscribed, and another
+        // account's address cannot open this organization's alert.
+        $this->turnAddressesOn();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $elsewhere = $this->brandedAddress($other->billingAccount, 'northstar');
+        $here = $this->brandedAddress($this->org->billingAccount, 'acme');
+        $this->pushDevice($this->recipient, 'Platform');
+        $this->pushDevice($this->recipient, 'Own address')->forceFill(['portal_address_id' => $here->id])->save();
+        $this->pushDevice($this->recipient, 'Other address')->forceFill(['portal_address_id' => $elsewhere->id])->save();
+        $push = $this->activatedPush();
+
+        $this->deliver($push);
+
+        $push->refresh();
+        $this->assertSame(['sent', 2, 2], [$push->status, $push->devices_total, $push->devices_reached]);
+        $this->assertSame(['Platform', 'Own address'], DB::table('automation_alert_delivery_attempts')->orderBy('id')->pluck('device_label')->all());
+        $this->assertCount(2, $this->pushesSent());
+    }
+
+    public function test_a_recipient_whose_only_device_is_at_another_accounts_address_has_no_device_for_this_alert(): void
+    {
+        $this->turnAddressesOn();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $elsewhere = $this->brandedAddress($other->billingAccount, 'northstar');
+        $this->pushDevice($this->recipient)->forceFill(['portal_address_id' => $elsewhere->id])->save();
+        $push = $this->activatedPush();
+
+        $this->deliver($push);
+
+        $this->assertSame(['cancelled', 'Recipient has no push devices.'], [$push->fresh()->status, $push->fresh()->diagnostic]);
+        $this->assertSame([], $this->pushesSent());
+    }
+
+    private function brandedAddress(BillingAccount $account, string $name): PortalAddress
+    {
+        $this->allow($account);
+        Brand::query()->create(['billing_account_id' => $account->getKey(), 'product_name' => ucfirst($name).' Monitor', 'revision' => 1]);
+
+        return app(PortalAddresses::class)->claimName($account, $name, null);
     }
 
     public function test_a_person_of_another_organization_listed_as_a_recipient_gets_a_cancelled_push(): void

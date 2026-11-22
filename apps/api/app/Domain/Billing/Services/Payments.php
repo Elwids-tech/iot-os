@@ -11,6 +11,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Models\Payment;
 use App\Domain\Billing\Support\Money;
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -544,6 +545,6 @@ final class Payments
      */
     private function portal(BillingAccount $account, array $parameters = []): string
     {
-        return rtrim((string) config('app.frontend_url'), '/').'/billing?'.http_build_query(['account' => $account->uuid, ...$parameters]);
+        return app(PortalLinks::class)->platform('billing').'?'.http_build_query(['account' => $account->uuid, ...$parameters]);
     }
 }

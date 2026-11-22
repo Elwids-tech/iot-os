@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Middleware;
 
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -49,7 +50,7 @@ final class RequireTwoStep
         }
 
         if ($request->routeIs(self::AUTHORIZE)) {
-            return redirect()->away(rtrim((string) config('app.frontend_url'), '/').'/account/security/setup?'.http_build_query(['return' => $request->fullUrl()]));
+            return redirect()->away(app(PortalLinks::class)->forRequest('account/security/setup', $request).'?'.http_build_query(['return' => $request->fullUrl()]));
         }
 
         return response()->json([

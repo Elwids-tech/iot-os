@@ -10,8 +10,10 @@ use App\Domain\Branding\Models\Brand;
 use App\Domain\Branding\Services\BrandImages;
 use App\Domain\Branding\Services\Brands;
 use App\Domain\Branding\Services\PortalAddresses;
+use App\Domain\Branding\Services\PortalBootstrap;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -163,6 +165,72 @@ final class PortalBootstrapTest extends TestCase
         $ask('acme.example.com', 'short')->assertUnauthorized();
         config(['branding.ask_token' => null]);
         $ask('acme.example.com', '')->assertUnauthorized();
+    }
+
+    public function test_an_address_gets_the_builds_manifest_under_its_brands_name(): void
+    {
+        Brand::query()->where('billing_account_id', $this->account->id)->update(['short_name' => 'Acme']);
+
+        $response = $this->get('https://acme.example.com/api/v1/portal/manifest.webmanifest')->assertOk()
+            ->assertHeader('Content-Type', 'application/manifest+json')
+            ->assertHeader('Cache-Control', 'no-cache, private');
+        $manifest = $response->json();
+
+        $this->assertSame('Acme Monitor', $manifest['name']);
+        $this->assertSame('Acme', $manifest['short_name']);
+        // Every other member is the build's.
+        $built = (array) config('branding.manifest');
+        $this->assertSame(Arr::except($built, ['name', 'short_name']), Arr::except($manifest, ['name', 'short_name']));
+        $this->assertSame(['pwa-64x64.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png'], array_column($manifest['icons'], 'src'));
+        $this->assertStringNotContainsString('IoT OS', (string) $response->getContent());
+    }
+
+    public function test_the_manifest_kept_here_is_the_one_the_portal_builds(): void
+    {
+        $config = base_path('../portal/vite.config.ts');
+        if (! is_file($config)) {
+            $this->markTestSkipped('The portal is not beside the API here.');
+        }
+        $source = (string) file_get_contents($config);
+        $built = (array) config('branding.manifest');
+        foreach (Arr::except($built, ['icons', 'lang']) as $member => $value) {
+            $this->assertStringContainsString($member.': "'.$value.'"', $source);
+        }
+        foreach ($built['icons'] as $icon) {
+            $this->assertStringContainsString('src: "'.$icon['src'].'", sizes: "'.$icon['sizes'].'"', $source);
+        }
+    }
+
+    public function test_a_host_that_is_not_in_use_has_no_manifest_and_no_icons(): void
+    {
+        $this->get('https://nobody.example.com/api/v1/portal/manifest.webmanifest')->assertNotFound();
+        $this->get('https://nobody.example.com/api/v1/portal/icons/pwa-192x192.png')->assertNotFound();
+
+        $this->allow($this->account, value: 0);
+        $this->get('https://acme.example.com/api/v1/portal/manifest.webmanifest')->assertNotFound();
+        $this->get('https://acme.example.com/api/v1/portal/icons/pwa-192x192.png')->assertNotFound();
+    }
+
+    public function test_the_five_icon_paths_answer_the_brands_icon(): void
+    {
+        $brand = app(Brands::class)->setImage($this->account, 'icon', $this->image(512, 512), null);
+
+        foreach (PortalBootstrap::ICONS as $name => $variant) {
+            $response = $this->get('https://acme.example.com/api/v1/portal/icons/'.$name)->assertOk()
+                ->assertHeader('Content-Type', 'image/png')
+                ->assertHeader('Cache-Control', 'max-age=3600, public');
+            $this->assertSame(
+                Storage::disk(BrandImages::DISK)->get($brand->icon->variants[$variant]['path']),
+                $response->streamedContent(),
+            );
+        }
+        $this->get('https://acme.example.com/api/v1/portal/icons/favicon.png')->assertNotFound();
+    }
+
+    public function test_a_brand_without_an_icon_is_sent_the_platforms_own_file(): void
+    {
+        $this->get('https://acme.example.com/api/v1/portal/icons/maskable-icon-512x512.png')->assertNoContent()
+            ->assertHeader('X-Accel-Redirect', '/platform-files/maskable-icon-512x512.png');
     }
 
     private function bootstrap(string $host): TestResponse

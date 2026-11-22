@@ -9,6 +9,7 @@ use App\Domain\Billing\Models\CreditNote;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Services\InvoicePdf;
 use App\Domain\Billing\Support\Money;
+use App\Domain\Branding\Services\PortalLinks;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
@@ -65,7 +66,7 @@ final class InvoiceDocumentMail extends Mailable
             'amountLabel' => $this->document === 'invoice' ? 'Total' : 'Credit',
             'amount' => $money($this->amount),
             'due' => $this->amountDue > 0 ? $money($this->amountDue).($this->dueAt === null ? '' : ', due '.$this->dueAt) : 'Nothing',
-            'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid
+            'link' => app(PortalLinks::class)->platform('billing').'?account='.$this->accountUuid
                 .($this->document === 'invoice' ? '&invoice='.$this->documentUuid : ''),
             'footer' => 'You receive this as the billing contact or an owner of this billing account.',
         ]);

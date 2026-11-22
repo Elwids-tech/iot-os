@@ -8,6 +8,7 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Branding\Services\Brands;
 use App\Domain\Branding\Services\PortalAccess;
+use App\Domain\Notifications\Models\PushDevice;
 use App\Domain\Shared\Http\Resources\OrganizationResource;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Collection;
@@ -67,6 +68,12 @@ final class AuthenticatedUserResource extends JsonResource
              * @var array{kind: 'name'|'domain', host: string}|null
              */
             'address' => $address === null ? null : ['kind' => $address->kind->value, 'host' => $address->host],
+            /**
+             * How many browsers the person has push on in at other portal addresses. Push
+             * belongs to the address it was turned on at, so above zero the portal says
+             * once that alerts must be turned on again here (spec 036, FR-032).
+             */
+            'push_devices_elsewhere' => PushDevice::elsewhere($this->resource, $address),
         ];
     }
 }

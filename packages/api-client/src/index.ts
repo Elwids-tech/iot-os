@@ -310,6 +310,8 @@ export type AuthenticatedUser = {
     billing_accounts?: boolean
   }
   organizations: Organization[]
+  /** How many browsers the person has push on in at other portal addresses (spec 036). Older payloads omit it. */
+  push_devices_elsewhere?: number
   /**
    * The billing account's portal address the request came from (spec 036), or null on
    * the platform's own. On an address `organizations` lists only that account's.
@@ -3326,5 +3328,5 @@ export const apiClient = new ApiClient()
 
 export type { DeviceOnboarding, OnboardingInput, DeviceConnectionKit } from './onboarding'
 
-export { runtimeAddress, runtimeApiUrl, runtimeBrand, runtimeConfig, type RuntimeAddress, type RuntimeBrand, type RuntimeConfig } from "./runtime-config"
+export { PLATFORM_NAME, productName, runtimeAddress, runtimeApiUrl, runtimeBrand, runtimeConfig, type RuntimeAddress, type RuntimeBrand, type RuntimeConfig } from "./runtime-config"
 export * from "./connection"

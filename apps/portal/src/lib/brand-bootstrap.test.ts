@@ -25,6 +25,7 @@ function page(options: { script?: string; kept?: string; theme?: string; hostnam
   const head = new Element("head")
   const root = new Element("div")
   const manifest = new Element("link")
+  manifest.setAttribute("rel", "manifest")
   const touch = new Element("link")
   touch.setAttribute("href", "/apple-touch-icon-180x180.png")
   head.appendChild(manifest)
@@ -61,8 +62,9 @@ describe("the brand bootstrap", () => {
     const { document, head, root, stored, window } = page({ script: fixture })
 
     expect(document.title).toBe("Acme Monitor")
-    expect(head.children.map((link) => link.attributes.rel ?? link.attributes.href)).toEqual(["https://api.example.com/api/v1/brand-assets/7c9e6679-7425-40de-944b-e07fc1f90ae7a665a4592042/180", "icon"])
-    expect(head.children[1].attributes.href).toMatch(/\/192$/)
+    // The manifest stays: on an address it is answered under the brand's name.
+    expect(head.children.map((link) => link.attributes.rel ?? link.attributes.href)).toEqual(["manifest", "https://api.example.com/api/v1/brand-assets/7c9e6679-7425-40de-944b-e07fc1f90ae7a665a4592042/180", "icon"])
+    expect(head.children[2].attributes.href).toMatch(/\/192$/)
     const [mark] = root.children
     expect(mark.attributes).toHaveProperty("data-brand-loading")
     expect(mark.children[0].attributes).toMatchObject({ alt: "Acme Monitor", src: expect.stringMatching(/\/logo$/) })
@@ -77,8 +79,9 @@ describe("the brand bootstrap", () => {
     const plain = page({ script: config({ address, brand }) })
     expect(plain.root.children[0].textContent).toBe("Acme Monitor")
     expect(plain.root.children[0].children).toEqual([])
-    // No brand icon: the platform's touch icon goes, and no tab icon is added.
-    expect(plain.head.children).toEqual([])
+    // No brand icon: the fixed icon paths stay, and no tab icon is added.
+    expect(plain.head.children).toHaveLength(2)
+    expect(plain.head.children[1].attributes.href).toBe("/apple-touch-icon-180x180.png")
 
     const logos = { ...brand, logo: "/light.png", logo_dark: "/dark.png" }
     expect(page({ script: config({ address, brand: logos }) }).root.children[0].children[0].attributes.src).toBe("/dark.png")
@@ -100,7 +103,7 @@ describe("the brand bootstrap", () => {
 
     expect(document.title).toBe("IoT OS")
     expect(root.children).toEqual([])
-    expect(head.children).toEqual([])
+    expect(head.children).toHaveLength(2)
   })
 
   it("says an address is not in use and starts nothing", () => {

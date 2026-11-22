@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ApiError, type Brand, type Branding } from "@iot-os/api-client"
+import { ApiError, PLATFORM_NAME, type Brand, type Branding } from "@iot-os/api-client"
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert"
 import { BrandEditor, type BrandEditorFailure } from "@iot-os/ui/components/brand-editor"
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
@@ -80,7 +80,7 @@ export function BrandingPanel({ accountUuid, accountName }: { accountUuid: strin
             key={accountUuid}
             brand={branding.data.brand}
             limits={branding.data.limits}
-            platformName="IoT OS"
+            platformName={PLATFORM_NAME}
             disabled={!allowed}
             onSave={async (values) => {
               const saved = await api.updateBrand(accountUuid, values)

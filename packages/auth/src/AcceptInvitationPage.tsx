@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react"
 import {
   ApiError,
+  productName,
   type AuthenticatedUser,
   type InvitationDetails,
 } from "@iot-os/api-client"
@@ -247,7 +248,7 @@ export function AcceptInvitationPage({
           </CardTitle>
           <CardDescription>
             {state.data.organization === null
-              ? `You have been invited to administer IoT OS as ${state.data.email}. Super administrators manage the platform and every organization on it.`
+              ? `You have been invited to administer ${productName()} as ${state.data.email}. Super administrators manage the platform and every organization on it.`
               : `You have been invited to ${state.data.organization.name} as ${state.data.email}.`}
           </CardDescription>
         </CardHeader>

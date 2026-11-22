@@ -22,6 +22,7 @@ final class BillingAccountBackfillTest extends TestCase
         // others point at. Carried items and archive columns point at device moves. Sign-ups
         // (spec 035) point at billing accounts too, and so do brands and their images (spec
         // 036), which organizations' logos point at, and portal addresses.
+        $pushAddress = require database_path('migrations/2026_12_04_000100_add_portal_address_to_push_devices.php');
         $addresses = require database_path('migrations/2026_11_30_000100_create_portal_addresses_table.php');
         $logos = require database_path('migrations/2026_11_28_000300_add_logos_to_organizations.php');
         $brands = require database_path('migrations/2026_11_28_000200_create_brands_table.php');
@@ -35,6 +36,7 @@ final class BillingAccountBackfillTest extends TestCase
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $pushAddress->down();
         $addresses->down();
         $logos->down();
         $brands->down();

@@ -87,7 +87,8 @@ final class DeliverAlertPush implements ShouldQueue
             }
 
             $payload = AlertPushPayload::transition($alert, $org, $delivery->type, $this->deviceName($alert));
-            $devices = PushDevice::query()->where('user_id', $user->id)->orderBy('id')->get();
+            // Not the devices at another account's address, where a tap could not open this (spec 036).
+            $devices = PushDevice::query()->where('user_id', $user->id)->reaching($org)->orderBy('id')->get();
             $delivery->attempts++;
             $delivery->cycle_attempts++;
             $fanOut = PushFanOut::send($sender, $devices, $payload, AlertPushPayload::options($payload));

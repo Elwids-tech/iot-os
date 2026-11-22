@@ -66,6 +66,7 @@ import {
 } from "@iot-os/ui/components/panel";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { api } from "../lib/api";
+import { useProductName } from "../lib/product-name";
 import { usePanel } from "../panel/context";
 import { RequestError, TextField } from "../components/forms";
 import {
@@ -134,6 +135,7 @@ export function DeviceOnboarding() {
 
 function DeviceOnboardingForm() {
   const { startTask } = usePanel();
+  const product = useProductName();
   // The onboarding assistant opens in the workspace panel, beside this form.
   const askAssistant = () => startTask("onboarding", { to: "onboarding", fresh: true });
   const { org, capabilities, query: organization } = useDeviceOrganization();
@@ -589,7 +591,7 @@ function DeviceOnboardingForm() {
                   checked={mode === "direct"}
                   disabled={!capabilities.connections}
                   title="It speaks Sparkplug B"
-                  description="Your hardware publishes Sparkplug B over MQTT directly to IoT OS."
+                  description={`Your hardware publishes Sparkplug B over MQTT directly to ${product}.`}
                 />
                 <ChoiceCard
                   type="radio"

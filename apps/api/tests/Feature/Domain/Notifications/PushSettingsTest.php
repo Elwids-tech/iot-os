@@ -107,7 +107,8 @@ final class PushSettingsTest extends TestCase
         $foreignKeys = collect(DB::select("select tc.table_name, rc.delete_rule from information_schema.referential_constraints rc join information_schema.table_constraints tc on tc.constraint_name = rc.constraint_name where tc.table_name in ('push_organization_mutes', 'push_summaries', 'push_devices')"));
         $this->assertTrue($foreignKeys->where('table_name', 'push_organization_mutes')->every(fn ($fk) => $fk->delete_rule === 'CASCADE'));
         $this->assertTrue($foreignKeys->where('table_name', 'push_summaries')->every(fn ($fk) => $fk->delete_rule === 'CASCADE'));
-        $this->assertSame(['CASCADE', 'SET NULL'], $foreignKeys->where('table_name', 'push_devices')->pluck('delete_rule')->sort()->values()->all());
+        // The kept sign-in and the portal address (spec 036) only go null: the device outlives both.
+        $this->assertSame(['CASCADE', 'SET NULL', 'SET NULL'], $foreignKeys->where('table_name', 'push_devices')->pluck('delete_rule')->sort()->values()->all());
     }
 
     public function test_a_restored_copy_forgets_every_device_and_pending_summary(): void

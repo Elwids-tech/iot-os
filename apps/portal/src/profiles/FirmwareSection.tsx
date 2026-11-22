@@ -16,6 +16,7 @@ import { RadioGroup } from "@iot-os/ui/components/radio-group"
 import { DownloadIcon } from "lucide-react"
 import { toast } from "sonner"
 import { saveArchive } from "../lib/download"
+import { useProductName } from "../lib/product-name"
 import { FirmwareTargetSelect, profileStarter, useFirmwareTargets } from "../lib/firmware"
 import { RequestError } from "../components/forms"
 import { useStudio } from "./use-studio"
@@ -26,6 +27,7 @@ import { useStudio } from "./use-studio"
  */
 export function FirmwareSection() {
   const { org, profile } = useStudio()
+  const product = useProductName()
   const [target, setTarget] = useState("")
   const [role, setRole] = useState<FirmwareRole>("direct")
   const [busy, setBusy] = useState(false)
@@ -69,7 +71,7 @@ export function FirmwareSection() {
         <PanelHeader>
           <PanelTitle id="firmware-title">Firmware</PanelTitle>
           <PanelDescription>
-            A starter project for version {profile.revision}: the IoT OS SDK, this profile's metrics, and
+            A starter project for version {profile.revision}: the {product} SDK, this profile's metrics, and
             instructions that let an AI coding agent ask about your hardware and write the code that reads it.
           </PanelDescription>
         </PanelHeader>

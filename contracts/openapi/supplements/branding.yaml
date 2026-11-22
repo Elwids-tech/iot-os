@@ -254,6 +254,57 @@ operations:
           application/javascript:
             schema:
               type: string
+  GET /v1/portal/manifest.webmanifest:
+    description: |-
+      The web app manifest for a host that is not the platform's own: the one the portal
+      builds, with `name` and `short_name` from the host's brand, so the installed app
+      carries the brand. The portal's proxy sends `/manifest.webmanifest` here. Public.
+    responses:
+      '200':
+        description: The manifest.
+        content:
+          application/manifest+json:
+            schema:
+              type: object
+              required: [name, short_name, description, id, start_url, scope, display, background_color, theme_color, lang, icons]
+              properties:
+                name: { type: string }
+                short_name: { type: string }
+                description: { type: string }
+                id: { type: string }
+                start_url: { type: string }
+                scope: { type: string }
+                display: { type: string }
+                background_color: { type: string }
+                theme_color: { type: string }
+                lang: { type: string }
+                icons:
+                  type: array
+                  items:
+                    type: object
+                    required: [src, sizes, type]
+                    properties:
+                      src: { type: string }
+                      sizes: { type: string }
+                      type: { type: string }
+                      purpose: { type: string }
+      '404':
+        $ref: '#/components/responses/NotFound'
+  GET /v1/portal/icons/{name}:
+    description: |-
+      One of the five fixed icon files the manifest, the page and notifications name
+      (`pwa-64x64.png`, `pwa-192x192.png`, `pwa-512x512.png`,
+      `maskable-icon-512x512.png`, `apple-touch-icon-180x180.png`), answered with the
+      brand's icon in that size. Public.
+    responses:
+      '200':
+        $ref: '#/components/responses/BrandImage'
+      '204':
+        description: >-
+          The brand has no icon. `X-Accel-Redirect` tells the portal's proxy to send the
+          platform's own file, so a browser never sees this answer.
+      '404':
+        $ref: '#/components/responses/NotFound'
   POST /v1/invitations/{token}/accept:
     responses:
       '403':

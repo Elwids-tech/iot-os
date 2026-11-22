@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SignUp\Notifications;
 
+use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\SignUp\Services\SignUpSettings;
 use Illuminate\Bus\Queueable;
@@ -32,7 +33,6 @@ final class SignUpWelcome extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $portal = rtrim((string) config('app.frontend_url'), '/');
         $name = $this->organization->name;
         $freeBeta = app(SignUpSettings::class)->get()['free_beta'];
 
@@ -45,7 +45,7 @@ final class SignUpWelcome extends Notification implements ShouldQueue
             ->line('**Get help.** Every page has a step-by-step guide behind its **Help** button.')
             ->lineIf($freeBeta, '**Free during the beta.** Nothing is charged and no card is needed. Plans will later set limits on devices, stored readings, history, alerts and SMS, and you will hear from us before anything is charged.')
             ->lineIf(! $freeBeta, '**Plans.** Your account starts without a plan. We will agree a plan with you before anything is charged.')
-            ->action(sprintf('Open %s', $name), sprintf('%s/organizations/%s/home', $portal, $this->organization->uuid))
+            ->action(sprintf('Open %s', $name), app(PortalLinks::class)->forOrganization($this->organization, sprintf('organizations/%s/home', $this->organization->uuid)))
             ->line('You receive this because you signed up with this email address.');
     }
 }

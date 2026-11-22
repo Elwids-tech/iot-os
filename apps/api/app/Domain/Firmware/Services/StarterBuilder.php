@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Firmware\Services;
 
+use App\Domain\Branding\Services\Brands;
 use Illuminate\Validation\ValidationException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -229,8 +230,8 @@ final class StarterBuilder
                 : $target['name'].' has no tested project yet. The coding agent sets one up for your toolchain and fills the ports in `'.$developer.'ports/`, following `.iotos/porting.md`'.$family.'.',
             'build_command' => $built ? '`'.$target['build'].'`' : 'the build set up in step 6',
             'settings_section' => $gateway
-                ? 'On the gateway\'s page in IoT OS, open **Firmware** and choose **Download settings**.'
-                : 'On the device\'s page in IoT OS, choose **Firmware**, then **Download settings**.',
+                ? 'On the gateway\'s page in '.app(Brands::class)->nameFor().', open **Firmware** and choose **Download settings**.'
+                : 'On the device\'s page in '.app(Brands::class)->nameFor().', choose **Firmware**, then **Download settings**.',
             'simulator_args' => $gateway ? ' --devices '.$types[0]['code'].'=10' : '',
             'developer_extra' => $built ? ', `main.c` runs the SDK, and `device-brief.yaml` records the hardware' : ', `'.$developer.'ports/` connects the SDK to the board, and `device-brief.yaml` records the hardware',
             'project_files' => $built ? $this->projectFileList($target) : '',

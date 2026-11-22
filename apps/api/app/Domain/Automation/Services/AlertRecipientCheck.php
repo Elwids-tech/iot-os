@@ -36,7 +36,8 @@ final class AlertRecipientCheck
                 return 'Recipient push preferences are off for this level or organization.';
             }
 
-            return PushDevice::query()->where('user_id', $user->id)->exists() ? null : 'Recipient has no push devices.';
+            // Devices at another account's address do not count: this alert cannot open there (spec 036).
+            return PushDevice::query()->where('user_id', $user->id)->reaching($org)->exists() ? null : 'Recipient has no push devices.';
         });
     }
 

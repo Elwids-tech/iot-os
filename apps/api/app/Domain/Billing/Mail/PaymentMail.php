@@ -8,6 +8,7 @@ use App\Domain\Billing\Models\BillingAccount;
 use App\Domain\Billing\Models\Invoice;
 use App\Domain\Billing\Models\Payment;
 use App\Domain\Billing\Support\Money;
+use App\Domain\Branding\Services\PortalLinks;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -78,7 +79,7 @@ final class PaymentMail extends Mailable
                 $this->kind === 'failed' && $this->method === Payment::CHECKOUT => 'Pay the invoice',
                 default => 'Pay the invoice or update the card',
             },
-            'link' => rtrim((string) config('app.frontend_url'), '/').'/billing?account='.$this->accountUuid.'&invoice='.$this->invoiceUuid,
+            'link' => app(PortalLinks::class)->platform('billing').'?account='.$this->accountUuid.'&invoice='.$this->invoiceUuid,
             'footer' => 'You receive this as an owner of this billing account.',
         ]);
     }

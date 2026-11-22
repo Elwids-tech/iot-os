@@ -17,6 +17,7 @@ import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { DownloadIcon, PlusIcon, XIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { saveArchive } from "../lib/download"
+import { useProductName } from "../lib/product-name"
 import {
   FirmwareDownloadButton,
   FirmwareTargetSelect,
@@ -53,6 +54,7 @@ export function GatewayFirmwareDialog({
   canManage: boolean
   onClose: () => void
 }) {
+  const product = useProductName()
   const saved = gateway.firmware_selection ?? null
   const initial = useQuery({
     queryKey: ["gateway-firmware-choices", org, gateway.uuid],
@@ -67,7 +69,7 @@ export function GatewayFirmwareDialog({
         <DialogHeader>
           <DialogTitle>Gateway firmware</DialogTitle>
           <DialogDescription>
-            A starter project for {gateway.name}: the IoT OS SDK, metric tables for the gateway's health and each device
+            A starter project for {gateway.name}: the {product} SDK, metric tables for the gateway's health and each device
             type it reads, and instructions that let an AI coding agent write the code for your hardware.
           </DialogDescription>
         </DialogHeader>
