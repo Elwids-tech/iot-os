@@ -93,7 +93,12 @@ inside the portal at the platform's own address.
   days: nobody else can claim it, and its account can take it back.
 - **Suspended** (by platform staff) or **without the allowance**, an address shows
   *This address is not in use* and its owners cannot change it. The name is kept and
-  serves again when the allowance returns.
+  serves again when the allowance returns. Without the allowance the state does not
+  change: staff see the address in its own state with `serving` false.
+- **Restoring** a suspended name serves at once. A restored custom domain is checked
+  there and then: it is `active` again, as a new activation, if its record is still in
+  place, and `waiting_dns` with a new 7 days if not
+  ([`PortalAddresses::restore`](../../apps/api/app/Domain/Branding/Services/PortalAddresses.php)).
 - An account's addresses are released when it is deleted or its last organization
   moves away.
 
@@ -221,7 +226,13 @@ addresses off the middleware does nothing.
 - **Admin → a billing account's page**: the **Allowances** panel lists the three
   switches and overrides them with a switch instead of a number; the **Branding** panel
   edits the brand for the owners, also while branding is off, to prepare it. The plan
-  dialog has the three switches too.
+  dialog has the three switches too. The **Addresses** panel lists the account's
+  addresses with their state and has **Suspend** and **Restore**.
+- **Admin → Portal addresses**: every account's addresses (`GET admin/portal-addresses`)
+  with the kind, billing account, state and when a custom domain was last checked, a
+  **State** filter, a search by address or billing account, and **Suspend** and
+  **Restore** ([how to](../ops/release.md#suspending-an-address)). An address whose
+  state serves while its account's allowance is off shows **Allowance off**.
 
 ## Activity
 

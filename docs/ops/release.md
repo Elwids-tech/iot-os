@@ -117,6 +117,74 @@ What to know:
   not count toward the 50 names a week. A customer whose DNS provider proxies the
   record must turn that off, or the CNAME is not visible.
 
+### Suspending an address
+
+Platform staff with `PlatformAdministration.manage-organizations` stop one address
+without touching the rest of the account:
+
+1. In the admin app open **Portal addresses** (every account's addresses, with a
+   **State** filter and a search by address or billing account), or the **Addresses**
+   panel on the billing account's page.
+2. Choose **Suspend** in the address's menu and confirm.
+
+Within a minute the address shows only *This address is not in use*: no brand and no
+sign-in, and the proxy is refused a certificate for it. A session started on a
+suspended custom domain is refused; people signed in on a name keep their session on
+the platform's own address, because a name shares it. The account's owners see
+**Suspended** and can neither change, remove nor restore the address, and it stops
+being the account's main address.
+
+**Restore** in the same menu lifts it. A name serves at once. A custom domain is
+checked again there and then: with its DNS record still in place it is **Active**
+at once, as a new activation, so people sign in again; without the record it goes back
+to **Waiting for DNS** with a new 7 days. Both actions are in the activity log with
+who did them (`portal_address.suspended`, `portal_address.restored`).
+
+To stop every address on the deployment instead, set `PORTAL_ADDRESSES=off` and deploy.
+
+### When an allowance is withdrawn
+
+Turning **Branding** off for an account (an override of Off, or a plan without it)
+stops all of its addresses within a minute, exactly as if each were suspended, and its
+organizations show the platform's name and logo again. Turning **Custom domain** off
+stops only its custom domain; the name keeps serving.
+
+Nothing is deleted and no state changes: the brand, the name and the domain are kept,
+the lists show the address in its own state with **Allowance off** beside it, and the
+scheduled DNS check keeps running. Turning the allowance back on brings everything
+back within a minute, with no action by the owner. An address is given up when its
+owner removes it, or when the account is deleted or loses its last organization.
+
+### First custom domain checklist
+
+Before telling a customer their domain is ready, for the first one on a deployment:
+
+1. `PORTAL_ADDRESSES=on` is deployed, the wildcard record `*.DOMAIN` resolves to this
+   host, and `smoke` passes.
+2. The API host can resolve public DNS, and the proxy can reach the certificate
+   authority.
+3. The billing account has **Branding** and **Custom domain** on (its page, under
+   **Allowances**), a brand with a product name, and a name under `DOMAIN` that opens
+   the branded sign-in page.
+4. An owner adds the domain in the portal (**Billing accounts → Addresses → Use your
+   own domain**) and gets the CNAME record. It must be a subdomain; a bare domain
+   cannot carry a CNAME.
+5. The customer adds the record at their DNS provider, not proxied. Check it from
+   outside: `dig +short CNAME <their host>` answers the `c-….DOMAIN` name shown in
+   the portal.
+6. Within a few minutes, or at once with **Check now**, **Portal addresses** shows the
+   domain **Active** with a recent **Last checked**. A request still waiting after 7
+   days lapses and the owner asks again.
+7. Open `https://<their host>` in a private window. The first visit waits a few
+   seconds for the certificate, then shows the branded sign-in page. Sign in as a
+   member of one of the account's organizations; a person outside the account is
+   turned away.
+8. Tell the customer that passkeys made on the platform's address do not work on
+   their domain (people add one there), and that a session on the domain is separate
+   from one on the platform's address.
+9. Suspend and restore the domain once from **Portal addresses** to see that it stops
+   and comes back.
+
 ## First installation
 
 1. Provision the host: copy `deploy/ansible/inventory.example.yml` privately and run

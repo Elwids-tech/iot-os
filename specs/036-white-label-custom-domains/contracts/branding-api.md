@@ -67,8 +67,8 @@ Under `admin/`, with `can:PlatformAdministration.manage-organizations`.
 | --- | --- |
 | `GET admin/billing-accounts/{account}/branding` | The same shape |
 | `PUT`, `POST`, `DELETE` on `admin/billing-accounts/{account}/brand…` and `…/addresses…` | As for owners, without the allowance check |
-| `POST admin/portal-addresses/{address}/suspend` · `…/restore` | 200 address |
-| `GET admin/portal-addresses?state=&search=&page=` | Paginated list with `billing_account { uuid, name }` |
+| `POST admin/portal-addresses/{address}/suspend` · `…/restore` | 200 address as in the list · 404 for a released or lapsed address. Both change nothing when there is nothing to do. Restore checks a custom domain at once: `active` if its record is there, else `waiting_dns` |
+| `GET admin/portal-addresses?state=&search=&page=&per_page=` | Paginated list by host, without released addresses. Each address also carries `billing_account { uuid, name }` (null once the account is deleted), `serving` (false while the state serves and the account's allowance is off) and `suspended_by_user_id`. `search` matches the host or the account's name |
 
 The three allowances are edited through the existing
 `PUT/DELETE admin/billing-accounts/{account}/allowances/{kind}`, which accepts only 0

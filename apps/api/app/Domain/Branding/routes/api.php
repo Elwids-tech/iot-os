@@ -33,6 +33,13 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         Route::prefix('admin')->name('admin.')
             ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
             ->group(function (): void {
+                Route::get('portal-addresses', [PlatformPortalAddressController::class, 'index'])->name('portal-addresses.index');
+                Route::post('portal-addresses/{address}/suspend', [PlatformPortalAddressController::class, 'suspend'])
+                    ->whereUuid('address')
+                    ->name('portal-addresses.suspend');
+                Route::post('portal-addresses/{address}/restore', [PlatformPortalAddressController::class, 'restore'])
+                    ->whereUuid('address')
+                    ->name('portal-addresses.restore');
                 Route::get('billing-accounts/{billingAccount}/branding', [PlatformBrandController::class, 'show'])
                     ->whereUuid('billingAccount')
                     ->name('billing-accounts.branding.show');

@@ -8750,6 +8750,331 @@
         "x-audience": "platform-admin"
       }
     },
+    "/v1/admin/portal-addresses": {
+      "get": {
+        "operationId": "v1.admin.portal-addresses.index",
+        "description": "Ordered by host. A released address is not listed. `serving` is false for an\naddress whose state serves while its account's allowance is off.",
+        "summary": "Every billing account's portal addresses",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only addresses in this state: `waiting_dns`, `active`, `unreachable`, `suspended` or `lapsed`.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Matches the host or the billing account's name.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Addresses per page, 1 to 100 (default 25).",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated set of `PlatformPortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformPortalAddressResource"
+                      }
+                    },
+                    "links": {
+                      "type": "object",
+                      "properties": {
+                        "first": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "last": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "prev": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "first",
+                        "last",
+                        "prev",
+                        "next"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "from": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "links": {
+                          "type": "array",
+                          "description": "Generated paginator links.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "active": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "url",
+                              "label",
+                              "active"
+                            ]
+                          }
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Base path for paginator generated URLs."
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "description": "Number of items shown per page.",
+                          "minimum": 0
+                        },
+                        "to": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Number of the last item in the slice.",
+                          "minimum": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "Total number of items being paginated.",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "from",
+                        "last_page",
+                        "links",
+                        "path",
+                        "per_page",
+                        "to",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "links",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/portal-addresses/{address}/restore": {
+      "post": {
+        "operationId": "v1.admin.portal-addresses.restore",
+        "description": "A name serves at once. A custom domain is checked now: it serves if its DNS record\nis still there, else it waits for the record again. Restoring an address that is\nnot suspended changes nothing. A released or lapsed address answers 404.",
+        "summary": "Lifts a suspension",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "The address UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlatformPortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformPortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
+    "/v1/admin/portal-addresses/{address}/suspend": {
+      "post": {
+        "operationId": "v1.admin.portal-addresses.suspend",
+        "description": "It serves nothing within a minute, whoever is signed in on a custom domain is\nsigned out there, and its owners can neither change nor remove it. Suspending a\nsuspended address changes nothing. A released or lapsed address answers 404.",
+        "summary": "Stops an address at once",
+        "tags": [
+          "PlatformPortalAddress"
+        ],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "The address UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PlatformPortalAddressResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformPortalAddressResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations"
+      }
+    },
     "/v1/admin/roles": {
       "get": {
         "operationId": "v1.admin.roles.index",
@@ -45109,6 +45434,152 @@
           "prices"
         ],
         "title": "PlanResource"
+      },
+      "PlatformPortalAddressResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "name",
+              "domain"
+            ]
+          },
+          "host": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the portal opens on this address."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting_dns",
+              "active",
+              "unreachable",
+              "suspended",
+              "lapsed"
+            ]
+          },
+          "main": {
+            "type": "boolean",
+            "description": "Whether links in mail and alerts use this address (FR-016)."
+          },
+          "serving": {
+            "type": "boolean",
+            "description": "Whether the portal answers here now. False for an `active` or `unreachable`\naddress means the account's `branding` allowance, or `custom_domain` for a\ndomain, is off: the address is kept and serves again when it is back (FR-037)."
+          },
+          "billing_account": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The billing account that holds the address. Null once that account is deleted.",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name"
+            ]
+          },
+          "claimed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unreachable_since": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspended_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspended_by_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The staff member who suspended it. Null unless it is suspended."
+          },
+          "record": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The DNS record that proves control of a custom domain and points it here. Null for a name.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "CNAME"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "value"
+            ]
+          },
+          "lapses_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a domain still waiting for its record lapses."
+          }
+        },
+        "required": [
+          "uuid",
+          "kind",
+          "host",
+          "url",
+          "state",
+          "main",
+          "serving",
+          "billing_account",
+          "claimed_at",
+          "activated_at",
+          "last_checked_at",
+          "unreachable_since",
+          "suspended_at",
+          "suspended_by_user_id",
+          "record",
+          "lapses_at"
+        ],
+        "title": "PlatformPortalAddressResource"
       },
       "PlatformTeamMemberResource": {
         "type": "object",

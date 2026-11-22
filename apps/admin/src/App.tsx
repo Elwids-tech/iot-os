@@ -22,6 +22,7 @@ import { OrganizationsPage } from "./pages/OrganizationsPage"
 import { OrganizationStreamsPage } from "./pages/OrganizationStreamsPage"
 import { PlanPage } from "./pages/PlanPage"
 import { PlansPage } from "./pages/PlansPage"
+import { PortalAddressesPage } from "./pages/PortalAddressesPage"
 import { RolePermissionsPage } from "./pages/RolePermissionsPage"
 import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
@@ -144,6 +145,7 @@ function PlatformAdministrationApp() {
             <Route path="organizations/:organizationUuid/streams" element={<OrganizationStreamsPage />} />
             <Route path="billing-accounts" element={<BillingAccountsPage />} />
             <Route path="billing-accounts/:billingAccountUuid" element={<BillingAccountPage />} />
+            <Route path="portal-addresses" element={<PortalAddressesPage />} />
             <Route path="plans" element={<PlansPage />} />
             <Route path="plans/:planUuid" element={<PlanPage />} />
             <Route path="billing/invoices" element={<InvoicesPage />} />

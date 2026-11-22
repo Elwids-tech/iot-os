@@ -40,6 +40,7 @@ import { EntityPage } from "@iot-os/ui/templates/entity-page"
 import { AlertCircleIcon, Building2Icon, ReceiptTextIcon, UserRoundXIcon, WalletIcon } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
+import { AddressesPanel } from "../components/AddressesPanel"
 import { AllowanceOverrideDialog } from "../components/AllowanceOverrideDialog"
 import { BrandingPanel } from "../components/BrandingPanel"
 import { atLimit, organizationsOfLimit } from "../components/BillingAccountChoice"
@@ -666,6 +667,7 @@ export function BillingAccountPage() {
         </Panel>
       </div>
       <BrandingPanel account={account} />
+      <AddressesPanel account={account} />
       <div className="grid min-w-0 gap-(--panel-gap) xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel aria-labelledby="billing-prices">
           <PanelHeader>

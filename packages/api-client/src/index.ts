@@ -1754,6 +1754,24 @@ export class ApiClient {
     await this.request(this.brandPath(billingAccountUuid, admin, `addresses/${encodeURIComponent(addressUuid)}`), { method: "DELETE" })
   }
 
+  /** Every billing account's portal addresses, for platform staff. `search` matches the host or the account's name. */
+  async adminPortalAddresses(
+    query: Pick<DirectoryQuery, "search" | "page" | "perPage"> & { state?: import("./branding").PortalAddress["state"] } = {},
+  ): Promise<PaginatedResponse<import("./branding").PlatformPortalAddress>> {
+    const { state, ...directory } = query
+    return this.request(`/api/v1/admin/portal-addresses${withParameter(directoryQuery(directory), "state", state)}`)
+  }
+
+  /** Platform staff stop an address at once: it serves nothing within a minute and its owners cannot change or remove it. */
+  async suspendPortalAddress(addressUuid: string): Promise<import("./branding").PlatformPortalAddress> {
+    return this.data(`/api/v1/admin/portal-addresses/${encodeURIComponent(addressUuid)}/suspend`, "POST")
+  }
+
+  /** Platform staff lift a suspension. A custom domain is checked again and waits when its record is gone. */
+  async restorePortalAddress(addressUuid: string): Promise<import("./branding").PlatformPortalAddress> {
+    return this.data(`/api/v1/admin/portal-addresses/${encodeURIComponent(addressUuid)}/restore`, "POST")
+  }
+
   /** An organization's own logo, needing `Organization.update`; refusals as for `setBrandImage`. */
   async setOrganizationLogo(
     organizationUuid: string,
