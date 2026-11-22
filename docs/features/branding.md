@@ -78,9 +78,11 @@ for off, never unlimited, and off unless a plan or an override turns them on:
 Owners do not see them in their list of limits; they read them with their branding
 (`GET /api/v1/billing-accounts/{account}/branding`, member `allowances`).
 
-Withdrawing an allowance deletes nothing and releases nothing: the brand, the name and
-the domain are kept for as long as the account exists and work again when the allowance
-returns ([what staff see](../ops/release.md#when-an-allowance-is-withdrawn)).
+Withdrawing an allowance deletes nothing at first: the brand is kept for as long as the
+account exists, and the name and the domain are kept for 30 days and work again the
+moment the allowance returns. An address still without its allowance after 30 days is
+given up, its owners are mailed, and its host is then held for the account like any
+removed address ([what staff see](../ops/release.md#when-an-allowance-is-withdrawn)).
 
 ## Portal addresses
 
@@ -100,7 +102,11 @@ inside the portal at the platform's own address.
 - **Suspended** (by platform staff) or **without the allowance**, an address shows
   *This address is not in use* and its owners cannot change it. The name is kept and
   serves again when the allowance returns. Without the allowance the state does not
-  change: staff see the address in its own state with `serving` false.
+  change: staff see the address in its own state with `serving` false, and both they
+  and the owners see the day it is given up (`releases_at`, 30 days after the scheduled
+  check first found the allowance off;
+  [`PortalAddresses::sweepAllowances`](../../apps/api/app/Domain/Branding/Services/PortalAddresses.php)).
+  An allowance that returns and goes again starts a new 30 days.
 - **Restoring** a suspended name serves at once. A restored custom domain is checked
   there and then: it is `active` again, as a new activation, if its record is still in
   place, and `waiting_dns` with a new 7 days if not
@@ -344,8 +350,8 @@ turned on again at this address, with **Turn on alerts**.
   address** and **Remove**. The panel says so when addresses are not available on the
   deployment or branding is not part of the plan. **Use your own domain** below it
   takes the host, shows the DNS record with copy buttons, the state, when the request
-  lapses, **Check now** and **Remove**, and says so when a custom domain is not part
-  of the plan.
+  lapses or lapsed, **Check now** and **Remove**, and says so when a custom domain is
+  not part of the plan, with the day the kept domain is given up.
 - **Portal → your user menu → Security**: each passkey shows where it works once a
   person has one from another address, or is on a custom domain.
 - **Portal → Settings → General → Organization logo**: upload, replace or remove the
@@ -354,12 +360,15 @@ turned on again at this address, with **Turn on alerts**.
   switches and overrides them with a switch instead of a number; the **Branding** panel
   edits the brand for the owners, also while branding is off, to prepare it. The plan
   dialog has the three switches too. The **Addresses** panel lists the account's
-  addresses with their state and has **Suspend** and **Restore**.
+  addresses with their state and has **Suspend** and **Restore**, and for the owners
+  **Claim name**, **Add domain**, **Change name**, **DNS record**, **Check now** and
+  **Remove** ([how to](../ops/release.md#changing-an-accounts-addresses-for-its-owners)).
 - **Admin → Portal addresses**: every account's addresses (`GET admin/portal-addresses`)
   with the kind, billing account, state and when a custom domain was last checked, a
   **State** filter, a search by address or billing account, and **Suspend** and
   **Restore** ([how to](../ops/release.md#suspending-an-address)). An address whose
-  state serves while its account's allowance is off shows **Allowance off**.
+  state serves while its account's allowance is off shows **Allowance off** and the day
+  it is given up; a lapsed request shows when it lapsed.
 
 ## Activity
 
@@ -367,7 +376,18 @@ turned on again at this address, with **Turn on alerts**.
 `organization.logo_changed` on the organization. None carries image bytes.
 `portal_address.claimed`, `.released`, `.suspended` and `.restored` on the billing
 account carry the host. A custom domain's checks add `.activated`, `.unreachable`,
-`.recovered` and `.lapsed`, recorded with no actor.
+`.recovered` and `.lapsed`, recorded with no actor. So is `.released` with the reason
+`allowance_withdrawn`, 30 days after an allowance went.
+
+## Mail to owners
+
+The account's owners are mailed when a domain request lapses, when a serving domain's
+DNS record goes missing (with the record to put back), and when an address is given up
+after 30 days without its allowance
+([`PortalAddressMail`](../../apps/api/app/Domain/Branding/Mail/PortalAddressMail.php)).
+It is plain text and sent as the platform, like billing mail, once for each time it
+happens: the billing notice ledger is keyed by the address and the moment. An owner
+without a verified address gets none.
 
 ## Settings
 
@@ -391,15 +411,12 @@ The portal image reads `PORTAL_ADDRESSES`, `PORTAL_ADDRESSES_DOMAIN` and
 The spec folder is history and is not corrected. Where it and this page disagree, this
 page and the code are right:
 
-- A name or domain whose allowance stays off is kept without limit. The spec's 30 days
-  apply only to a released name and a removed domain.
-- Platform staff suspend and restore addresses in the admin app. Claiming, renaming,
-  removing and checking for an account have admin routes but no admin screen: owners do
-  them in the portal.
-- A lapsed request and an unreachable domain show on the billing page and in the
-  activity log. No mail or notification is sent.
-- A lapsed address shows no time of lapsing.
-- The release check asks about an unclaimed name only (no certificate, *not in use*).
+- The 30 days of an address without its allowance start when the scheduled check
+  first finds the allowance off, up to two minutes after it went, not at the change
+  itself. An address whose allowance was already off when this was built starts its 30
+  days at the first check after the upgrade.
+- Owners are told of a lapsed request and an unreachable domain by mail only. There is
+  no notification inside the portal beyond what the billing page shows.
 - Mail templates are in `resources/views/mail`, not `views/vendor`, which neither git
   nor the image build includes. Tests are under `tests/Feature/Domain/Branding`. There
   is no service provider. Images are uploaded with `POST`. Sign-up mail carries the

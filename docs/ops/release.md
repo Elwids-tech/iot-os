@@ -108,7 +108,10 @@ What to know:
 - Addresses are allowed per billing account by the **Branding** allowance, which is
   off for every account until staff turn it on.
 - `smoke` checks, from inside, that a name nobody claimed is refused a certificate and
-  reaches the API as its own host.
+  reaches the API as its own host. When a claimed name serves, it also checks that one:
+  the proxy may get its certificate, serves one that has not expired (the first check
+  makes the proxy issue it), and the portal starts there as that address. With no
+  claimed name it says so and passes.
 - **Custom domains use the same switch.** An account with the **Custom domain**
   allowance adds a CNAME from its own subdomain to a name under `DOMAIN`, which the
   wildcard record answers. Nothing is added to the proxy: the catch-all site serves
@@ -149,11 +152,28 @@ stops all of its addresses within a minute, exactly as if each were suspended, a
 organizations show the platform's name and logo again. Turning **Custom domain** off
 stops only its custom domain; the name keeps serving.
 
-Nothing is deleted and no state changes: the brand, the name and the domain are kept,
-the lists show the address in its own state with **Allowance off** beside it, and the
-scheduled DNS check keeps running. Turning the allowance back on brings everything
-back within a minute, with no action by the owner. An address is given up when its
-owner removes it, or when the account is deleted or loses its last organization.
+Nothing is deleted and no state changes at first: the brand, the name and the domain
+are kept, the lists show the address in its own state with **Allowance off** and the
+day it is given up beside it, and the scheduled DNS check keeps running. Turning the
+allowance back on within 30 days brings everything back within a minute, with no
+action by the owner.
+
+An address still without its allowance 30 days after the scheduled check first found it
+off is released, with `portal_address.released` and the reason `allowance_withdrawn`
+in the activity log and a mail to the owners. Its host is then held for the account for
+30 more days like any removed address, and the owner, or staff, claims it again once
+the allowance is back. The brand itself is never deleted. An address is also given up
+when its owner or staff remove it, or when the account is deleted or loses its last
+organization.
+
+### Changing an account's addresses for its owners
+
+On a billing account's page in the admin app, the **Addresses** panel does what the
+owners do in the portal, without the allowance check: **Claim name** and **Add
+domain** in its header while the account has none, and for each address **Change
+name**, **DNS record** (the CNAME to pass on to the customer), **Check now** and
+**Remove**. Each is recorded in the activity log with the staff member who did it. A
+suspended address can be removed but not checked.
 
 ### First custom domain checklist
 

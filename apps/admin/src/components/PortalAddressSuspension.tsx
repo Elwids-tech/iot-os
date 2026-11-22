@@ -10,7 +10,9 @@ import {
   AlertDialogTitle,
 } from "@iot-os/ui/components/alert-dialog"
 import { Button } from "@iot-os/ui/components/button"
+import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
+import { formatDay } from "@iot-os/ui/lib/invoices"
 import { ExternalLinkIcon } from "lucide-react"
 import { toast } from "sonner"
 import { apiClient } from "../lib/api-client"
@@ -104,15 +106,29 @@ export function AddressLink({ address }: { address: Pick<PortalAddress, "host" |
 /**
  * An address's state, and beside it why one whose state serves does not: its account's
  * allowance is off, which stops the address without changing its state (FR-037). Also
- * a custom domain whose certificate is close to expiring or has expired.
+ * a custom domain whose certificate is close to expiring or has expired, the day an
+ * address without its allowance is given up, and when a lapsed request lapsed.
  */
-export function AddressState({ address, serving }: { address: Pick<PortalAddress, "state" | "certificate_expiring">; serving: boolean }) {
+export function AddressState({
+  address,
+  serving,
+}: {
+  address: Pick<PortalAddress, "state" | "certificate_expiring" | "releases_at" | "lapsed_at">
+  serving: boolean
+}) {
   const stopped = !serving && (address.state === "active" || address.state === "unreachable")
 
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <Status value={address.state} domain="portal_address" />
       {stopped ? <StatusMark tone="muted">Allowance off</StatusMark> : null}
+      {/* Suspended or waiting, it is still given up when the allowance stays off. */}
+      {address.releases_at ? <span className="text-meta text-muted-foreground">Given up on {formatDay(address.releases_at)}</span> : null}
+      {address.state === "lapsed" && address.lapsed_at ? (
+        <span className="text-meta text-muted-foreground">
+          <RelativeTime at={address.lapsed_at} />
+        </span>
+      ) : null}
       {/* Renewal is overdue: the proxy renews a month ahead, so this is a failure to look into. */}
       {address.certificate_expiring ? <StatusMark tone="warning">Certificate expiring</StatusMark> : null}
     </span>

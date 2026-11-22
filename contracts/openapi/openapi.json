@@ -45879,6 +45879,20 @@
             ],
             "description": "When a domain still waiting for its record lapses."
           },
+          "lapsed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a `lapsed` request lapsed. Null in every other state."
+          },
+          "releases_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the address is given up because its account's allowance has stayed off\nfor 30 days (FR-037). Null while the allowance is on."
+          },
           "certificate_expires_at": {
             "type": [
               "string",
@@ -45908,6 +45922,8 @@
           "suspended_by_user_id",
           "record",
           "lapses_at",
+          "lapsed_at",
+          "releases_at",
           "certificate_expires_at",
           "certificate_expiring"
         ],
@@ -46218,6 +46234,20 @@
             ],
             "description": "When a domain still waiting for its record lapses."
           },
+          "lapsed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a `lapsed` request lapsed. Null in every other state."
+          },
+          "releases_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the address is given up because its account's allowance has stayed off\nfor 30 days (FR-037). Null while the allowance is on."
+          },
           "certificate_expires_at": {
             "type": [
               "string",
@@ -46244,6 +46274,8 @@
           "suspended_at",
           "record",
           "lapses_at",
+          "lapsed_at",
+          "releases_at",
           "certificate_expires_at",
           "certificate_expiring"
         ],

@@ -88,7 +88,12 @@ export function CustomDomainSection({
         <Alert>
           <LockIcon />
           <AlertTitle>Your own domain is no longer part of your plan</AlertTitle>
-          <AlertDescription>The portal does not open at {live.host} now. The domain is kept and works again once it is back.</AlertDescription>
+          <AlertDescription>
+            The portal does not open at {live.host} now.{" "}
+            {live.releases_at
+              ? `The domain is kept until ${formatDay(live.releases_at)} and works again if it is back by then. After that it is given up.`
+              : "The domain is kept and works again once it is back."}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -190,7 +195,9 @@ export function CustomDomainSection({
           {domain?.state === "lapsed" ? (
             <Alert>
               <TriangleAlertIcon />
-              <AlertTitle>The request for {domain.host} lapsed</AlertTitle>
+              <AlertTitle>
+                The request for {domain.host} lapsed{domain.lapsed_at ? ` on ${formatDay(domain.lapsed_at)}` : ""}
+              </AlertTitle>
               <AlertDescription>Its DNS record was not found within 7 days. Add the domain again to get a new record.</AlertDescription>
             </Alert>
           ) : null}

@@ -213,7 +213,7 @@ its main address.
 - [ ] T089 [P] [US6] Add how to suspend an address, what a withdrawn allowance does and the first-domain checklist to docs/ops/release.md; put the pilot's wildcard record in the private operations inventory only (docs/ops/release.md is written in pull request 6; the private inventory entry is still open)
 - [x] T090 [US6] Verify pull request 6: rebuild the API family and `admin`; quickstart 18 and 19 (done on the local stack on main: a name and a custom domain suspended and restored from both admin screens, the owner saw **Suspended** with nothing to change, and Branding off then on stopped and returned both addresses with the brand kept)
 - [ ] T091 Check the installed app's name and icon and a push on a real iPhone and Android phone from a branded address, alongside the open phone checks of spec 033
-- [x] T092 Run `/speckit-converge`, move lasting behaviour to docs/features/branding.md, and freeze this folder when the last pull request merges (Phase 9; routes and shapes are now in docs/reference/branding-api.md; T070, T083, T089, T091, T102, T103, T105 and T106 stay open)
+- [x] T092 Run `/speckit-converge`, move lasting behaviour to docs/features/branding.md, and freeze this folder when the last pull request merges (Phase 9; routes and shapes are now in docs/reference/branding-api.md; T070, T083, T089 and T091 stay open)
 
 **Checkpoint**: pull request 6 merged. The feature is complete.
 
@@ -264,7 +264,7 @@ Found by `/speckit-converge` on `main` after pull request 6 merged. 40 requireme
 8 success criteria, 42 acceptance scenarios, 14 edge cases, 17 plan decisions and 9
 constitution principles checked; no MUST principle is broken. T093 to T100 need no
 decision. T101 to T106 change scope or the stated intent; the owner chose to build T101
-and T104, and the other four wait.
+and T104 first, then the other four.
 
 - [x] T093 Show the account's brand on the forced two-step setup page: replace the chip icon in apps/portal/src/account/SetupRequiredPage.tsx with the sign-in mark and footer the other sign-in pages use per FR-006 (partial)
 - [x] T094 Move what docs/features/branding.md and docs/reference/api.md still send readers to this folder for into the docs: the route tables, the refusal codes, the bootstrap object with its `moved` and `not_in_use` states, the kept copy for a launch without the network, and the manifest and icon cache rules per T092 (partial)
@@ -275,8 +275,8 @@ and T104, and the other four wait.
 - [x] T099 [P] State in docs/features/branding.md that a brand without an icon keeps the platform's tab, touch and installed-app icons per FR-001, FR-006, SC-003 (partial)
 - [x] T100 [P] List in docs/features/branding.md where the build departs from the written plan (mail templates in resources/views/mail, tests under tests/Feature/Domain/Branding, no service provider, `POST` for uploads, sign-up mail under the platform's name) per plan: Design and Project Structure (contradicts)
 - [x] T101 Alert staff before a custom domain's certificate expires and show the owner its state, or drop the case: release monitoring probes only the platform's hosts and an address carries no certificate state per Edge case: secure connection cannot be renewed (missing)
-- [ ] T102 Decide whether a name whose allowance stays withdrawn is released after 30 days or kept without limit; today it is kept without limit, as docs/ops/release.md says, against FR-037 and the data model's state diagram per FR-037 (contradicts)
-- [ ] T103 Decide whether staff claim, rename, remove and check addresses in the admin app: the routes and client methods exist, apps/admin/src/components/AddressesPanel.tsx offers only Suspend and Restore per US6, plan: Admin (partial)
+- [x] T102 (decided: released after 30 days, as FR-037 says; the scheduled check counts from when it first finds the allowance off, mails the owners and releases the address) Decide whether a name whose allowance stays withdrawn is released after 30 days or kept without limit; today it is kept without limit, as docs/ops/release.md says, against FR-037 and the data model's state diagram per FR-037 (contradicts)
+- [x] T103 (decided: yes; the Addresses panel of a billing account's admin page claims, renames, checks and removes) Decide whether staff claim, rename, remove and check addresses in the admin app: the routes and client methods exist, apps/admin/src/components/AddressesPanel.tsx offers only Suspend and Restore per US6, plan: Admin (partial)
 - [x] T104 Make a copied dashboard or kiosk link open on the account's main address, or restate FR-033 as links the server writes: apps/portal/src/dashboards/DashboardWorkspace.tsx and LibraryPage.tsx use the current origin per FR-033 (partial)
-- [ ] T105 Tell the owner when a domain request lapses or a domain stops being reachable (mail or notification), or reword to "the owner sees": today it shows only on the billing page and in the activity log per US3/AC6, US3/AC7 (partial)
-- [ ] T106 [P] Show when an address lapsed (the resource carries no time once it has) and add a claimed name's certificate and bootstrap to the release check, which today checks only an unclaimed name per FR-015, plan: Release and operations (partial)
+- [x] T105 (by mail to the account's owners, once for each time) Tell the owner when a domain request lapses or a domain stops being reachable (mail or notification), or reword to "the owner sees": today it shows only on the billing page and in the activity log per US3/AC6, US3/AC7 (partial)
+- [x] T106 [P] (`lapsed_at` on the address; `branding:serving-name` feeds the release check) Show when an address lapsed (the resource carries no time once it has) and add a claimed name's certificate and bootstrap to the release check, which today checks only an unclaimed name per FR-015, plan: Release and operations (partial)

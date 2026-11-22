@@ -201,6 +201,34 @@ async function mockApi(page: Page) {
       return json(route, { data: forStaff(address) })
     }
 
+    // What staff do on the owners' behalf: claim or change the name, add a domain, check it, remove either.
+    const editing = path.match(/^\/api\/v1\/admin\/billing-accounts\/([^/]+)\/addresses\/([^/]+)(\/check)?$/)
+    if (editing) {
+      const held = (kind: Address["kind"]) => addresses.find((item) => item.account === editing[1] && item.kind === kind && item.state !== "lapsed")
+      if (method === "PUT" && editing[2] === "name") {
+        const name = (body as { name: string }).name
+        if (name === "borealis") return json(route, { message: "This name is taken. Choose another.", code: "name_taken" }, 409)
+        const current = held("name")
+        if (current) current.host = `${name}.example.com`
+        else addresses.push({ uuid: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1", account: editing[1], kind: "name", host: `${name}.example.com`, state: "active", record: true, last_checked_at: null, suspended_at: null })
+        return json(route, { data: shown(held("name")!) })
+      }
+      if (method === "PUT" && editing[2] === "domain") {
+        addresses.push({ uuid: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", account: editing[1], kind: "domain", host: (body as { host: string }).host, state: "waiting_dns", record: false, last_checked_at: null, suspended_at: null })
+        return json(route, { data: shown(held("domain")!) })
+      }
+      const address = addresses.find((item) => item.uuid === editing[2] && item.account === editing[1])
+      if (!address) return json(route, { message: "Not found." }, 404)
+      if (method === "POST" && editing[3]) {
+        address.last_checked_at = new Date().toISOString()
+        return json(route, { data: shown(address) })
+      }
+      if (method === "DELETE") {
+        addresses.splice(addresses.indexOf(address), 1)
+        return route.fulfill({ status: 204 })
+      }
+    }
+
     const accountMatch = path.match(/^\/api\/v1\/admin\/billing-accounts\/([^/]+)(\/allowances\/([a-z_]+)|\/branding|\/brand)?$/)
     if (accountMatch) {
       const account = accounts.find((item) => item.uuid === accountMatch[1])
@@ -322,6 +350,68 @@ test("turns the allowances on, edits the brand for the owner, then suspends and 
   expect(sent.at(-1)).toMatchObject({ method: "POST", path: "/api/v1/admin/portal-addresses/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2/restore" })
   await expect(domain).toContainText("Active")
   await expect(domain).toContainText("Main address")
+})
+
+test("changes the name, shows and checks the domain's record, removes the domain and adds another for the owners", async ({ page, consoleMessages }) => {
+  const { sent } = await mockApi(page)
+  await page.goto(`/billing-accounts/${acme}`)
+  const addresses = page.getByRole("region", { name: "Addresses" })
+  await expect(addresses.getByRole("row", { name: /acme\.example\.com/ })).toBeVisible()
+  // Both are held: there is nothing to claim.
+  await expect(addresses.getByRole("button", { name: "Claim name" })).toHaveCount(0)
+  await expect(addresses.getByRole("button", { name: "Add domain" })).toHaveCount(0)
+
+  // A taken name is refused under the field, and the dialog stays.
+  await addresses.getByRole("button", { name: "Actions for acme.example.com" }).click()
+  await page.getByRole("menuitem", { name: "Change name" }).click()
+  const rename = page.getByRole("dialog", { name: "Change the name" })
+  await expect(rename.getByRole("textbox", { name: "Name" })).toHaveValue("acme")
+  await expect(rename.getByRole("button", { name: "Change name" })).toBeDisabled()
+  await rename.getByRole("textbox", { name: "Name" }).fill("borealis")
+  await rename.getByRole("button", { name: "Change name" }).click()
+  await expect(rename.getByText("This name is taken. Choose another.")).toBeVisible()
+  // The browser logs the refused request.
+  expect(consoleMessages).toEqual([expect.stringContaining("409")])
+  consoleMessages.length = 0
+  await rename.getByRole("textbox", { name: "Name" }).fill("Acme-Water")
+  await rename.getByRole("button", { name: "Change name" }).click()
+  await expect(page.getByText("Name changed to acme-water.example.com")).toBeVisible()
+  expect(sent.at(-1)).toEqual({ method: "PUT", path: `/api/v1/admin/billing-accounts/${acme}/addresses/name`, body: { name: "acme-water" } })
+  await expect(addresses.getByRole("row", { name: /acme-water\.example\.com/ })).toBeVisible()
+
+  // The record staff pass on to the customer, and a check of it.
+  await addresses.getByRole("button", { name: "Actions for portal.example.org" }).click()
+  await page.getByRole("menuitem", { name: "DNS record" }).click()
+  const record = page.getByRole("dialog", { name: "DNS record for portal.example.org" })
+  await expect(record.getByText("c-0123456789abcdef0123.example.com")).toBeVisible()
+  await record.getByRole("button", { name: "Close" }).first().click()
+  await addresses.getByRole("button", { name: "Actions for portal.example.org" }).click()
+  await page.getByRole("menuitem", { name: "Check now" }).click()
+  await expect(page.getByText("portal.example.org is active")).toBeVisible()
+  expect(sent.at(-1)).toMatchObject({ method: "POST", path: `/api/v1/admin/billing-accounts/${acme}/addresses/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2/check` })
+
+  // Removing asks first.
+  await addresses.getByRole("button", { name: "Actions for portal.example.org" }).click()
+  await page.getByRole("menuitem", { name: "Remove" }).click()
+  const confirm = page.getByRole("alertdialog", { name: "Remove portal.example.org?" })
+  await expect(confirm).toContainText("it then needs a new DNS record")
+  await confirm.getByRole("button", { name: "Remove address" }).click()
+  await expect(page.getByText("portal.example.org removed")).toBeVisible()
+  expect(sent.at(-1)).toMatchObject({ method: "DELETE", path: `/api/v1/admin/billing-accounts/${acme}/addresses/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2` })
+  await expect(addresses.getByRole("row", { name: /portal\.example\.org/ })).toHaveCount(0)
+
+  // With no domain left, one can be added, and its record shows at once.
+  await addresses.getByRole("button", { name: "Add domain" }).click()
+  const add = page.getByRole("dialog", { name: "Add a custom domain" })
+  await add.getByRole("textbox", { name: "Domain" }).fill("view.example.org")
+  await add.getByRole("button", { name: "Add domain" }).click()
+  expect(sent.at(-1)).toEqual({ method: "PUT", path: `/api/v1/admin/billing-accounts/${acme}/addresses/domain`, body: { host: "view.example.org" } })
+  const added = page.getByRole("dialog", { name: "DNS record for view.example.org" })
+  await expect(added).toContainText("The customer adds this record where they manage DNS for the domain.")
+  await expect(added).toContainText(/the request lapses on \S*\s?27\S* .*2026 if it is not/)
+  await added.getByRole("button", { name: "Close" }).first().click()
+  await expect(addresses.getByRole("row", { name: /view\.example\.org/ })).toContainText("Waiting for DNS")
+  await expect(addresses.getByRole("button", { name: "Add domain" })).toHaveCount(0)
 })
 
 test("lists every portal address, narrows the list, and suspends and restores from it", async ({ page }) => {

@@ -323,10 +323,10 @@ test("the own-domain section says when the plan has none, when a request lapsed 
 
   await setup(page, {
     allowed: true, customDomain: true, addressesDomain: "example.com", productName: "Acme Monitor",
-    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "lapsed", main: false, record }],
+    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "lapsed", main: false, record, lapsed_at: "2026-11-27T08:00:00+00:00" }],
   })
   await page.reload()
-  await expect(section.getByText("The request for portal.example.org lapsed")).toBeVisible()
+  await expect(section.getByText(/The request for portal\.example\.org lapsed on .*27.*2026/)).toBeVisible()
   await expect(section.getByRole("textbox", { name: "Domain" })).toBeEnabled()
 
   await setup(page, {
@@ -337,6 +337,15 @@ test("the own-domain section says when the plan has none, when a request lapsed 
   await expect(section.getByText("Not reachable")).toBeVisible()
   await expect(section.getByText("The DNS record has been missing since")).toBeVisible()
   await expect(section.getByText("The portal still opens at portal.example.org for now")).toBeVisible()
+
+  // The plan lost the domain: it is kept, and the owner sees until when.
+  await setup(page, {
+    allowed: true, customDomain: false, addressesDomain: "example.com", productName: "Acme Monitor",
+    addresses: [{ ...base, uuid: "ad000000-0000-4000-8000-000000000003", kind: "domain", host: "portal.example.org", url: "https://portal.example.org", state: "active", main: false, activated_at: now, record, releases_at: "2026-12-31T10:00:00+00:00" }],
+  })
+  await page.reload()
+  await expect(section.getByText("Your own domain is no longer part of your plan")).toBeVisible()
+  await expect(section.getByText(/The domain is kept until .*31.*2026 and works again if it is back by then\./)).toBeVisible()
 
   // A serving domain whose certificate is not renewing: the owner sees it before visitors do.
   await setup(page, {
