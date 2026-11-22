@@ -28,6 +28,8 @@ export type StatusWidgetConfig = {
   show_labels?: boolean;
   trail_window?: import("./geospatial").TrailWindow;
   columns?: DashboardControlColumns;
+  /** Time series: `false` hides the alert limits of running automations (spec 037). Absent means shown; `true` is never stored. */
+  alert_limits?: boolean;
   /** Gauge scale; required for gauge panels, min < max. */
   min?: number;
   max?: number;

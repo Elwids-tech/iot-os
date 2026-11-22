@@ -18,6 +18,12 @@ export function useDashboardCapabilities(org: string): DashboardCapabilities {
   )
 }
 
+/** Whether the signed-in person may open automations in the organization (Workflow.view). */
+export function useCanOpenAutomations(org: string): boolean {
+  const session = useQuery({ queryKey: ["session"], queryFn: () => api.me(), staleTime: 60000 })
+  return session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.automation?.view ?? false
+}
+
 /** What the person may do with one dashboard; older APIs send no abilities. */
 export function dashboardAbilities(dashboard: Pick<Dashboard, "abilities">, capabilities: DashboardCapabilities): DashboardAbilities {
   return dashboard.abilities ?? { edit: capabilities.manage, share: false, delete: capabilities.manage }

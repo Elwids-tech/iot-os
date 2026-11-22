@@ -141,15 +141,17 @@ No other panel type accepts it.
 
 - **Client**: `alertLimits(org, deviceIds, signal)` and its types in
   `packages/api-client`.
-- **Data**: `useAlertLimits` in `dashboards/panelData.ts`. The dashboard workspace
-  collects the devices of its time series panels that have the setting on, asks once
-  (in chunks of 100), refetches every 45 seconds while the page is visible, and gives
-  the result to panels through context. The panel editor's preview is inside the same
-  provider, fed by the draft. It does not ask when the person lacks
+- **Data**: `useAlertLimits` in `dashboards/panelData.ts`. Each panel asks per device,
+  as the other panel hooks do, through a small batcher (`createLimitBatcher`) that
+  sends the devices asked for within a moment in one request (in chunks of 100), so a
+  dashboard still asks once. It refetches every 45 seconds while the page is visible
+  and on **Refresh**. As built this replaced a provider in the workspace: it needs no
+  wiring through the 1,400-line workspace and covers the panel editor's preview by
+  itself. It does not ask when the person lacks
   `capabilities.devices.view`, and treats a refusal as "no limits", not as a failure
   (FR-022a). A failed request is retried once; after that the result is "unavailable"
   with no limits (FR-017a).
-- **Model**: pure functions in `dashboards/model.ts` pick a panel's limits by device
+- **Model**: pure functions in `dashboards/alertLimits.ts` pick a panel's limits by device
   and parameter, set aside for the legend only those whose unit is not the panel's
   (both come from the parameter's unit, so they differ only if the profile changed
   since; FR-014c), merge those that differ only by device while keeping the devices

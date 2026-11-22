@@ -69,6 +69,22 @@ describe("import", () => {
     expect(parse(withWidget({ ...panel, config: { sources: [{ ...state, state_colors: [{ value: 1, color: "#000000" }] }] } })).errors[0]).toContain("state_colors.0.value must be text")
   })
 
+  it("carries a time series panel's alert limits switch, and never a limit", () => {
+    const chart = { id: "chart", schema_version: 2, type: "timeseries", title: "History", description: "", config: { sources: [source] } }
+    const off = { ...chart, config: { sources: [source], alert_limits: false } }
+    // Off survives export and import; shown is the absent key.
+    const file = exportFile({ ...withWidget(off), uuid: "x" } as unknown as Dashboard)
+    expect(JSON.stringify(file)).toContain('"alert_limits":false')
+    expect(parse(file).errors).toEqual([])
+    expect(parse(file).definitions[0].widgets[0].config.alert_limits).toBe(false)
+    expect("alert_limits" in parse(withWidget({ ...chart, config: { sources: [source], alert_limits: true } })).definitions[0].widgets[0].config).toBe(false)
+    expect("alert_limits" in parse(withWidget(chart)).definitions[0].widgets[0].config).toBe(false)
+    expect(parse(withWidget({ ...chart, config: { sources: [source], alert_limits: "no" } })).errors[0]).toContain("alert_limits must be a boolean.")
+    // No other panel takes it, and a limit itself is not part of a dashboard.
+    expect(parse(withWidget({ id: "g", schema_version: 2, type: "gauge", title: "Gauge", description: "", config: { sources: [source], min: 0, max: 100, alert_limits: false } })).errors).not.toEqual([])
+    expect(parse(withWidget({ ...chart, config: { sources: [source], limits: [{ value: 25 }] } })).errors).not.toEqual([])
+  })
+
   it("round trips GPS configuration and rejects malformed map settings", () => {
     const config = { sources: [], location_device_uuids: [device], geofence_uuid: parameter, show_trails: false, show_labels: true, trail_window: "7d" }
     const gps = { id: "gps", schema_version: 2, type: "location", title: "GPS", description: "", config }

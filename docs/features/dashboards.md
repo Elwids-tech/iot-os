@@ -96,7 +96,8 @@ changes offers save, discard or stay; a revision conflict keeps the draft. Panel
 can be duplicated, removed or shown fullscreen.
 
 Status thresholds are per-source numeric lower bounds with an explicit base band;
-lower bounds are inclusive. They are display rules, not alarms.
+lower bounds are inclusive. They are display rules, not alarms. The value an
+automation really alerts at is drawn separately, as an [alert limit](#alert-limits).
 
 State history panels can set their own colour per value (`state_colors`, up to 50
 per source: booleans as `true`/`false`, enum values as text). Values without one use
@@ -114,7 +115,7 @@ keys.
 | `table` | Latest values of any type in rows | 1–100 sources |
 | `controls` | Writable parameters that follow reported state ([devices](devices.md#commands-and-controls)) | sources, `columns` |
 | `device_health` | Presence and last seen | `devices` (1–50), no sources |
-| `timeseries` | Numeric history, several same-unit series | sources |
+| `timeseries` | Numeric history, several same-unit series, [alert limits](#alert-limits) | sources, `alert_limits` |
 | `consumption` | Counter usage as bars | 1–4 counter sources of one unit, `bucket`, `period` |
 | `state_history` | Time in boolean or enum states | sources, optional `state_colors` per source |
 | `color_history` | Reported colours as a timeline | sources |
@@ -154,6 +155,43 @@ Every chart uses Apache ECharts through `packages/charts`: one `EChart` wrapper
 Time series shade threshold bands, alert episodes and command marks; Compare draws
 the previous period. Time charts on one dashboard share a crosshair by time, and
 dragging selects a range. Off-screen charts defer updates.
+
+### Alert limits
+
+A time series panel draws the **alert limits** of the readings it shows: each value at
+which a running automation raises or clears an alert on that device parameter
+([spec 037](../../specs/037-alert-limits-on-charts/spec.md)). They come from
+`GET workflows/alert-limits` ([automation](automation.md#alert-limits)), never from the
+panel, so they cannot drift from the rule: an open dashboard asks again every 45
+seconds and on **Refresh**, and a changed automation moves its line without a reload.
+
+- **One request per dashboard.** Panels ask per device through a small batcher
+  (`createLimitBatcher`), so the devices of every panel go out in one request of at
+  most 100. A person without `Device.view` is not asked for at all and sees nothing.
+- **The line.** Foreground colour (so it stays legible on a shaded alert period),
+  heavier than a panel threshold and with its own dash pattern; a hysteresis's clearing value is dotted. Its label sits at the start of the
+  line (a threshold's sits at the end) and reads like "Pump safety > 25 °C · 10 s
+  average · for 5 min · with other conditions". On a panel of several devices a line
+  that belongs to one device names it; devices that share a limit share one line.
+- **The value axis is never stretched.** A limit outside the readings is not drawn and
+  is listed as above or below the chart.
+- **The list.** Under the series, **Alert limits · current rules** lists every limit
+  with its automation, the devices it covers, the comparison and how the reading is
+  treated. The automation's name is a link for people with `Workflow.view`. At most 8
+  lines are drawn, those nearest the drawn values; the rest are listed only.
+- **Not drawn, but listed.** A suspended automation ("suspended, not checking") and a
+  limit in another unit than the panel shows.
+- **Not listed at all.** Conditions that cannot be placed exactly on the reading's own
+  axis; the [automation page](automation.md#alert-limits) lists them.
+- **Unavailable.** After a request and its one retry fail, no limit line is shown as
+  current and the panel says "Alert limits are unavailable"; readings, thresholds and
+  alert periods are unaffected.
+- **The setting.** `config.alert_limits: false` on a time series panel hides them
+  (**Show alert limits** in the panel editor's Display section). Shown is the absent
+  key: `true` is never stored, so dashboards saved earlier are not rewritten, and the
+  limits themselves are never part of a dashboard.
+- The line always shows the rule running now, across the whole time range; an alert
+  period from before the rule changed may start away from it.
 
 ### Viewing
 

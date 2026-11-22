@@ -22,6 +22,12 @@ export type TimeArea = { from: number; to: number; color: string }
 export type TimeMarker = { at: number; color: string }
 /** A dashed horizontal line, such as a threshold. */
 export type ValueLine = { value: number; color: string; label?: string }
+/**
+ * The value at which an alert is raised, or cleared when `clears`: drawn heavier than a
+ * threshold and with its own dash pattern, labelled at the start of the line, so it
+ * reads apart from a threshold without relying on colour.
+ */
+export type LimitLine = { value: number; label: string; clears?: boolean }
 /** A shaded value range between thresholds; null means open-ended. */
 export type ValueBand = { from: number | null; to: number | null; color: string }
 
@@ -36,6 +42,8 @@ export type TimeSeriesInput = {
   areas?: TimeArea[]
   markers?: TimeMarker[]
   thresholds?: ValueLine[]
+  /** Alert limits, in the foreground colour. Like every overlay they never stretch the value axis. */
+  limits?: LimitLine[]
   bands?: ValueBand[]
   /** Draws the brush used to drag-select a time range (see EChart onSelectRange). */
   selectable?: boolean
@@ -87,6 +95,28 @@ export function timeSeriesOption(theme: ChartTheme, input: TimeSeriesInput): Cha
             color,
             fontFamily: theme.monoFamily,
             fontSize: 10,
+          },
+        }
+      }),
+      ...(input.limits ?? []).map((line) => {
+        // The foreground colour, not the warning colour: an alert period shades the plot in
+        // the warning colour exactly when the limit matters, and the line must stay legible on it.
+        const color = theme.foreground
+        return {
+          yAxis: line.value,
+          // Raises: long dash and dot, heavier than a threshold. Clears: dots, lighter.
+          lineStyle: line.clears
+            ? { color, type: [1, 4], width: 1.5, opacity: 0.7 }
+            : { color, type: [9, 3, 2, 3], width: 1.75, opacity: 0.9 },
+          label: {
+            show: true,
+            formatter: line.label,
+            // Thresholds label the end of their line; limits the start, so the two never overlap at one value.
+            position: "insideStartTop",
+            color: theme.foreground,
+            fontFamily: theme.monoFamily,
+            fontSize: 10,
+            fontWeight: 600,
           },
         }
       }),

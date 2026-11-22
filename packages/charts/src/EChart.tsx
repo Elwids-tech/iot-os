@@ -59,6 +59,8 @@ const DEFAULT_BRUSH = {
  * - `onSelectRange`: dragging across the plot selects an x range (time
  *   charts pass epoch milliseconds), then the selection clears.
  * - Updates to a chart scrolled out of view wait until it is visible again.
+ * - `onValueExtent`: told the first value axis's range whenever it changes, so a
+ *   caller can say which of its overlays fall outside the plot.
  */
 export function EChart({
   option,
@@ -68,6 +70,7 @@ export function EChart({
   events,
   group,
   onSelectRange,
+  onValueExtent,
 }: {
   option: ChartOption
   /** Accessible name; pair the chart with a table or text alternative. */
@@ -77,6 +80,7 @@ export function EChart({
   events?: ChartEvents
   group?: string
   onSelectRange?: (from: number, to: number) => void
+  onValueExtent?: (min: number, max: number) => void
 }) {
   const element = useRef<HTMLDivElement>(null)
   const chart = useRef<Instance | null>(null)
@@ -87,6 +91,9 @@ export function EChart({
   const linkedGroup = useRef(group)
   linkedGroup.current = group
   const selectable = Boolean(onSelectRange)
+  const extent = useRef(onValueExtent)
+  extent.current = onValueExtent
+  const lastExtent = useRef("")
 
   function apply(instance: Instance, next: ChartOption) {
     const brush = Boolean(select.current)
@@ -123,6 +130,19 @@ export function EChart({
     intersection?.observe(container)
     instance.on("updateAxisPointer", (event) => {
       if (linkedGroup.current) relay(instance, linkedGroup.current, event as PointerEvent)
+    })
+    instance.on("finished", () => {
+      if (!extent.current) return
+      // ECharts has no public reader for an axis's range; the model is stable across 5.x and 6.x.
+      type Model = { getComponent(type: string, index: number): { axis?: { scale?: { getExtent(): [number, number] } } } | undefined }
+      try {
+        const range = (instance as unknown as { getModel(): Model }).getModel().getComponent("yAxis", 0)?.axis?.scale?.getExtent()
+        if (!range || !range.every(Number.isFinite) || lastExtent.current === range.join()) return
+        lastExtent.current = range.join()
+        extent.current(range[0], range[1])
+      } catch {
+        // No value axis: nothing to report.
+      }
     })
     instance.on("brushEnd", (raw) => {
       const area = (raw as BrushEnd).areas?.[0]

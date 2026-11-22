@@ -887,6 +887,7 @@ export function DashboardWorkspace({
           "dashboard-workflow-location",
           "dashboard-workflow-alerts",
           "dashboard-location-map",
+          "dashboard-alert-limits",
         ])
           void cache.invalidateQueries({ queryKey: [key, org] })
       }}

@@ -126,6 +126,10 @@ repository root.
   application (10 runs, slowest 26 ms) and 4 queries, the same 4 as with one
   automation. Real graphs are larger, but there is ample room under SC-004, so the
   query is not narrowed.
+- **Measured on a dashboard (T049, 2026-11-22)**: 20 time series panels in the rebuilt
+  stack made one limits request (56 ms), answered before the readings were (about
+  0.6 s against 0.8 s after navigation). The last readings response arrived at 775 and
+  781 ms with limits on, and 769 and 803 ms with them off: no difference (SC-004).
 - **Alternatives considered**: a request per panel or per device, like
   `useDeviceActivity`. Rejected: twenty panels would walk every graph twenty times. A
   PostgreSQL JSON predicate to load only deployments that bind the asked devices.
@@ -172,8 +176,9 @@ repository root.
 
 ### R7. Drawing
 
-- **Decision**: `timeSeriesOption` gains `limits`, drawn as mark lines in the warning
-  colour with their own dash pattern and a heavier stroke than panel thresholds; a
+- **Decision**: `timeSeriesOption` gains `limits`, drawn as mark lines in the foreground
+  colour (as built: the warning colour vanished on a shaded alert period, which is
+  when the limit matters most) with their own dash pattern and a heavier stroke than panel thresholds; a
   limit that clears is dotted and lighter. The label carries the automation's name and
   the comparison, which a panel threshold never has. The value axis is not given the
   limits, so it keeps following the readings.
@@ -187,9 +192,14 @@ repository root.
   from the kit when suspended.
 - **Rationale**: FR-011 needs a difference that is not colour alone; the dash pattern,
   the stroke and the label are three.
-- **To confirm while building**: that ECharts clips a mark line outside the axis
-  extent and does not widen the axis for it; a designer's screenshot pass on the line
-  styles in light and dark themes, at phone width and in kiosk mode.
+- **Confirmed (T029)**: ECharts leaves a mark line outside the value axis off the
+  plot and does not widen the axis for it (`packages/charts/src/builders.test.ts`
+  renders both cases).
+- **Screenshot pass (T048)**: done by the builder, not a designer, in the dark theme, in
+  kiosk mode and at phone width. One finding applied: the line was the warning colour
+  and vanished on a shaded alert period, so it is the foreground colour. Left: at
+  phone width a long label is clipped by the chart's edge (the legend has the full
+  text), and the light theme was not looked at in the running portal.
 
 ### R8. Who may ask
 

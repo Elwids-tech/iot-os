@@ -58,6 +58,7 @@ const CONFIG_KEYS: Partial<Record<DashboardWidget["type"], string[]>> = {
   text: ["sources", "text"],
   device_health: ["sources", "devices"],
   consumption: ["sources", "bucket", "period"],
+  timeseries: ["sources", "columns", "workflow_uuid", "alert_limits"],
 }
 const BREAKPOINTS = ["lg", "md", "sm", "xs", "xxs"] as const
 // Read-only fields an API response carries; accepted and dropped.
@@ -207,6 +208,11 @@ function readWidget(value: unknown, path: string): DashboardWidget {
         config[key] = c[key]
       }
     }
+  }
+  if (type === "timeseries" && c.alert_limits !== undefined) {
+    if (typeof c.alert_limits !== "boolean") fail(`${at}.alert_limits`, "must be a boolean.")
+    // Shown is the absent key; only "off" is carried.
+    if (!c.alert_limits) config.alert_limits = false
   }
   if (type === "gauge") {
     config.min = number(c.min, `${at}.min`)

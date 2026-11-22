@@ -76,7 +76,7 @@ final class DashboardDefinition
             'widgets.*.type' => ['required', 'in:status,timeseries,controls,state_history,color_history,location,alerts,gauge,table,text,device_health,consumption'],
             'widgets.*.title' => ['required', 'string', 'max:120'],
             'widgets.*.description' => ['nullable', 'string', 'max:1000'],
-            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,min,max,text,devices,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window,bucket,period'],
+            'widgets.*.config' => ['required', 'array:sources,columns,workflow_uuid,min,max,text,devices,location_device_uuids,geofence_uuid,show_trails,show_labels,trail_window,bucket,period,alert_limits'],
             'widgets.*.config.sources' => ['present', 'array', 'max:100'],
             'widgets.*.config.workflow_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.location_device_uuids' => ['sometimes', 'array', 'max:100'],
@@ -84,6 +84,7 @@ final class DashboardDefinition
             'widgets.*.config.geofence_uuid' => ['sometimes', 'uuid'],
             'widgets.*.config.show_trails' => ['sometimes', 'boolean'],
             'widgets.*.config.show_labels' => ['sometimes', 'boolean'],
+            'widgets.*.config.alert_limits' => ['sometimes', 'boolean'],
             'widgets.*.config.trail_window' => ['sometimes', Rule::in(['1h', '6h', '24h', '7d'])],
             'widgets.*.config.columns' => ['sometimes', Rule::in(['auto', 1, 2, 3, 4])],
             'widgets.*.config.bucket' => ['sometimes', Rule::in(self::CONSUMPTION_BUCKETS)],
@@ -176,9 +177,18 @@ final class DashboardDefinition
             if ($widget['title'] === '') {
                 $this->fail("widgets.$wi.title", 'Enter a panel title.');
             }
-            $settings = ['location' => ['sources', 'workflow_uuid', 'location_device_uuids', 'geofence_uuid', 'show_trails', 'show_labels', 'trail_window'], 'gauge' => ['sources', 'min', 'max'], 'table' => ['sources'], 'text' => ['sources', 'text'], 'device_health' => ['sources', 'devices'], 'consumption' => ['sources', 'bucket', 'period']][$widget['type']] ?? ['sources', 'columns', 'workflow_uuid'];
+            $settings = ['location' => ['sources', 'workflow_uuid', 'location_device_uuids', 'geofence_uuid', 'show_trails', 'show_labels', 'trail_window'], 'gauge' => ['sources', 'min', 'max'], 'table' => ['sources'], 'text' => ['sources', 'text'], 'device_health' => ['sources', 'devices'], 'consumption' => ['sources', 'bucket', 'period'], 'timeseries' => ['sources', 'columns', 'workflow_uuid', 'alert_limits']][$widget['type']] ?? ['sources', 'columns', 'workflow_uuid'];
             if (array_diff(array_keys($widget['config']), $settings)) {
                 $this->fail("widgets.$wi.config", 'This panel type does not accept these settings.');
+            }
+            // Alert limits (spec 037) are drawn unless a time series panel turns them off:
+            // "on" is the absent key, so a saved dashboard never gains it.
+            if (array_key_exists('alert_limits', $widget['config'])) {
+                if (filter_var($widget['config']['alert_limits'], FILTER_VALIDATE_BOOLEAN)) {
+                    unset($widget['config']['alert_limits']);
+                } else {
+                    $widget['config']['alert_limits'] = false;
+                }
             }
             if ($widget['type'] === 'text') {
                 if ($widget['config']['sources'] !== []) {

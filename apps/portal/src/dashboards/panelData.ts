@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
-import { useQueries, type QueryClient } from "@tanstack/react-query"
+import { useQueries, useQuery, type QueryClient } from "@tanstack/react-query"
+import { ApiError } from "@iot-os/api-client"
 import type {
+  AlertLimit,
   CounterBucket,
   CounterIncrease,
   DashboardSource,
@@ -12,6 +14,7 @@ import type {
   StateHistory,
 } from "@iot-os/api-client"
 import { api } from "../lib/api"
+import { createLimitBatcher } from "./alertLimits"
 import { effectiveBucket, periodWindow } from "./calendar"
 import { historyRefresh, resolveRange } from "./model"
 import { telemetryRequest } from "./requests"
@@ -231,6 +234,42 @@ export function useDeviceActivity(org: string, deviceIds: string[]) {
     ),
     error: [...alerts, ...commands].find((query) => query.error)?.error,
   }
+}
+
+// One request for the devices of every panel that asks within a moment. Being refused
+// is an answer, not a failure: the person may not view devices, so there is nothing to show.
+const askLimits = createLimitBatcher(async (org, deviceIds) => {
+  try {
+    return (await api.alertLimits(org, deviceIds)).data
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) return []
+    throw error
+  }
+})
+
+/**
+ * Alert limits of running automations on these devices (spec 037), refreshed every 45
+ * seconds so an open dashboard follows an activation within a minute. Nothing is asked
+ * for a person who may not view devices. `unavailable` after a request and its one
+ * retry failed: the limits may have changed, so none are returned until one succeeds.
+ */
+export function useAlertLimits(org: string, deviceIds: string[]): { limits: AlertLimit[]; unavailable: boolean } {
+  const session = useQuery({ queryKey: ["session"], queryFn: () => api.me(), staleTime: 60000 })
+  const mayView = session.data?.organizations.find((o) => o.uuid === org)?.capabilities?.devices?.view ?? false
+  const ids = mayView ? unique(deviceIds) : []
+  const queries = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ["dashboard-alert-limits", org, id],
+      queryFn: () => askLimits(org, id),
+      refetchInterval: 45000,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: false,
+      staleTime: 40000,
+      retry: 1,
+    })),
+  })
+  const unavailable = queries.some((query) => query.isError)
+  return { limits: unavailable ? [] : queries.flatMap((query) => query.data ?? []), unavailable }
 }
 
 /** A clock for ages ("4 s") that keeps moving while polling is off. */
