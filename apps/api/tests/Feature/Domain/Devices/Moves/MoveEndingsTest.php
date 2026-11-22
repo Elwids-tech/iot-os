@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Domain\Devices\Moves;
 
 use App\Domain\Automation\Models\Alert;
+use App\Domain\Automation\Models\Deployment;
 use App\Domain\Automation\Models\Workflow;
+use App\Domain\Automation\Services\AlertProjector;
 use App\Domain\Dashboards\Services\DashboardDefinition;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\DeviceCommand;
@@ -43,6 +45,25 @@ final class MoveEndingsTest extends MoveTestCase
         $this->connectivity($this->a, $x, 1, 'cleared')->assertOk();
         $this->assertSame(Alert::STOPPED_DEVICE_MOVED, $open->fresh()->stopped_reason);
         $this->assertNull($open->fresh()->clear_transition_id);
+    }
+
+    public function test_an_automations_open_alert_ends_when_any_device_it_reads_moves(): void
+    {
+        $x = $this->adapterFed('WM-1001', 'Tracker X');
+        $y = $this->adapterFed('WM-1002', 'Tracker Y');
+        $fleet = $this->automation($this->a, 'Fleet low flow', [$x, $y]);
+        $deployment = Deployment::where('uuid', $fleet->applied_deployment_uuid)->firstOrFail();
+        DB::transaction(fn () => app(AlertProjector::class)->project($fleet, $deployment, ['id' => hash('sha256', $deployment->uuid.':1:activated'), 'type' => 'activated', 'episode' => 1, 'occurred_at' => now()->toIso8601String()]));
+        $alert = Alert::where('automation_workflow_id', $fleet->id)->sole();
+        // It lists both devices it reads (spec 037), so moving the second one ends it too.
+        $this->assertEqualsCanonicalizing([$x->id, $y->id], $alert->devices()->pluck('devices.id')->all());
+        $this->assertSame(1, $this->review($this->a, $this->b, [$y])->json('ends.alerts'));
+
+        $this->confirm($this->a, $this->b, [$y])->assertAccepted();
+        $this->answerStops();
+
+        $this->assertNotNull($alert->fresh()->cleared_at);
+        $this->assertSame(Alert::STOPPED_DEVICE_MOVED, $alert->fresh()->stopped_reason);
     }
 
     public function test_unsent_commands_are_cancelled_and_possibly_sent_ones_become_uncertain(): void

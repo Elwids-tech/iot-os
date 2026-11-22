@@ -40,15 +40,17 @@ final class AlertQuery
             $input['acknowledged'] ? $query->whereNotNull('automation_alerts.acknowledged_at') : $query->whereNull('automation_alerts.acknowledged_at');
         }
         if (isset($input['device'])) {
-            // Workflow alerts by their execution's bound device, which may name no
-            // device record; other kinds by the devices they list.
-            $query->where(fn ($q) => $q->whereHas('deployment', fn ($q) => $q->whereRaw(self::device().' = ?', [$input['device']]))
+            // By the devices an alert lists: every device a workflow alert's execution
+            // reads (spec 037), every device a connectivity alert covers. A workflow
+            // alert that lists none, because its bound device names no device record,
+            // is found by that bound device.
+            $query->where(fn ($q) => $q->where(fn ($q) => $q->whereDoesntHave('devices')->whereHas('deployment', fn ($q) => $q->whereRaw(self::device().' = ?', [$input['device']])))
                 ->orWhereHas('devices', fn ($q) => $q->where('devices.uuid', $input['device'])->whereColumn('devices.organization_id', 'automation_alerts.organization_id')));
         }
         if (isset($input['site'])) {
             // Agent tools only: alerts of the devices at one site.
             $devices = Device::where('organization_id', $organization->id)->whereHas('site', fn ($q) => $q->where('uuid', $input['site']))->get(['id', 'uuid']);
-            $query->where(fn ($q) => $devices->isEmpty() ? $q->whereRaw('1 = 0') : $q->whereHas('deployment', fn ($q) => $q->whereIn(DB::raw(self::device()), $devices->pluck('uuid')->all()))
+            $query->where(fn ($q) => $devices->isEmpty() ? $q->whereRaw('1 = 0') : $q->where(fn ($q) => $q->whereDoesntHave('devices')->whereHas('deployment', fn ($q) => $q->whereIn(DB::raw(self::device()), $devices->pluck('uuid')->all())))
                 ->orWhereHas('devices', fn ($q) => $q->whereIn('devices.id', $devices->modelKeys())));
         }
         if (isset($input['workflow'])) {

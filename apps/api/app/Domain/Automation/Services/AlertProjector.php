@@ -31,8 +31,10 @@ final class AlertProjector
     {
         $alert = Alert::firstOrCreate(['automation_deployment_id' => $deployment->id, 'episode' => $transition['episode']], ['organization_id' => $workflow->organization_id, 'automation_workflow_id' => $workflow->id]);
         $device = $this->boundDevice($workflow, $deployment);
-        if ($alert->wasRecentlyCreated && $device) {
-            $alert->devices()->attach($device->id);
+        if ($alert->wasRecentlyCreated) {
+            // Every device the execution reads, so the alert is found from each of them (spec 037).
+            $read = DeploymentGraph::of($deployment->definition)->readDeviceUuids();
+            $alert->devices()->attach($read === [] ? [] : Device::where('organization_id', $workflow->organization_id)->whereIn('uuid', $read)->pluck('id')->all());
         }
         $alert = Alert::whereKey($alert->id)->lockForUpdate()->firstOrFail();
         $active = $transition['type'] === 'activated';

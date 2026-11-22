@@ -129,9 +129,16 @@ repository root.
 ### R5. Alerts for every device: fill the list that already exists
 
 - **Decision**: `AlertProjector` attaches every device the deployment reads, not only
-  the first binding. A data migration adds the missing rows for existing workflow
-  alerts. `AlertQuery` is unchanged, because its device and site filters already
-  search this list.
+  the first binding. A data migration sets the list of existing workflow alerts to
+  the devices their snapshots read. `AlertQuery`'s device and site filters already
+  search this list; the one change is that their older match on the first binding in
+  the snapshot now applies only to an alert that lists no device.
+- **Why the filter changed after all** (found while building): the first-binding match
+  would still find an alert from a commanded device when that device is the first
+  binding, which FR-026 forbids. It cannot simply go, because an alert whose bound
+  device names no device record lists nothing and is found only that way.
+- **Snapshots that name no source** (older and partial ones) read their first binding,
+  as before, and the migration leaves their alerts alone.
 - **"Reads"** means bindings named by a `source.parameter.v1` node, and the single
   `binding` of a geofence rule. A binding used only by `action.command.v1` is not read
   (FR-026).
@@ -193,8 +200,11 @@ repository root.
 
 ## Open checks for the tasks
 
-- Whether any path hard-deletes a device while it is listed on an alert; the list's
-  foreign key restricts deletes, and more devices will now be listed.
-- Whether the alerts pages render `devices` for workflow alerts in a way that needs a
-  design look once there are several.
+- **Checked (T010):** no path hard-deletes a device except deleting its whole
+  organization, and `OrganizationDeletion` removes the alert device rows first. Nothing
+  to change.
+- **Checked (T011):** the portal's alert detail shows the device list only for gateway
+  alerts; a workflow alert shows its main device. Nothing reads wrongly with several
+  devices listed. Its "used in dashboards" list still looks at the main device only;
+  left as it is, since another open change is rewriting that page.
 - A measured run with 200 applied automations and 100 devices, to confirm R4.

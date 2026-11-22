@@ -106,10 +106,13 @@ projector and the limits endpoint use it, so "reads" has one meaning.
 - `AlertProjector::project` attaches every read device of the deployment when it
   first creates the alert. Devices are looked up in the automation's organization, as
   today.
-- A data migration inserts the missing rows for existing workflow alerts from their
-  deployments' definitions, in chunks, skipping rows that exist. Its `down` does
-  nothing: the extra rows are valid for the earlier code as well.
-- `AlertQuery` is not changed. Its device and site filters already search the list.
+- A data migration sets the list of existing workflow alerts to the devices their
+  deployments' definitions read, in chunks: missing rows are added and a device the
+  automation only commands is removed. Its `down` does nothing: the list is valid for
+  the earlier code as well.
+- `AlertQuery`'s device and site filters already search the list. Their older match on
+  the snapshot's first binding now applies only to an alert that lists no device, so a
+  commanded first binding is not matched (FR-026).
 - The alert's main device (`device_uuid`, `device_name`) stays the first binding.
 
 ### The limits endpoint (API)

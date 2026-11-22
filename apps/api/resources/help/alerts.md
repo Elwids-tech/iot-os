@@ -59,7 +59,7 @@
 Viewing requires device viewing permission. Response actions require their respective device management capabilities. My notifications are personal and apply across your organizations.
 
 ## Steps
-1. Open **Alerts**. It shows active alerts first; choose **Cleared** or **All** for history, and filter by kind (**Automation**, **Device offline**, **Gateway offline**), acknowledgment, device, or workflow.
+1. Open **Alerts**. It shows active alerts first; choose **Cleared** or **All** for history, and filter by kind (**Automation**, **Device offline**, **Gateway offline**), acknowledgment, device, or workflow. An automation’s alert belongs to every device whose readings it checks, so filtering by any of those devices finds it; a device the automation only sends commands to is not one of them.
 2. Repeats of one workflow on one device are grouped with their occurrence count. Choose **Individual** to list every occurrence.
 3. Select an alert to inspect its source, timestamps, evidence, current condition, and the other occurrences of its source.
 4. Acknowledge it when you have seen it and assign a responsible member where appropriate. To acknowledge several at once, tick them and choose **Acknowledge selected**, or use **Acknowledge all cleared** in an alert’s occurrences.

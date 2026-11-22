@@ -99,10 +99,15 @@ Every alert has a `kind` and a `severity`:
 
 Offline alerts ([spec 018](../../specs/018-device-offline-alerts/spec.md)) have no
 workflow and name a device, gateway or adapter instead. `automation_alert_devices`
-lists the devices each alert concerns: a workflow alert's bound device (when it names a
-device of the organization), or every device an offline alert covers. The `device`
-filter matches a workflow alert's bound device or any device an alert lists, so it
-also finds a gateway alert that lists the device. Integration reads, the `alert.*.v1`
+lists the devices each alert concerns: every device a workflow alert's execution reads
+(when it names devices of the organization), or every device an offline alert covers.
+An automation that compares two devices' readings lists both; a device it only sends
+commands to is not listed ([spec 037](../../specs/037-alert-limits-on-charts/spec.md)).
+The `device` filter matches any device an alert lists, so it finds an automation's
+alert from each device it reads and a gateway alert that lists the device. A workflow
+alert that lists none, because its bound device names no device record, is found by
+that bound device. The alert's own `device_uuid` and `device_name` are still its first
+binding. Integration reads, the `alert.*.v1`
 events and the per-workflow emails cover workflow alerts only.
 
 ### Alert allowance
@@ -270,7 +275,8 @@ otherwise the event changes nothing.
 - **Device moved.** When a device moves to another organization, the platform ends its
   open alerts in the source as `device_moved` (**Device moved**) at the cutover, and
   relabels those its stop ended as `device_deactivated` during the move. The runtime's
-  later transitions for such an episode change nothing. A gateway alert ends this way
+  later transitions for such an episode change nothing. An automation's alert ends
+  when any device it reads moves, as its execution stops then. A gateway alert ends this way
   only when every device it lists moved; while it lists a device that stays behind the
   gateway, it stays open for that device.
 - **Transitions.** The runtime writes each opened, cleared or stopped transition with
