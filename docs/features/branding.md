@@ -236,7 +236,7 @@ product name, a logo and the support link. With a brand:
 - the sender's display name is the product name; the sending address stays `MAIL_FROM_ADDRESS`;
 - notification mail (invitation, welcome, password reset, security notices) shows the
   logo, or the name, in its header and the support link in its footer, through the
-  message templates published in `resources/views/vendor`;
+  message templates in `resources/views/mail`;
 - the alert and support ticket mails are plain text: their sender and links follow the brand;
 - subjects and greetings that named the platform name the product.
 

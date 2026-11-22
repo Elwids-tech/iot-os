@@ -1317,9 +1317,13 @@ The portal is a progressive web app (spec 033,
   memoises on the request, which is right for one HTTP request and stale for hours in
   a worker. Text written in a job (mail through `MailBrand`, assistant prompts through
   `Brands::nameFor`) reads the brand fresh instead.
-- **A published mail component replaces only itself.** `mail.markdown.paths` lists
-  `resources/views/vendor/mail`; Laravel still finds every component not published
-  there in the framework. Keep the published `message` and `layout` identical to the
+- **Never put a view under `resources/views/vendor`.** `.gitignore` and
+  `.dockerignore` both ignore every folder named `vendor`, so `vendor:publish` output
+  is neither committed nor in the image, and tests on the working tree still pass. The
+  branded mail templates live in `resources/views/mail`.
+- **A mail component of ours replaces only itself.** `mail.markdown.paths` lists
+  `resources/views/mail`; Laravel still finds every component not there in the
+  framework. Keep our `message` and `layout` identical to the
   framework's when no brand is passed: `BrandedMailTest` compares the bytes, so a
   framework upgrade that changes its templates fails there and the copies are updated.
 - **The manifest in `config/branding.php` is a copy of the portal build's.** Change

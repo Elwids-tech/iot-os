@@ -121,7 +121,8 @@ return [
     */
     'markdown' => [
         'theme' => 'default',
-        'paths' => [resource_path('views/vendor/mail')],
+        // Not under views/vendor: git and the image build both ignore every folder named vendor.
+        'paths' => [resource_path('views/mail')],
     ],
 
 ];

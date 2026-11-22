@@ -214,6 +214,9 @@ final class BrandedMailTest extends TestCase
     /** The brand's sender name on the platform's sending address, the brand in the header and footer, and no platform name anywhere. */
     private function assertBranded(MailMessage $mail): void
     {
+        // Tracked and shipped: git and the image build ignore every folder named vendor.
+        $this->assertFileExists(resource_path('views/mail/notification.blade.php'));
+        $this->assertStringNotContainsString('/vendor/', (string) config('mail.markdown.paths.0'));
         $this->assertSame(['no-reply@example.com', 'Acme Monitor'], $mail->from);
         $html = (string) $mail->render();
         $text = (string) app(Markdown::class)->renderText($mail->markdown, $mail->data());
@@ -241,17 +244,18 @@ final class BrandedMailTest extends TestCase
     {
         $this->assertSame([], $mail->from);
         $this->assertArrayNotHasKey('brand', $mail->viewData);
+        $this->assertSame('notifications::email', $mail->markdown);
 
         view()->addNamespace('stock-notifications', base_path('vendor/laravel/framework/src/Illuminate/Notifications/resources/views'));
         $stock = new Markdown(view(), ['theme' => 'default', 'paths' => []]);
         $ours = app(Markdown::class);
         $this->assertSame(
             (string) $stock->render('stock-notifications::email', $mail->data()),
-            (string) $ours->render('notifications::email', $mail->data()),
+            (string) $ours->render($mail->markdown, $mail->data()),
         );
         $this->assertSame(
             (string) $stock->renderText('stock-notifications::email', $mail->data()),
-            (string) $ours->renderText('notifications::email', $mail->data()),
+            (string) $ours->renderText($mail->markdown, $mail->data()),
         );
     }
 

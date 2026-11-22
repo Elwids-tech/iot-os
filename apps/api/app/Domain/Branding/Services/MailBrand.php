@@ -18,6 +18,9 @@ use Illuminate\Notifications\Messages\MailMessage;
  */
 final readonly class MailBrand
 {
+    /** The notification template a branded mail uses (resources/views/mail/notification.blade.php). */
+    public const NOTIFICATION = 'mail.notification';
+
     private function __construct(
         public ?string $name = null,
         public ?string $logoUrl = null,
@@ -107,7 +110,8 @@ final readonly class MailBrand
         if ($this->name === null) {
             return $message;
         }
-        $message->viewData['brand'] = $this;
+        // Laravel's notification template, signed by the brand and passing it to the header and footer.
+        $message->markdown(self::NOTIFICATION, [...$message->viewData, 'brand' => $this]);
 
         return $message->from((string) config('mail.from.address'), $this->name);
     }
