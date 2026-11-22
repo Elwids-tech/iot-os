@@ -69,6 +69,20 @@ final class PlatformPortalAddressResource extends JsonResource
             'record' => $addresses->record($address),
             /** When a domain still waiting for its record lapses. */
             'lapses_at' => $addresses->lapsesAt($address)?->toIso8601String(),
+            /**
+             * When a serving custom domain's certificate expires, as last read from the
+             * deployment's proxy. Null for a name, before the first read, and where the
+             * deployment has no proxy to ask.
+             *
+             * @var string|null
+             */
+            'certificate_expires_at' => $address->certificate_expires_at?->toIso8601String(),
+            /**
+             * Whether that certificate has expired or expires within the warning period, so renewal is overdue.
+             *
+             * @var bool
+             */
+            'certificate_expiring' => (bool) $addresses->certificateExpiring($address),
         ];
     }
 }

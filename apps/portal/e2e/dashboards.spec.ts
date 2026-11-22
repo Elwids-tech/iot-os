@@ -1961,3 +1961,18 @@ test("Dashboards in the sidebar reopens the dashboard last viewed, or the librar
   await expect(page).toHaveURL(basePath)
   await expect(dashboardsLink).toHaveAttribute("href", basePath)
 })
+
+test("a copied dashboard link opens on the billing account's main address", async ({ page, context }) => {
+  // Spec 036 FR-033: copied on the platform's address, the link still carries the account's own.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  await setup(page)
+  await page.route("**/organizations/*/context", (route) =>
+    route.fulfill({ json: { data: { uuid: org, name: "Acme Manufacturing", slug: "acme", portal_url: "https://portal.example.org", capabilities: { devices: { manage: true, view: true } } } } }),
+  )
+  await page.goto(basePath + "/first")
+  await page.getByRole("button", { name: "Copy link", exact: true }).click()
+  await expect(page.getByText("Dashboard link copied")).toBeVisible()
+  const copied = new URL(await page.evaluate(() => navigator.clipboard.readText()))
+  expect(copied.origin).toBe("https://portal.example.org")
+  expect(copied.pathname).toBe(basePath + "/first")
+})

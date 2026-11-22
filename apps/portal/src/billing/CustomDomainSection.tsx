@@ -126,6 +126,20 @@ export function CustomDomainSection({
               </AlertDescription>
             </Alert>
           ) : null}
+          {live.certificate_expiring && live.certificate_expires_at ? (
+            <Alert>
+              <TriangleAlertIcon />
+              <AlertTitle>
+                {new Date(live.certificate_expires_at) <= new Date()
+                  ? "The secure connection for this domain has expired"
+                  : `The secure connection for this domain expires on ${formatDay(live.certificate_expires_at)}`}
+              </AlertTitle>
+              <AlertDescription>
+                It renews by itself, and that has not worked. Check that the record below is still in place. If it is, contact the platform
+                operator.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {live.state === "suspended" ? (
             <Alert variant="destructive">
               <LockIcon />

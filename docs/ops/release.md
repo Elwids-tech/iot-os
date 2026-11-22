@@ -185,6 +185,25 @@ Before telling a customer their domain is ready, for the first one on a deployme
 9. Suspend and restore the domain once from **Portal addresses** to see that it stops
    and comes back.
 
+### Certificates of custom domains
+
+The proxy issues a custom domain's certificate on first use and renews it about a
+month before it expires. The API reads each serving domain's certificate from the
+proxy (`PORTAL_ADDRESSES_CERTIFICATE_PROBE`, `caddy:443` in a release) on every check
+of the domain, every 15 minutes.
+
+`PortalAddressCertificateExpiry` fires when a domain's certificate has 14 days or less
+left, or has not been readable for an hour. **Portal addresses** marks the domain
+**Certificate expiring** and its owner sees a warning. To look into it:
+
+1. `dig +short CNAME <their host>` from outside: the record must still answer the
+   `c-….DOMAIN` name. A missing record is the customer's to put back; the domain also
+   turns **Not reachable** after three checks.
+2. The proxy's log for the host says why the certificate authority refused: a proxied
+   or changed record, a CAA record that excludes the authority, or its rate limit.
+3. The proxy must still reach the certificate authority, and the API must still
+   answer the certificate question (`smoke` checks it).
+
 ## First installation
 
 1. Provision the host: copy `deploy/ansible/inventory.example.yml` privately and run

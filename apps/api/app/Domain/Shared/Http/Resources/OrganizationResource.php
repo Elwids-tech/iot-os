@@ -51,6 +51,14 @@ final class OrganizationResource extends JsonResource
                 'logo' => $brand['logo']?->image(),
                 'logo_dark' => $brand['logo_dark']?->image(),
             ],
+            /**
+             * Only in the organization context: the portal's URL on the main address of
+             * the organization's billing account (spec 036, FR-033), for links a person
+             * copies. Null when the account has no address.
+             *
+             * @var string|null
+             */
+            'portal_url' => $this->whenHas('portal_url'),
             // Members must use two-step sign-in (spec 034, FR-021).
             'two_step_required' => (bool) $this->two_step_required,
             'users_count' => $this->whenCounted('users'),

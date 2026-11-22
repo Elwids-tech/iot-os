@@ -6,7 +6,9 @@ use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Billing\Contracts\SmsAllowance;
 use App\Domain\Billing\Services\Usage;
+use App\Domain\Branding\Contracts\CertificateReader;
 use App\Domain\Branding\Contracts\DnsResolver;
+use App\Domain\Branding\Services\ProxyCertificateReader;
 use App\Domain\Branding\Services\SystemDnsResolver;
 use App\Domain\DeviceProfiles\Services\PublishedParameters;
 use App\Domain\DeviceProfiles\Services\UnitCatalogue;
@@ -37,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(SmsAllowance::class, Usage::class);
         // The custom domain check (spec 036) reads DNS through this; tests swap a fake in.
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+        $this->app->bind(CertificateReader::class, ProxyCertificateReader::class);
     }
 
     /**

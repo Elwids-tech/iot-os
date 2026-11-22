@@ -157,8 +157,18 @@ portal on one domain of its own, such as `portal.example.org`
 - **Certificates** are issued by the deployment's proxy on first use, only for a host
   the API says serves ([release guide](../ops/release.md#portal-addresses)). A renamed
   name counts for the 30 days it sends visitors on, since it cannot redirect without
-  one. Nothing watches a custom domain's certificate yet: release monitoring probes
-  only the platform's own hosts.
+  one.
+- **Certificate watch.** The proxy renews a certificate about a month before it
+  expires. Each check of a serving domain also asks the proxy, inside the deployment,
+  for the certificate it serves under the domain's name
+  ([`CertificateReader`](../../apps/api/app/Domain/Branding/Contracts/CertificateReader.php))
+  and keeps when it expires. That handshake is also what makes the proxy obtain or
+  renew a certificate nobody has visited lately. A read that fails keeps the last
+  known date. With 14 days or less left, or once it has expired, the owner sees a
+  warning on the domain, staff see **Certificate expiring** beside its state, and the
+  release raises `PortalAddressCertificateExpiry`
+  ([release guide](../ops/release.md#portal-addresses)). Where there is no proxy to
+  ask, as in development, nothing is read.
 
 ### What an address shows
 
@@ -245,6 +255,12 @@ place that decides the host of a link:
 Queued mail has no request when a worker builds it. A message that follows the request
 keeps `origin()` (the address's host) when it is made and gives it to `at()` when it is
 sent; an address that stopped serving in between falls back to the platform's portal.
+
+A link a person copies from a dashboard (**Copy link**, a panel's link, the link in
+**Share**) carries the account's main address too, whichever address it was copied at:
+the organization's context (`GET organizations/{organization}/context`) answers
+`portal_url`, null when the account has no address, and the portal then keeps the
+address it is on ([`portal-origin.ts`](../../apps/portal/src/lib/portal-origin.ts)).
 
 Links for AI agents (`Agents\Mcp\PortalUrls`) stay on the platform's portal: agents
 connect on the platform's domain.
@@ -363,6 +379,7 @@ Brands and logos need no setting. Portal addresses read, in `config/branding.php
 | `PORTAL_ADDRESSES_DOMAIN` | The domain names are claimed under: the release's `DOMAIN`, `localhost` in development |
 | `PORTAL_ADDRESSES_TOKEN` | What the proxy sends when it asks whether a host may have a certificate |
 | `PORTAL_ADDRESSES_DNS_CHECK` | `off` only in development: every custom domain's record counts as found, and a deeper name under the platform's domain (`portal.acme.localhost`) may stand in for a customer's domain |
+| `PORTAL_ADDRESSES_CERTIFICATE_PROBE` | The proxy to read custom domains' certificates from, as `host:port`: `caddy:443` in a release. Empty reads nothing |
 | `PORTAL_ADDRESSES_SAME_ORIGIN` | Development only: a name's portal calls the API on its own host ([local setup](../dev/local-setup.md#portal-addresses)) |
 | `PLATFORM_NAME` | The name in the **Powered by** line. `IoT OS` by default |
 
@@ -379,8 +396,6 @@ page and the code are right:
 - Platform staff suspend and restore addresses in the admin app. Claiming, renaming,
   removing and checking for an account have admin routes but no admin screen: owners do
   them in the portal.
-- A dashboard or kiosk link a person copies is on the address they copied it at. Only
-  links the server writes (mail, push) move to the account's main address.
 - A lapsed request and an unreachable domain show on the billing page and in the
   activity log. No mail or notification is sent.
 - A lapsed address shows no time of lapsing.

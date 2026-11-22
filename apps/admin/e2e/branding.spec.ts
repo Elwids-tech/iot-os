@@ -42,6 +42,8 @@ type Address = {
   record: boolean
   last_checked_at: string | null
   suspended_at: string | null
+  /** A serving domain whose certificate is close to expiring. */
+  certificate_expiring?: boolean
 }
 
 function fixtures() {
@@ -60,6 +62,7 @@ function fixtures() {
       record: true,
       last_checked_at: new Date(Date.now() - 5 * 60_000).toISOString(),
       suspended_at: null,
+      certificate_expiring: true,
     },
     { uuid: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1", account: borealis, kind: "name", host: "borealis.example.com", state: "active", record: true, last_checked_at: null, suspended_at: null },
     {
@@ -123,6 +126,8 @@ async function mockApi(page: Page) {
     suspended_at: address.suspended_at,
     record: address.kind === "domain" ? { type: "CNAME", name: address.host, value: "c-0123456789abcdef0123.example.com" } : null,
     lapses_at: address.state === "waiting_dns" ? "2026-11-27T08:00:00Z" : null,
+    certificate_expires_at: address.certificate_expiring ? "2026-11-30T08:00:00Z" : null,
+    certificate_expiring: address.certificate_expiring ?? false,
   })
   const forStaff = (address: Address) => ({
     ...shown(address),
@@ -333,6 +338,9 @@ test("lists every portal address, narrows the list, and suspends and restores fr
   await expect(row("acme.example.com")).toContainText("Allowance off")
   await expect(row("borealis.example.com")).toContainText("Active")
   await expect(row("borealis.example.com")).not.toContainText("Allowance off")
+  // A domain whose certificate is not renewing is marked, and no other address is.
+  await expect(row("portal.example.org")).toContainText("Certificate expiring")
+  await expect(page.getByText("Certificate expiring")).toHaveCount(1)
   await expect(row("view.example.net")).toContainText("Custom domain")
   await expect(row("view.example.net")).toContainText("Waiting for DNS")
   await expect(row("view.example.net")).toContainText("2 min ago")

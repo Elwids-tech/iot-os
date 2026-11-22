@@ -77,6 +77,10 @@ export type PortalAddress = {
   record: { type: "CNAME"; name: string; value: string } | null
   /** When a domain still waiting for its record lapses. */
   lapses_at: string | null
+  /** When a serving custom domain's certificate expires, as last read. Null for a name or before a read. Older payloads omit it. */
+  certificate_expires_at?: string | null
+  /** The certificate has expired or expires within two weeks: renewal is overdue. Older payloads omit it. */
+  certificate_expiring?: boolean
 }
 
 /**

@@ -45691,6 +45691,17 @@
               "null"
             ],
             "description": "When a domain still waiting for its record lapses."
+          },
+          "certificate_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a serving custom domain's certificate expires, as last read from the\ndeployment's proxy. Null for a name, before the first read, and where the\ndeployment has no proxy to ask."
+          },
+          "certificate_expiring": {
+            "type": "boolean",
+            "description": "Whether that certificate has expired or expires within the warning period, so renewal is overdue."
           }
         },
         "required": [
@@ -45709,7 +45720,9 @@
           "suspended_at",
           "suspended_by_user_id",
           "record",
-          "lapses_at"
+          "lapses_at",
+          "certificate_expires_at",
+          "certificate_expiring"
         ],
         "title": "PlatformPortalAddressResource"
       },
@@ -46017,6 +46030,17 @@
               "null"
             ],
             "description": "When a domain still waiting for its record lapses."
+          },
+          "certificate_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a serving custom domain's certificate expires, as last read from the\ndeployment's proxy. Null for a name, before the first read, and where the\ndeployment has no proxy to ask."
+          },
+          "certificate_expiring": {
+            "type": "boolean",
+            "description": "Whether that certificate has expired or expires within the warning period, so renewal is overdue."
           }
         },
         "required": [
@@ -46032,7 +46056,9 @@
           "unreachable_since",
           "suspended_at",
           "record",
-          "lapses_at"
+          "lapses_at",
+          "certificate_expires_at",
+          "certificate_expiring"
         ],
         "title": "PortalAddressResource"
       },

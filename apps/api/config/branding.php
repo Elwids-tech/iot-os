@@ -31,6 +31,16 @@ return [
     'recheck_minutes' => 15,
 
     /*
+    | Where the custom domain check reads a domain's certificate: the deployment's own
+    | proxy, as `host:port` inside its network. Empty reads nothing, as in development,
+    | where nothing issues certificates. A certificate this close to expiring is shown
+    | to the owner and to staff, and raises the release's alert.
+    */
+    'certificate_probe' => (string) env('PORTAL_ADDRESSES_CERTIFICATE_PROBE', ''),
+    'certificate_probe_seconds' => 10,
+    'certificate_warning_days' => 14,
+
+    /*
     | Development only: a name's portal calls the API on its own host, through the
     | portal's nginx, instead of on the platform's API host. Browsers do not treat
     | `acme.localhost` and `localhost` as one site, so the shared session cookie of a

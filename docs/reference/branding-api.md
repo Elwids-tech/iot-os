@@ -37,7 +37,9 @@ routes. Image uploads and claims of a name or a domain are limited to 30 a minut
   "unreachable_since": null, "suspended_at": null,
   // A custom domain also carries:
   "record": { "type": "CNAME", "name": "portal.example.org", "value": "c-7k2m….example.com" },
-  "lapses_at": "…"
+  "lapses_at": "…",
+  "certificate_expires_at": "…",          // as last read from the proxy; null before a read and for a name
+  "certificate_expiring": false           // expired, or 14 days or less left: renewal is overdue
 }
 
 // Branding (what the owner and admin pages read)
@@ -112,6 +114,7 @@ An organization (`OrganizationResource`) carries:
 | `POST login`, two-step and passkey sign-in | On an account's address, after valid credentials: `403 not_available_here` when the person has no organization there and no platform role |
 | `POST login` | `403 second_step_elsewhere` after a right password when the person must use two-step and their only second step is a passkey made on another domain |
 | Invitation accept | On an account's address: `403 not_available_here` for an invitation to another account's organization or to a platform role; it stays pending |
+| `GET organizations/{organization}/context` | Adds `portal_url`: the portal on the main address of the organization's billing account, for links a person copies. Null when the account has no address |
 | `GET me` | `organizations` lists only the address's account on an account's address. Adds `address { kind, host }` or null, and `push_devices_elsewhere` |
 | Any `organizations/{organization}/…` route | `404 not_available_here` for an organization outside the address's account |
 | Any signed-in route but sign-out | `403 not_available_here` once the person has no organization left at the address. A session on the address's own host is ended; one shared with the platform's address is not |

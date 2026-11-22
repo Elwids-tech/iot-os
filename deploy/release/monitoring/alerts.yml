@@ -55,6 +55,13 @@ groups:
         for: 5m
         labels: {severity: critical}
         annotations: {summary: "Certificate expires in less than 14 days"}
+      # A custom domain's certificate is issued on demand and renewed a month ahead. The
+      # API reports 0 while it has never been able to read one.
+      - alert: PortalAddressCertificateExpiry
+        expr: iot_portal_address_certificate_expiry_timestamp_seconds - time() < 1209600
+        for: 1h
+        labels: {severity: critical}
+        annotations: {summary: "The certificate for portal address {{ $labels.host }} expires in less than 14 days or could not be read"}
       - alert: BackupOverdue
         expr: time() - iot_backup_success_timestamp_seconds > 93600 or absent(iot_backup_success_timestamp_seconds)
         for: 10m

@@ -103,15 +103,18 @@ export function AddressLink({ address }: { address: Pick<PortalAddress, "host" |
 
 /**
  * An address's state, and beside it why one whose state serves does not: its account's
- * allowance is off, which stops the address without changing its state (FR-037).
+ * allowance is off, which stops the address without changing its state (FR-037). Also
+ * a custom domain whose certificate is close to expiring or has expired.
  */
-export function AddressState({ address, serving }: { address: Pick<PortalAddress, "state">; serving: boolean }) {
+export function AddressState({ address, serving }: { address: Pick<PortalAddress, "state" | "certificate_expiring">; serving: boolean }) {
   const stopped = !serving && (address.state === "active" || address.state === "unreachable")
 
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <Status value={address.state} domain="portal_address" />
       {stopped ? <StatusMark tone="muted">Allowance off</StatusMark> : null}
+      {/* Renewal is overdue: the proxy renews a month ahead, so this is a failure to look into. */}
+      {address.certificate_expiring ? <StatusMark tone="warning">Certificate expiring</StatusMark> : null}
     </span>
   )
 }

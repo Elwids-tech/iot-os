@@ -277,6 +277,10 @@ Things that have cost time before. Add to this list when something surprises you
   The activity feed returns details as a list of `{key, value}` text pairs instead, and
   its 200 body is described by hand in `contracts/openapi/supplements/activity.yaml`
   because Scramble reads values taken from a DTO's array properties as strings.
+- **A resource value from a method call is exported as a string.** Scramble could not
+  infer `'certificate_expiring' => $addresses->certificateExpiring($address)` and wrote
+  `string`, so every test that read the resource failed G4 only after the next
+  `contract:export`. Give such a member a `@var` docblock (`@var bool`).
 - **Scramble reads `array:<keys>` as every key required.** Laravel's `array:a,b` only
   limits which keys an array may have, but the export lists all of them under
   `required`, so a request that leaves one out breaks the published schema. Where the
@@ -793,7 +797,8 @@ Things that have cost time before. Add to this list when something surprises you
   worktree's `vite preview` often holds the port, so a local run tests that build and
   times out on missing elements. Build this checkout's portal, serve it on another port
   (`vite preview --port 4183 --strictPort`) and run with
-  `STUDIO_BASE_URL=http://127.0.0.1:4183`. Use a build, as CI does, not the Vite dev
+  `STUDIO_BASE_URL=http://127.0.0.1:4183`. Where the preview listens on IPv6 only
+  (every test fails at once with `ERR_CONNECTION_REFUSED`), use `http://localhost:4183`. Use a build, as CI does, not the Vite dev
   server: dev builds print ECharts warnings that the dashboard and adapter specs count
   as page errors, and URL mocks such as `**/assistant/**` and `**/dashboards/**` also
   answer the dev server's `/src/assistant/…` and `/src/dashboards/…` modules with JSON,

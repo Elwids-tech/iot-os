@@ -29,6 +29,8 @@ export type MockAddress = {
   suspended_at: string | null
   record: { type: "CNAME"; name: string; value: string } | null
   lapses_at: string | null
+  certificate_expires_at?: string | null
+  certificate_expiring?: boolean
 }
 
 type Organization = {

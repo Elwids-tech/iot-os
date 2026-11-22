@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Domain\Assistant\Services\AssistantProvider;
+use App\Domain\Branding\Enums\PortalAddressKind;
+use App\Domain\Branding\Enums\PortalAddressState;
+use App\Domain\Branding\Models\PortalAddress;
 use App\Domain\Devices\Services\RetentionService;
 use App\Domain\Integrations\Models\IntegrationStreamSession;
 use Illuminate\Support\Facades\DB;
@@ -86,6 +89,14 @@ final class Operations
         $gauge('assistant_enabled', (int) config('assistant.enabled'));
         $gauge('assistant_spent_usd', (float) ($budget->spent_usd ?? 0));
         $gauge('assistant_reserved_usd', (float) ($budget->reserved_usd ?? 0));
+        // Serving custom domains whose certificate the check has looked for (spec 036):
+        // when it expires, or 0 while none could be read, so both raise the expiry alert.
+        $domains = PortalAddress::query()->where('kind', PortalAddressKind::Domain)
+            ->whereIn('state', [PortalAddressState::Active, PortalAddressState::Unreachable])
+            ->whereNotNull('certificate_checked_at')->orderBy('host')->get(['host', 'certificate_expires_at']);
+        foreach ($domains as $domain) {
+            $gauge('portal_address_certificate_expiry_timestamp_seconds', (int) ($domain->certificate_expires_at?->getTimestamp() ?? 0), '{host="'.addcslashes((string) $domain->host, '"\\').'"}');
+        }
         if (DB::getDriverName() === 'pgsql') {
             $gauge('postgres_connections', (int) DB::selectOne('SELECT COUNT(*) AS count FROM pg_stat_activity')->count);
             $gauge('postgres_database_bytes', (int) DB::selectOne('SELECT pg_database_size(current_database()) AS size')->size);
