@@ -1,5 +1,6 @@
 import { runtimeBrand } from "@iot-os/api-client"
 import { BrandMark } from "@iot-os/ui/components/brand-mark"
+import { cn } from "@iot-os/ui/lib/utils"
 import type { ReactNode } from "react"
 
 /**
@@ -24,13 +25,14 @@ export function SignInMark({ fallback = null }: { fallback?: ReactNode }) {
 /**
  * Under a sign-in card on a billing account's address: its support link, and the small
  * line naming the platform unless the account's plan removes it (FR-008). Nothing on
- * the platform's own address.
+ * the platform's own address. `className` widens it under a card wider than the sign-in
+ * card.
  */
-export function SignInFooter() {
+export function SignInFooter({ className }: { className?: string } = {}) {
   const brand = runtimeBrand()
   if (!brand || (!brand.support_url && !brand.powered_by)) return null
   return (
-    <footer data-slot="sign-in-footer" className="flex w-full max-w-md flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-meta text-muted-foreground">
+    <footer data-slot="sign-in-footer" className={cn("flex w-full max-w-md flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-meta text-muted-foreground", className)}>
       {brand.support_url ? (
         <a
           href={brand.support_url}
