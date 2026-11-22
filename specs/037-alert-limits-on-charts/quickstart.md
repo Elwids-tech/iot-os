@@ -43,7 +43,8 @@ The contract fixtures are checked with `tooling/verify-devices-contracts.py`, as
 
 ## Pull request 1: alerts for every device
 
-Rebuild `api` and its workers.
+Rebuild `api` and `automation-worker`. The worker records an automation's alert, so
+an alert raised before it is rebuilt still lists one device.
 
 1. Create an automation that raises an alert when the pump's temperature **and** the
    tank's pressure are high, and activate it.
