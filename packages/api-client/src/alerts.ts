@@ -56,9 +56,28 @@ type AlertBase = {
   held: boolean;
   held_count: number;
 };
+/**
+ * What an automation alert watches, read from the execution that raised it. The alert keeps
+ * no value: this names what was compared, never what the reading was.
+ */
+export type AlertTrigger = {
+  /** The readings that feed the alert step, at most five. `name` is null for a device that is gone or not yours. */
+  readings: { device_uuid: string; parameter_uuid: string; name: string | null; unit: string | null }[];
+  /** Set only when one comparison of one unconverted reading decides the alert. */
+  condition:
+    | { kind: "compare"; operator: "gt" | "gte" | "lt" | "lte" | "eq"; value: number }
+    | { kind: "hysteresis"; activate_above: number; clear_below: number }
+    | null;
+  /** How long the comparison has to hold before the alert is raised. */
+  sustained_seconds: number | null;
+  /** The comparison reads an aggregate over this window rather than each reading. */
+  window: { aggregate: string | null; duration_seconds: number | null } | null;
+};
 export type WorkflowAlert = AlertBase & {
   /** Automation alerts; device connectivity alerts are the other `AlertKind`s. */
   kind: "workflow";
+  /** On one alert only (GET, acknowledge, assign), never in lists; null when the execution has no steps to read. */
+  trigger?: AlertTrigger | null;
   workflow_uuid: string;
   workflow_name: string;
   operation_uuid: string;

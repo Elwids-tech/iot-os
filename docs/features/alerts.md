@@ -45,6 +45,46 @@ it cleared (`cleared_at`).
 The inbox groups repeats of one workflow on one device (or of one offline subject),
 shows active alerts first, and filters by kind, condition, acknowledgement, device and
 workflow. The workflow filter lists geofence workflows and DAG automations.
+The toolbar keeps the condition and **Unacknowledged only**; grouping, **Assigned to
+me**, kind, device and workflow sit behind **Filters**. A row says Active or Cleared
+only when the list shows both.
+
+### What the detail shows
+
+An alert opens with its state and how long, the automation (or the offline kind) as
+the heading, and the device and site under it, with **Assignee** and **Acknowledge
+alert** beside them. Then, in order:
+
+- **What happened.** An offline alert says since when the subject has been offline,
+  with the cause, when it was last heard and the threshold on one line; **Offline
+  details** unfolds the rest. An automation alert says what crossed which limit
+  ("Flow rate went above 10 L/min.") and draws that reading around the episode with
+  the limit across it and the episode shaded. Both come from `trigger` (below). The
+  alert stores no value, so the figure under the chart is the newest reading (the
+  last one shown, once the alert has cleared) and is labelled as such.
+- A few facts: activated, cleared when it has, acknowledgement, the workflow, and
+  dashboards that use the device when there are any.
+- One row for repeats ("Raised 12 times on this device"), which unfolds the recent
+  occurrences and carries **Show all** and **Acknowledge all cleared**.
+- **Activity**: activation, each delivery attempt, deliveries that were never sent
+  and why, acknowledgement, assignment, comments and the clear, in time order, with
+  the comment box under it. **Delivery details** unfolds the table with devices
+  reached, attempts and **Retry**; it starts open when a delivery failed.
+
+`trigger` is on one alert only (`GET alerts/{uuid}`, acknowledge and assign), never in
+lists, and null for geofence and offline alerts. It is read from the frozen definition
+of the execution that raised the alert, for the alert step its activation names (or
+the definition's only one):
+
+- `readings`: up to five `{device_uuid, parameter_uuid, name, unit}` that feed the
+  step. `name` is null for a device that is gone or belongs to another organization.
+- `condition`: `{kind: "compare", operator, value}` or
+  `{kind: "hysteresis", activate_above, clear_below}`, and only when one comparison of
+  one reading decides the alert with nothing rescaling in between (a source, a
+  window, sustained and cooldown steps are allowed). Otherwise null: the portal then
+  names the readings and draws the first one without a limit.
+- `sustained_seconds` and `window` (`{aggregate, duration_seconds}`) when those steps
+  are present.
 
 ### Kinds
 
@@ -443,7 +483,7 @@ Under `/api/v1/organizations/{organization}`:
 | Method and path | Purpose | Permission |
 | --- | --- | --- |
 | `GET alerts` | List; `condition=active\|cleared`, `acknowledged=0\|1`, `device`, `workflow`, `assignee`, repeatable `kind[]` (`workflow`, `device_offline`, `gateway_offline`, `connection_lost`), `muted=0\|1` (default 0 hides muted alerts; nothing is muted yet), `per_page` 1–100 | `Device.view` |
-| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter; `uuid` is null for another organization's gateway that serves hosted devices), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
+| `GET alerts/{uuid}`, `GET alerts/{uuid}/comments` | Detail (`kind`, `severity`, device, the devices it concerns as `devices` (at most 100, by name) with `devices_total`, acknowledgement, assignee, stop reason, and `trigger` for automation alerts ([what the detail shows](#what-the-detail-shows))), comments; the workflow fields are null for other kinds. Offline alerts add `subject` (`{type, uuid, name}` of the device, gateway or adapter; `uuid` is null for another organization's gateway that serves hosted devices), `site`, `cause`, `offline_since`, `last_seen_at`, `last_observed_at`, `threshold_seconds`, `threshold_automatic`, `reporting_interval_seconds`, `poll_interval_seconds`, `grace_seconds`, `stopped_reason`, `muted`, `held` and `held_count`; these are null (or false and 0) for automation alerts | `Device.view` |
 | `POST alerts/{uuid}/acknowledge`, `POST alerts/acknowledge` | Acknowledge one, or several | `Device.manage` |
 | `PUT alerts/{uuid}/assignee`, `POST alerts/{uuid}/comments` | Assign, comment (max 5000 characters) | `Device.manage` |
 | `GET alerts/{uuid}/deliveries`, `POST .../deliveries/{d}/retry` | Delivery history by `channel` (`email` or `push`; push rows add `devices_total`, `devices_reached` and one history row per device with `device_label` and `response_status`), retry with `{retry_generation}` on the delivery's own channel | `Device.manage` |

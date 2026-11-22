@@ -1363,3 +1363,8 @@ The portal is a progressive web app (spec 033,
 - **Every signed-in route can answer `403 not_available_here`.** `EnsurePortalAccess`
   runs after `auth:sanctum` on a portal address. The portal treats it like a lost
   session; other clients of the session API should too.
+- **The portal image compiles with ES2022 only; the local toolchain is more lenient.**
+  `apps/portal/tsconfig.json` sets `lib` to ES2022, but on a developer machine an
+  installed package's types pull in newer libraries, so `findLast`, `toSorted` and other
+  ES2023 array methods pass `pnpm --filter @iot-os/portal lint` and `build` locally and
+  then fail `tsc -b` in the Docker build (TS2550). Keep to ES2022 methods.

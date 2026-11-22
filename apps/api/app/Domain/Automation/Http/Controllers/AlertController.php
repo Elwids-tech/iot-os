@@ -9,6 +9,7 @@ use App\Domain\Automation\Jobs\DeliverAlertPush;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Automation\Models\AlertDelivery;
 use App\Domain\Automation\Services\AlertQuery;
+use App\Domain\Automation\Services\AlertTrigger;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
@@ -45,7 +46,7 @@ final class AlertController
     {
         $this->authorization->authorize($request->user(), DevicePermission::VIEW, $organization, $alert);
 
-        return ['data' => $this->views($organization, $alert->newCollection([$alert]))[0]];
+        return ['data' => $this->detail($organization, $alert)];
     }
 
     public function acknowledge(Request $request, Organization $organization, Alert $alert): array
@@ -58,7 +59,13 @@ final class AlertController
             return $locked;
         });
 
-        return ['data' => $this->views($organization, $alert->newCollection([$alert]))[0]];
+        return ['data' => $this->detail($organization, $alert)];
+    }
+
+    /** One alert as the portal's detail shows it: the list view plus what the automation watches. */
+    private function detail(Organization $organization, Alert $alert): array
+    {
+        return [...$this->views($organization, $alert->newCollection([$alert]))[0], 'trigger' => app(AlertTrigger::class)->for($organization, $alert)];
     }
 
     /** Acknowledges listed alerts, or every unacknowledged alert of one workflow and device. Already acknowledged alerts are left as they are. */
@@ -115,7 +122,7 @@ final class AlertController
             DeviceAudit::record('alert.assigned', $alert->organization_id, $request->user()->id, $alert->uuid, ['assigned_to' => $input['user_id']]);
         });
 
-        return ['data' => $this->views($organization, $alert->newCollection([$alert]))[0]];
+        return ['data' => $this->detail($organization, $alert)];
     }
 
     public function comments(Request $request, Organization $organization, Alert $alert): array

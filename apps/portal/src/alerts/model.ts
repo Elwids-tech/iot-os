@@ -2,10 +2,11 @@ import type {
   Alert,
   AlertKind,
   AlertSource,
+  AlertTrigger,
   NotificationEvent,
   WorkflowAlert,
 } from "@iot-os/api-client";
-import { formatAge } from "@iot-os/ui/lib/format";
+import { formatAge, formatNumber } from "@iot-os/ui/lib/format";
 import { statusOf } from "@iot-os/ui/lib/status";
 import { formatDuration, subjectId } from "../devices/model";
 
@@ -69,6 +70,66 @@ export function alertDuration(
   return alert.activated_at
     ? `Cleared after ${formatAge(alert.activated_at, Date.parse(alert.cleared_at))}`
     : "Cleared";
+}
+
+/** "for 5 d" beside an Active mark, "after 4 min" beside Cleared; empty when a time is missing. */
+export function alertSpan(
+  alert: Pick<Alert, "activated_at" | "cleared_at">,
+  now = Date.now(),
+) {
+  if (!alert.activated_at) return "";
+  return alert.cleared_at
+    ? `after ${formatAge(alert.activated_at, Date.parse(alert.cleared_at))}`
+    : `for ${formatAge(alert.activated_at, now)}`;
+}
+
+const crossed: Record<string, string> = {
+  gt: "went above",
+  gte: "reached",
+  lt: "went below",
+  lte: "fell to",
+  eq: "became",
+};
+const held: Record<string, string> = {
+  gt: "stayed above",
+  gte: "stayed at or above",
+  lt: "stayed below",
+  lte: "stayed at or below",
+  eq: "stayed at",
+};
+const withUnit = (value: number, unit: string | null) =>
+  `${formatNumber(value)}${unit ? ` ${unit}` : ""}`;
+
+/**
+ * What raised an automation alert, in a sentence: "Flow rate went above 10 L/min." It says
+ * what crossed which limit, which the execution's definition knows; the reading's value at
+ * that moment is not kept. Null when there is nothing to say beyond the automation's name.
+ */
+export function triggerSentence(trigger: AlertTrigger | null | undefined): string | null {
+  const reading = trigger?.readings[0];
+  if (!trigger || !reading) return null;
+  const name = reading.name ?? "The reading";
+  const condition = trigger.condition;
+  if (!condition) {
+    const names = trigger.readings.map((item) => item.name).filter(Boolean);
+    if (!names.length) return null;
+    return `This automation watches ${
+      names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]
+    }.`;
+  }
+  if (condition.kind === "hysteresis")
+    return `${name} went above ${withUnit(condition.activate_above, reading.unit)}. It clears below ${withUnit(condition.clear_below, reading.unit)}.`;
+  const limit = withUnit(condition.value, reading.unit);
+  return trigger.sustained_seconds
+    ? `${name} ${held[condition.operator] ?? "met"} ${limit} for ${formatDuration(trigger.sustained_seconds)}.`
+    : `${name} ${crossed[condition.operator] ?? "met"} ${limit}.`;
+}
+
+/** The limit to draw across the reading's chart, when one number is the limit. */
+export function triggerLimit(trigger: AlertTrigger | null | undefined): number | null {
+  const condition = trigger?.condition;
+  if (!condition) return null;
+  return condition.kind === "hysteresis" ? condition.activate_above : condition.value;
 }
 
 export type AlertCondition = "active" | "cleared" | "all";
