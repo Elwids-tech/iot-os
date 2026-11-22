@@ -558,7 +558,11 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(sources).toHaveCount(1);
   await expect(page.getByRole("radio", { name: "Active 1" })).toBeChecked();
   await expect(page.getByRole("radio", { name: "Cleared 2" })).toBeVisible();
+  // Grouping sits with the other filters; the toolbar keeps the condition and the triage tick.
+  await page.getByRole("button", { name: "Filters" }).click();
   await expect(page.getByRole("radio", { name: "Grouped" })).toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("radio", { name: "Grouped" })).toHaveCount(0);
   await expect(page.getByText("Episode", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Summary" })).toContainText("Active now");
   await page.getByRole("radio", { name: /^All/ }).click();
@@ -568,8 +572,12 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(sources.first()).toContainText("2 occurrences");
   await expect(sources.first()).toContainText("Active for 19 min");
   await expect(sources.nth(1)).toContainText("Cleared after 30 min");
+  // Only a list that mixes conditions says which each row is.
+  await expect(sources.first().getByText("Active", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Filters" }).click();
   await page.getByRole("radio", { name: "Individual" }).click();
   await expect(page).toHaveURL(/view=individual/);
+  await page.keyboard.press("Escape");
   const episodes = page.getByRole("list", { name: "Alerts" }).getByRole("listitem");
   await expect(episodes).toHaveCount(3);
   await page.getByLabel("Unacknowledged only").click();
@@ -585,11 +593,12 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   // The picker closes and hands focus back first; then Escape closes Filters.
   await expect(page.getByRole("combobox", { name: "Workflow", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
-  const filters = page.getByRole("button", { name: "Filters, 2 active" });
+  // Individual, the device and the workflow.
+  const filters = page.getByRole("button", { name: "Filters, 3 active" });
   await expect(filters).toHaveAttribute("aria-expanded", "false");
   // Filters shows only its icon and count; focus is back on it, so its tooltip names it until Escape.
-  await expect(filters).toHaveText("2");
-  await expect(page.getByRole("tooltip")).toHaveText("Filters, 2 active");
+  await expect(filters).toHaveText("3");
+  await expect(page.getByRole("tooltip")).toHaveText("Filters, 3 active");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect
@@ -610,10 +619,13 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
     .first()
     .click();
   const detail = page.getByRole("region", { name: "Alert detail" });
+  // The heading names the automation; the device and the occurrence sit around it.
   await expect(
-    detail.getByRole("heading", { name: "GPS demo geofence — GPS tracker" }),
+    detail.getByRole("heading", { name: "GPS demo geofence", exact: true }),
   ).toBeVisible();
-  await expect(detail.getByText("Occurrence 3", { exact: true })).toBeVisible();
+  await expect(detail.getByText(/Occurrence 3/)).toBeVisible();
+  // Nothing in the list view says what the automation watches, so no sentence or chart is made up.
+  await expect(detail.getByRole("region", { name: "What happened" })).toHaveCount(0);
   await expect(detail.getByText("Unacknowledged", { exact: true })).toBeVisible();
   await expect(detail.getByRole("link", { name: "GPS tracker" })).toHaveAttribute(
     "href",
@@ -634,6 +646,7 @@ test("filters the list, then acknowledges, assigns, retries and comments in the 
   await expect(detail.getByText("Active", { exact: true }).first()).toBeVisible();
 
   // The other occurrences of this workflow on this device; one cleared one is still unacknowledged.
+  await detail.getByRole("button", { name: "Raised 2 times on this device" }).click();
   const occurrences = detail.getByRole("list", { name: "Recent occurrences" });
   await expect(occurrences.getByRole("listitem")).toHaveCount(2);
   await expect(detail.getByRole("link", { name: "Show all 2" })).toHaveAttribute(
@@ -820,6 +833,7 @@ test("viewers read alerts without management actions", async ({ page }) => {
   await expect(detail.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
   await expect(detail.getByRole("combobox", { name: "Assignee" })).toHaveCount(0);
   await expect(detail.getByLabel("Add a comment")).toHaveCount(0);
+  await detail.getByRole("button", { name: /^Raised \d+ times on this device/ }).click();
   await expect(detail.getByRole("list", { name: "Recent occurrences" })).toBeVisible();
   await expect(detail.getByRole("button", { name: /Acknowledge all cleared/ })).toHaveCount(0);
   await expect(page.getByRole("checkbox", { name: /^Select/ })).toHaveCount(0);
@@ -828,6 +842,61 @@ test("viewers read alerts without management actions", async ({ page }) => {
   await page.goto(`${base}/notifications`);
   await expect(page).toHaveURL(new RegExp(`${settings}$`));
   await expect(page.getByText("Settings unavailable")).toBeVisible();
+});
+
+test("an automation alert says what crossed its limit and charts the reading around it", async ({ page }) => {
+  const { state, errors } = await setup(page);
+  const voltageReading = "9e000000-0000-4000-8000-000000000001";
+  // The cleared Phase voltage band alert on the energy meter.
+  Object.assign(state.alerts[1], {
+    trigger: {
+      readings: [{ device_uuid: meter, parameter_uuid: voltageReading, name: "Phase voltage", unit: "V" }],
+      condition: { kind: "compare", operator: "gt", value: 240 },
+      sustained_seconds: null,
+      window: null,
+    },
+  });
+  const asked: URL[] = [];
+  await page.route("**/measurements/history**", (route) => {
+    asked.push(new URL(route.request().url()));
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          {
+            configuration_uuid: "c1",
+            unit: "V",
+            data_type: "number",
+            points: [
+              { at: ago(150), value: 231, count: 1 },
+              { at: ago(125), value: 243.5, count: 1 },
+              { at: ago(95), value: 236, count: 1 },
+            ],
+          },
+        ],
+      }),
+    });
+  });
+  await page.goto(`${base}/${alertIds.a2}?condition=all`);
+  const detail = page.getByRole("region", { name: "Alert detail" });
+  await expect(detail.getByRole("heading", { name: "Phase voltage band", exact: true })).toBeVisible();
+  const happened = detail.getByRole("region", { name: "What happened" });
+  await expect(happened).toContainText("Phase voltage went above 240 V.");
+  await expect(
+    happened.getByRole("img", { name: "Phase voltage: V around this alert, with its limit of 240" }),
+  ).toBeVisible();
+  // The alert keeps no value, so the figure is the chart's last reading and says so.
+  await expect(happened).toContainText("Last reading shown 236 V");
+  await expect(happened.getByRole("link", { name: "Open the device" })).toHaveAttribute(
+    "href",
+    `/organizations/${org}/devices/${meter}`,
+  );
+  // That reading only, from before the alert was raised so the crossing shows.
+  expect(asked[0].pathname).toContain(`/devices/${meter}/measurements/history`);
+  expect(asked[0].searchParams.get("parameter_uuid")).toBe(voltageReading);
+  expect(Date.parse(asked[0].searchParams.get("from")!)).toBeLessThan(Date.parse(state.alerts[1].activated_at!));
+  expect(errors).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 });
 
 test("acknowledges whole sources after confirming and single selected alerts directly", async ({
@@ -851,7 +920,9 @@ test("acknowledges whole sources after confirming and single selected alerts dir
   await expect(sources.first()).toContainText("all acknowledged");
   await expect(page.getByRole("checkbox", { name: "Select GPS demo geofence — GPS tracker" })).toBeDisabled();
 
+  await page.getByRole("button", { name: "Filters" }).click();
   await page.getByRole("radio", { name: "Individual" }).click();
+  await page.keyboard.press("Escape");
   const rows = page.getByRole("list", { name: "Alerts" }).getByRole("listitem");
   await expect(rows).toHaveCount(3);
   await expect(page.getByRole("checkbox", { name: "Select every alert on this page" })).toBeEnabled();
@@ -945,13 +1016,18 @@ test("device offline alerts list beside automations, filter by kind and explain 
   await page.goto(`${base}/${offlineIds.box}`);
   await expect(page.getByRole("heading", { level: 1, name: "Device offline — Hot work box 2" })).toBeVisible();
   const narrow = page.getByRole("region", { name: "Alert detail" });
+  // The sentence and one line carry the cause, last heard and the threshold; the workings fold away.
+  await expect(narrow.getByText(/^Hot work box 2 has been offline since /)).toBeVisible();
   await expect(narrow.getByText("Missed check-in")).toBeVisible();
-  await expect(narrow.getByText("Last reading observed")).toBeVisible();
-  await expect(narrow.getByText("17 min, automatic")).toBeVisible();
-  await expect(narrow.getByText("Automatic: 3 × 4 min reporting interval + 5 min poll, at least 15 min")).toBeVisible();
+  await expect(narrow.getByText("Offline after 17 min, automatic")).toBeVisible();
   await expect(narrow.getByText("Site A")).toBeVisible();
+  await expect(narrow.getByText("Last reading observed")).toHaveCount(0);
+  await narrow.getByRole("button", { name: "Offline details" }).click();
+  await expect(narrow.getByText("Last reading observed")).toBeVisible();
+  await expect(narrow.getByText("Automatic: 3 × 4 min reporting interval + 5 min poll, at least 15 min")).toBeVisible();
   await expect(narrow.getByRole("table", { name: "Affected devices" })).toHaveCount(0);
   // The earlier, stopped occurrence of the same device.
+  await narrow.getByRole("button", { name: "This device has gone offline 2 times" }).click();
   await expect(narrow.getByRole("list", { name: "Recent occurrences" })).toContainText("Stopped");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);

@@ -32,7 +32,7 @@ import { useIsMobile } from "@iot-os/ui/hooks/use-mobile";
 import { PageHeader } from "@iot-os/ui/components/page-header";
 import { InboxItem, InboxList, InboxPage } from "@iot-os/ui/templates/inbox-page";
 import { PropertyList } from "@iot-os/ui/templates/entity-page";
-import { Panel, PanelContent, PanelDescription, PanelHeader } from "@iot-os/ui/components/panel";
+import { Panel, PanelContent } from "@iot-os/ui/components/panel";
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover";
 import { SearchableMultiSelect, SearchableSelect } from "@iot-os/ui/components/searchable-select";
 import { Skeleton } from "@iot-os/ui/components/skeleton";
@@ -66,13 +66,19 @@ import { formatDuration } from "../devices/model";
 import { notificationsPath } from "./NotificationSettings";
 import { EventLogPage } from "./EventLog";
 import { Inbox } from "./Inbox";
-import { ListFilterIcon } from "lucide-react";
+import { ChevronDownIcon, ListFilterIcon } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@iot-os/ui/components/collapsible";
 import {
   alertCause,
   alertCondition,
   alertDuration,
   alertKinds,
   alertQuery,
+  alertSpan,
   alertTitle,
   conditionOf,
   isAlertId,
@@ -85,6 +91,7 @@ import {
   thresholdText,
 } from "./model";
 import { useWide } from "./shared";
+import { TriggerSummary } from "./Trigger";
 
 export default function AlertRoutes() {
   return (
@@ -176,12 +183,15 @@ function AlertRow({
   to,
   current,
   select,
+  mixed,
   children,
 }: {
   alert: AlertItem;
   to: string;
   current: boolean;
   select?: ReactNode;
+  /** The list shows active and cleared alerts together, so each row says which it is. */
+  mixed: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -190,7 +200,7 @@ function AlertRow({
       title={alertTitle(alert)}
       tone={alert.cleared_at ? "muted" : alert.acknowledged_at ? "info" : "warning"}
       current={current}
-      mark={conditionMark(alert)}
+      mark={mixed ? conditionMark(alert) : undefined}
       meta={<AlertMeta alert={alert} />}
       extra={children}
       select={select}
@@ -533,6 +543,8 @@ function AlertsPage() {
       </Button>
     </div>
   );
+  // The Filters button counts what it holds: grouping and "mine" sit there with kind, device and workflow.
+  const popoverFilters = activeFilters + Number(!grouped) + Number(mine);
   // Phones count every choice that differs from the default view, since all of them sit in the sheet.
   const phoneFilters =
     activeFilters +
@@ -576,9 +588,7 @@ function AlertsPage() {
             ) : (
             <>
               {conditionFilter}
-              {repeatsFilter}
               {unacknowledgedFilter}
-              {mineFilter}
               <div className="ml-auto flex items-center gap-2">
                 {countStatus}
                 <Popover>
@@ -586,17 +596,22 @@ function AlertsPage() {
                     <ToolbarButton
                       icon={<ListFilterIcon />}
                       label="Filters"
-                      name={activeFilters ? `Filters, ${activeFilters} active` : "Filters"}
+                      name={popoverFilters ? `Filters, ${popoverFilters} active` : "Filters"}
                     >
-                      {activeFilters > 0 && (
+                      {popoverFilters > 0 && (
                         <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-micro leading-4.5 font-semibold text-primary-foreground tabular-nums">
-                          {activeFilters}
+                          {popoverFilters}
                         </span>
                       )}
                     </ToolbarButton>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-80 gap-3 p-3" aria-label="Filter alerts">
-            {moreFilters}
+                    <div className="flex flex-col gap-1.5">
+                      <span aria-hidden="true" className="text-sm leading-snug font-medium">Repeats</span>
+                      {repeatsFilter}
+                    </div>
+                    {mineFilter}
+                    {moreFilters}
                   </PopoverContent>
                 </Popover>
               </div>
@@ -629,6 +644,7 @@ function AlertsPage() {
                             group={group}
                             to={`${list}/${group.latest.uuid}${search}`}
                             current={isCurrent(group.latest)}
+                            mixed={condition === "all"}
                             select={
                               capabilities.manage && (
                                 <Checkbox
@@ -653,6 +669,7 @@ function AlertsPage() {
                           alert={alert}
                           to={`${list}/${alert.uuid}${search}`}
                           current={isCurrent(alert)}
+                          mixed={condition === "all"}
                           select={
                             capabilities.manage && (
                               <Checkbox
@@ -736,6 +753,7 @@ function SourceRow({
   to: string;
   current: boolean;
   select?: ReactNode;
+  mixed: boolean;
 }) {
   return (
     <AlertRow alert={group.latest} {...props}>
@@ -866,62 +884,80 @@ function SourceOccurrences({
   }
   const subject = workflow ? null : alert.subject.type === "adapter" ? "connection" : alert.subject.type;
   return (
-    <section aria-labelledby="alert-occurrences" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Heading id="alert-occurrences" className="text-sm font-semibold">
-          Occurrences
-        </Heading>
-        <Link className="text-sm underline underline-offset-4 link-target" to={`${list}?${all}`}>
+    <Collapsible asChild>
+    <section
+      aria-labelledby="alert-occurrences"
+      className="flex flex-col rounded-lg px-4 py-3 shadow-[inset_0_0_0_1px_var(--border)]"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="mr-auto flex min-w-0 flex-col items-start gap-0.5">
+          <Heading id="alert-occurrences" className="text-body font-medium">
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="link"
+                className="link-target group/occurrences h-auto gap-1 p-0 text-foreground whitespace-normal text-start"
+              >
+                {workflow
+                  ? `Raised ${plural(total, "time")} on this device`
+                  : `This ${subject} has gone offline ${plural(total, "time")}`}
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className="transition-transform group-data-[state=open]/occurrences:rotate-180"
+                />
+              </Button>
+            </CollapsibleTrigger>
+          </Heading>
+          {capabilities.manage && cleared > 0 && (
+            <p className="text-meta text-muted-foreground">
+              {cleared.toLocaleString()} cleared {cleared === 1 ? "occurrence is" : "occurrences are"} unacknowledged.
+            </p>
+          )}
+          {acknowledge.isSuccess && !acknowledge.isPending && (
+            <p role="status" className="text-meta">
+              Acknowledged {plural(acknowledge.data, "cleared alert")}.
+            </p>
+          )}
+        </div>
+        <Link className="text-body underline underline-offset-4 link-target" to={`${list}?${all}`}>
           Show all {workflow ? total.toLocaleString() : ""}
         </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {workflow
-          ? `This workflow has alerted ${plural(total, "time")} on this device`
-          : `This ${subject} has gone offline ${plural(total, "time")}`}
-        {capabilities.manage && cleared
-          ? `; ${cleared.toLocaleString()} cleared ${cleared === 1 ? "occurrence is" : "occurrences are"} unacknowledged.`
-          : "."}
-      </p>
-      {capabilities.manage && cleared > 0 && (
-        <Button
-          variant="outline"
-          className="self-start"
-          disabled={acknowledge.isPending}
-          onClick={() => (cleared > 1 ? setConfirm(true) : acknowledge.mutate())}
-        >
-          {acknowledge.isPending
-            ? "Acknowledging…"
-            : `Acknowledge all cleared (${cleared.toLocaleString()})`}
-        </Button>
-      )}
-      {acknowledge.isSuccess && !acknowledge.isPending && (
-        <p role="status" className="text-sm">
-          Acknowledged {plural(acknowledge.data, "cleared alert")}.
-        </p>
-      )}
-      {!confirm && <RequestError error={acknowledge.error} />}
-      <ol aria-label="Recent occurrences" className="flex flex-col text-sm">
-        {matching.slice(0, 5).map((item) => (
-          <li
-            key={item.uuid}
-            className="flex flex-wrap items-baseline gap-x-3 border-b py-1.5 last:border-b-0"
+        {capabilities.manage && cleared > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={acknowledge.isPending}
+            onClick={() => (cleared > 1 ? setConfirm(true) : acknowledge.mutate())}
           >
-            {item.uuid === alert.uuid ? (
-              <span className="font-medium">Occurrence {item.episode} (this alert)</span>
-            ) : (
-              <Link className="underline underline-offset-4 link-target" to={`${list}/${item.uuid}${search}`}>
-                Occurrence {item.episode}
-              </Link>
-            )}
-            <span className="text-xs">{conditionMark(item)}</span>
-            <span className="text-xs text-muted-foreground">
-              {alertDuration(item)} ·{" "}
-              {item.acknowledged_at ? "Acknowledged" : "Unacknowledged"}
-            </span>
-          </li>
-        ))}
-      </ol>
+            {acknowledge.isPending
+              ? "Acknowledging…"
+              : `Acknowledge all cleared (${cleared.toLocaleString()})`}
+          </Button>
+        )}
+      </div>
+      {!confirm && <RequestError error={acknowledge.error} />}
+      <CollapsibleContent>
+        <ol aria-label="Recent occurrences" className="mt-3 flex flex-col border-t pt-1 text-body">
+          {matching.slice(0, 5).map((item) => (
+            <li
+              key={item.uuid}
+              className="flex flex-wrap items-baseline gap-x-3 border-b py-1.5 last:border-b-0"
+            >
+              {item.uuid === alert.uuid ? (
+                <span className="font-medium">Occurrence {item.episode} (this alert)</span>
+              ) : (
+                <Link className="underline underline-offset-4 link-target" to={`${list}/${item.uuid}${search}`}>
+                  Occurrence {item.episode}
+                </Link>
+              )}
+              <span className="text-meta">{conditionMark(item)}</span>
+              <span className="text-meta text-muted-foreground">
+                {alertDuration(item)} ·{" "}
+                {item.acknowledged_at ? "Acknowledged" : "Unacknowledged"}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </CollapsibleContent>
       <Confirm
         open={confirm}
         title={`Acknowledge ${plural(cleared, "cleared alert")}?`}
@@ -936,6 +972,7 @@ function SourceOccurrences({
         onConfirm={() => acknowledge.mutateAsync()}
       />
     </section>
+    </Collapsible>
   );
 }
 
@@ -992,14 +1029,45 @@ function OfflineDetails({ alert, Heading }: { alert: ConnectivityAlert; Heading:
       <span className="text-muted-foreground">{never}</span>
     );
   const threshold = thresholdText(alert);
+  const since = alert.offline_since ?? alert.activated_at;
   return (
     <>
       <Panel>
-        <PanelHeader>
-          <Heading className="skin-label text-heading">Offline details</Heading>
-          <PanelDescription>Times are when the platform received data, unless they say observed.</PanelDescription>
-        </PanelHeader>
-        <PanelContent>
+        <PanelContent className="flex flex-col gap-3">
+          <p className="text-heading font-normal">
+            {alert.condition === "active"
+              ? `${alert.subject.name} has been offline${since ? ` since ${formatDateTime(since)}` : ""}.`
+              : `${alert.subject.name} was offline${since ? ` from ${formatDateTime(since)}` : ""}${alert.cleared_at ? ` to ${formatDateTime(alert.cleared_at)}` : ""}.`}
+          </p>
+          <p className="flex flex-wrap gap-x-2 text-body text-muted-foreground">
+            {alert.cause && <span>{statusOf(alert.cause, "offline_cause").label}</span>}
+            <span>
+              {alert.last_seen_at ? (
+                <>
+                  Last heard <RelativeTime at={alert.last_seen_at} never={null} />
+                </>
+              ) : (
+                "Never heard from"
+              )}
+            </span>
+            {threshold && <span>Offline after {threshold}</span>}
+          </p>
+          <Collapsible>
+            <Heading className="text-body font-medium">
+              <CollapsibleTrigger asChild>
+                <Button variant="link" size="sm" className="link-target group/offline h-auto gap-1 p-0">
+                  Offline details
+                  <ChevronDownIcon
+                    aria-hidden="true"
+                    className="transition-transform group-data-[state=open]/offline:rotate-180"
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            </Heading>
+            <CollapsibleContent>
+              <p className="pt-2 text-meta text-muted-foreground">
+                Times are when the platform received data, unless they say observed.
+              </p>
           <PropertyList
             items={[
               { label: "Cause", value: alert.cause ? statusOf(alert.cause, "offline_cause").label : "Not recorded" },
@@ -1028,9 +1096,10 @@ function OfflineDetails({ alert, Heading }: { alert: ConnectivityAlert; Heading:
               ...(alert.grace_seconds !== null
                 ? [{ label: "Grace period", value: formatDuration(alert.grace_seconds) }]
                 : []),
-              { label: "Site", value: alert.site?.name ?? <span className="text-muted-foreground">None</span> },
             ]}
           />
+            </CollapsibleContent>
+          </Collapsible>
         </PanelContent>
       </Panel>
       {alert.kind !== "device_offline" && (
@@ -1315,6 +1384,10 @@ function AlertDetail({
   // A link to an alert that is gone or no longer yours names nothing about it.
   const title = alert ? alertTitle(alert) : "Alert";
   const occurrence = alert ? `Occurrence ${alert.episode}` : undefined;
+  const headline = alert ? (alert.kind === "workflow" ? alert.workflow_name : kindLabel(alert.kind)) : "";
+  // A failed delivery opens the table, since that is where Retry is; a choice made by hand wins.
+  const [deliveryOpen, setDeliveryOpen] = useState<boolean>();
+  const failedDelivery = (deliveries.data?.data ?? []).some((item) => item.status === "failed");
   // Sections sit under the page h1 when narrow and under the pane's h2 when wide.
   const Heading = back ? "h2" : "h3";
   const settings = alert?.workflow_uuid ? `${notificationsPath(org)}/${alert.workflow_uuid}` : "";
@@ -1352,6 +1425,18 @@ function AlertDetail({
         text: `${delivery.type === "activated" ? "Activation" : "Recovery"} ${delivery.channel === "push" ? "push" : "email"} to ${delivery.recipient_name}${attempt.device_label ? ` · ${attempt.device_label}` : ""}`,
         detail: `Attempt ${attempt.attempt} · ${attemptOutcome(delivery.channel, attempt.status)}`,
       });
+  for (const delivery of deliveries.data?.data ?? []) {
+    const at = delivery.type === "activated" ? alert?.activated_at : alert?.cleared_at;
+    if (delivery.history.length || !at) continue;
+    const state = statusOf(delivery.status, "delivery");
+    timeline.push({
+      key: `${delivery.uuid}-unsent`,
+      at,
+      tone: state.tone,
+      text: `${delivery.type === "activated" ? "Activation" : "Recovery"} ${delivery.channel === "push" ? "push" : "email"} to ${delivery.recipient_name}: ${state.label.toLowerCase()}`,
+      detail: delivery.diagnostic ?? undefined,
+    });
+  }
   if (alert?.acknowledged_at)
     timeline.push({
       key: "acknowledged",
@@ -1411,19 +1496,38 @@ function AlertDetail({
       ) : null}
       {alert ? (
         <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {!back && (
-              <div className="mr-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
-                <h2 className="min-w-0 text-base font-semibold">{title}</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {occurrence}
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+            <div className="mr-auto flex min-w-0 flex-col gap-1">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body">
+                {conditionMark(alert)}
+                <span className="text-muted-foreground tabular-nums">
+                  {[alertSpan(alert), !back && occurrence].filter(Boolean).join(" · ")}
                 </span>
-              </div>
-            )}
+              </p>
+              {!back && <h2 className="min-w-0 text-title">{headline}</h2>}
+              <p className="text-body text-muted-foreground">
+                {alert.kind === "workflow" ? (
+                  alert.device_name ? (
+                    <Link
+                      className="underline underline-offset-4 link-target"
+                      to={devicePath(org, alert.device_uuid)}
+                    >
+                      {alert.device_name}
+                    </Link>
+                  ) : (
+                    "Device not found"
+                  )
+                ) : (
+                  <SubjectName org={org} subject={alert.subject} />
+                )}
+                {alert.site && ` · ${alert.site.name}`}
+              </p>
+            </div>
             {capabilities.manage && (
               <SearchableSelect
                 label="Assignee"
-                className="w-full md:w-64"
+                labelHidden
+                className="w-full md:w-52"
                 value={alert.assignee ? String(alert.assignee.id) : ""}
                 selectedLabel={alert.assignee?.name ?? "Unassigned"}
                 options={[
@@ -1474,13 +1578,34 @@ function AlertDetail({
               </AlertDescription>
             </Alert>
           ) : null}
-          <dl className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-6 gap-y-4 border-y py-4 text-sm max-md:grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] max-md:gap-x-4 max-md:gap-y-0 max-md:py-0">
-            <Fact label="Condition">{conditionMark(alert)}</Fact>
+          {alert.kind === "workflow" ? (
+            <TriggerSummary org={org} alert={alert} />
+          ) : (
+            <OfflineDetails alert={alert} Heading={Heading} />
+          )}
+          <dl className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-x-6 gap-y-4 text-body max-md:grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] max-md:gap-x-4 max-md:gap-y-0">
+            <Fact label="Activated">
+              {alert.activated_at ? (
+                <>
+                  {formatDateTime(alert.activated_at)}
+                  <span className="block text-meta text-muted-foreground">
+                    <RelativeTime at={alert.activated_at} never={null} />
+                  </span>
+                </>
+              ) : (
+                "Not recorded"
+              )}
+            </Fact>
+            {alert.cleared_at && (
+              <Fact label={alert.stopped_reason ? "Stopped" : "Cleared"}>
+                {formatDateTime(alert.cleared_at)}
+              </Fact>
+            )}
             <Fact label="Acknowledgement">
               {alert.acknowledged_at ? (
                 <>
                   <StatusMark tone="good">Acknowledged</StatusMark>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block text-meta text-muted-foreground">
                     {alert.acknowledged_by_name ?? "A former member"} ·{" "}
                     <RelativeTime at={alert.acknowledged_at} never={null} />
                   </span>
@@ -1494,76 +1619,37 @@ function AlertDetail({
                 {alert.assignee ? alert.assignee.name : "Unassigned"}
               </Fact>
             )}
-            <Fact label="Activated">
-              {alert.activated_at ? (
-                <>
-                  {formatDateTime(alert.activated_at)}
-                  <span className="block text-xs text-muted-foreground">
-                    <RelativeTime at={alert.activated_at} never={null} />
-                  </span>
-                </>
-              ) : (
-                "Not recorded"
-              )}
-            </Fact>
-            <Fact label="Cleared">
-              {alert.cleared_at ? formatDateTime(alert.cleared_at) : "Not cleared"}
-            </Fact>
-            {alert.kind === "workflow" ? (
-              <>
-                <Fact label="Workflow">
-                  {capabilities.manage ? (
-                    <Link className="underline underline-offset-4 link-target" to={settings}>
-                      {alert.workflow_name}
-                    </Link>
-                  ) : (
-                    alert.workflow_name
-                  )}
-                </Fact>
-                <Fact label="Device">
-                  {alert.device_name ? (
+            {alert.kind === "workflow" && (
+              <Fact label="Workflow">
+                {capabilities.manage ? (
+                  <Link className="underline underline-offset-4 link-target" to={settings}>
+                    {alert.workflow_name}
+                  </Link>
+                ) : (
+                  alert.workflow_name
+                )}
+              </Fact>
+            )}
+            {usedIn.length > 0 && (
+              <Fact label="Dashboards">
+                {usedIn.map((dashboard, index) => (
+                  <span key={dashboard.uuid}>
+                    {index > 0 && ", "}
                     <Link
                       className="underline underline-offset-4 link-target"
-                      to={devicePath(org, alert.device_uuid)}
+                      to={`/organizations/${org}/dashboards/${dashboard.uuid}`}
                     >
-                      {alert.device_name}
+                      {dashboard.name}
                     </Link>
-                  ) : (
-                    "Device not found"
-                  )}
-                </Fact>
-              </>
-            ) : (
-              <>
-                <Fact label="Kind">{kindLabel(alert.kind)}</Fact>
-                <Fact label={alert.subject.type === "adapter" ? "Connection" : alert.subject.type === "gateway" ? "Gateway" : "Device"}>
-                  <SubjectName org={org} subject={alert.subject} />
-                </Fact>
-              </>
+                  </span>
+                ))}
+              </Fact>
             )}
-            <Fact label="Dashboards">
-              {usedIn.length
-                ? usedIn.map((dashboard, index) => (
-                    <span key={dashboard.uuid}>
-                      {index > 0 && ", "}
-                      <Link
-                        className="underline underline-offset-4 link-target"
-                        to={`/organizations/${org}/dashboards/${dashboard.uuid}`}
-                      >
-                        {dashboard.name}
-                      </Link>
-                    </span>
-                  ))
-                : dashboards.isPending
-                  ? "Loading…"
-                  : "None"}
-            </Fact>
           </dl>
-          {alert.kind !== "workflow" && <OfflineDetails alert={alert} Heading={Heading} />}
           <SourceOccurrences alert={alert} search={search} Heading={Heading} />
           <section aria-labelledby="alert-timeline" className="flex flex-col gap-3">
-            <Heading id="alert-timeline" className="text-sm font-semibold">
-              Timeline
+            <Heading id="alert-timeline" className="text-heading">
+              Activity
             </Heading>
             <RequestError error={comments.error ?? deliveries.error} />
             <ol className="flex flex-col gap-3 text-sm">
@@ -1593,6 +1679,11 @@ function AlertDetail({
                 </li>
               ))}
             </ol>
+            {capabilities.manage && deliveries.data && !deliveries.data.data.length && (
+              <p className="text-body text-muted-foreground">
+                No email or push was requested for this alert.
+              </p>
+            )}
             <DevicePages
               meta={comments.data?.meta}
               label="Comments"
@@ -1600,82 +1691,81 @@ function AlertDetail({
             />
           </section>
           {capabilities.manage && (
-            <section
-              aria-labelledby="alert-email"
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addComment.mutate();
+              }}
+            >
+              <label htmlFor="alert-comment" className="sr-only">
+                Add a comment
+              </label>
+              <Textarea
+                id="alert-comment"
+                required
+                maxLength={5000}
+                rows={2}
+                placeholder="Add a comment for the team"
+                disabled={addComment.isPending}
+                value={comment.body}
+                onChange={(event) =>
+                  setComment({
+                    uuid: crypto.randomUUID(),
+                    body: event.target.value,
+                  })
+                }
+              />
+              <RequestError error={addComment.error} />
+              <Button
+                variant="outline"
+                className="self-end"
+                disabled={addComment.isPending || !comment.body.trim()}
+              >
+                {addComment.isPending ? "Adding…" : "Add comment"}
+              </Button>
+            </form>
+          )}
+          {capabilities.manage && (deliveries.data?.data.length ?? 0) > 0 && (
+            // Who was told is in Activity; the table adds devices reached, attempts and Retry.
+            <Collapsible
+              open={deliveryOpen ?? failedDelivery}
+              onOpenChange={setDeliveryOpen}
               className="flex flex-col gap-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Heading id="alert-email" className="text-sm font-semibold">
-                  Delivery
+                <Heading id="alert-email" className="text-heading">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="link"
+                      className="link-target group/delivery h-auto gap-1 p-0 text-heading text-foreground"
+                    >
+                      Delivery details
+                      <ChevronDownIcon
+                        aria-hidden="true"
+                        className="transition-transform group-data-[state=open]/delivery:rotate-180"
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
                 </Heading>
                 {settings && (
-                  <Link
-                    className="text-sm underline underline-offset-4 link-target"
-                    to={settings}
-                  >
+                  <Link className="text-body underline underline-offset-4 link-target" to={settings}>
                     Notification settings
                   </Link>
                 )}
               </div>
-              {deliveries.isPending ? (
-                <Skeleton className="h-16 w-full" />
-              ) : deliveries.data?.data.length ? (
+              <CollapsibleContent>
                 <DataTable
                   id="alert-deliveries"
                   label="Deliveries"
                   noun={["delivery", "deliveries"]}
-                  rows={deliveries.data.data}
+                  rows={deliveries.data!.data}
                   rowKey={(item) => item.uuid}
                   rowLabel={(item) => item.recipient_name}
                   columns={deliveryColumns(setRetry)}
                 />
-              ) : !deliveries.error ? (
-                <p className="text-sm text-muted-foreground">
-                  No email or push was requested for this alert.
-                </p>
-              ) : null}
-            </section>
-          )}
-          {capabilities.manage && (
-            <section aria-labelledby="alert-comments">
-              <form
-                className="flex flex-col gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addComment.mutate();
-                }}
-              >
-                <Heading id="alert-comments" className="text-sm font-semibold">
-                  Comments
-                </Heading>
-                <label htmlFor="alert-comment" className="sr-only">
-                  Add a comment
-                </label>
-                <Textarea
-                  id="alert-comment"
-                  required
-                  maxLength={5000}
-                  rows={3}
-                  placeholder="Add a comment for the team"
-                  disabled={addComment.isPending}
-                  value={comment.body}
-                  onChange={(event) =>
-                    setComment({
-                      uuid: crypto.randomUUID(),
-                      body: event.target.value,
-                    })
-                  }
-                />
-                <RequestError error={addComment.error} />
-                <Button
-                  variant="outline"
-                  className="self-end"
-                  disabled={addComment.isPending || !comment.body.trim()}
-                >
-                  {addComment.isPending ? "Adding…" : "Add comment"}
-                </Button>
-              </form>
-            </section>
+              </CollapsibleContent>
+            </Collapsible>
           )}
           {/* Phones keep Acknowledge under the thumb: a bar stuck to the bottom of the screen. */}
           {capabilities.manage && !alert.acknowledged_at && phone && (

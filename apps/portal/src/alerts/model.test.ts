@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Alert, ConnectivityAlert } from "@iot-os/api-client";
+import type { Alert, AlertTrigger, ConnectivityAlert } from "@iot-os/api-client";
 import {
   alertCause,
   alertCondition,
   alertDuration,
   alertQuery,
+  alertSpan,
   alertTitle,
   conditionOf,
   eventState,
@@ -16,6 +17,8 @@ import {
   subjectQuery,
   thresholdSource,
   thresholdText,
+  triggerLimit,
+  triggerSentence,
 } from "./model";
 
 describe("Alert presentation", () => {
@@ -152,5 +155,68 @@ describe("Event log vocabulary", () => {
     expect(legacyNotificationPath("org-1", new URLSearchParams("tab=preferences&page=3"))).toBe(
       "/organizations/org-1/settings/my-notifications",
     );
+  });
+});
+
+describe("What raised an automation alert", () => {
+  const reading = { device_uuid: "d", parameter_uuid: "p", name: "Flow rate", unit: "L/min" };
+  const trigger = (values: Partial<AlertTrigger>): AlertTrigger => ({
+    readings: [reading],
+    condition: null,
+    sustained_seconds: null,
+    window: null,
+    ...values,
+  });
+
+  it("says which reading crossed which limit, and how long it had to hold", () => {
+    const above = { kind: "compare", operator: "gt", value: 10 } as const;
+    expect(triggerSentence(trigger({ condition: above }))).toBe("Flow rate went above 10 L/min.");
+    expect(triggerSentence(trigger({ condition: above, sustained_seconds: 300 }))).toBe(
+      "Flow rate stayed above 10 L/min for 5 min.",
+    );
+    expect(
+      triggerSentence(trigger({ condition: { kind: "compare", operator: "lt", value: 1 } })),
+    ).toBe("Flow rate went below 1 L/min.");
+    expect(
+      triggerSentence(
+        trigger({ condition: { kind: "hysteresis", activate_above: 30, clear_below: 25 } }),
+      ),
+    ).toBe("Flow rate went above 30 L/min. It clears below 25 L/min.");
+    expect(triggerLimit(trigger({ condition: above }))).toBe(10);
+    expect(
+      triggerLimit(trigger({ condition: { kind: "hysteresis", activate_above: 30, clear_below: 25 } })),
+    ).toBe(30);
+  });
+
+  it("names the readings without a limit when more than one comparison decides it", () => {
+    expect(
+      triggerSentence(
+        trigger({ readings: [reading, { ...reading, parameter_uuid: "q", name: "Pressure", unit: "bar" }] }),
+      ),
+    ).toBe("This automation watches Flow rate and Pressure.");
+    expect(triggerLimit(trigger({}))).toBeNull();
+  });
+
+  it("says nothing when there is no reading to name", () => {
+    expect(triggerSentence(null)).toBeNull();
+    expect(triggerSentence(undefined)).toBeNull();
+    expect(triggerSentence(trigger({ readings: [] }))).toBeNull();
+    expect(triggerSentence(trigger({ readings: [{ ...reading, name: null }] }))).toBeNull();
+    // An unnamed reading still has a limit worth stating.
+    expect(
+      triggerSentence(
+        trigger({
+          readings: [{ ...reading, name: null }],
+          condition: { kind: "compare", operator: "gte", value: 5 },
+        }),
+      ),
+    ).toBe("The reading reached 5 L/min.");
+  });
+
+  it("puts the time beside the condition mark", () => {
+    const at = "2026-11-16T20:00:00Z";
+    expect(alertSpan({ activated_at: at, cleared_at: null }, Date.parse(at) + 5 * 86_400_000)).toBe("for 5 d");
+    expect(alertSpan({ activated_at: at, cleared_at: "2026-11-16T20:04:00Z" })).toBe("after 4 min");
+    expect(alertSpan({ activated_at: null, cleared_at: null })).toBe("");
   });
 });
