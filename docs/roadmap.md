@@ -150,6 +150,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
 - **Profile dashboard templates** ([spec 025](../specs/025-profile-dashboard-templates/spec.md)):
   a device profile holds dashboards designed once, saved from a real dashboard, and
   applied to any device of that profile in one step.
+- **Alert limits on charts** ([spec 037](../specs/037-alert-limits-on-charts/spec.md)):
+  a time series panel draws the value at which a running automation raises an alert on
+  the reading it shows, taken from the automation and not typed into the panel; alert
+  periods appear for every device an automation reads.
 - **Kiosk displays and public links** that show a published revision through
   server-resolved queries.
 - **Server-side panel queries** instead of per-panel client polling.
