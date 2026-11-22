@@ -69,6 +69,7 @@
     "automation_alert_deliveries": ["devices_total", "devices_reached", "push_summary_id"],
     "notification_preferences": ["push_enabled", "push_levels", "push_revision"],
     "users": ["two_factor_secret", "two_factor_recovery_codes", "two_factor_confirmed_at"],
-    "organizations": ["two_step_required"]
+    "organizations": ["two_step_required"],
+    "portal_addresses": ["allowance_off_since"]
   }
 }

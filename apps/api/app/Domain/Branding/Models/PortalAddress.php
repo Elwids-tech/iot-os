@@ -34,6 +34,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $unreachable_since
  * @property Carbon|null $suspended_at
  * @property Carbon|null $released_at
+ * @property Carbon|null $allowance_off_since
+ * @property Carbon|null $certificate_expires_at
+ * @property Carbon|null $certificate_checked_at
  * @property int|null $redirect_to_id
  * @property-read BillingAccount|null $billingAccount
  * @property-read PortalAddress|null $redirectTo
@@ -59,6 +62,7 @@ final class PortalAddress extends Model
             'unreachable_since' => 'datetime',
             'suspended_at' => 'datetime',
             'released_at' => 'datetime',
+            'allowance_off_since' => 'datetime',
             'certificate_expires_at' => 'datetime',
             'certificate_checked_at' => 'datetime',
             'failed_checks' => 'integer',
@@ -101,8 +105,17 @@ final class PortalAddress extends Model
      */
     public function serves(): bool
     {
+        return $this->state->serves() && $this->allowed();
+    }
+
+    /**
+     * Whether the account's plan allows this address: `branding`, and `custom_domain`
+     * as well for a domain. False for an address whose account is gone.
+     */
+    public function allowed(): bool
+    {
         $account = $this->billingAccount;
-        if (! $this->state->serves() || $account === null) {
+        if ($account === null) {
             return false;
         }
         $allowances = app(Allowances::class);

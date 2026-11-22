@@ -37,7 +37,9 @@ routes. Image uploads and claims of a name or a domain are limited to 30 a minut
   "unreachable_since": null, "suspended_at": null,
   // A custom domain also carries:
   "record": { "type": "CNAME", "name": "portal.example.org", "value": "c-7k2m….example.com" },
-  "lapses_at": "…",
+  "lapses_at": "…",                       // while waiting_dns: when the request lapses
+  "lapsed_at": null,                      // once lapsed: when it did
+  "releases_at": null,                    // a name too: when it is given up, 30 days after its allowance went; null while the allowance is on
   "certificate_expires_at": "…",          // as last read from the proxy; null before a read and for a name
   "certificate_expiring": false           // expired, or 14 days or less left: renewal is overdue
 }

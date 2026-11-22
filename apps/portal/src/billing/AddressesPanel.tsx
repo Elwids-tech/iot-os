@@ -20,6 +20,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@i
 import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Status } from "@iot-os/ui/components/status-mark"
+import { formatDay } from "@iot-os/ui/lib/invoices"
 import { ExternalLinkIcon, LockIcon } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "../lib/api"
@@ -104,7 +105,12 @@ export function AddressesPanel({ accountUuid }: { accountUuid: string }) {
             <LockIcon />
             <AlertTitle>Addresses come with branding, which is not part of your plan</AlertTitle>
             <AlertDescription>
-              Contact the platform operator to add it.{current ? " The address saved earlier is kept and works again once branding is back." : ""}
+              Contact the platform operator to add it.
+              {current
+                ? current.releases_at
+                  ? ` The address saved earlier is kept until ${formatDay(current.releases_at)} and works again if branding is back by then. After that it is given up.`
+                  : " The address saved earlier is kept and works again once branding is back."
+                : ""}
             </AlertDescription>
           </Alert>
         ) : null}

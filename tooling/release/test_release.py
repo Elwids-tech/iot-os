@@ -201,7 +201,7 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             deployment = self.deployment(temp)
             deployment.env.update(PORTAL_ADDRESSES='on', PORTAL_ADDRESSES_TOKEN='ab'*32)
-            answers = {'caddy': '  HTTP/1.1 404 Not Found\n', 'portal': 'window.__IOT_CONFIG__ = {"address":{"state":"not_in_use"}};\n'}
+            answers = {'caddy': '  HTTP/1.1 404 Not Found\n', 'portal': 'window.__IOT_CONFIG__ = {"address":{"state":"not_in_use"}};\n', 'api': ''}
             def compose(*args, **kwargs):
                 return subprocess.CompletedProcess(args, 0, stdout=answers[args[2]])
             with patch.object(deployment, 'compose', side_effect=compose) as called:
@@ -214,6 +214,42 @@ class ReleaseTests(unittest.TestCase):
                     deployment.smoke_portal_addresses()
                 answers.update(caddy='  HTTP/1.1 404 Not Found\n', portal='window.__IOT_CONFIG__ = {};\n')
                 with self.assertRaisesRegex(RuntimeError, 'as its own host'):
+                    deployment.smoke_portal_addresses()
+
+    def test_portal_address_smoke_checks_a_claimed_name_when_one_serves(self):
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = self.deployment(temp)
+            deployment.env.update(PORTAL_ADDRESSES='on', PORTAL_ADDRESSES_TOKEN='ab'*32)
+            claimed = 'acme.' + deployment.env['DOMAIN']
+            served = {'host': claimed, 'certificate_read': True, 'certificate_expires_at': '2999-01-01T00:00:00+00:00'}
+            state = {'asked': '  HTTP/1.1 200 OK\n', 'config': 'window.__IOT_CONFIG__ = {"address":{"kind":"name","host":"' + claimed + '","state":"active"},"brand":null};\n'}
+            def compose(*args, **kwargs):
+                text = ' '.join(map(str, args))
+                if args[2] == 'api':
+                    return subprocess.CompletedProcess(args, 0, stdout=json.dumps(served) + '\n')
+                if 'unclaimed-smoke-check' in text:
+                    return subprocess.CompletedProcess(args, 0, stdout='  HTTP/1.1 404 Not Found\n' if args[2] == 'caddy' else '{"address":{"state":"not_in_use"}}')
+                return subprocess.CompletedProcess(args, 0, stdout=state['asked'] if args[2] == 'caddy' else state['config'])
+            with patch.object(deployment, 'compose', side_effect=compose) as called:
+                deployment.smoke_portal_addresses()
+                self.assertIn('Host: ' + claimed, called.call_args_list[-1].args)
+                served['certificate_expires_at'] = None
+                with self.assertRaisesRegex(RuntimeError, 'served no certificate'):
+                    deployment.smoke_portal_addresses()
+                served['certificate_expires_at'] = '2020-01-01T00:00:00+00:00'
+                with self.assertRaisesRegex(RuntimeError, 'has expired'):
+                    deployment.smoke_portal_addresses()
+                # A deployment with no proxy to ask checks the rest.
+                served.update(certificate_read=False, certificate_expires_at=None)
+                deployment.smoke_portal_addresses()
+                state['asked'] = '  HTTP/1.1 404 Not Found\n'
+                with self.assertRaisesRegex(RuntimeError, 'did not answer 200'):
+                    deployment.smoke_portal_addresses()
+                state.update(asked='  HTTP/1.1 200 OK\n', config='window.__IOT_CONFIG__ = {"address":{"state":"not_in_use"}};\n')
+                with self.assertRaisesRegex(RuntimeError, 'did not start as the claimed name'):
+                    deployment.smoke_portal_addresses()
+                served['host'] = 'bad host;rm'
+                with self.assertRaisesRegex(RuntimeError, 'invalid host'):
                     deployment.smoke_portal_addresses()
 
     def test_webhook_receiver_host_is_rendered_only_with_adapters(self):

@@ -7,6 +7,7 @@ certificate reload and bootstrap share one host lock. Restore remains quarantine
 import argparse
 import base64
 import contextlib
+from datetime import datetime, timezone
 import fcntl
 import hashlib
 import ipaddress
@@ -740,9 +741,10 @@ class Deployment:
         print("Public HTTPS and dependency readiness checks passed.")
 
     def smoke_portal_addresses(self):
-        """A name nobody claimed gets no certificate and no brand (spec 036, FR-014), checked
-        from inside: the proxy's own question to the API, and the host the portal's nginx
-        passes on reaching Laravel."""
+        """A name nobody claimed gets no certificate and no brand (spec 036, FR-014), and a
+        claimed one gets both, checked from inside: the proxy's own question to the API,
+        the certificate the proxy serves, and the host the portal's nginx passes on
+        reaching Laravel."""
         unclaimed = "unclaimed-smoke-check." + self.env["DOMAIN"]
         asked = self.compose("exec", "-T", "caddy", "sh", "-c", 'wget -q -S -O /dev/null "http://api-web:80/api/internal/portal-addresses/ask?token=$PORTAL_ADDRESSES_TOKEN&domain=' + unclaimed + '" 2>&1 | head -n 1', stdout=subprocess.PIPE, text=True).stdout
         if " 404 " not in asked:
@@ -750,6 +752,28 @@ class Deployment:
         config = self.compose("exec", "-T", "portal", "wget", "-q", "-O", "-", "--header", "Host: " + unclaimed, "http://127.0.0.1/runtime-config.js", stdout=subprocess.PIPE, text=True).stdout
         if '"not_in_use"' not in config:
             raise RuntimeError("Portal address smoke check failed: an unclaimed name did not reach the API as its own host")
+        # A claimed name, when there is one: the proxy may get its certificate, serves one
+        # that has not expired, and the portal starts there as that address.
+        line = self.compose("exec", "-T", "api", "php", "artisan", "branding:serving-name", stdout=subprocess.PIPE, text=True).stdout.strip()
+        if not line:
+            print("No claimed name serves yet: its certificate and start-up were not checked.", file=sys.stderr)
+            return
+        claimed = json.loads(line.splitlines()[-1])
+        host = claimed["host"]
+        if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", host):
+            raise RuntimeError("Portal address smoke check failed: the API named an invalid host")
+        asked = self.compose("exec", "-T", "caddy", "sh", "-c", 'wget -q -S -O /dev/null "http://api-web:80/api/internal/portal-addresses/ask?token=$PORTAL_ADDRESSES_TOKEN&domain=' + host + '" 2>&1 || true', stdout=subprocess.PIPE, text=True).stdout
+        if " 200 " not in asked:
+            raise RuntimeError("Portal address smoke check failed: the certificate question for the claimed name " + host + " did not answer 200")
+        if claimed.get("certificate_read"):
+            expires = claimed.get("certificate_expires_at")
+            if not expires:
+                raise RuntimeError("Portal address smoke check failed: the proxy served no certificate for the claimed name " + host)
+            if datetime.fromisoformat(expires) <= datetime.now(timezone.utc):
+                raise RuntimeError("Portal address smoke check failed: the certificate of the claimed name " + host + " has expired")
+        config = self.compose("exec", "-T", "portal", "wget", "-q", "-O", "-", "--header", "Host: " + host, "http://127.0.0.1/runtime-config.js", stdout=subprocess.PIPE, text=True).stdout
+        if '"host":"' + host + '"' not in config or '"not_in_use"' in config:
+            raise RuntimeError("Portal address smoke check failed: the portal did not start as the claimed name " + host)
 
 
 def main():

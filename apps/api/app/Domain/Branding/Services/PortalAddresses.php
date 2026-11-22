@@ -6,11 +6,13 @@ namespace App\Domain\Branding\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Billing\Models\BillingAccount;
+use App\Domain\Billing\Services\Notices;
 use App\Domain\Branding\Contracts\CertificateReader;
 use App\Domain\Branding\Contracts\DnsResolver;
 use App\Domain\Branding\Enums\PortalAddressKind;
 use App\Domain\Branding\Enums\PortalAddressState;
 use App\Domain\Branding\Exceptions\BrandingRefusal;
+use App\Domain\Branding\Mail\PortalAddressMail;
 use App\Domain\Branding\Models\PortalAddress;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -40,6 +42,7 @@ final class PortalAddresses
     public function __construct(
         private readonly DnsResolver $dns,
         private readonly CertificateReader $certificates,
+        private readonly Notices $notices,
     ) {}
 
     /** Whether this deployment serves addresses at all: the switch and a domain to put names under. */
@@ -220,6 +223,7 @@ final class PortalAddresses
                 'suspended_at' => null,
                 'suspended_by' => null,
                 'released_at' => null,
+                'allowance_off_since' => null,
                 'redirect_to_id' => null,
             ];
             // The account taking back a name it released keeps the row.
@@ -297,6 +301,7 @@ final class PortalAddresses
                     'suspended_at' => null,
                     'suspended_by' => null,
                     'released_at' => null,
+                    'allowance_off_since' => null,
                     'redirect_to_id' => null,
                 ])->save();
 
@@ -392,6 +397,12 @@ final class PortalAddresses
             $this->forget($address->host);
             // Recorded with no actor: the scheduled check, or the owner's **Check now**, only read DNS.
             ActivityLog::record($event, null, null, $address->billingAccount, ['host' => $address->host]);
+            // The owners hear of the two changes they must act on (US3 scenarios 6 and 7).
+            match ($event) {
+                'portal_address.lapsed' => $this->tell($address, PortalAddressMail::LAPSED, $now, (int) config('branding.claim_days')),
+                'portal_address.unreachable' => $this->tell($address, PortalAddressMail::UNREACHABLE, $now),
+                default => null,
+            };
         }
 
         return $address;
@@ -446,6 +457,76 @@ final class PortalAddresses
             && in_array($address->state, [PortalAddressState::Active, PortalAddressState::Unreachable], true)
             && $address->certificate_expires_at !== null
             && $address->certificate_expires_at->lte(now()->addDays((int) config('branding.certificate_warning_days')));
+    }
+
+    /**
+     * Counts how long each live address has been without its account's allowance, and
+     * gives up one that has been for 30 days (FR-037): until then it is kept, unused, and
+     * serves again the moment the allowance is back. Run by the scheduled check, so the
+     * count starts within its two minutes of the allowance going. Returns how many
+     * addresses were released.
+     */
+    public function sweepAllowances(): int
+    {
+        $released = 0;
+        $limit = now()->subDays((int) config('branding.hold_days'));
+        PortalAddress::query()
+            ->with(['billingAccount.allowanceOverrides', 'billingAccount.openPlanAssignment.plan.allowances'])
+            ->whereNotIn('state', [PortalAddressState::Released, PortalAddressState::Lapsed])
+            ->whereNotNull('billing_account_id')
+            ->lazyById(200)
+            ->each(function (PortalAddress $address) use ($limit, &$released): void {
+                if ($address->billingAccount === null) {
+                    return;
+                }
+                if ($address->allowed()) {
+                    if ($address->allowance_off_since !== null) {
+                        $address->forceFill(['allowance_off_since' => null])->save();
+                    }
+
+                    return;
+                }
+                if ($address->allowance_off_since === null) {
+                    $address->forceFill(['allowance_off_since' => now()])->save();
+
+                    return;
+                }
+                if ($address->allowance_off_since->lte($limit)) {
+                    $this->release($address, null, 'allowance_withdrawn');
+                    $this->tell($address, PortalAddressMail::RELEASED, $address->released_at ?? now(), (int) config('branding.hold_days'));
+                    $released++;
+                }
+            });
+
+        return $released;
+    }
+
+    /** When a live address without its allowance is given up, or null while the allowance is on. */
+    public function releasesAt(PortalAddress $address): ?Carbon
+    {
+        return $address->state->isLive() && $address->allowance_off_since !== null && ! $address->allowed()
+            ? $address->allowance_off_since->copy()->addDays((int) config('branding.hold_days'))
+            : null;
+    }
+
+    /**
+     * Mails the account's owners about an address, once for each time it happens: the
+     * notice ledger is keyed by the address and the moment.
+     */
+    private function tell(PortalAddress $address, string $event, \DateTimeInterface $at, int $days = 0): void
+    {
+        $account = $address->billingAccount;
+        if ($account === null) {
+            return;
+        }
+        $this->notices->send($account, 'address_'.$event, $address->uuid.':'.$at->getTimestamp(), new PortalAddressMail(
+            (string) $account->uuid,
+            (string) $account->name,
+            $address->host,
+            $event,
+            $event === PortalAddressMail::UNREACHABLE ? ($this->record($address)['value'] ?? null) : null,
+            $days,
+        ));
     }
 
     /** The account's last domain request that lapsed, shown until it asks again. */

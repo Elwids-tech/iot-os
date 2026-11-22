@@ -12,7 +12,8 @@ use Illuminate\Console\Command;
  * Looks up the DNS record of each custom domain that is due (spec 036, FR-011, FR-015):
  * every request still waiting, and every serving domain not looked at for 15 minutes.
  * Run every two minutes. Idempotent: a check only reads DNS and moves the address
- * between its states, and a request with no record lapses after seven days.
+ * between its states, and a request with no record lapses after seven days. The same run
+ * gives up an address that has been without its account's allowance for 30 days (FR-037).
  */
 final class CheckPortalAddresses extends Command
 {
@@ -31,7 +32,8 @@ final class CheckPortalAddresses extends Command
             $before = $address->state;
             $changed += $addresses->check($address)->state === $before ? 0 : 1;
         });
-        $this->info(sprintf('Checked %d custom domains; %d changed state.', $due->count(), $changed));
+        $released = $addresses->sweepAllowances();
+        $this->info(sprintf('Checked %d custom domains; %d changed state; %d released without their allowance.', $due->count(), $changed, $released));
 
         return self::SUCCESS;
     }

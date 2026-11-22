@@ -328,6 +328,10 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Billing
 
+- **An allowance override has no key of its own.** `AllowanceOverride` sets
+  `$primaryKey = null`, so saving a model, or `updateOrCreate` on a row that exists,
+  writes `where billing_account_id = ?` and changes every kind of the account. Write
+  one with `upsert` on `billing_account_id, kind`, as `Allowances::override` does.
 - **Issued invoices and credit notes never change.** `Invoice` and `CreditNote` refuse
   writes in `updating` once issued, except an invoice's `payment_status`. A correction is
   a credit note; what is still owed is derived (`Invoice::outstanding()`), never stored.

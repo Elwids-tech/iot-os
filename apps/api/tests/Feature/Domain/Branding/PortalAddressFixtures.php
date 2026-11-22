@@ -56,9 +56,11 @@ trait PortalAddressFixtures
 
     protected function allow(BillingAccount $account, AllowanceKind $kind = AllowanceKind::Branding, int $value = 1): void
     {
-        AllowanceOverride::query()->updateOrCreate(
-            ['billing_account_id' => $account->getKey(), 'kind' => $kind->value],
-            ['value' => $value, 'note' => 'Test'],
+        // An upsert: the model has no key of its own, so saving one would write every kind of the account.
+        AllowanceOverride::query()->upsert(
+            [['billing_account_id' => $account->getKey(), 'kind' => $kind->value, 'value' => $value, 'note' => 'Test', 'created_at' => now(), 'updated_at' => now()]],
+            ['billing_account_id', 'kind'],
+            ['value', 'note', 'updated_at'],
         );
         // An allowance change is seen within the address cache's 30 seconds; tests do not wait.
         Cache::flush();
