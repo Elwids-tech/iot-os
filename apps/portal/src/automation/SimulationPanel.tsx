@@ -13,7 +13,7 @@ import { axisOf, insideRing, locationInputs, nodeOutcomes, requestedActions, sam
 
 const LocationPicker = lazy(() => import("./LocationPicker"))
 const outcomeVariant = (status: string) =>
-  ({ matched: "success", triggered: "default", suppressed: "warning", waiting: "warning", evaluated: "info" } as const)[status] ?? "outline"
+  ({ matched: "success", triggered: "default", suppressed: "warning", active: "success", waiting: "warning", evaluated: "info" } as const)[status] ?? "outline"
 
 /** Inputs and results for one saved revision, docked beside the canvas so outcomes stay visible on the graph. */
 export function SimulationPanel({ graph, labels, registry, revision, dirty, busy, values, onValuesChange, result, step, onStepChange, selected, onRun }: {

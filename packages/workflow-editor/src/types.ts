@@ -60,7 +60,7 @@ export type NodeCatalog = {
 };
 /** Host-supplied evaluation result shown on a node card (e.g. a simulation step). */
 export type NodeOutcome = {
-  status: "matched" | "not_matched" | "triggered" | "suppressed" | "waiting" | "evaluated" | (string & {});
+  status: "matched" | "not_matched" | "triggered" | "suppressed" | "active" | "waiting" | "evaluated" | (string & {});
   label: string;
   reason?: string;
 };

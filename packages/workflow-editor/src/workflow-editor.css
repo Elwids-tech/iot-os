@@ -333,7 +333,8 @@
 .workflow-node[data-outcome] {
   --outcome: var(--muted-foreground);
 }
-.workflow-node[data-outcome="matched"] {
+.workflow-node[data-outcome="matched"],
+.workflow-node[data-outcome="active"] {
   --outcome: var(--success);
 }
 .workflow-node[data-outcome="triggered"] {

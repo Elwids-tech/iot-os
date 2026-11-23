@@ -92,6 +92,10 @@ describe("simulation outcomes", () => {
     expect(nodeOutcomes(result, 2).alarm.label).toBe("Suppressed")
     expect(nodeOutcomes(result, 0).boundary.label).toBe("Waiting")
   })
+  it("names an alert that stays raised", () => {
+    const held: SimResult = { ...result, steps: [{ trace: [trace("alarm", "active")], intents: [] }] }
+    expect(nodeOutcomes(held, 0).alarm.label).toBe("Already active")
+  })
 })
 
 describe("requested actions", () => {

@@ -18,7 +18,7 @@ export type Evaluation = {
   intent_ids: string[]; trace?: TimelineStep[]; actions?: TimelineAction[];
 }
 export const outcomeLabels: Record<string, string> = { evaluated: "No action requested", triggered: "Action requested", waiting: "Waiting for evidence", suspended: "Execution suspended" }
-export const stepLabels: Record<string, string> = { evaluated: "Evaluated", triggered: "Action requested", waiting: "Waiting", matched: "True", not_matched: "False", suppressed: "Suppressed" }
+export const stepLabels: Record<string, string> = { evaluated: "Evaluated", triggered: "Action requested", waiting: "Waiting", matched: "True", not_matched: "False", suppressed: "Suppressed", active: "Already active" }
 
 export function evidenceText(value: EvidenceValue): string {
   if (!value.known) return `Unknown · ${value.reason || "no usable reading"}`
