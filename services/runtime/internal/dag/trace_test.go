@@ -44,3 +44,27 @@ func TestTraceExplainsIgnoredHistoricalReadings(t *testing.T) {
 		t.Fatalf("ignored reading trace: %+v %v", r, err)
 	}
 }
+
+// An alert raises and clears on a change. While nothing changes the trace says
+// which state held, so an alert that is doing its job never reads as blocked.
+func TestTraceNamesAnUnchangedAlert(t *testing.T) {
+	p := compiled(t, fixture())
+	at := time.Unix(1800000000, 0).UTC()
+	s := p.Initial(at)
+	for i, tc := range []struct {
+		value   float64
+		status  string
+		intents int
+	}{{10, "not_matched", 0}, {30, "triggered", 1}, {31, "active", 0}, {10, "triggered", 1}, {11, "not_matched", 0}} {
+		now := at.Add(time.Duration(i+1) * time.Second)
+		r, err := p.Step(s, reading(now.String(), tc.value, now), now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		last := r.Trace[len(r.Trace)-1]
+		if last.Status != tc.status || len(r.Intents) != tc.intents {
+			t.Fatalf("step %d: trace %+v, intents %d", i, last, len(r.Intents))
+		}
+		s = r.State
+	}
+}

@@ -381,7 +381,11 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				ns.Active = b
 				if n.Type == "action.alert.v1" {
 					if b == previousActive {
-						status, reason = "suppressed", "Alert condition has not changed."
+						// Alerts raise and clear on a change; say which state held instead of "suppressed".
+						status, reason = "not_matched", "Condition is false; no alert is active."
+						if b {
+							status, reason = "active", "The alert is already active; it was raised when the condition became true."
+						}
 						break
 					}
 					kind := "cleared"
