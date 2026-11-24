@@ -106,8 +106,20 @@ Settings dispatch independently: not atomic, no ordering guarantee.
   interval (plus the vendor's delay) before the reading reaches the runtime. When you
   pick a parameter, the editor sets freshness to the longest of 2 minutes, the
   parameter's `reporting.stale_after_seconds` and twice the device's poll interval.
-  It warns when a polled device's freshness is shorter than two intervals. The
-  assistant's bindings default to 120 s; check them for polled devices.
+  It warns when a polled device's freshness is shorter than two intervals.
+- The assistant sizes its bindings from the device as well. Its device tools return a
+  `suggested_fresh_seconds` for each parameter: the longest of 2 minutes, the
+  parameter's `reporting.stale_after_seconds`, and twice each of the device's poll
+  interval, its learned reporting interval
+  ([offline alerts](alerts.md#offline-after)) and the delay between its newest
+  reading's observed time and its arrival, at most 24 hours. The last two cover a
+  device that sends late or in batches without a polling adapter; a delay over an
+  hour is a kept or replayed reading and is left out. The assistant uses
+  that value or a longer one, and says so when it is over 2 minutes. When nothing
+  is known about the device itself (`fresh_seconds_basis` is `profile` or `unknown`
+  rather than `device`: a new device, one still learning, or a runtime that cannot
+  say), it uses the longer of 2 minutes and the profile's time and asks you to check
+  the binding's freshness against how often the device really reports.
 - Freshness is not a device's *Offline after*
   ([offline alerts](alerts.md#offline-after)). Freshness says how old a reading may be
   when an automation uses it, counted from its observed time; *Offline after* says how

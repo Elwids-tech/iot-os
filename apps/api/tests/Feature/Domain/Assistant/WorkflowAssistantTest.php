@@ -190,16 +190,62 @@ final class WorkflowAssistantTest extends TestCase
         $this->assertSame(['alarm_enabled' => true, 'alarm_volume' => 20], $config['settings']);
     }
 
+    public function test_device_results_size_freshness_from_the_reporting_rhythm(): void
+    {
+        [$slow, , $parameter] = $this->reconfiguredDevice(['stale_after_seconds' => 300]);
+        [$quiet] = $this->reconfiguredDevice(code: 'quiet-sensor');
+        $run = AssistantRun::findOrFail($this->message($this->conversation())->assertAccepted()->json('data.id'));
+        $run->update(['status' => 'running']);
+        config(['devices.runtime_token' => str_repeat('x', 40), 'devices.runtime_url' => 'http://runtime:8081']);
+        // Reports every five minutes by observed time; the last reading arrived nine minutes late.
+        Http::fake(['runtime:8081/internal/connectivity*' => Http::sequence()->push(['devices' => [[
+            'device_uuid' => $slow->uuid, 'state' => 'monitored', 'reporting_interval_seconds' => 300,
+            'last_observed_at' => '2026-11-24T10:00:00Z', 'last_heard_at' => '2026-11-24T10:09:00Z',
+        ], [
+            // A reading kept from days ago says nothing about how late readings arrive.
+            'device_uuid' => $quiet->uuid, 'state' => 'learning',
+            'last_observed_at' => '2026-11-20T10:00:00Z', 'last_heard_at' => '2026-11-24T10:00:00Z',
+        ]]])->push([], 500)]);
+        $devices = collect(json_decode((new WorkflowAssistantTools($run))->handle(new Request(['action' => 'find_devices', 'arguments_json' => '{}'])), true)['data'])->keyBy('device_uuid');
+        Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), $slow->uuid.','.$quiet->uuid));
+
+        $this->assertSame(300, $devices[$slow->uuid]['reporting_interval_seconds']);
+        $this->assertSame(540, $devices[$slow->uuid]['delivery_delay_seconds']);
+        $this->assertSame($parameter, $devices[$slow->uuid]['parameters'][0]['uuid']);
+        $this->assertSame(1080, $devices[$slow->uuid]['parameters'][0]['suggested_fresh_seconds']);
+        $this->assertSame('device', $devices[$slow->uuid]['parameters'][0]['fresh_seconds_basis']);
+        $this->assertArrayNotHasKey('reporting', $devices[$slow->uuid]['parameters'][0]);
+        // Nothing is known about the other device, so the default comes with a flag.
+        $this->assertNull($devices[$quiet->uuid]['reporting_interval_seconds']);
+        $this->assertNull($devices[$quiet->uuid]['delivery_delay_seconds']);
+        $this->assertSame(120, $devices[$quiet->uuid]['parameters'][0]['suggested_fresh_seconds']);
+        $this->assertSame('unknown', $devices[$quiet->uuid]['parameters'][0]['fresh_seconds_basis']);
+
+        // Without the runtime the profile's stale-after time still sizes the binding.
+        $devices = collect(json_decode((new WorkflowAssistantTools($run))->handle(new Request(['action' => 'find_devices', 'arguments_json' => '{}'])), true)['data'])->keyBy('device_uuid');
+        $this->assertSame(300, $devices[$slow->uuid]['parameters'][0]['suggested_fresh_seconds']);
+        $this->assertSame('profile', $devices[$slow->uuid]['parameters'][0]['fresh_seconds_basis']);
+    }
+
+    public function test_instructions_tell_the_model_how_to_size_freshness(): void
+    {
+        $run = AssistantRun::findOrFail($this->message($this->conversation())->assertAccepted()->json('data.id'));
+        $instructions = (new WorkflowAssistant($run))->instructions();
+        foreach (['counts from when a reading was OBSERVED', 'late or in a batch', 'suggested_fresh_seconds', 'reporting_interval_seconds', 'delivery_delay_seconds', 'never go below it', 'When it is profile or unknown', 'tell the user to check the binding\'s freshness'] as $phrase) {
+            $this->assertStringContainsString($phrase, $instructions);
+        }
+    }
+
     /** A device reconfigured since a draft bound it: [device, earlier configuration, parameter UUID]. */
-    private function reconfiguredDevice(): array
+    private function reconfiguredDevice(?array $reporting = null, string $code = 'assistant-sensor'): array
     {
         $actor = User::where('is_super_admin', true)->firstOrFail();
-        $profile = DeviceProfile::create(['organization_id' => $this->org->id, 'code' => 'assistant', 'name' => 'Assistant']);
+        $profile = DeviceProfile::create(['organization_id' => $this->org->id, 'code' => $code, 'name' => 'Assistant']);
         $parameter = (string) Str::uuid();
-        $canonical = json_encode(['parameters' => [['uuid' => $parameter, 'key' => 'temperature', 'data_type' => 'number', 'unit' => 'C', 'reports_state' => true]]]);
+        $canonical = json_encode(['parameters' => [['uuid' => $parameter, 'key' => 'temperature', 'data_type' => 'number', 'unit' => 'C', 'reports_state' => true, ...($reporting ? ['reporting' => $reporting] : [])]]]);
         $artifact = DeviceProfileArtifact::create(['device_profile_id' => $profile->id, 'revision' => 1, 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'status' => 'active', 'compiled_at' => now(), 'compiled_by' => $actor->id]);
-        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Assistant sensor', 'code' => 'assistant-sensor', 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 2, 'applied_generation' => 2]);
-        [$earlier, $current] = array_map(fn (int $revision) => DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => $revision, 'definition_hash' => str_repeat((string) $revision, 64), 'definition' => ['profile_canonical_json' => $canonical, 'mappings' => []], 'created_at' => now()]), [1, 2]);
+        $device = Device::create(['organization_id' => $this->org->id, 'name' => 'Assistant sensor', 'code' => $code, 'lifecycle' => 'active', 'deployment_status' => 'applied', 'deployment_generation' => 2, 'applied_generation' => 2]);
+        [$earlier, $current] = array_map(fn (int $revision) => DeviceConfiguration::create(['device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => $revision, 'definition_hash' => str_repeat((string) $revision, 64), 'definition' => ['profile_canonical_json' => $canonical, 'mappings' => [['parameter_uuid' => $parameter]]], 'created_at' => now()]), [1, 2]);
         $device->update(['applied_configuration_uuid' => $current->uuid]);
 
         return [$device->fresh(), $earlier, $parameter];

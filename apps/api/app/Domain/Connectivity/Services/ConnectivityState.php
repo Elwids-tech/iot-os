@@ -37,12 +37,7 @@ final class ConnectivityState
         if ($device->lifecycle !== 'active' || ! $device->applied_configuration_uuid) {
             return ['state' => 'inactive', ...$empty, 'before_monitoring' => false];
         }
-        try {
-            $reported = collect($this->runtime->request('GET', '/internal/connectivity', ['organization' => $organization->uuid, 'devices' => $device->uuid])['devices'] ?? [])
-                ->first(fn ($entry) => is_array($entry) && ($entry['device_uuid'] ?? null) === $device->uuid);
-        } catch (HttpException|ValidationException) {
-            $reported = null;
-        }
+        $reported = $this->reported($organization, [$device->uuid])[$device->uuid] ?? null;
         if (! $reported || ! in_array($reported['state'] ?? null, self::STATES, true)) {
             return ['state' => 'unknown', ...$empty, 'before_monitoring' => false];
         }
@@ -51,5 +46,26 @@ final class ConnectivityState
         $state['before_monitoring'] = $state['state'] === 'waiting' && $since !== null && $device->last_seen_at !== null && $device->last_seen_at->lt($since);
 
         return $state;
+    }
+
+    /**
+     * What the runtime reports for these devices, by device UUID. A device it does not
+     * monitor is left out, and so is every device when the runtime cannot say.
+     *
+     * @param  array<int, string>  $uuids  at most 500
+     * @return array<string, array<string, mixed>>
+     */
+    public function reported(Organization $organization, array $uuids): array
+    {
+        if ($uuids === []) {
+            return [];
+        }
+        try {
+            $devices = $this->runtime->request('GET', '/internal/connectivity', ['organization' => $organization->uuid, 'devices' => implode(',', $uuids)])['devices'] ?? [];
+        } catch (HttpException|ValidationException) {
+            return [];
+        }
+
+        return collect($devices)->filter(fn ($entry) => is_array($entry) && in_array($entry['device_uuid'] ?? null, $uuids, true))->keyBy('device_uuid')->all();
     }
 }
