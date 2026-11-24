@@ -329,6 +329,11 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				b, ok := boolean(v)
 				out["true"] = unknown("branch skipped")
 				out["false"] = out["true"]
+				if !ok {
+					// No usable input is not a decision: pass the reason on, so a node
+					// downstream can tell missing evidence from the side not taken.
+					out["true"], out["false"] = unknown(v.Reason), unknown(v.Reason)
+				}
 				if ok {
 					if b {
 						out["true"] = v
@@ -349,15 +354,23 @@ func (p *Plan) StepThrough(previous State, event *devices.CommittedTelemetry, at
 				}
 				out["out"] = v
 			case "sustained.v1":
+				// The clock restarts only when the condition is known not to hold: a
+				// false value, or the branch that feeds this node not being taken.
+				// Missing or stale evidence leaves the clock where it is and the
+				// output unknown, so a gap between reports neither restarts the
+				// duration nor completes it (ADR-051).
 				b, ok := boolean(v)
-				if !ok || !b {
+				if !ok && v.Reason == "branch skipped" {
+					b, ok, v = false, true, Value{Known: true, Value: false, At: at, Token: n.ID}
+				}
+				if ok && !b {
 					ns.Since = nil
-				} else if ns.Since == nil {
+				} else if ok && ns.Since == nil {
 					t := at
 					ns.Since = &t
 				}
 				if ok {
-					v.Value = b && ns.Since != nil && !at.Before(ns.Since.Add(time.Duration(num(n.Config, "seconds"))*time.Second))
+					v.Value = b && !at.Before(ns.Since.Add(time.Duration(num(n.Config, "seconds"))*time.Second))
 				}
 				out["out"] = v
 			case "cooldown.v1":

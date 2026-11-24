@@ -91,6 +91,14 @@ Settings dispatch independently: not atomic, no ordering guarantee.
   minimum sample counts are mandatory. Closed windows never reopen.
 - Freshness is explicit. Invalid, historical, future and pre-activation readings
   never create fresh evidence. Unknown does not clear an active alert.
+- A sustained condition restarts its clock only when the condition is known not to
+  hold: a false value, or the branch feeding it taking its other side. Unknown input
+  (stale, invalid, missing) holds the clock and gives an unknown output, so a gap
+  between reports neither restarts the duration, completes it, nor clears an alert
+  behind it. When a usable reading returns and still holds, the time in the gap
+  counts ([ADR-051](../adr/ADR-051-sustained-condition-holds-through-unknown.md)).
+  A branch with no usable input passes the reason on; "branch skipped" means only
+  the side not taken.
 - A binding's freshness (`fresh_seconds`, 1–86,400) counts from when the reading was
   **observed**, not when it arrived. A reading older than its freshness when it arrives
   is accepted but is already unknown (`stale`), so it can never trigger anything.
