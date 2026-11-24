@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/
 import { useUrlState } from "@iot-os/ui/hooks/use-url-state"
 import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { UserPlusIcon, UsersIcon } from "lucide-react"
+import { ImpersonateDialog } from "../components/ImpersonateDialog"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { MemberDialogs, type MemberAction } from "../components/MemberDialogs"
 import { PendingInvitations } from "../components/PendingInvitations"
@@ -120,6 +121,7 @@ function UserDirectory({
   const [superAdministratorAction, setSuperAdministratorAction] = useState<SuperAdministratorAction | null>(null)
   const [platformAdministratorAction, setPlatformAdministratorAction] = useState<PlatformAdministratorAction | null>(null)
   const [twoStepReset, setTwoStepReset] = useState<PlatformUser | null>(null)
+  const [impersonating, setImpersonating] = useState<PlatformUser | null>(null)
   // Spec 034: the API also refuses resetting yourself, and a super administrator unless you are one.
   const resetsTwoStep = currentUser.capabilities.reset_two_step === true
   const columns = useMemo<DataColumn<PlatformUser>[]>(
@@ -203,9 +205,16 @@ function UserDirectory({
                 Reset two-step
               </DropdownMenuItem>
             ) : null
-          if (!isMember && !accessItems && !twoStepItem) return null
+          // Only super administrators impersonate, and never themselves or another super administrator; the API re-checks.
+          const impersonateItem =
+            currentUser.is_super_admin && !user.is_super_admin && user.id !== currentUser.id ? (
+              <DropdownMenuItem onSelect={() => setImpersonating(user)}>Impersonate</DropdownMenuItem>
+            ) : null
+          if (!isMember && !accessItems && !twoStepItem && !impersonateItem) return null
           return (
             <>
+              {impersonateItem}
+              {impersonateItem && (isMember || accessItems || twoStepItem) ? <DropdownMenuSeparator /> : null}
               {isMember ? (
                 <>
                   <DropdownMenuItem onSelect={() => setMemberAction({ kind: "roles", user })}>
@@ -251,6 +260,7 @@ function UserDirectory({
         onChanged={reload}
       />
       <TwoStepResetDialog user={twoStepReset} onClose={() => setTwoStepReset(null)} onReset={reload} />
+      <ImpersonateDialog user={impersonating} onClose={() => setImpersonating(null)} />
     </>
   )
 }

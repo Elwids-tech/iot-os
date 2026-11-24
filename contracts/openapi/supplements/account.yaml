@@ -349,6 +349,16 @@ operations:
     description: |-
       Ends the session and this browser's kept sign-in, and forgets the `iot_kept`
       cookie. Kept sign-ins on other browsers stay.
+  DELETE /v1/auth/impersonation:
+    summary: Leave impersonation
+    description: >-
+      Signs the super administrator back in, records `user.impersonation_ended` and
+      answers where to go: the admin page impersonation started from, or the admin app's
+      home. When they lost super administrator access meanwhile, the session ends instead
+      and the answer is the admin app's home.
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   POST /v1/auth/reset-password:
     description: |-
       Sets the new password, signs the person out everywhere, revokes their agent

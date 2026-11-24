@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Middleware;
 
+use App\Domain\Authentication\Services\Impersonation;
 use App\Domain\Branding\Services\PortalLinks;
 use App\Domain\Shared\Models\User;
 use Closure;
@@ -45,7 +46,8 @@ final class RequireTwoStep
     public function handle(Request $request, Closure $next): Response
     {
         $person = $this->sessionPerson($request);
-        if ($person === null || $person->twoStepSatisfied() || self::allows($request->route()?->getName()) || ! $person->twoStepRequired()) {
+        // A super administrator acting as the person is not asked to set up their two-step.
+        if ($person === null || app(Impersonation::class)->active($request) || $person->twoStepSatisfied() || self::allows($request->route()?->getName()) || ! $person->twoStepRequired()) {
             return $next($request);
         }
 

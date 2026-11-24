@@ -320,6 +320,11 @@ export type AuthenticatedUser = {
    * Older payloads omit it.
    */
   address?: { kind: "name" | "domain"; host: string } | null
+  /**
+   * The super administrator acting as this person, or null. The apps show it and offer
+   * to leave. Older payloads omit it.
+   */
+  impersonation?: { impersonator: { id: number; name: string; email: string }; started_at: string } | null
 }
 
 export type JsonObject = { [key: string]: JsonValue }
@@ -2180,6 +2185,20 @@ export class ApiClient {
         body: JSON.stringify({ permission_names: permissionNames }),
       },
     ).then((response) => response.data)
+  }
+
+  /** A super administrator becomes the person in the session the apps share; `returnUrl` is where leaving goes back to. */
+  async impersonate(userId: number, returnUrl: string): Promise<void> {
+    await this.request(`/api/v1/admin/users/${userId}/impersonation`, {
+      method: "POST",
+      body: JSON.stringify({ return_url: returnUrl }),
+    })
+  }
+
+  /** Become the super administrator again; answers the admin page to return to. */
+  async leaveImpersonation(): Promise<string> {
+    const response = await this.request<ApiResponse<{ return_url: string }>>("/api/v1/auth/impersonation", { method: "DELETE" })
+    return response.data.return_url
   }
 
   async logout(): Promise<void> {

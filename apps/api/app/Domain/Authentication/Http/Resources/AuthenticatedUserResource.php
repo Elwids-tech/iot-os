@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Http\Resources;
 
+use App\Domain\Authentication\Services\Impersonation;
 use App\Domain\Authorization\Permissions\PlatformAdministrationPermission;
 use App\Domain\Authorization\Services\PlatformAuthorization;
 use App\Domain\Branding\Services\Brands;
@@ -37,6 +38,8 @@ final class AuthenticatedUserResource extends JsonResource
             app(Brands::class)->preload($organizations);
         }
 
+        $impersonation = $this->impersonation($request);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -44,7 +47,8 @@ final class AuthenticatedUserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
             'is_super_admin' => (bool) $this->is_super_admin,
             // Required two-step that is not set up (spec 034, FR-022): the apps open setup at once.
-            'two_step_setup_required' => ! $this->resource->twoStepSatisfied() && $this->resource->twoStepRequired(),
+            // Not while a super administrator impersonates them: setting it up is the person's own.
+            'two_step_setup_required' => $impersonation === null && ! $this->resource->twoStepSatisfied() && $this->resource->twoStepRequired(),
             'capabilities' => [
                 'platform_administration' => app(PlatformAuthorization::class)->canAccessAdministration($this->resource),
                 // Organizations, users, roles and every billing page (specs 008, 023, 028, 029).
@@ -74,6 +78,31 @@ final class AuthenticatedUserResource extends JsonResource
              * once that alerts must be turned on again here (spec 036, FR-032).
              */
             'push_devices_elsewhere' => PushDevice::elsewhere($this->resource, $address),
+            /**
+             * The super administrator acting as this person, or null. The apps show it and
+             * offer to leave, which returns to the admin page impersonation started from.
+             *
+             * @var array{impersonator: array{id: int, name: string, email: string}, started_at: string}|null
+             */
+            'impersonation' => $impersonation,
+        ];
+    }
+
+    /**
+     * @return array{impersonator: array{id: int, name: string, email: string}, started_at: string}|null
+     */
+    private function impersonation(Request $request): ?array
+    {
+        $impersonation = app(Impersonation::class);
+        $state = $impersonation->current($request);
+        $impersonator = $state === null ? null : $impersonation->impersonator($request);
+        if ($state === null || $impersonator === null || $request->user()?->getKey() !== $this->resource->getKey()) {
+            return null;
+        }
+
+        return [
+            'impersonator' => ['id' => (int) $impersonator->getKey(), 'name' => $impersonator->name, 'email' => $impersonator->email],
+            'started_at' => $state['started_at'],
         ];
     }
 }

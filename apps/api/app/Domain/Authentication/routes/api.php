@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Domain\Authentication\Http\Controllers\ConfirmationController;
+use App\Domain\Authentication\Http\Controllers\ImpersonationController;
 use App\Domain\Authentication\Http\Controllers\PasskeyController;
 use App\Domain\Authentication\Http\Controllers\PasskeySignInController;
 use App\Domain\Authentication\Http\Controllers\PasswordRecoveryController;
@@ -37,6 +38,13 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
 
         Route::post('auth/logout', [SessionController::class, 'destroy'])
             ->name('auth.logout');
+
+        // Super administrators act as someone else from the admin app, and leave to return
+        // where they started. Only super administrators start it; the service checks.
+        Route::post('admin/users/{user}/impersonation', [ImpersonationController::class, 'store'])
+            ->whereNumber('user')->middleware('throttle:30,1')->name('admin.users.impersonation.store');
+        Route::delete('auth/impersonation', [ImpersonationController::class, 'destroy'])
+            ->name('auth.impersonation.destroy');
 
         // The person's own sign-in security (spec 034). Changes need a password confirmed
         // in the last 15 minutes (`423` otherwise).

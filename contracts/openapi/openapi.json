@@ -8511,7 +8511,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_148",
+        "operationId": "domain.devices.retention.show_150",
         "tags": [
           "Retention"
         ],
@@ -8560,7 +8560,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_149",
+        "operationId": "domain.devices.retention.update_151",
         "tags": [
           "Retention"
         ],
@@ -9223,7 +9223,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_146",
+        "operationId": "domain.devices.retention.show_148",
         "tags": [
           "Retention"
         ],
@@ -9255,7 +9255,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_147",
+        "operationId": "domain.devices.retention.update_149",
         "tags": [
           "Retention"
         ],
@@ -11168,6 +11168,82 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/admin/users/{user}/impersonation": {
+      "post": {
+        "operationId": "v1.admin.users.impersonation.store",
+        "tags": [
+          "Impersonation"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The user ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "return_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "summary": "Impersonate a person",
+        "description": "A super administrator becomes the person in this browser's session, which the admin app and the portal share, and records `user.impersonation_started`. `return_url` is the admin page to come back to on leaving; an address outside the platform's own apps is ignored. The person's two-step sign-in is not asked for. While impersonating, `GET /v1/me` carries `impersonation`; the person's two-step, passkeys, password confirmation and agent consent answer `403` `impersonating`; and audit events recorded as the person carry `impersonated_by`. `403` unless a super administrator asks; `422` for themselves, another super administrator, or while already impersonating."
+      }
+    },
     "/v1/admin/users/{user}/two-step/reset": {
       "post": {
         "operationId": "v1.admin.users.two-step.reset",
@@ -11761,6 +11837,62 @@
           }
         ],
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/auth/impersonation": {
+      "delete": {
+        "operationId": "v1.auth.impersonation.destroy",
+        "tags": [
+          "Impersonation"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "return_url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "return_url"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "account",
+        "summary": "Leave impersonation",
+        "description": "Signs the super administrator back in, records `user.impersonation_ended` and answers where to go: the admin page impersonation started from, or the admin app's home. When they lost super administrator access meanwhile, the session ends instead and the answer is the admin app's home."
       }
     },
     "/v1/auth/login": {
@@ -35021,7 +35153,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_192",
+        "operationId": "domain.automation.dag.settings_194",
         "tags": [
           "Dag"
         ],
@@ -35096,7 +35228,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_193",
+        "operationId": "domain.automation.dag.settings_195",
         "tags": [
           "Dag"
         ],
@@ -36503,7 +36635,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_207",
+        "operationId": "domain.automation.scenario.save_209",
         "tags": [
           "Scenario"
         ],
@@ -36619,7 +36751,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_208",
+        "operationId": "domain.automation.scenario.save_210",
         "tags": [
           "Scenario"
         ],
@@ -37164,7 +37296,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_198",
+        "operationId": "domain.automation.dag.timeline_200",
         "tags": [
           "Dag"
         ],
@@ -37235,7 +37367,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_199",
+        "operationId": "domain.automation.dag.timeline_201",
         "tags": [
           "Dag"
         ],
