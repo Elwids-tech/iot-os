@@ -5,6 +5,7 @@ import { Toaster } from "@iot-os/ui/components/sonner"
 import { Navigate, Route, RouterProvider, Routes, createBrowserRouter } from "react-router-dom"
 import { AcceptInvitationPage } from "./auth/AcceptInvitationPage"
 import { AccessDeniedPage } from "./auth/AccessDeniedPage"
+import { ImpersonatingPage } from "./auth/ImpersonatingPage"
 import { LoginPage } from "./auth/LoginPage"
 import { AdminLayout } from "./layout/AdminLayout"
 import { homePath } from "./lib/access"
@@ -69,6 +70,11 @@ function PlatformAdministrationApp() {
   const [screen, setScreen] = useState<ScreenState>({ status: "loading" })
 
   function showAuthenticatedUser(user: AuthenticatedUser) {
+    // Impersonating: the person's own two-step setup is not for the super administrator.
+    if (user.impersonation) {
+      setScreen({ status: "signed-in", user })
+      return
+    }
     // Required two-step that is not set up (spec 034): setup opens in the portal at once.
     if (user.two_step_setup_required) {
       window.location.assign(twoStepSetupUrl(window.location.href))
@@ -125,6 +131,11 @@ function PlatformAdministrationApp() {
 
   if (screen.status === "signed-out") {
     return <LoginPage onAuthenticated={showAuthenticatedUser} />
+  }
+
+  // The session the apps share is acting as someone else: offer to leave first.
+  if (screen.user.impersonation) {
+    return <ImpersonatingPage user={screen.user} />
   }
 
   const home = homePath(screen.user)

@@ -41,6 +41,8 @@ final class ActivityCatalogue
         'user.super_admin_revoked' => ['removed super administrator access from', 'user'],
         'user.platform_administrator_granted' => ['made platform administrator', 'user'],
         'user.platform_administrator_revoked' => ['removed platform administrator access from', 'user'],
+        'user.impersonation_started' => ['started impersonating', 'user'],
+        'user.impersonation_ended' => ['stopped impersonating', 'user'],
         // A person's own sign-in security (spec 034): no organization
         'person.two_step_enabled' => ['turned on two-step sign-in', null],
         'person.two_step_disabled' => ['turned off two-step sign-in', null],

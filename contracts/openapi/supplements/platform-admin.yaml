@@ -51,6 +51,23 @@ operations:
     responses:
       '403':
         $ref: '#/components/responses/Forbidden'
+  POST /v1/admin/users/{user}/impersonation:
+    summary: Impersonate a person
+    description: >-
+      A super administrator becomes the person in this browser's session, which the admin
+      app and the portal share, and records `user.impersonation_started`. `return_url` is
+      the admin page to come back to on leaving; an address outside the platform's own
+      apps is ignored. The person's two-step sign-in is not asked for. While impersonating,
+      `GET /v1/me` carries `impersonation`; the person's two-step, passkeys, password
+      confirmation and agent consent answer `403` `impersonating`; and audit events
+      recorded as the person carry `impersonated_by`. `403` unless a super administrator
+      asks; `422` for themselves, another super administrator, or while already
+      impersonating.
+    responses:
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
   POST /v1/admin/super-administrators/invitations:
     responses:
       '403':

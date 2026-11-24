@@ -262,6 +262,34 @@ required everywhere if any one of them requires it.
   available, they are sent to set up an authenticator app instead. The setup screen
   offers **Add a passkey instead** where passkeys can be used.
 
+### Impersonation
+
+A super administrator can sign in as someone else to see the portal as they do.
+
+- **Starting.** Admin → **Users** → a person's row menu → **Impersonate**, then confirm.
+  `POST /api/v1/admin/users/{user}/impersonation` with `return_url` (the admin page it
+  started from) makes the person the session's user, and the admin app opens the
+  portal. Only super administrators can start it (`403` otherwise). Themselves, another
+  super administrator, or a second impersonation answer `422`.
+- **One shared session.** The admin app and the portal share the API session, so
+  impersonation lives in it (`Impersonation`, session key `impersonation`), and nothing
+  else stores it. While impersonating, the admin app shows only **Leave impersonation**
+  and **Open portal**.
+- **Leaving.** The portal shows a banner on every page, and the sidebar's user menu
+  has **Leave impersonation**. `DELETE /api/v1/auth/impersonation` signs the super
+  administrator back in and answers `return_url`, which the app opens. A return address
+  outside the platform's own apps (`app.admin_url` and Sanctum's stateful hosts) falls
+  back to the admin home. A super administrator who lost the role meanwhile is signed
+  out instead.
+- **The person's security stays theirs.** Their two-step setup is not required, and a
+  password the super administrator confirmed earlier does not carry over. Two-step,
+  passkeys, password confirmation and agent consent answer `403 impersonating`
+  (`RestrictImpersonation`). The browser does not sync push subscriptions for them.
+- **Audit.** `user.impersonation_started` and `user.impersonation_ended` are recorded
+  against the super administrator. Events recorded as the person meanwhile carry
+  `impersonated_by` with the super administrator's id.
+- `GET /api/v1/me` carries `impersonation` (`impersonator` and `started_at`), or null.
+
 ### Signing up
 
 A person can sign up for their own organization when platform staff open sign-up

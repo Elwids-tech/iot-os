@@ -109,6 +109,7 @@ import {
   LayoutGridIcon,
   LifeBuoyIcon,
   LogOutIcon,
+  VenetianMaskIcon,
   RouterIcon,
   ScanSearchIcon,
   ShieldIcon,
@@ -123,6 +124,7 @@ import { useSupportUnread } from "./support/model"
 import { UnsavedProvider, useDirtyContext } from "./lib/unsaved"
 import { PanelProvider, usePanel } from "./panel/context"
 import { TextField, RequestError, Confirm } from "./components/forms"
+import { ImpersonationBanner } from "./components/ImpersonationBanner"
 import { KeepSignedIn, credentials } from "./components/KeepSignedIn"
 import { ProfileDirectory } from "./profiles/ProfileDirectory"
 import { RuntimeStatusBanner, RuntimeStatusProvider } from "./components/RuntimeStatus"
@@ -406,7 +408,8 @@ function Session() {
     return <Navigate to={`${SETUP_PATH}?${new URLSearchParams({ return: location.pathname + location.search + location.hash })}`} replace />
   return (
     <>
-      <PushSync user={user.id} elsewhere={user.push_devices_elsewhere} />
+      {/* This browser is the super administrator's: it never takes the person's pushes. */}
+      {!user.impersonation && <PushSync user={user.id} elsewhere={user.push_devices_elsewhere} />}
       <Routes>
         {/* An AI agent asking to connect: a standalone page, outside the workspace shell. */}
         <Route path="connect" element={<Suspense fallback={<PageFallback />}><ConnectPage /></Suspense>} />
@@ -757,6 +760,7 @@ function PortalSidebar({
   helpOpen,
   onHelp,
   onSignOut,
+  onLeaveImpersonation,
   onSearch,
 }: {
   onSearch: () => void
@@ -768,6 +772,7 @@ function PortalSidebar({
   helpOpen: boolean
   onHelp: () => void
   onSignOut: () => void
+  onLeaveImpersonation: () => void
 }) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
@@ -1026,6 +1031,12 @@ function PortalSidebar({
                     Install app
                   </DropdownMenuItem>
                 )}
+                {user.impersonation && (
+                  <DropdownMenuItem onSelect={onLeaveImpersonation}>
+                    <VenetianMaskIcon />
+                    Leave impersonation
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={onSignOut}>
                   <LogOutIcon />
                   Sign out
@@ -1080,6 +1091,21 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
     }
     await signedOut()
   }
+  // Leaving impersonation returns to the admin page it started from (a full page load,
+  // so nothing of the person's stays in memory).
+  const [leaveConfirm, setLeaveConfirm] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  async function leaveImpersonation() {
+    setLeaving(true)
+    try {
+      window.location.assign(await api.leaveImpersonation())
+    } catch (error) {
+      setLeaving(false)
+      setLogoutError(error)
+      throw error
+    }
+  }
+  const requestLeave = () => (dirty ? setLeaveConfirm(true) : void leaveImpersonation().catch(() => {}))
   useEffect(() => {
     if (!org) return
     api.setSelectedOrganizationUuid(org.uuid)
@@ -1189,6 +1215,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
           onSignOut={() =>
             dirty ? setLogoutConfirm(true) : void logout().catch(() => {})
           }
+          onLeaveImpersonation={requestLeave}
         />
         <SidebarInset
           className={cn(
@@ -1197,6 +1224,7 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
             panel.open && org && "xl:pr-[440px]",
           )}
         >
+          <ImpersonationBanner user={user} leaving={leaving} onLeave={requestLeave} />
           {logoutError ? (
             <div className="p-4 md:px-6">
               <RequestError error={logoutError} />
@@ -1250,6 +1278,14 @@ function PortalShellContent({ user }: { user: AuthenticatedUser }) {
           action="Sign out"
           onClose={() => setLogoutConfirm(false)}
           onConfirm={logout}
+        />
+        <Confirm
+          open={leaveConfirm}
+          title="Leave without saving?"
+          description="Unsaved form changes will be discarded."
+          action="Leave impersonation"
+          onClose={() => setLeaveConfirm(false)}
+          onConfirm={leaveImpersonation}
         />
       </SidebarProvider>
       </AlertBellProvider>

@@ -5,6 +5,7 @@ use App\Domain\Agents\Console\PruneAgents;
 use App\Domain\Authentication\Console\PruneKeptSignIns;
 use App\Domain\Authentication\Console\ResetTwoStepCommand;
 use App\Domain\Authentication\Http\Middleware\RequireTwoStep;
+use App\Domain\Authentication\Http\Middleware\RestrictImpersonation;
 use App\Domain\Authentication\Http\Middleware\ResumeKeptSignIn;
 use App\Domain\Automation\Console\AutomationWorker;
 use App\Domain\Automation\Console\PruneAlertNotifications;
@@ -54,6 +55,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Required two-step (spec 034, R7): once `auth:sanctum` has resolved the person.
         $middleware->appendToGroup('api', RequireTwoStep::class);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, RequireTwoStep::class);
+        // A super administrator acting as someone cannot change that person's sign-in security.
+        $middleware->appendToGroup('api', RestrictImpersonation::class);
         // A portal address admits only its account's people (spec 036, R8), on every request.
         $middleware->appendToGroup('api', EnsurePortalAccess::class);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, EnsurePortalAccess::class);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Audit\Services;
 
 use App\Domain\Audit\Models\Activity;
+use App\Domain\Authentication\Services\Impersonation;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Model;
  * - `$details` describe the action; list opaque fields that changed (layouts, graphs)
  *   under `changed`. `$changes` is {@see ActivityChanges}' shape. Secret-looking keys
  *   are dropped from both.
+ * - What a super administrator does while impersonating the actor carries
+ *   `impersonated_by`, the super administrator's id.
  */
 final class ActivityLog
 {
@@ -35,6 +38,10 @@ final class ActivityLog
         array $details = [],
         array $changes = [],
     ): ?Activity {
+        $impersonator = self::impersonator($actor);
+        if ($impersonator !== null) {
+            $details['impersonated_by'] = $impersonator;
+        }
         $logger = activity()->event($action)->withProperties(ActivityChanges::scrub($details));
 
         if ($actor instanceof User) {
@@ -62,6 +69,19 @@ final class ActivityLog
 
         /** @var Activity|null */
         return $logger->log($action);
+    }
+
+    /** The super administrator acting as the actor in this request's session, if any. */
+    private static function impersonator(User|int|null $actor): ?int
+    {
+        if ($actor === null || ! app()->bound('request')) {
+            return null;
+        }
+        $request = request();
+        $state = app(Impersonation::class)->current($request);
+        $actorId = $actor instanceof User ? (int) $actor->getKey() : $actor;
+
+        return $state !== null && $request->user()?->getKey() === $actorId ? $state['impersonator_id'] : null;
     }
 
     private static function uuid(Model $subject): ?string
