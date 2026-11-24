@@ -8,8 +8,10 @@ use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Services\AssistantAccess;
 use App\Domain\Assistant\Services\WorkflowProposalService;
 use App\Domain\Automation\Http\Controllers\DagController;
+use App\Domain\Connectivity\Services\ConnectivityState;
 use App\Domain\Geospatial\Http\GeofenceController;
 use App\Domain\Shared\Models\Organization;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Arr;
@@ -108,15 +110,65 @@ final class WorkflowAssistantTools implements Tool
         return $result;
     }
 
+    /** A binding's freshness when nothing about the device says more, as in the editor. */
+    private const DEFAULT_FRESH_SECONDS = 120;
+
+    private const MAX_FRESH_SECONDS = 86400;
+
+    /** A reading that arrives later than this is history being replayed, not the device's rhythm. */
+    private const MAX_DELIVERY_DELAY_SECONDS = 3600;
+
+    /**
+     * The editor's devices, with what the assistant needs to size a binding's freshness:
+     * the device's poll interval, its learned reporting interval and how late its last
+     * reading arrived, and for each parameter the freshness those add up to.
+     */
     private function devices(HttpRequest $request, Organization $organization): array
     {
         $result = app(DagController::class)->resources($request, $organization);
-        $result['data'] = $result['data']->map(function ($device) {
-            $device['parameters'] = collect($device['parameters'])->map(fn ($parameter) => Arr::only($parameter, ['uuid', 'key', 'label', 'kind', 'data_type', 'unit', 'accepts_command', 'reports_state', 'format', 'validation']))->all();
+        $reported = app(ConnectivityState::class)->reported($organization, $result['data']->pluck('device_uuid')->all());
+        $result['data'] = $result['data']->map(function ($device) use ($reported) {
+            $state = $reported[$device['device_uuid']] ?? [];
+            $device['reporting_interval_seconds'] = isset($state['reporting_interval_seconds']) ? (int) $state['reporting_interval_seconds'] : null;
+            $device['delivery_delay_seconds'] = $this->deliveryDelay($state);
+            // Freshness counts from the observed time, so a reading must outlive its own
+            // trip to the runtime and then last until the next one: two of each gap.
+            $rhythm = 2 * max((int) $device['poll_interval_seconds'], (int) $device['reporting_interval_seconds'], (int) $device['delivery_delay_seconds']);
+            $device['parameters'] = collect($device['parameters'])->map(function ($parameter) use ($rhythm) {
+                $staleAfter = (int) ($parameter['reporting']['stale_after_seconds'] ?? 0);
+
+                return [
+                    ...Arr::only($parameter, ['uuid', 'key', 'label', 'kind', 'data_type', 'unit', 'accepts_command', 'reports_state', 'format', 'validation']),
+                    'suggested_fresh_seconds' => min(self::MAX_FRESH_SECONDS, max(self::DEFAULT_FRESH_SECONDS, $staleAfter, $rhythm)),
+                    'fresh_seconds_basis' => match (true) {
+                        $rhythm > 0 => 'device',
+                        $staleAfter > 0 => 'profile',
+                        default => 'unknown',
+                    },
+                ];
+            })->all();
 
             return $device;
         })->all();
 
         return $result;
+    }
+
+    /**
+     * How long after it was observed the device's newest reading reached the runtime;
+     * null when that is unknown or longer than an hour (a kept or replayed reading).
+     */
+    private function deliveryDelay(array $state): ?int
+    {
+        if (! isset($state['last_heard_at'], $state['last_observed_at'])) {
+            return null;
+        }
+        try {
+            $delay = max(0, (int) CarbonImmutable::parse($state['last_observed_at'])->diffInSeconds(CarbonImmutable::parse($state['last_heard_at']), false));
+
+            return $delay > self::MAX_DELIVERY_DELAY_SECONDS ? null : $delay;
+        } catch (Throwable) {
+            return null;
+        }
     }
 }

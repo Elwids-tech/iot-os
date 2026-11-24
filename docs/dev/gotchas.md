@@ -599,8 +599,10 @@ Things that have cost time before. Add to this list when something surprises you
   five-minute poll, most readings were accepted and immediately `unknown: stale`, so a
   compare → alert chain never fired and the trace only said the source was stale. The
   editor now sizes freshness to at least two poll intervals (`poll_interval_seconds` on
-  `GET workflows/dag/resources`) and warns below that; the automation assistant still
-  defaults to 120 s.
+  `GET workflows/dag/resources`) and warns below that. The automation assistant's
+  device tools add `suggested_fresh_seconds`, which also counts the device's learned
+  reporting interval and how late its newest reading arrived, so a device that
+  batches its own uploads is covered too; the editor does not read those two yet.
 - **Time decoder budgets in CPU time, from the start of the tenant's code.** QuickJS
   calls its interrupt handler about every 10,000 operations, counted across all the
   evals in a runtime. The first eval in a fresh runtime is checked as it starts, but
