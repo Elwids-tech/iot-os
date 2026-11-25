@@ -377,6 +377,7 @@
   width: 8px;
   height: 8px;
   flex-shrink: 0;
+  border-radius: var(--radius-sm);
   background: var(--outcome);
 }
 .workflow-canvas .workflow-edge-active .react-flow__edge-path {

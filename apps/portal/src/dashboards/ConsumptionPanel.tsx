@@ -10,6 +10,7 @@ import {
   type ChartEvents,
   type ChartOption,
 } from "@iot-os/charts"
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Button } from "@iot-os/ui/components/button"
 import {
   Empty,
@@ -264,7 +265,7 @@ export default function ConsumptionPanel({ org, widget, view, window, onZoom, pr
             sources.map((source, index) => (
               <li key={sourceKey(source)} className="grid min-h-6 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span aria-hidden className="size-2 shrink-0" style={{ background: colors[index] }} />
+                  <ColorMark color={colors[index]} />
                   <span className="truncate" title={name(index)}>{name(index)}</span>
                 </span>
                 <span className="text-right font-mono tabular-nums">

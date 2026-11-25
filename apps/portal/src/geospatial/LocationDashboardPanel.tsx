@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useId, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type { TrailWindow } from "@iot-os/api-client"
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Switch } from "@iot-os/ui/components/switch"
 import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/segmented-control"
 import { Field, FieldLabel } from "@iot-os/ui/components/field"
@@ -78,7 +79,7 @@ export function LocationDashboardPanel({ org, widget, view }: PanelProps) {
           <dt>Membership</dt><dd>{current.condition}</dd>
           <dt>Deployment</dt><dd>{current.deployment_status ?? "Watch only"}</dd>
           <dt>Alert</dt><dd>{current.active_alert ? "Active" : "None"}</dd>
-          <dt>Trail colour</dt><dd><span className="inline-block size-3 rounded-full" style={{ backgroundColor: trailColors[Math.max(0, currentIndex) % trailColors.length] }} /> <span className="sr-only">{trailColors[Math.max(0, currentIndex) % trailColors.length]}</span></dd>
+          <dt>Trail colour</dt><dd><ColorMark className="align-middle" color={trailColors[Math.max(0, currentIndex) % trailColors.length]} /> <span className="sr-only">{trailColors[Math.max(0, currentIndex) % trailColors.length]}</span></dd>
           <dt>Trail</dt><dd>{!showTrails ? "Off" : trailWindow}</dd>
           <dt>Samples</dt><dd>{current.trail.segments.reduce((total, segment) => total + segment.length, 0)}{current.trail.sampled ? "+" : ""}</dd></dl>
         <p className="text-xs text-muted-foreground">{current.latest?.reason.replaceAll("_", " ") ?? "No committed location"}</p>

@@ -88,6 +88,7 @@ final class AlertLimitsTest extends TestCase
 
     public function test_an_applied_automation_gives_its_limit_with_every_field(): void
     {
+        $this->freezeSecond(); // the answer is read twice; both must carry the same checked_at
         $workflow = $this->applied('Pump safety', $this->graph());
 
         $this->getJson($this->url([$this->pump->uuid]))->assertOk()->assertJsonCount(1, 'data')->assertJsonStructure(['meta' => ['checked_at']])
