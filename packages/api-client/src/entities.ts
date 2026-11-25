@@ -131,3 +131,29 @@ export type PlacedDevice = {
   lifecycle: string
   entity: { uuid: string; name: string; path: string }
 }
+
+/** A parameter as it appears at an entity (spec 009). */
+export type EntityPoint = {
+  leaf_name: string
+  path: string
+  /** The path below the entity asked about. */
+  relative_path: string
+  device: { uuid: string; name: string }
+  parameter: { uuid: string; key: string; label: string; unit: string | null }
+  via: "placement" | "parameter_placement"
+  /** `name_clash`: Not placed: name clash. `not_in_configuration`: the device's configuration no longer has it. */
+  state: "placed" | "name_clash" | "not_in_configuration"
+  /** Null when unknown: never shown as zero. */
+  latest: { value: string | number | boolean; quality: string | null; observed_at: string | null; received_at: string | null } | null
+}
+
+export type ParameterPlacement = {
+  uuid: string
+  parameter_uuid: string
+  parameter_key: string
+  leaf_name: string
+  path: string
+  entity: { uuid: string; name: string; path: string }
+  started_at: string | null
+  ended_at: string | null
+}

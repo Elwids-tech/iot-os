@@ -167,6 +167,8 @@ export type Device = {
   site?: { uuid: string; name: string; timezone: string } | null
   /** Where the device is in the hierarchy, or where it was last when archived (spec 009). */
   entity?: { uuid: string; name: string; path: string } | null
+  /** Detail only: parameters placed apart from the device, with their paths (spec 009). */
+  parameter_placements?: { parameter_uuid: string; key: string; leaf_name: string; path: string }[]
   tags?: string[]
   attributes?: Record<string, DeviceAttributeValue>
   /** The open connectivity alert listing this device: its own, or its gateway's (spec 018). Presence reads offline while it is open. */

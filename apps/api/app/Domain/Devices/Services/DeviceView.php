@@ -15,6 +15,7 @@ use App\Domain\Devices\Models\DeviceConfiguration;
 use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\DiscoveryCandidate;
 use App\Domain\Devices\Models\SparkplugGateway;
+use App\Domain\Entities\Models\ParameterPlacement;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 
@@ -105,6 +106,12 @@ final class DeviceView
         $data['profile'] = self::profile($device);
         $data['site'] = self::site($device);
         $data['entity'] = self::entity($device);
+        if ($detail) {
+            // Parameters placed apart from the device, each with its path (spec 009 US2 AS5).
+            $data['parameter_placements'] = ParameterPlacement::query()->with('entity')->where('device_id', $device->id)->whereNull('ended_at')->get()
+                ->map(fn (ParameterPlacement $placement) => ['parameter_uuid' => $placement->parameter_uuid, 'key' => $placement->parameter_key,
+                    'leaf_name' => $placement->leaf_name, 'path' => $placement->entity->path.'/'.$placement->leaf_name])->values()->all();
+        }
         $data['tags'] = $device->tags ?? [];
         $data['attributes'] = (object) ($device->custom_attributes ?? []);
         if ($detail) {

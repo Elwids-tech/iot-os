@@ -2414,8 +2414,21 @@ export class ApiClient {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}`, { method: "DELETE" })
   }
   /** Places the device at the entity, ending where it was. */
-  placeDevice(org: string, device: string, entityUuid: string) {
-    return this.data<import("./entities").EntityPlacement>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, "PUT", { entity_uuid: entityUuid })
+  /** `leafNames` renames parameters at that place: parameter UUID => leaf name. */
+  placeDevice(org: string, device: string, entityUuid: string, leafNames: Record<string, string> = {}) {
+    return this.data<import("./entities").EntityPlacement>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, "PUT", { entity_uuid: entityUuid, leaf_names: leafNames })
+  }
+  /** Places one parameter apart from its device, under a leaf name (default: its key). */
+  placeParameter(org: string, device: string, parameter: string, entityUuid: string, leafName?: string) {
+    return this.data<import("./entities").ParameterPlacement>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/parameters/${encodeURIComponent(parameter)}/placement`, "PUT", { entity_uuid: entityUuid, ...(leafName ? { leaf_name: leafName } : {}) })
+  }
+  unplaceParameter(org: string, device: string, parameter: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/parameters/${encodeURIComponent(parameter)}/placement`, { method: "DELETE" })
+  }
+  /** Points at the entity, or in its branch, 50 a page, with latest values. */
+  entityPoints(org: string, entity: string, options: { branch?: boolean; page?: number } = {}) {
+    const query = new URLSearchParams({ page: String(options.page ?? 1), branch: options.branch ? "1" : "0" })
+    return this.request<{ data: import("./entities").EntityPoint[]; meta: { current_page: number; last_page: number; per_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/points?${query}`)
   }
   unplaceDevice(org: string, device: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, { method: "DELETE" })

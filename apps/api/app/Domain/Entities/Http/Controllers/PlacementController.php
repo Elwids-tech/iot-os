@@ -31,10 +31,10 @@ final class PlacementController
     public function update(Request $request, Organization $organization, Device $device): PlacementResource
     {
         $this->authorize($request, $organization, $device);
-        $values = $request->validate(['entity_uuid' => ['required', 'uuid']]);
+        $values = $request->validate(['entity_uuid' => ['required', 'uuid'], 'leaf_names' => ['sometimes', 'array', 'max:500'], 'leaf_names.*' => ['string', 'max:64']]);
         $entity = Entity::query()->where('organization_id', $organization->id)->where('uuid', $values['entity_uuid'])->first()
             ?? throw ValidationException::withMessages(['entity_uuid' => 'Choose a place in this organization.']);
-        $placement = $this->placements->place($device, $entity, $request->user());
+        $placement = $this->placements->place($device, $entity, $request->user(), $values['leaf_names'] ?? []);
         // PUT sets where the device is: 200 whether or not a placement row was created.
         $placement->wasRecentlyCreated = false;
 

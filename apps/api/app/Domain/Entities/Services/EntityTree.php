@@ -11,6 +11,7 @@ use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityChange;
 use App\Domain\Entities\Models\EntityPlacement;
 use App\Domain\Entities\Models\EntityType;
+use App\Domain\Entities\Models\ParameterPlacement;
 use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -220,7 +221,8 @@ final class EntityTree
             if ($entity->children()->whereNull('archived_at')->exists()) {
                 throw HierarchyRuleBroken::rule('has_children', 'entity', 'Move or archive the entities under this one first.');
             }
-            if (EntityPlacement::query()->where('entity_id', $entity->id)->whereNull('ended_at')->exists()) {
+            if (EntityPlacement::query()->where('entity_id', $entity->id)->whereNull('ended_at')->exists()
+                || ParameterPlacement::query()->where('entity_id', $entity->id)->whereNull('ended_at')->exists()) {
                 throw HierarchyRuleBroken::rule('has_devices', 'entity', 'Move or unplace the devices here first.');
             }
             $entity->forceFill(['archived_at' => now(), 'archived_by' => $actor->id, 'updated_by' => $actor->id])->save();
@@ -273,7 +275,8 @@ final class EntityTree
             $entity = $this->fresh($entity);
             $heldChildren = Entity::query()->where('parent_id', $entity->id)->exists()
                 || EntityChange::query()->where('new_parent_id', $entity->id)->orWhere('old_parent_id', $entity->id)->exists()
-                || EntityPlacement::query()->where('entity_id', $entity->id)->exists();
+                || EntityPlacement::query()->where('entity_id', $entity->id)->exists()
+                || ParameterPlacement::query()->where('entity_id', $entity->id)->exists();
             if ($heldChildren) {
                 throw HierarchyRuleBroken::rule('has_history', 'entity', 'This entity has held entities or devices, so its history matters: archive it instead.');
             }
@@ -391,6 +394,15 @@ final class EntityTree
             ->value('name');
         if ($taken !== null) {
             throw HierarchyRuleBroken::rule('sibling_clash', $field, "{$taken} already uses the path name {$pathName} here.");
+        }
+        // A point at the parent holds its name too (FR-011).
+        $parent = $parentId ? Entity::query()->find($parentId) : null;
+        if ($parent) {
+            foreach (app(EntityPoints::class)->at([$parent->id]) as $point) {
+                if ($point['state'] === 'placed' && strtolower($point['name']) === strtolower($pathName)) {
+                    throw HierarchyRuleBroken::rule('leaf_clash', $field, "A point of {$point['device']->name} already uses the name {$pathName} here.");
+                }
+            }
         }
     }
 

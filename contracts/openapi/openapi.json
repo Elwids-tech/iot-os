@@ -29273,6 +29273,178 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/devices/{device}/parameters/{parameter}/placement": {
+      "put": {
+        "operationId": "point.update",
+        "summary": "Places one parameter at an entity under a leaf name (default: its key)",
+        "tags": [
+          "Point"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device",
+            "in": "path",
+            "required": true,
+            "description": "The device UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "parameter",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entity_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "leaf_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "entity_uuid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`ParameterPlacementResource`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ParameterPlacementResource"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      },
+      "delete": {
+        "operationId": "point.destroy",
+        "summary": "Returns the parameter to its device's placement",
+        "tags": [
+          "Point"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device",
+            "in": "path",
+            "required": true,
+            "description": "The device UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "parameter",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/devices/{device}/placement": {
       "put": {
         "operationId": "placement.update",
@@ -29312,6 +29484,14 @@
                   "entity_uuid": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "leaf_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "maxItems": 500
                   }
                 },
                 "required": [
@@ -31253,6 +31433,234 @@
                   },
                   "required": [
                     "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/entities/{entity}/points": {
+      "get": {
+        "operationId": "point.index",
+        "summary": "The points at the entity, or in its branch with `branch=1`, by path, 50 a page, with\ntheir latest values (null when unknown, never zero)",
+        "tags": [
+          "Point"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "description": "The entity UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "description": "1 to include every entity below.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "leaf_name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "relative_path": {
+                            "type": "string"
+                          },
+                          "device": {
+                            "type": "object",
+                            "properties": {
+                              "uuid": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uuid",
+                              "name"
+                            ]
+                          },
+                          "parameter": {
+                            "type": "object",
+                            "properties": {
+                              "uuid": {
+                                "type": "string"
+                              },
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "uuid",
+                              "key",
+                              "label",
+                              "unit"
+                            ]
+                          },
+                          "via": {
+                            "type": "string",
+                            "enum": [
+                              "placement",
+                              "parameter_placement"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "placed",
+                              "name_clash",
+                              "not_in_configuration"
+                            ]
+                          },
+                          "latest": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "value": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              },
+                              "quality": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "observed_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "received_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "quality",
+                              "observed_at",
+                              "received_at"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "leaf_name",
+                          "path",
+                          "relative_path",
+                          "device",
+                          "parameter",
+                          "via",
+                          "state",
+                          "latest"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "current_page": {
+                          "type": "integer"
+                        },
+                        "last_page": {
+                          "type": "integer"
+                        },
+                        "per_page": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "current_page",
+                        "last_page",
+                        "per_page",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
                   ]
                 }
               }
@@ -48396,6 +48804,68 @@
           "slug"
         ],
         "title": "OwnerOrganizationResource"
+      },
+      "ParameterPlacementResource": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "parameter_uuid": {
+            "type": "string"
+          },
+          "parameter_key": {
+            "type": "string"
+          },
+          "leaf_name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "entity": {
+            "type": "object",
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "uuid",
+              "name",
+              "path"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uuid",
+          "parameter_uuid",
+          "parameter_key",
+          "leaf_name",
+          "path",
+          "entity",
+          "started_at",
+          "ended_at"
+        ],
+        "title": "ParameterPlacementResource"
       },
       "Passkey": {
         "type": "object",
