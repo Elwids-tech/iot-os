@@ -61,6 +61,23 @@ func TestDAGDurableRecoveryAtomicityAndFencing(t *testing.T) {
 	if len(entries) != 1 || entries[0].Outcome != "waiting" {
 		t.Fatalf("missing initial evidence: %+v", entries)
 	}
+	series, err := s.DAGSeries(ctx, org, workflow, at)
+	must(err)
+	var nodes []struct {
+		Node   string `json:"node_id"`
+		Status string `json:"status"`
+		Known  bool   `json:"known"`
+		Value  any    `json:"value"`
+	}
+	if len(series) != 1 || series[0].ID != entries[0].ID || json.Unmarshal(series[0].Nodes, &nodes) != nil || len(nodes) == 0 || nodes[0].Node != "source" || !nodes[0].Known || nodes[0].Value != float64(40) {
+		t.Fatalf("series: %+v %+v", series, nodes)
+	}
+	if later, err := s.DAGSeries(ctx, org, workflow, at.Add(time.Hour)); err != nil || len(later) != 0 {
+		t.Fatalf("series window: %+v %v", later, err)
+	}
+	if foreign, err := s.DAGSeries(ctx, UUID(), workflow, at); err != nil || len(foreign) != 0 {
+		t.Fatalf("series leaked across organizations: %+v %v", foreign, err)
+	}
 	initialID := entries[0].ID
 	// Close and reopen the store while evidence is pending.
 	s.Pool.Close()

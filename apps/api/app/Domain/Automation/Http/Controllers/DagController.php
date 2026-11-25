@@ -223,6 +223,15 @@ final class DagController
         return app(DagTimeline::class)->read($organization, $workflow, isset($input['before']) ? (string) $input['before'] : null, $evaluation);
     }
 
+    public function series(Request $r, Organization $organization, Workflow $workflow): array
+    {
+        $this->auth->authorize($r->user(), $organization, 'view', $workflow);
+        abort_unless(($workflow->workflow['schema_version'] ?? '') === 'automation-workflow.v2', 422, 'Execution history requires a v2 workflow.');
+        $input = $r->validate(['hours' => 'sometimes|integer|min:1|max:168']);
+
+        return app(DagTimeline::class)->series($organization, $workflow, (int) ($input['hours'] ?? 6));
+    }
+
     public function settings(Request $r, Organization $organization): array
     {
         $this->auth->authorize($r->user(), $organization, $r->isMethod('PUT') ? 'activate' : 'view');

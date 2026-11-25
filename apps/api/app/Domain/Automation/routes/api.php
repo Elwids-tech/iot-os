@@ -23,6 +23,7 @@ Route::prefix('v1/organizations/{organization}/workflows')->whereUuid(['organiza
     Route::post('{workflow}/archive', [DagController::class, 'archive']);
     Route::post('{workflow}/restore', [DagController::class, 'unarchive']);
     Route::get('{workflow}/actions', [DagController::class, 'history']);
+    Route::get('{workflow}/series', [DagController::class, 'series']);
     Route::get('{workflow}/timeline', [DagController::class, 'timeline']);
     Route::get('{workflow}/timeline/{evaluation}', [DagController::class, 'timeline']);
     Route::get('node-types', [WorkflowController::class, 'nodeTypes']);

@@ -86,6 +86,59 @@ final class DagTimeline
         return $result;
     }
 
+    /**
+     * The last hours of evaluations as compact points, with the deployed steps they
+     * refer to, for the execution history band. Points of a deployment that is not
+     * this workflow's are dropped.
+     *
+     * @return array{from: string, to: string, data: list<array<string, mixed>>, nodes: list<array<string, mixed>>}
+     */
+    public function series(Organization $organization, Workflow $workflow, int $hours): array
+    {
+        $result = app(RuntimeClient::class)->request('GET', '/internal/dag/series', [
+            'organization_uuid' => $organization->uuid, 'workflow_uuid' => $workflow->uuid, 'hours' => $hours,
+        ]);
+        $deployments = Deployment::where('automation_workflow_id', $workflow->id)
+            ->whereIn('uuid', collect($result['data'])->pluck('operation_uuid')->push($workflow->applied_deployment_uuid)->filter()->unique())->get()->keyBy('uuid');
+        $points = [];
+        foreach ($result['data'] as $point) {
+            $deployment = $deployments->get($point['operation_uuid']);
+            if ($deployment) {
+                $points[] = [...$point, 'generation' => $deployment->generation];
+            }
+        }
+        // Steps are described as deployed: the newest point's version, or the applied one.
+        $deployment = $deployments->get($points ? end($points)['operation_uuid'] : $workflow->applied_deployment_uuid);
+        $nodes = [];
+        if ($deployment) {
+            $bindings = collect($deployment->definition['bindings'])->keyBy('role');
+            $devices = Device::where('organization_id', $organization->id)->whereIn('uuid', $bindings->pluck('device_uuid'))->pluck('name', 'uuid');
+            $labels = [];
+            foreach (DeviceConfiguration::whereIn('uuid', $bindings->pluck('configuration_uuid'))->whereHas('device', fn ($query) => $query->where('organization_id', $organization->id))->get() as $configuration) {
+                $profile = json_decode($configuration->definition['profile_canonical_json'] ?? '{}', true);
+                foreach ($profile['parameters'] ?? [] as $parameter) {
+                    $labels[$parameter['uuid']] = $parameter['label'] ?? $parameter['key'];
+                }
+            }
+            foreach ($deployment->definition['nodes'] as $node) {
+                $binding = $bindings->get($node['config']['binding'] ?? '');
+                $nodes[] = array_filter([
+                    'id' => $node['id'], 'type' => $node['type'],
+                    // Only what the tab draws: a duration's length and an alert's title.
+                    'seconds' => $node['type'] === 'sustained.v1' ? (int) ($node['config']['seconds'] ?? 0) : null,
+                    'title' => $node['type'] === 'action.alert.v1' ? (string) ($node['config']['title'] ?? '') : null,
+                    'binding' => $binding ? [
+                        'role' => $binding['role'], 'device_uuid' => $binding['device_uuid'], 'device_name' => $devices->get($binding['device_uuid']),
+                        'parameter_label' => $labels[$binding['parameter_uuid']] ?? $binding['role'], 'unit' => $binding['unit'] ?? '',
+                        'data_type' => $binding['data_type'], 'fresh_seconds' => $binding['fresh_seconds'] ?? null,
+                    ] : null,
+                ], fn ($value) => $value !== null);
+            }
+        }
+
+        return ['from' => $result['from'], 'to' => $result['to'], 'data' => $points, 'nodes' => $nodes];
+    }
+
     private function time(?string $value): ?string
     {
         return $value ? Carbon::parse($value)->toIso8601String() : null;

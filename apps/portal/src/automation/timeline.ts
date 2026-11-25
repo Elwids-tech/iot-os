@@ -17,7 +17,7 @@ export type Evaluation = {
   source?: { device_uuid: string; device_name?: string; event_id: string; configuration_uuid: string; generation: number } | null;
   intent_ids: string[]; trace?: TimelineStep[]; actions?: TimelineAction[];
 }
-export const outcomeLabels: Record<string, string> = { evaluated: "No action requested", triggered: "Action requested", waiting: "Waiting for evidence", suspended: "Execution suspended" }
+export const outcomeLabels: Record<string, string> = { evaluated: "No action requested", triggered: "Action requested", waiting: "Not decided yet", suspended: "Execution suspended" }
 export const stepLabels: Record<string, string> = { evaluated: "Evaluated", triggered: "Action requested", waiting: "Waiting", matched: "True", not_matched: "False", suppressed: "Suppressed", active: "Already active" }
 
 export function evidenceText(value: EvidenceValue): string {
