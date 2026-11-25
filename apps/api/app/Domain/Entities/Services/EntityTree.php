@@ -6,6 +6,7 @@ namespace App\Domain\Entities\Services;
 
 use App\Domain\Audit\Services\ActivityChanges;
 use App\Domain\Audit\Services\ActivityLog;
+use App\Domain\Entities\Exceptions\HierarchyRuleBroken;
 use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityChange;
 use App\Domain\Entities\Models\EntityPlacement;
@@ -14,7 +15,6 @@ use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * The organization's tree (spec 009, FR-001 to FR-004, research R2 and R3).
@@ -53,7 +53,7 @@ final class EntityTree
             $count = Entity::query()->where('organization_id', $organization->id)->count();
             $ceiling = (int) config('entities.max_per_organization');
             if ($count >= $ceiling) {
-                throw ValidationException::withMessages(['name' => 'This organization has reached its limit of '.number_format($ceiling).' entities.']);
+                throw HierarchyRuleBroken::rule('ceiling', 'name', 'This organization has reached its limit of '.number_format($ceiling).' entities.');
             }
             $this->checkPlacement($type, $parent, 'type_key');
             $depth = $parent ? $parent->depth + 1 : 0;
@@ -91,7 +91,7 @@ final class EntityTree
             self::lock($organization);
             $entity = $this->fresh($entity);
             if ($entity->isArchived()) {
-                throw ValidationException::withMessages(['name' => 'Restore this entity before changing it.']);
+                throw HierarchyRuleBroken::rule('archived', 'name', 'Restore this entity before changing it.');
             }
             $before = [...$entity->only(self::DESCRIBED), 'type' => $entity->type->key, 'attributes' => $entity->custom_attributes ?? []];
             $type = array_key_exists('type_key', $values) ? $this->type($organization, (string) $values['type_key']) : $entity->type;
@@ -172,16 +172,16 @@ final class EntityTree
             $entity = $this->fresh($entity);
             $parent = $parent ? $this->fresh($parent) : null;
             if ($entity->isArchived()) {
-                throw ValidationException::withMessages(['parent_uuid' => 'Restore this entity before moving it.']);
+                throw HierarchyRuleBroken::rule('archived', 'parent_uuid', 'Restore this entity before moving it.');
             }
             if ($parent?->isArchived()) {
-                throw ValidationException::withMessages(['parent_uuid' => 'The new parent is archived.']);
+                throw HierarchyRuleBroken::rule('archived', 'parent_uuid', 'The new parent is archived.');
             }
             if ($parent?->id === $entity->parent_id) {
                 return $entity;
             }
             if ($parent && DB::table('entity_closure')->where('ancestor_id', $entity->id)->where('descendant_id', $parent->id)->exists()) {
-                throw ValidationException::withMessages(['parent_uuid' => 'An entity cannot move under itself or one of its descendants.']);
+                throw HierarchyRuleBroken::rule('cycle', 'parent_uuid', 'An entity cannot move under itself or one of its descendants.');
             }
             $this->checkPlacement($entity->type, $parent, 'parent_uuid');
             $depth = $parent ? $parent->depth + 1 : 0;
@@ -218,10 +218,10 @@ final class EntityTree
                 return $entity;
             }
             if ($entity->children()->whereNull('archived_at')->exists()) {
-                throw ValidationException::withMessages(['entity' => 'Move or archive the entities under this one first.']);
+                throw HierarchyRuleBroken::rule('has_children', 'entity', 'Move or archive the entities under this one first.');
             }
             if (EntityPlacement::query()->where('entity_id', $entity->id)->whereNull('ended_at')->exists()) {
-                throw ValidationException::withMessages(['entity' => 'Move or unplace the devices here first.']);
+                throw HierarchyRuleBroken::rule('has_devices', 'entity', 'Move or unplace the devices here first.');
             }
             $entity->forceFill(['archived_at' => now(), 'archived_by' => $actor->id, 'updated_by' => $actor->id])->save();
             $this->change($entity, EntityChange::ARCHIVED, $actor, []);
@@ -243,7 +243,7 @@ final class EntityTree
                 return $entity;
             }
             if ($entity->parent?->isArchived()) {
-                throw ValidationException::withMessages(['path_name' => 'Restore '.$entity->parent->name.' first.']);
+                throw HierarchyRuleBroken::rule('archived', 'path_name', 'Restore '.$entity->parent->name.' first.');
             }
             $newPathName = $pathName !== null && $pathName !== '' ? $this->pathName($pathName, $entity->name, $entity->type) : $entity->path_name;
             $this->checkSibling($organization, $entity->parent_id, $newPathName, $entity->id, 'path_name');
@@ -275,7 +275,7 @@ final class EntityTree
                 || EntityChange::query()->where('new_parent_id', $entity->id)->orWhere('old_parent_id', $entity->id)->exists()
                 || EntityPlacement::query()->where('entity_id', $entity->id)->exists();
             if ($heldChildren) {
-                throw ValidationException::withMessages(['entity' => 'This entity has held entities or devices, so its history matters: archive it instead.']);
+                throw HierarchyRuleBroken::rule('has_history', 'entity', 'This entity has held entities or devices, so its history matters: archive it instead.');
             }
             ActivityLog::record('entity.deleted', $organization, $actor, $entity, ['path' => $entity->path]);
             $entity->delete();
@@ -325,14 +325,14 @@ final class EntityTree
     private function type(Organization $organization, string $key): EntityType
     {
         return EntityType::query()->where('organization_id', $organization->id)->where('key', $key)->first()
-            ?? throw ValidationException::withMessages(['type_key' => 'Choose one of this organization\'s entity types.']);
+            ?? throw HierarchyRuleBroken::rule('not_found', 'type_key', 'Choose one of this organization\'s entity types.');
     }
 
     private function activeEntity(Organization $organization, string $uuid, string $field): Entity
     {
         $entity = Entity::query()->where('organization_id', $organization->id)->where('uuid', $uuid)->first();
         if (! $entity || $entity->isArchived()) {
-            throw ValidationException::withMessages([$field => 'Choose an active entity of this organization.']);
+            throw HierarchyRuleBroken::rule('not_found', $field, 'Choose an active entity of this organization.');
         }
 
         return $entity;
@@ -354,7 +354,7 @@ final class EntityTree
         }
         $where = $parent ? 'under '.$parent->type->name : 'at the top level';
         $options = $allowed === [] ? 'It has no allowed place yet; change its rules first.' : 'Allowed: '.implode(', ', $allowed).'.';
-        throw ValidationException::withMessages([$field => "{$type->name} cannot sit {$where}. {$options}"]);
+        throw HierarchyRuleBroken::rule('parent_type', $field, "{$type->name} cannot sit {$where}. {$options}");
     }
 
     private function checkRetype(Entity $entity, EntityType $type): void
@@ -363,14 +363,14 @@ final class EntityTree
         $children = Entity::query()->with('type')->where('parent_id', $entity->id)->whereNull('archived_at')->get();
         foreach ($children as $child) {
             if (! $child->type->allowsParent($type)) {
-                throw ValidationException::withMessages(['type_key' => "{$child->name} ({$child->type->name}) cannot sit under {$type->name}."]);
+                throw HierarchyRuleBroken::rule('parent_type', 'type_key', "{$child->name} ({$child->type->name}) cannot sit under {$type->name}.");
             }
         }
         if (! $type->carries_timezone && $entity->timezone !== null) {
-            throw ValidationException::withMessages(['type_key' => "{$type->name} has no time zone; clear this entity's time zone first."]);
+            throw HierarchyRuleBroken::rule('timezone', 'type_key', "{$type->name} has no time zone; clear this entity's time zone first.");
         }
         if (! $type->carries_location && ($entity->address !== null || $entity->latitude !== null)) {
-            throw ValidationException::withMessages(['type_key' => "{$type->name} has no location; clear this entity's location first."]);
+            throw HierarchyRuleBroken::rule('location', 'type_key', "{$type->name} has no location; clear this entity's location first.");
         }
     }
 
@@ -378,7 +378,7 @@ final class EntityTree
     {
         $max = (int) config('entities.max_depth');
         if ($depth >= $max) {
-            throw ValidationException::withMessages([$field => "A branch can be at most {$max} levels deep."]);
+            throw HierarchyRuleBroken::rule('depth', $field, "A branch can be at most {$max} levels deep.");
         }
     }
 
@@ -390,7 +390,7 @@ final class EntityTree
             ->when($ignore, fn ($query) => $query->whereKeyNot($ignore))
             ->value('name');
         if ($taken !== null) {
-            throw ValidationException::withMessages([$field => "{$taken} already uses the path name {$pathName} here."]);
+            throw HierarchyRuleBroken::rule('sibling_clash', $field, "{$taken} already uses the path name {$pathName} here.");
         }
     }
 
@@ -398,7 +398,7 @@ final class EntityTree
     {
         if ($type->naming_template !== null && ! NamingTemplates::matches($type->naming_template, $pathName)) {
             $hint = trim(($type->naming_description ? $type->naming_description.'. ' : '').'For example '.$type->naming_example.'.');
-            throw ValidationException::withMessages(['path_name' => "{$type->name} path names follow {$type->naming_template}. {$hint}"]);
+            throw HierarchyRuleBroken::rule('naming', 'path_name', "{$type->name} path names follow {$type->naming_template}. {$hint}");
         }
     }
 
@@ -406,7 +406,7 @@ final class EntityTree
     {
         $name = trim((string) $name);
         if ($name === '' || mb_strlen($name) > 120) {
-            throw ValidationException::withMessages(['name' => 'Names are 1 to 120 characters.']);
+            throw HierarchyRuleBroken::rule('invalid', 'name', 'Names are 1 to 120 characters.');
         }
 
         return $name;
@@ -418,11 +418,11 @@ final class EntityTree
         if ($pathName === '') {
             $pathName = PathNames::suggest($name);
             if ($pathName === '') {
-                throw ValidationException::withMessages(['path_name' => 'Give a path name: none could be made from the name. '.PathNames::RULE]);
+                throw HierarchyRuleBroken::rule('invalid', 'path_name', 'Give a path name: none could be made from the name. '.PathNames::RULE);
             }
         }
         if (! PathNames::valid($pathName)) {
-            throw ValidationException::withMessages(['path_name' => PathNames::RULE]);
+            throw HierarchyRuleBroken::rule('invalid', 'path_name', PathNames::RULE);
         }
         $this->checkNaming($type, $pathName);
 
@@ -444,18 +444,18 @@ final class EntityTree
         }
         if (array_key_exists('timezone', $values)) {
             if ($values['timezone'] !== null && ! $type->carries_timezone) {
-                throw ValidationException::withMessages(['timezone' => "{$type->name} entities have no time zone."]);
+                throw HierarchyRuleBroken::rule('timezone', 'timezone', "{$type->name} entities have no time zone.");
             }
             $details['timezone'] = $values['timezone'];
         }
         $timezone = array_key_exists('timezone', $details) ? $details['timezone'] : $entity?->timezone;
         if ($type->isSite() && $timezone === null) {
-            throw ValidationException::withMessages(['timezone' => 'Sites need a time zone.']);
+            throw HierarchyRuleBroken::rule('timezone', 'timezone', 'Sites need a time zone.');
         }
         foreach (['address', 'latitude', 'longitude'] as $field) {
             if (array_key_exists($field, $values)) {
                 if ($values[$field] !== null && ! $type->carries_location) {
-                    throw ValidationException::withMessages([$field => "{$type->name} entities have no location."]);
+                    throw HierarchyRuleBroken::rule('location', $field, "{$type->name} entities have no location.");
                 }
                 $details[$field] = $values[$field];
             }

@@ -3,8 +3,9 @@
 What spec 038's hierarchy proposal (its research R16, pull request 8) and any later
 import call. PHP only, inside `apps/api`; no HTTP route in v1 ([research
 R13](../research.md#r13-hierarchy-operations-for-other-features-spec-038-research-r16)).
-Ships in pull request 3. Classes are in `App\Domain\Entities`; callers never touch the
-hierarchy's tables or models' write methods.
+Shipped in pull request 3. Classes are in `App\Domain\Entities`; callers never touch the
+hierarchy's tables or models' write methods. `tooling/verify-entity-batch.php` runs the
+building example against a local stack.
 
 ## Read: `Services\HierarchyQueries`
 
@@ -21,12 +22,13 @@ public function children(Organization $organization, ?string $parentUuid): array
 public function placementOf(Device $device): ?EntityView;
 ```
 
-`EntityView` carries `uuid`, `name`, `path_name`, `path`, `type_key`, `parent_uuid`.
+`EntityView` is an array with `uuid`, `name`, `path_name`, `path`, `type_key`,
+`parent_uuid`; types are arrays with their rules.
 
 ## Single changes: `Services\HierarchyOperations`
 
 ```php
-public function createEntity(Organization $organization, NewEntity $entity, User $actor): EntityView;
+public function createEntity(Organization $organization, NewEntityItem $item, User $actor): Entity;
 public function placeDevice(Device $device, string $entityUuid, User $actor, array $leafNames = []): void;
 public function endPlacement(Device $device, User $actor): void;
 ```
@@ -34,33 +36,34 @@ public function endPlacement(Device $device, User $actor): void;
 Each checks `Entity.manage` for `$actor` in the organization (`AuthorizationException`
 otherwise), takes the locks of research R3, enforces every rule, updates derived device
 columns, and records the activity entry a portal request would (FR-019). A refusal
-throws `HierarchyRuleBroken` with `rule`, `field` and a message (the same texts as the
-portal's `422`).
+throws `App\Domain\Entities\Exceptions\HierarchyRuleBroken` (a `ValidationException`,
+so the portal still answers `422`) with `rule`, `field` and `message()`.
 
 ## Batches
 
 ```php
-public function check(Organization $organization, HierarchyBatch $batch): BatchResult;
-public function apply(Organization $organization, HierarchyBatch $batch, User $actor): BatchResult;
+public function check(Organization $organization, HierarchyBatch $batch, User $actor): BatchResult;  // Entity.view
+public function apply(Organization $organization, HierarchyBatch $batch, User $actor): BatchResult;  // Entity.manage
 ```
 
 `HierarchyBatch` (1–2,000 items, in order):
 
 ```php
+// Classes in App\Domain\Entities\Services\Batch.
 new NewEntityItem(
     ref: 'floor-3',                       // unique in the batch
     typeKey: 'floor',
     name: 'Floor 3',
     pathName: null,                       // suggested from the name when null (R11)
-    parent: Parent::existing($uuid) | Parent::item('building-1') | Parent::topLevel(),
+    parent: EntityRef::existing($uuid) | EntityRef::item('building-1') | EntityRef::topLevel(),
     timezone: null, address: null, latitude: null, longitude: null, attributes: [],
 );
 
 new PlacementItem(
     ref: 'place-vav-3-2',
     deviceUuid: $uuid,
-    entity: Target::existing($uuid) | Target::item('zone-3-2'),
-    leafNames: [],                        // parameter UUID => leaf name
+    entity: EntityRef::existing($uuid) | EntityRef::item('zone-3-2'),
+    leafNames: [],                        // parameter UUID => leaf name (used from PR 4)
 );
 ```
 
@@ -69,16 +72,21 @@ new PlacementItem(
 ```php
 $result->applied;                         // bool: true only after a committed apply
 $result->items;                           // list of ItemOutcome, in batch order
+$result->batchUuid;                       // set on a committed apply; every entry it logged carries it as `batch`
+$result->accepted(); $result->refused();
 // ItemOutcome: ref, outcome ('accepted' | 'refused'), rule (null | 'parent_type' |
-//   'naming' | 'sibling_clash' | 'leaf_clash' | 'depth' | 'accepts_devices' |
-//   'already_placed' | 'ceiling' | 'parent_refused' | 'not_found'), field, message,
-//   entity_uuid (accepted entity items; the would-be UUID on check, the real one on apply)
+//   'naming' | 'sibling_clash' | 'depth' | 'timezone' | 'location' | 'accepts_devices' |
+//   'already_placed' | 'archived' | 'ceiling' | 'parent_refused' | 'not_found' |
+//   'invalid'; 'leaf_clash' from PR 4), field, message,
+//   entityUuid (accepted entity items after a committed apply; null on a check)
 ```
 
 Behaviour:
 
-- `check` saves nothing, writes no activity and needs only `Entity.view` by the caller's
-  own check; `apply` needs `Entity.manage` and commits only when every item is accepted.
+- `check` saves nothing, writes no activity and needs `Entity.view`; `apply` needs
+  `Entity.manage` and commits only when every item is accepted. Building a
+  `HierarchyBatch` throws `InvalidArgumentException` for an empty or oversized batch, a
+  repeated ref, or a ref to a later item.
   When any item is refused, `apply` returns the outcomes with `applied = false`.
 - A placement of a device already placed elsewhere is refused with `already_placed`;
   the caller decides whether to end the old placement first (spec 038 offers additions
@@ -88,7 +96,7 @@ Behaviour:
 - The checks are the code that runs on apply, inside a rolled-back transaction, so a
   check and an immediate apply agree unless someone changed the tree in between.
 - Nothing in an item or in the hierarchy records where the batch came from; the caller
-  stores its own provenance (FR-025). Activity entries carry `context.batch`.
+  stores its own provenance (FR-025). Activity entries carry `batch`.
 
 ## Tests the hierarchy owns
 
