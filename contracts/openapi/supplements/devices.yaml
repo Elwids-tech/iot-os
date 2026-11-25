@@ -65,6 +65,7 @@ components:
                   site_uuid:
                     type: [string, 'null']
                     format: uuid
+                    description: The site the successor lands in, the nearest above the place chosen with `site_uuid` or `entity_uuid` (spec 009).
               reports_through:
                 description: Its pipe. `stays` with its owner for an adapter or gateway; a directly connected device's own gateway `moves`. Null without a source.
                 oneOf:
@@ -439,7 +440,7 @@ operations:
       '422':
         $ref: '#/components/responses/ValidationFailed'
   POST /v1/organizations/{organization}/device-moves/preview:
-    description: Reviews a move of 1–100 devices to another organization of the same billing account (spec 031) and changes nothing. Needs `Device.move` here and in the target; a target outside the account or where the person is not a member is 404. `devices` overrides each successor's name, code and site (a site of the target).
+    description: Reviews a move of 1–100 devices to another organization of the same billing account (spec 031) and changes nothing. Needs `Device.move` here and in the target; a target outside the account or where the person is not a member is 404. `devices` overrides each successor's name, code and place, given as `site_uuid` (a site of the target, deprecated) or `entity_uuid` (any active entity of the target that accepts devices; spec 009).
     responses:
       '200':
         description: The review.
@@ -580,6 +581,12 @@ operations:
       '503':
         $ref: '#/components/responses/ServiceUnavailable'
   POST /v1/organizations/{organization}/sites:
+    description: Deprecated (spec 009). Creates a top-level entity of the Site type; use `POST entities`.
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  DELETE /v1/organizations/{organization}/sites/{site}:
+    description: Deprecated (spec 009). Refused while entities sit under the site; otherwise the devices placed there are unplaced and the site entity is archived. Use the entity routes.
     responses:
       '422':
         $ref: '#/components/responses/ValidationFailed'

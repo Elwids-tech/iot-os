@@ -24,7 +24,7 @@ final class ActivityFeed
     /** Where a kind's current name is, by subject UUID. */
     private const NAMED_BY_UUID = [
         'device' => ['devices', 'name'],
-        'site' => ['sites', 'name'],
+        'site' => ['entities', 'name'],
         'entity' => ['entities', 'name'],
         'entity_type' => ['entity_types', 'name'],
         'dashboard' => ['dashboards', 'name'],

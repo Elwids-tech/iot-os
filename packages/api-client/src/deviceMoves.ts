@@ -16,7 +16,10 @@ export type DeviceMoveDeviceInput = {
   uuid: string
   name?: string
   code?: string
+  /** A site of the target (deprecated); or `entity_uuid`, never both. */
   site_uuid?: string | null
+  /** Any active entity of the target that accepts devices (spec 009). */
+  entity_uuid?: string | null
 }
 
 export type DeviceMoveItemKind = "dashboard" | "automation"

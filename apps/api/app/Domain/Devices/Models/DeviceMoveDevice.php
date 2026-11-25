@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Devices\Models;
 
+use App\Domain\Entities\Models\Entity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -34,8 +35,9 @@ final class DeviceMoveDevice extends Model
         return $this->belongsTo(Device::class, 'successor_device_id');
     }
 
-    public function site(): BelongsTo
+    /** Where the successor is placed in the target (spec 009, research R7). */
+    public function targetEntity(): BelongsTo
     {
-        return $this->belongsTo(Site::class, 'target_site_id');
+        return $this->belongsTo(Entity::class, 'target_entity_id');
     }
 }

@@ -101,7 +101,7 @@ final class OrganizationDeletionApiTest extends TestCase
             ->assertNoContent();
 
         $this->assertNull(Organization::withTrashed()->find($organization->id));
-        foreach (['organization_user', 'roles', 'organization_invitations', 'dashboards', 'sites', 'telemetry_retention_settings', 'activity_log', 'agent_connections', 'assistant_conversations'] as $table) {
+        foreach (['organization_user', 'roles', 'organization_invitations', 'dashboards', 'entities', 'entity_types', 'telemetry_retention_settings', 'activity_log', 'agent_connections', 'assistant_conversations'] as $table) {
             $this->assertSame(0, DB::table($table)->where('organization_id', $organization->id)->count(), $table);
         }
         $this->assertNull(Role::query()->find($customRole));

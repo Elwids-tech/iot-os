@@ -14,6 +14,8 @@ use App\Domain\Devices\Models\DeviceOperation;
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\Pipes;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Services\DeviceAnchors;
 use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Integrations\Models\IntegrationApplication;
@@ -61,9 +63,11 @@ final class MovePreview
         return [
             'target_organization_uuid' => ['required', 'uuid'],
             'device_uuids' => ['required', 'array', 'min:1', 'max:'.self::LIMIT], 'device_uuids.*' => ['required', 'uuid', 'distinct'],
-            'devices' => ['sometimes', 'array', 'max:'.self::LIMIT], 'devices.*' => ['array:uuid,name,code,site_uuid'],
+            'devices' => ['sometimes', 'array', 'max:'.self::LIMIT], 'devices.*' => ['array:uuid,name,code,site_uuid,entity_uuid'],
             'devices.*.uuid' => ['required', 'uuid', 'distinct'], 'devices.*.name' => ['sometimes', 'string', 'max:255'],
             'devices.*.code' => ['sometimes', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/'], 'devices.*.site_uuid' => ['sometimes', 'nullable', 'uuid'],
+            // Where the successor goes in the target's hierarchy (spec 009); `site_uuid` names a site, `entity_uuid` any place that accepts devices.
+            'devices.*.entity_uuid' => ['sometimes', 'nullable', 'uuid'],
             ...CarriedItems::rules(),
             // Whether the target may read the predecessors' readings from before the cutover (US6).
             'include_history' => ['sometimes', 'boolean'],
@@ -169,10 +173,10 @@ final class MovePreview
             $wasActive = $device->lifecycle === 'active';
             $rows[] = [
                 'device' => $device, 'base' => $base, 'artifact' => $artifact, 'stops' => $device->applied_configuration_uuid !== null,
-                'site' => $override['site'] ?? null, 'pipe' => $pipe,
+                'entity' => $override['entity'] ?? null, 'pipe' => $pipe,
                 'view' => [
                     'uuid' => $device->uuid, 'name' => $device->name, 'code' => $device->code,
-                    'successor' => ['name' => $override['name'] ?? $device->name, 'code' => $code, 'site_uuid' => ($override['site'] ?? null)?->uuid],
+                    'successor' => ['name' => $override['name'] ?? $device->name, 'code' => $code, 'site_uuid' => $override['site_uuid_of'] ?? null],
                     'reports_through' => $pipe ? ['kind' => $pipe->kind, 'name' => $pipe->name, 'owner_organization_name' => $pipe->ownerOrganizationName, 'outcome' => 'stays']
                         : ($direct ? ['kind' => 'direct', 'name' => $gateway->name, 'owner_organization_name' => $source->name, 'outcome' => 'moves'] : null),
                     'arrives_active' => $wasActive && $canActivate,
@@ -265,6 +269,9 @@ final class MovePreview
     private function overrides(array $overrides, array $uuids, Organization $target): array
     {
         $sites = Site::where('organization_id', $target->id)->whereIn('uuid', array_filter(array_column($overrides, 'site_uuid')))->get()->keyBy('uuid');
+        $entities = Entity::query()->with('type')->where('organization_id', $target->id)->whereNull('archived_at')
+            ->whereIn('uuid', array_filter(array_column($overrides, 'entity_uuid')))->get()->keyBy('uuid');
+        $anchors = app(DeviceAnchors::class);
         $errors = [];
         $result = [];
         foreach ($overrides as $i => $override) {
@@ -273,12 +280,27 @@ final class MovePreview
 
                 continue;
             }
+            if (($override['site_uuid'] ?? null) !== null && ($override['entity_uuid'] ?? null) !== null) {
+                $errors["devices.$i.entity_uuid"] = 'Choose a site or a place, not both.';
+
+                continue;
+            }
             if (($override['site_uuid'] ?? null) !== null) {
                 $site = $sites->get($override['site_uuid']);
                 if (! $site) {
                     $errors["devices.$i.site_uuid"] = 'Choose a site of '.$target->name.'.';
                 }
-                $override['site'] = $site;
+                $override['entity'] = $site ? Entity::query()->find($site->id) : null;
+                $override['site_uuid_of'] = $site?->uuid;
+            }
+            if (($override['entity_uuid'] ?? null) !== null) {
+                $entity = $entities->get($override['entity_uuid']);
+                if (! $entity || ! $entity->type->accepts_devices) {
+                    $errors["devices.$i.entity_uuid"] = 'Choose a place in '.$target->name.' that accepts devices.';
+                }
+                $override['entity'] = $entity;
+                $siteId = $entity ? $anchors->siteOf($entity->id) : null;
+                $override['site_uuid_of'] = $siteId ? Entity::query()->whereKey($siteId)->value('uuid') : null;
             }
             $result[$override['uuid']] = $override;
         }

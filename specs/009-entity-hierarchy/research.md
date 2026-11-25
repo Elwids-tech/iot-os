@@ -124,10 +124,12 @@ was considered. Code references are to `main` at `ed6edee9` (2026-11-25).
 
 ## R8. Grants by site resolve by branch
 
-- **Decision**: `ApplicationGrant` resolves a site scope as the devices whose anchor is
-  in the branch of any scoped entity:
-  `devices.entity_id in (select descendant_id from entity_closure where ancestor_id in
-  (…))`. `covers()` uses the same rule through the device's anchor and the closure.
+- **Decision**: `ApplicationGrant` resolves a site scope as the devices whose derived
+  `site_id` is a scoped site or any Site entity inside the scoped sites' branches (one
+  closure lookup per request). Because `site_id` is the nearest Site above the anchor,
+  this covers every device placed anywhere in the branch, nested sites included, and
+  archived devices at their last place. `covers()` uses the same set. Entity scopes of
+  any type (PR 8) resolve by the anchor instead.
   Archiving an entity calls `ApplicationGrants::entityArchived`, the generalization of
   `siteDeleted` (same revision bumps, token revocation, webhook cancellation and audit
   reason `site_deleted` for Site-type entities, `entity_archived` otherwise).

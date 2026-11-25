@@ -18,11 +18,13 @@ use App\Domain\Devices\Models\DeviceLink;
 use App\Domain\Devices\Models\DeviceMove;
 use App\Domain\Devices\Models\DeviceMoveDevice;
 use App\Domain\Devices\Models\DeviceOnboarding;
-use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Services\DeviceAuthorization;
 use App\Domain\Devices\Services\DeviceConfigurationService;
 use App\Domain\Devices\Services\Pipes;
 use App\Domain\Devices\Services\RuntimeClient;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Models\EntityPlacement;
+use App\Domain\Entities\Services\Placements;
 use App\Domain\Geospatial\Services\GeofenceService;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
@@ -188,15 +190,22 @@ final class MoveCutover
         // A gateway source stays with its owner, who can onboard it again once no device holds it.
         DeviceOnboarding::release($predecessor);
         $predecessor->forceFill(['lifecycle' => 'archived', 'reserved_source_uuid' => null, 'draft_revision' => $predecessor->draft_revision + 1, 'updated_by' => $mover->id])->save();
+        // Its place ends here and stays its anchor; nothing of the source's hierarchy travels (spec 009, R7).
+        app(Placements::class)->archived($predecessor, $mover, EntityPlacement::MOVED_OUT);
 
         $successor = Device::create([
             'organization_id' => $target->id, 'name' => $row->name, 'code' => $row->code,
             'serial_number' => $predecessor->serial_number, 'description' => $predecessor->description,
-            'site_id' => $row->target_site_id && Site::whereKey($row->target_site_id)->where('organization_id', $target->id)->exists() ? $row->target_site_id : null,
             'tags' => $predecessor->tags, 'custom_attributes' => $predecessor->custom_attributes,
             'device_discovery_candidate_id' => $source['candidate'], 'reserved_source_uuid' => $source['reserved'],
             'draft' => $draft, 'created_by' => $mover->id, 'updated_by' => $mover->id,
         ])->refresh();
+        // Placed where the mover chose, if that place is still the target's and still takes devices.
+        $place = $row->target_entity_id ? Entity::query()->with('type')->whereKey($row->target_entity_id)->where('organization_id', $target->id)->whereNull('archived_at')->first() : null;
+        if ($place && $place->type->accepts_devices) {
+            app(Placements::class)->place($successor, $place, $mover, log: false);
+            $successor->refresh();
+        }
         $adapter = null;
         if ($installation) {
             $candidate = AdapterCandidate::with('adapter')->findOrFail($installation->device_adapter_candidate_id);

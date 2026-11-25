@@ -58,15 +58,18 @@ and the token.
 
 A grant is a device list or a scope of sites, never both (spec 030, ADR-032). A
 device counts as granted when it is in the list, or when its site is in the scope at
-the time of the request: devices registered at a granted site later are covered
-without touching the application, a device moved to another site stops being
-visible at its next request, and a device with no site is never in a scope. A scope
+the time of the request. A device's site is the nearest site above where it is
+placed in the hierarchy (spec 009), so a device placed anywhere inside a granted site,
+under a site nested in it too, is covered; devices placed there later are covered
+without touching the application, a device moved, or a branch moved, out of the site
+stops being visible at its next request, an archived device stays where it was last
+placed, and a device with no site is never in a scope. A scope
 has no ceiling; the limit of 100 is for named lists.
 
 Every read, the event feed and webhook deliveries filter by the same resolved set.
 Changing the scope bumps `grant_revision` with the consequences of changing the list
 (token invalidated, event cursors rejected until rebuilt, webhook disabled). Deleting
-a site removes it from every scope naming it with the same consequences, audited as
+(archiving) a site removes it from every scope naming it with the same consequences, audited as
 `application.grants_updated` with `reason: site_deleted`; a scope left empty stays
 empty and the application reads nothing until a manager grants a site again. A scope
 naming another organization's site is refused with the generic

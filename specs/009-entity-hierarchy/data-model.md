@@ -166,8 +166,9 @@ Site-type entities (R19).
 
 ### `sites` (PR 2, dropped in PR 8)
 
-Renamed `legacy_sites` and no longer written (R4). `Site` the model is removed; site
-views are built from Site-type entities by `SiteView`.
+Renamed `legacy_sites` and no longer written (R4). The `Site` model stays as the
+compatibility view: it reads `entities` through a scope (active entities of the Site
+type), so every existing `Site::` query, route binding and relation keeps working.
 
 ## Derived values (not stored)
 

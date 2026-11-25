@@ -21,6 +21,10 @@ use App\Domain\Devices\Services\DeviceLifecycleService;
 use App\Domain\Devices\Services\DeviceReadings;
 use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Devices\Services\MappingSuggestions;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Permissions\EntityPermission;
+use App\Domain\Entities\Services\EntityAuthorization;
+use App\Domain\Entities\Services\Placements;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +56,13 @@ final class DeviceController
     private function fields(Organization $organization, ?Device $device = null): array
     {
         return ['name' => ['required', 'string', 'max:255'], 'code' => ['required', 'string', 'max:128', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/', Rule::unique('devices')->where('organization_id', $organization->id)->ignore($device?->id)], 'serial_number' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000'],
-            'site_uuid' => ['sometimes', 'nullable', 'uuid', Rule::exists('sites', 'uuid')->where('organization_id', $organization->id)],
+            // Deprecated: places the device at a site (spec 009). `entity_uuid` places it anywhere that accepts devices.
+            'site_uuid' => ['sometimes', 'nullable', 'uuid', 'prohibits:entity_uuid', function (string $attribute, mixed $value, \Closure $fail) use ($organization): void {
+                if ($value !== null && ! Site::query()->where('organization_id', $organization->id)->where('uuid', $value)->exists()) {
+                    $fail('The selected site uuid is invalid.');
+                }
+            }],
+            'entity_uuid' => ['sometimes', 'nullable', 'uuid', Rule::exists('entities', 'uuid')->where('organization_id', $organization->id)->whereNull('archived_at')],
             'tags' => ['sometimes', 'nullable', 'array', 'max:20'], 'tags.*' => ['string', 'min:1', 'max:32'],
             'attributes' => ['sometimes', 'nullable', 'array:'.self::attributeKeys(), 'max:30'],
             'attributes.*' => ['nullable', function (string $attribute, mixed $value, \Closure $fail): void {
@@ -89,12 +99,25 @@ final class DeviceController
         return implode(',', $keys) ?: '_';
     }
 
-    /** Maps the site UUID and normalizes tags (trimmed, unique ignoring case). */
+    /** Placing anywhere but a site also needs `Entity.manage` (spec 009 FR-018); a site keeps `Device.manage`. */
+    private function authorizePlace(Request $request, Organization $organization, array $values): void
+    {
+        if (($values['place'] ?? null) && $request->has('entity_uuid')) {
+            app(EntityAuthorization::class)->authorize($request->user(), EntityPermission::MANAGE, $organization);
+        }
+    }
+
+    /**
+     * Takes the place out of the values (a site or an entity, placed once the device is
+     * saved) and normalizes tags (trimmed, unique ignoring case).
+     */
     private function context(Organization $organization, array $values): array
     {
-        if (array_key_exists('site_uuid', $values)) {
-            $values['site_id'] = $values['site_uuid'] ? Site::where('organization_id', $organization->id)->where('uuid', $values['site_uuid'])->value('id') : null;
-            unset($values['site_uuid']);
+        foreach (['site_uuid', 'entity_uuid'] as $field) {
+            if (array_key_exists($field, $values)) {
+                $values['place'] = $values[$field] === null ? null : Entity::query()->where('organization_id', $organization->id)->where('uuid', $values[$field])->firstOrFail();
+                unset($values[$field]);
+            }
         }
         if (array_key_exists('tags', $values)) {
             $tags = [];
@@ -118,8 +141,14 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization);
         $values = $this->context($organization, $request->validate($this->fields($organization)));
+        $this->authorizePlace($request, $organization, $values);
         $device = DB::transaction(function () use ($values, $organization, $request) {
+            $place = $values['place'] ?? null;
+            unset($values['place']);
             $device = Device::create([...$values, 'organization_id' => $organization->id, 'created_by' => $request->user()->id, 'updated_by' => $request->user()->id]);
+            if ($place) {
+                app(Placements::class)->place($device, $place, $request->user(), log: false);
+            }
             DeviceAudit::record('device.registered', $organization->id, $request->user()->id, $device->uuid);
 
             return $device->refresh();
@@ -139,9 +168,17 @@ final class DeviceController
     {
         $this->authorization->authorize($request->user(), DevicePermission::MANAGE, $organization, $device);
         $values = $this->context($organization, $request->validate([...$this->fields($organization, $device), 'draft_revision' => ['required', 'integer', 'min:1']]));
+        $this->authorizePlace($request, $organization, $values);
         $updated = $this->configuration->locked($device, $values['draft_revision'], function ($locked) use ($values, $request) {
             $before = $this->described($locked);
+            $placing = array_key_exists('place', $values);
+            $place = $values['place'] ?? null;
+            unset($values['place']);
             $locked->fill([...$values, 'draft_revision' => $locked->draft_revision + 1, 'updated_by' => $request->user()->id])->save();
+            if ($placing) {
+                $place ? app(Placements::class)->place($locked, $place, $request->user(), log: false) : app(Placements::class)->end($locked, $request->user(), log: false);
+                $locked->refresh();
+            }
             ActivityLog::record('device.updated', $locked->organization_id, $request->user(), $locked, [], ActivityChanges::between($before, $this->described($locked)));
 
             return $locked;
@@ -160,6 +197,8 @@ final class DeviceController
             // The source is free for another device: the next adapter deploy stops sending it,
             // and a gateway source can be onboarded again (spec 031, R3 and R7).
             DeviceInstallation::end($locked, 'archived');
+            // Its placement ends; it keeps that place as its anchor (spec 009, US2 AS6).
+            app(Placements::class)->archived($locked, $request->user());
             DeviceOnboarding::release($locked);
             app(DeviceLimit::class)->release($locked);
             DeviceAudit::record('device.archived', $locked->organization_id, $request->user()->id, $locked->uuid);

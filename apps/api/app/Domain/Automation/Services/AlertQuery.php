@@ -99,7 +99,7 @@ final class AlertQuery
             return [];
         }
         $rows = DB::table('automation_alert_devices')->join('devices', 'devices.id', '=', 'automation_alert_devices.device_id')
-            ->leftJoin('sites', 'sites.id', '=', 'devices.site_id')
+            ->leftJoin('entities as sites', fn ($join) => $join->on('sites.id', '=', 'devices.site_id')->whereNull('sites.archived_at'))
             ->where('devices.organization_id', $organization->id)->whereIn('automation_alert_devices.automation_alert_id', $gateways->modelKeys())
             ->groupBy('automation_alert_devices.automation_alert_id')
             ->havingRaw('count(distinct coalesce(devices.site_id, 0)) = 1')

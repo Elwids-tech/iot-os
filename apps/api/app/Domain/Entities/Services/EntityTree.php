@@ -8,7 +8,9 @@ use App\Domain\Audit\Services\ActivityChanges;
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityChange;
+use App\Domain\Entities\Models\EntityPlacement;
 use App\Domain\Entities\Models\EntityType;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +30,7 @@ final class EntityTree
     /** Fields of an entity people edit, for the activity log. */
     private const DESCRIBED = ['name', 'path_name', 'description', 'timezone', 'address', 'latitude', 'longitude'];
 
-    public function __construct(private readonly EntityTypes $types) {}
+    public function __construct(private readonly EntityTypes $types, private readonly DeviceAnchors $anchors) {}
 
     /** Serializes structural changes per organization (research R3). */
     public static function lock(Organization $organization): void
@@ -41,9 +43,9 @@ final class EntityTree
     /**
      * @param  array<string, mixed>  $values  type_key, parent_uuid, name, path_name, description, timezone, address, latitude, longitude, attributes
      */
-    public function create(Organization $organization, array $values, User $actor): Entity
+    public function create(Organization $organization, array $values, User $actor, bool $log = true): Entity
     {
-        return DB::transaction(function () use ($organization, $values, $actor): Entity {
+        return DB::transaction(function () use ($organization, $values, $actor, $log): Entity {
             self::lock($organization);
             $this->types->ensureSite($organization);
             $type = $this->type($organization, (string) ($values['type_key'] ?? ''));
@@ -69,7 +71,9 @@ final class EntityTree
             DB::statement('INSERT INTO entity_closure (ancestor_id, descendant_id, depth) SELECT ancestor_id, ?, depth + 1 FROM entity_closure WHERE descendant_id = ?', [$entity->id, $parent?->id ?? 0]);
             DB::table('entity_closure')->insert(['ancestor_id' => $entity->id, 'descendant_id' => $entity->id, 'depth' => 0]);
             $this->change($entity, EntityChange::CREATED, $actor, ['new_parent_id' => $parent?->id, 'new_path_name' => $pathName, 'new_type_id' => $type->id]);
-            ActivityLog::record('entity.created', $organization, $actor, $entity, ['path' => $entity->path, 'type' => $type->key]);
+            if ($log) {
+                ActivityLog::record('entity.created', $organization, $actor, $entity, ['path' => $entity->path, 'type' => $type->key]);
+            }
 
             return $entity;
         });
@@ -80,9 +84,9 @@ final class EntityTree
      *
      * @param  array<string, mixed>  $values
      */
-    public function update(Entity $entity, array $values, User $actor): Entity
+    public function update(Entity $entity, array $values, User $actor, bool $log = true): Entity
     {
-        return DB::transaction(function () use ($entity, $values, $actor): Entity {
+        return DB::transaction(function () use ($entity, $values, $actor, $log): Entity {
             $organization = $entity->organization;
             self::lock($organization);
             $entity = $this->fresh($entity);
@@ -117,24 +121,46 @@ final class EntityTree
             }
             if ($retyped) {
                 $this->change($entity, EntityChange::RETYPED, $actor, ['old_type_id' => $oldTypeId, 'new_type_id' => $type->id]);
+                // A type that is or stops being Site changes the site of the devices below.
+                $this->anchors->refreshBranch($entity);
             }
             $entity = $this->fresh($entity);
             $after = [...$entity->only(self::DESCRIBED), 'type' => $type->key, 'attributes' => $entity->custom_attributes ?? []];
-            ActivityLog::record($retyped ? 'entity.retyped' : 'entity.updated', $organization, $actor, $entity, ['path' => $entity->path], ActivityChanges::between($before, $after));
+            $log && ActivityLog::record($retyped ? 'entity.retyped' : 'entity.updated', $organization, $actor, $entity, ['path' => $entity->path], ActivityChanges::between($before, $after));
 
             return $entity;
         });
     }
 
     /**
-     * What a move would change, for the confirmation people see first (US1 AS4). Device,
-     * site and application counts join in PR 2, when devices can be placed.
+     * What a move would change, for the confirmation people see first (US1 AS4): the
+     * entities in the branch, the devices anchored there, how many of them get another
+     * site or time zone, and the integration applications that gain or lose devices.
      *
-     * @return array{entities: int}
+     * @return array{entities: int, devices: int, devices_changing_site: int, devices_changing_timezone: int, applications: list<array{uuid: string, name: string, gains: int, loses: int}>}
      */
     public function impact(Entity $entity, ?Entity $parent): array
     {
-        return ['entities' => (int) DB::table('entity_closure')->where('ancestor_id', $entity->id)->count()];
+        $branch = DB::table('entity_closure')->where('ancestor_id', $entity->id)->pluck('descendant_id')->all();
+        $devices = DB::table('devices')->whereIn('entity_id', $branch)->where('lifecycle', '!=', 'archived')->get(['id', 'entity_id', 'site_id']);
+        // A device keeps its site when that site is inside the branch; otherwise it takes the new parent's.
+        $newSite = $parent ? $this->anchors->siteOf($parent->id) : null;
+        $changing = $devices->filter(fn ($device) => ! in_array($device->site_id, $branch, false) && (int) $device->site_id !== (int) $newSite);
+        // A device keeps its zone when a zone is set inside the branch at or above it.
+        $zoned = $devices->isEmpty() ? collect() : DB::table('entity_closure')->join('entities', 'entities.id', '=', 'entity_closure.ancestor_id')
+            ->whereIn('entity_closure.descendant_id', $devices->pluck('entity_id')->unique())->whereIn('entity_closure.ancestor_id', $branch)
+            ->whereNotNull('entities.timezone')->pluck('entity_closure.descendant_id')->unique();
+        $oldZone = $entity->parent ? $this->effectiveTimezone($entity->parent) : ($entity->organization?->timezone ?? 'UTC');
+        $newZone = $parent ? $this->effectiveTimezone($parent) : ($entity->organization?->timezone ?? 'UTC');
+        $zoneChanges = $oldZone === $newZone ? 0 : $devices->filter(fn ($device) => ! $zoned->contains($device->entity_id))->count();
+
+        return [
+            'entities' => count($branch),
+            'devices' => $devices->count(),
+            'devices_changing_site' => $changing->count(),
+            'devices_changing_timezone' => $zoneChanges,
+            'applications' => app(ApplicationGrants::class)->siteChanges($entity->organization_id, $changing->map(fn ($device) => [(int) $device->site_id ?: null, $newSite])->values()->all()),
+        ];
     }
 
     /** Moves the entity and its branch under another parent, or to the top level. */
@@ -172,6 +198,7 @@ final class EntityTree
             }
             $entity->forceFill(['parent_id' => $parent?->id, 'updated_by' => $actor->id])->save();
             $this->rewriteBranch($entity, $this->joined($parent, $entity->path_name), $entity->path_name, $depth - $entity->depth);
+            $this->anchors->refreshBranch($entity);
             $this->change($entity, EntityChange::MOVED, $actor, ['old_parent_id' => $oldParentId, 'new_parent_id' => $parent?->id]);
             $entity = $this->fresh($entity);
             ActivityLog::record('entity.moved', $organization, $actor, $entity, ['from' => $oldPath, 'to' => $entity->path], ActivityChanges::between(['path' => $oldPath], ['path' => $entity->path]));
@@ -181,9 +208,9 @@ final class EntityTree
     }
 
     /** An entity with no active children leaves the tree and frees its path name; its history stays. */
-    public function archive(Entity $entity, User $actor): Entity
+    public function archive(Entity $entity, User $actor, bool $log = true): Entity
     {
-        return DB::transaction(function () use ($entity, $actor): Entity {
+        return DB::transaction(function () use ($entity, $actor, $log): Entity {
             $organization = $entity->organization;
             self::lock($organization);
             $entity = $this->fresh($entity);
@@ -193,9 +220,13 @@ final class EntityTree
             if ($entity->children()->whereNull('archived_at')->exists()) {
                 throw ValidationException::withMessages(['entity' => 'Move or archive the entities under this one first.']);
             }
+            if (EntityPlacement::query()->where('entity_id', $entity->id)->whereNull('ended_at')->exists()) {
+                throw ValidationException::withMessages(['entity' => 'Move or unplace the devices here first.']);
+            }
             $entity->forceFill(['archived_at' => now(), 'archived_by' => $actor->id, 'updated_by' => $actor->id])->save();
             $this->change($entity, EntityChange::ARCHIVED, $actor, []);
-            ActivityLog::record('entity.archived', $organization, $actor, $entity, ['path' => $entity->path]);
+            app(ApplicationGrants::class)->entityArchived($entity, $actor->id);
+            $log && ActivityLog::record('entity.archived', $organization, $actor, $entity, ['path' => $entity->path]);
 
             return $entity;
         });
@@ -241,9 +272,10 @@ final class EntityTree
             self::lock($organization);
             $entity = $this->fresh($entity);
             $heldChildren = Entity::query()->where('parent_id', $entity->id)->exists()
-                || EntityChange::query()->where('new_parent_id', $entity->id)->orWhere('old_parent_id', $entity->id)->exists();
+                || EntityChange::query()->where('new_parent_id', $entity->id)->orWhere('old_parent_id', $entity->id)->exists()
+                || EntityPlacement::query()->where('entity_id', $entity->id)->exists();
             if ($heldChildren) {
-                throw ValidationException::withMessages(['entity' => 'This entity has held other entities, so its history matters: archive it instead.']);
+                throw ValidationException::withMessages(['entity' => 'This entity has held entities or devices, so its history matters: archive it instead.']);
             }
             ActivityLog::record('entity.deleted', $organization, $actor, $entity, ['path' => $entity->path]);
             $entity->delete();

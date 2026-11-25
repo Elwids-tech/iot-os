@@ -20,3 +20,7 @@ operations:
     responses:
       '422':
         $ref: '#/components/responses/ValidationFailed'
+  PUT /v1/organizations/{organization}/devices/{device}/placement:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'

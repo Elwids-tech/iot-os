@@ -6,6 +6,9 @@ namespace App\Domain\Devices\Models;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Models\EntityPlacement;
+use App\Domain\Entities\Services\DeviceAnchors;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -74,15 +77,30 @@ final class Device extends DeviceModel
         $this->update(['deployment_status' => 'failed', 'diagnostic' => $diagnostic]);
     }
 
+    /** The nearest active Site entity at or above the device's place (spec 009, research R5). */
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);
     }
 
-    /** The IANA zone for calendar periods: the site's, else the organization's, else UTC. */
+    /** The device's anchor: where it is placed, or where it was last placed when archived (spec 009, R5). */
+    public function entity(): BelongsTo
+    {
+        return $this->belongsTo(Entity::class);
+    }
+
+    public function placements(): HasMany
+    {
+        return $this->hasMany(EntityPlacement::class);
+    }
+
+    /**
+     * The IANA zone for calendar periods: the nearest time zone at or above the device's
+     * place, else the organization's, else UTC (spec 009, FR-013).
+     */
     public function reportingTimezone(): string
     {
-        return $this->site?->timezone ?? $this->organization?->timezone ?? 'UTC';
+        return app(DeviceAnchors::class)->timezone($this);
     }
 
     public function organization(): BelongsTo
