@@ -6,11 +6,11 @@ namespace App\Domain\Entities\Services;
 
 use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Entities\Exceptions\HierarchyRuleBroken;
 use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityPlacement;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Where devices are (spec 009, FR-009). A device has at most one current placement, at an
@@ -34,16 +34,16 @@ final class Placements
             EntityTree::lock($device->organization);
             $entity = Entity::query()->with('type')->whereKey($entity->id)->firstOrFail();
             if ($entity->organization_id !== $device->organization_id) {
-                throw ValidationException::withMessages(['entity_uuid' => 'Choose a place in this device\'s organization.']);
+                throw HierarchyRuleBroken::rule('not_found', 'entity_uuid', 'Choose a place in this device\'s organization.');
             }
             if ($entity->isArchived()) {
-                throw ValidationException::withMessages(['entity_uuid' => "{$entity->name} is archived."]);
+                throw HierarchyRuleBroken::rule('archived', 'entity_uuid', "{$entity->name} is archived.");
             }
             if (! $entity->type->accepts_devices) {
-                throw ValidationException::withMessages(['entity_uuid' => "Devices cannot be placed on a {$entity->type->name}."]);
+                throw HierarchyRuleBroken::rule('accepts_devices', 'entity_uuid', "Devices cannot be placed on a {$entity->type->name}.");
             }
             if ($device->lifecycle === 'archived') {
-                throw ValidationException::withMessages(['entity_uuid' => 'Archived devices are read-only.']);
+                throw HierarchyRuleBroken::rule('archived', 'entity_uuid', 'Archived devices are read-only.');
             }
             $current = $this->current($device);
             if ($current && $current->entity_id === $entity->id && ($current->leaf_names ?? []) === $leafNames) {

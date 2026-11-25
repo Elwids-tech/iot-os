@@ -95,11 +95,11 @@ placements through the hierarchy's own rules. Unblocks spec 038's PR 8.
 
 **Independent Test**: [quickstart C](quickstart.md#c-hierarchy-operations-pr-3).
 
-- [ ] T037 [US7] Create api/Entities/Services/Batch/HierarchyBatch.php, NewEntityItem.php, PlacementItem.php, Parent.php, Target.php, BatchResult.php and ItemOutcome.php per [contracts/hierarchy-operations.md](contracts/hierarchy-operations.md); 1–2,000 items, unique refs, references only to earlier items
-- [ ] T038 [US7] Create api/Entities/Services/HierarchyOperations.php: `createEntity`, `placeDevice`, `endPlacement` with the acting user's permission, and `check`/`apply` running EntityTree and Placements per item under savepoints, always rolled back for `check`, committed only when all are accepted for `apply`; `HierarchyRuleBroken` carrying `rule`, `field`, `message`; activity entries with `context.batch`
-- [ ] T039 [P] [US7] Create api/Entities/Services/HierarchyQueries.php: `types`, `findByPath`, `children`, `placementOf`
-- [ ] T040 [US7] Tests in apps/api/tests/Feature/Domain/Entities/HierarchyOperationsTest.php: the contract's list (nothing saved by check, identical refusals in check and apply, refs and `parent_refused`, all-or-nothing, `already_placed`, `not_found` across organizations), the 41-item batch under 2 s (SC-007), and the schema test that no hierarchy table has a column for a protocol, endpoint, node or address (FR-025)
-- [ ] T041 [P] [US7] Create tooling/verify-entity-batch.php for quickstart C and run it against the rebuilt stack
+- [x] T037 [US7] Create api/Entities/Services/Batch/HierarchyBatch.php, NewEntityItem.php, PlacementItem.php, EntityRef.php, BatchResult.php and ItemOutcome.php per [contracts/hierarchy-operations.md](contracts/hierarchy-operations.md); 1–2,000 items, unique refs, references only to earlier items
+- [x] T038 [US7] Create api/Entities/Services/HierarchyOperations.php: `createEntity`, `placeDevice`, `endPlacement` with the acting user's permission, and `check`/`apply` running EntityTree and Placements per item under savepoints, always rolled back for `check`, committed only when all are accepted for `apply`; `HierarchyRuleBroken` carrying `rule`, `field`, `message`; activity entries with `batch` (`ActivityLog::within`)
+- [x] T039 [P] [US7] Create api/Entities/Services/HierarchyQueries.php: `types`, `findByPath`, `children`, `placementOf`
+- [x] T040 [US7] Tests in apps/api/tests/Feature/Domain/Entities/HierarchyOperationsTest.php: the contract's list (nothing saved by check, identical refusals in check and apply, refs and `parent_refused`, all-or-nothing, `already_placed`, `not_found` across organizations), the 41-item batch under 2 s (SC-007), and the schema test that no hierarchy table has a column for a protocol, endpoint, node or address (FR-025)
+- [x] T041 [P] [US7] Create tooling/verify-entity-batch.php for quickstart C and run it against the rebuilt stack
 - [ ] T042 [US7] Tell spec 038's owner session that PR 3 is merged (its T097 checks for it)
 
 **Checkpoint**: spec 038's hierarchy proposal can be built.

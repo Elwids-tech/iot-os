@@ -9,4 +9,6 @@ return [
     'children_page' => 100,
     'search_page' => 25,
     'max_attributes' => 30,
+    // Items in one batch other features check or apply (research R13).
+    'batch_items' => 2000,
 ];

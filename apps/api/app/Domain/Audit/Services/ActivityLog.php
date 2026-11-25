@@ -26,6 +26,30 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class ActivityLog
 {
+    /** @var array<string, mixed> Details added to every event recorded inside {@see within()}. */
+    private static array $context = [];
+
+    /**
+     * Runs the callback with details added to every event it records, such as the batch a
+     * change came in (spec 009). Always restored, so nothing leaks into the next request.
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $details
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    public static function within(array $details, callable $callback): mixed
+    {
+        $previous = self::$context;
+        self::$context = [...$previous, ...$details];
+        try {
+            return $callback();
+        } finally {
+            self::$context = $previous;
+        }
+    }
+
     /**
      * @param  array<string, mixed>  $details
      * @param  array{attributes?: array<string, mixed>, old?: array<string, mixed>}  $changes
@@ -38,6 +62,7 @@ final class ActivityLog
         array $details = [],
         array $changes = [],
     ): ?Activity {
+        $details = [...self::$context, ...$details];
         $impersonator = self::impersonator($actor);
         if ($impersonator !== null) {
             $details['impersonated_by'] = $impersonator;

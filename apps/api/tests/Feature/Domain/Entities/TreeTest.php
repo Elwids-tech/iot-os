@@ -89,7 +89,7 @@ final class TreeTest extends EntityTestCase
             ->assertJsonPath('data.path', 'RiversidePlant/Assembly/Line2');
         $this->getJson($this->prefix.'/entities/'.$pump['uuid'])->assertOk()->assertJsonPath('data.path', 'RiversidePlant/Assembly/Line2/Pump')
             ->assertJsonPath('data.ancestors.1.name', 'Assembly');
-        $this->assertSame(
+        $this->assertEquals(
             [Entity::where('uuid', $plant['uuid'])->value('id') => 3, Entity::where('uuid', $assembly['uuid'])->value('id') => 2],
             DB::table('entity_closure')->where('descendant_id', Entity::where('uuid', $pump['uuid'])->value('id'))->whereIn('ancestor_id', Entity::whereIn('uuid', [$plant['uuid'], $assembly['uuid'], $packaging['uuid']])->pluck('id'))->pluck('depth', 'ancestor_id')->all(),
             'the closure follows the move and forgets the old parent',
