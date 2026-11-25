@@ -36635,7 +36635,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_209",
+        "operationId": "domain.automation.scenario.save_210",
         "tags": [
           "Scenario"
         ],
@@ -36751,7 +36751,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_210",
+        "operationId": "domain.automation.scenario.save_211",
         "tags": [
           "Scenario"
         ],
@@ -37160,6 +37160,257 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/workflows/{workflow}/series": {
+      "get": {
+        "operationId": "dag.series",
+        "tags": [
+          "Dag"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "description": "The workflow UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The points of the period and the deployed steps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to",
+                    "data",
+                    "nodes"
+                  ],
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "operation_uuid",
+                          "at",
+                          "trigger",
+                          "outcome",
+                          "intents",
+                          "generation",
+                          "nodes"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "operation_uuid": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "trigger": {
+                            "type": "string",
+                            "description": "`telemetry` or `timer`."
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "description": "`evaluated`, `triggered`, `waiting` or `suspended`."
+                          },
+                          "intents": {
+                            "type": "integer",
+                            "description": "How many actions this evaluation requested."
+                          },
+                          "generation": {
+                            "type": "integer",
+                            "description": "The deployment generation that ran it."
+                          },
+                          "nodes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "node_id",
+                                "status",
+                                "known"
+                              ],
+                              "properties": {
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "known": {
+                                  "type": "boolean",
+                                  "description": "Whether the step's `out` port had a usable value."
+                                },
+                                "value": {
+                                  "type": [
+                                    "boolean",
+                                    "number",
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "The `out` value, when known."
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "observed_at": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "side": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "For a branch, the side it took (`true` or `false`)."
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "seconds": {
+                            "type": "integer",
+                            "description": "For a sustained condition, how long it must hold."
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "For an alert, its title."
+                          },
+                          "binding": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "role",
+                              "device_uuid",
+                              "parameter_label",
+                              "unit",
+                              "data_type"
+                            ],
+                            "properties": {
+                              "role": {
+                                "type": "string"
+                              },
+                              "device_uuid": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "device_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "parameter_label": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": "string"
+                              },
+                              "data_type": {
+                                "type": "string"
+                              },
+                              "fresh_seconds": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "The automation's evaluations over the last hours (1 to 168, default 6) as compact\npoints, oldest first: what each step decided, without the full trace. `nodes`\ndescribes the deployed steps the points refer to. At most 1,000 points."
+      }
+    },
     "/v1/organizations/{organization}/workflows/{workflow}/simulate": {
       "post": {
         "operationId": "workflow.simulate",
@@ -37296,7 +37547,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_200",
+        "operationId": "domain.automation.dag.timeline_201",
         "tags": [
           "Dag"
         ],
@@ -37367,7 +37618,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_201",
+        "operationId": "domain.automation.dag.timeline_202",
         "tags": [
           "Dag"
         ],

@@ -234,11 +234,19 @@ workflows/dag` rows carry `moved_to`.
 
 ### Execution and actions
 
-The **Execution** tab shows state, the latest node trace, timers, consumer health
-and a timeline (polls every five seconds, 20 entries per page). Each evaluation
-records its trigger (telemetry or timer), deployed generation and revision, inputs,
-outputs and why steps were false, unknown, suppressed or triggered. Editing a
-draft never rewrites history. **Explain this execution** opens the assistant on a
+The **Execution** tab starts with one sentence about now (an alert that is raised, a
+duration that is counting and when it is due, a missing reading, or nothing to do),
+then a card per deployed step with what it answered and the step that decides the
+outcome marked. Below are state bands over the last 6 hours, 24 hours or 7 days
+(each switch input, gaps with no fresh reading, each alert), the list of what
+changed with unchanged evaluations folded away, and how readings arrive against the
+input's freshness. The bands and lists come from `GET {w}/series?hours=`
+([`execution-model.ts`](../../apps/portal/src/automation/execution-model.ts)): every
+evaluation of the period reduced to each step's status and `out` value, at most
+1,000 points, polled every five seconds for the 6 hour view. Selecting a point opens
+that evaluation (`GET {w}/timeline/{evaluation}`): its trigger (telemetry or timer),
+deployed generation and revision, inputs, outputs and why steps were false, unknown,
+suppressed or triggered. Editing a draft never rewrites history. **Explain this execution** opens the assistant on a
 stored snapshot of that evaluation ([assistant](assistant.md#automation-assistant)).
 
 Actions leave the runtime as `automation.intent.v1` events.
@@ -289,7 +297,7 @@ Under `/api/v1/organizations/{organization}/workflows`
 | `POST {w}/deployments`, `PUT dag/settings`, `POST dag/commands/{c}/reconcile` | Activation, preview and emergency stop, reconciliation | `Workflow.activate` |
 | `POST {w}/archive` | Turn off and hide | `Workflow.manage` and `Workflow.activate` |
 | `POST {w}/restore` | Bring back, off | `Workflow.manage` |
-| `GET {w}/execution`, `{w}/actions`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` |
+| `GET {w}/execution`, `{w}/actions`, `{w}/series`, `{w}/timeline`, `{w}/timeline/{evaluation}` | Runtime state, action outcomes, timeline | `Workflow.view` |
 
 | `GET alert-limits?device[]=…` | Alert limits on up to 100 devices | `Device.view` |
 

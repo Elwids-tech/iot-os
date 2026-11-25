@@ -67,6 +67,8 @@ import {
   TableRow,
   TableCell,
 } from "@iot-os/ui/components/table";
+import { Panel, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@iot-os/ui/components/panel";
+import { Status } from "@iot-os/ui/components/status-mark";
 import reference from "../../../../contracts/rules/v2/workflow.fixture.json";
 import { api } from "../lib/api";
 import { useUnsavedContribution } from "../lib/unsaved";
@@ -98,6 +100,7 @@ import { newEditorId } from "./assistant-session";
 import { usePanel } from "../panel/context";
 import type { ExecutionSelection } from "./execution-evidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
+import type { RuntimeState } from "./execution-model";
 import { SimulationPanel } from "./SimulationPanel";
 import { defaultSamples, nodeOutcomes, simulationSteps, type SimResult } from "./simulation";
 import { deploymentState } from "./directory";
@@ -307,6 +310,7 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
           stopped_reason?: string;
           next_timer?: string;
           consumer_healthy: boolean;
+          state?: RuntimeState;
         } | null;
       }>(org, `/${saved!.uuid}/execution`),
     enabled: Boolean(live?.applied_deployment_uuid),
@@ -833,61 +837,43 @@ function Editor({ org, id, handoff }: { org: string; id: string; handoff?: strin
           </TabsContent>
           <TabsContent value="execution">
             <div className="flex flex-col gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Live execution</CardTitle>
-                <CardDescription>
-                  Activation becomes applied only after runtime acknowledgement.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <p>Deployment: {live?.deployment_status ?? "inactive"}</p>
-                <p>
-                  Applied version: {live?.applied_deployment_uuid ?? "None"}
-                </p>
-                {execution.data?.data && (
-                  <p>
-                    {execution.data.data.enabled ? "Running" : "Suspended"} ·
-                    Consumer{" "}
-                    {execution.data.data.consumer_healthy
-                      ? "healthy"
-                      : "unhealthy"}
-                  </p>
-                )}
-                {execution.data?.data?.stopped_reason && (
-                  <p className="text-sm text-muted-foreground">
-                    {execution.data.data.stopped_reason}
-                  </p>
-                )}
-                <RequestError error={execution.error ?? actions.error} />
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Node</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Outcome</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {actions.data?.data.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell>{nodeTitle(a.node_id)}</TableCell>
-                        <TableCell>{a.kind}</TableCell>
-                        <TableCell>
-                          {a.status}
-                          {a.diagnostic && (
-                            <p className="text-xs text-muted-foreground">
-                              {a.diagnostic}
-                            </p>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            <ExecutionTimeline key={saved?.uuid ?? "unsaved"} org={org} workflowId={saved?.uuid} registry={nodeTypes} evidenceTarget={evidenceTarget} renderAssistant={evaluation => <Button variant="outline" size="sm" disabled={busy || !saved} aria-pressed={explain?.id === evaluation.id} onClick={() => { setExplain(evaluation); panel.openPanel("ask") }}><SparklesIcon data-icon="inline-start" />Explain this execution</Button>} />
+              <ExecutionTimeline key={saved?.uuid ?? "unsaved"} org={org} workflowId={saved?.uuid} registry={nodeTypes} evidenceTarget={evidenceTarget} execution={execution.data?.data} deployment={live?.deployment_status} titleOf={nodeTitle} renderAssistant={evaluation => <Button variant="outline" size="sm" disabled={busy || !saved} aria-pressed={explain?.id === evaluation.id} onClick={() => { setExplain(evaluation); panel.openPanel("ask") }}><SparklesIcon data-icon="inline-start" />Explain this execution</Button>} />
+              <RequestError error={execution.error ?? actions.error} />
+              {Boolean(actions.data?.data.length) && (
+                <Panel>
+                  <PanelHeader>
+                    <PanelTitle>Recent actions</PanelTitle>
+                    <PanelDescription>What the automation asked for and how it went.</PanelDescription>
+                  </PanelHeader>
+                  <PanelContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Step</TableHead>
+                          <TableHead>Action</TableHead>
+                          <TableHead>Outcome</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {actions.data?.data.map((a) => (
+                          <TableRow key={a.id}>
+                            <TableCell>{nodeTitle(a.node_id)}</TableCell>
+                            <TableCell>{nodeTypes.find((type) => type.type === a.kind)?.label ?? a.kind}</TableCell>
+                            <TableCell>
+                              <Status value={a.status} />
+                              {a.diagnostic && (
+                                <p className="text-xs text-muted-foreground">
+                                  {a.diagnostic}
+                                </p>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </PanelContent>
+                </Panel>
+              )}
             </div>
           </TabsContent>
         </Tabs>

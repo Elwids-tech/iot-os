@@ -146,7 +146,7 @@ below…"), and recipients are chosen in the automation's notification settings.
 links there as **Alert email** once a saved draft raises alerts, and so does the activation
 review.
 
-**Explain this execution** (Execution timeline) opens a conversation on one
+**Explain this execution** (inside an evaluation on the Execution tab) opens a conversation on one
 recorded evaluation. The server fetches the evidence through the authorized
 timeline API and stores a snapshot with the run; client-supplied facts are never
 trusted. Citations open the exact step, action or evaluation. Evidence over 60,000

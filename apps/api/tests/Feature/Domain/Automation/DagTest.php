@@ -283,6 +283,44 @@ final class DagTest extends TestCase
         $this->getJson($base.'/17')->assertNotFound();
     }
 
+    public function test_series_gives_points_of_this_workflow_with_its_deployed_steps(): void
+    {
+        $w = $this->draft();
+        $workflow = Workflow::where('uuid', $w['uuid'])->firstOrFail();
+        $operation = (string) Str::uuid();
+        $graph = $w['workflow'];
+        $graph['version_uuid'] = $operation;
+        Deployment::create([
+            'uuid' => $operation, 'automation_workflow_id' => $workflow->id,
+            'generation' => 3, 'draft_revision' => 1, 'target' => 'active',
+            'definition' => $graph, 'definition_hash' => str_repeat('a', 64),
+            'command_grants' => [], 'status' => 'succeeded',
+            'created_by' => $this->actor->id, 'created_at' => now(),
+        ]);
+        $point = fn (string $id, string $op) => [
+            'id' => $id, 'operation_uuid' => $op, 'at' => now()->toIso8601String(), 'trigger' => 'telemetry', 'outcome' => 'evaluated', 'intents' => 0,
+            'nodes' => [['node_id' => $graph['nodes'][0]['id'], 'status' => 'evaluated', 'known' => true, 'value' => 30, 'reason' => '']],
+        ];
+        Http::swap(new Factory);
+        Http::fake(['*/internal/dag/series*' => Http::response([
+            'from' => now()->subHours(2)->toIso8601String(), 'to' => now()->toIso8601String(),
+            'data' => [$point('5', (string) Str::uuid()), $point('6', $operation)],
+        ])]);
+        $base = $this->url.'/'.$workflow->uuid.'/series';
+        $this->getJson($base.'?hours=2')->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', '6')
+            ->assertJsonPath('data.0.generation', 3)
+            ->assertJsonPath('nodes.0.id', $graph['nodes'][0]['id'])
+            ->assertJsonPath('nodes.0.binding.device_name', 'Simulator')
+            ->assertJsonPath('nodes.0.binding.data_type', $graph['bindings'][0]['data_type']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'hours=2') && str_contains($request->url(), $workflow->uuid));
+        $this->getJson($base.'?hours=0')->assertUnprocessable();
+        $this->getJson($base.'?hours=169')->assertUnprocessable();
+        $other = Organization::where('slug', 'northstar-utilities')->firstOrFail();
+        $this->getJson('/api/v1/organizations/'.$other->uuid.'/workflows/'.$workflow->uuid.'/series')->assertNotFound();
+    }
+
     private function multiSettingGraph(): void
     {
         $configuration = DeviceConfiguration::firstOrFail();

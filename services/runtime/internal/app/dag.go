@@ -84,6 +84,28 @@ func (a *Application) dagExecution(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"state": state, "trace": trace, "enabled": enabled, "stopped_reason": reason, "updated_at": updated, "next_timer": next, "consumer_healthy": a.rulesHealthy.Load()})
 }
 
+// dagSeries returns the evaluations of the last hours (1 to 168, default 6) as
+// compact points for the execution history band.
+func (a *Application) dagSeries(w http.ResponseWriter, r *http.Request) {
+	hours := 6
+	if value := r.URL.Query().Get("hours"); value != "" {
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 || n > 168 {
+			respond(w, 422, map[string]any{"message": "Invalid history window"})
+			return
+		}
+		hours = n
+	}
+	to := time.Now().UTC()
+	from := to.Add(-time.Duration(hours) * time.Hour)
+	points, err := a.Store.DAGSeries(r.Context(), r.URL.Query().Get("organization_uuid"), r.URL.Query().Get("workflow_uuid"), from)
+	if err != nil {
+		respond(w, 503, map[string]any{"message": "Execution history is unavailable"})
+		return
+	}
+	respond(w, 200, map[string]any{"data": points, "from": from, "to": to})
+}
+
 func (a *Application) dagHealth(w http.ResponseWriter, r *http.Request) {
 	org := r.URL.Query().Get("organization_uuid")
 	var executions, due, stateBytes int64

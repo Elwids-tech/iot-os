@@ -85,3 +85,41 @@ func (s *Store) DAGTimeline(ctx context.Context, org, workflow string, before, e
 	}
 	return result, rows.Err()
 }
+
+// DAGSeriesPoint is one evaluation reduced to what each node decided: enough to
+// draw state over time without sending every trace.
+type DAGSeriesPoint struct {
+	ID        string          `json:"id"`
+	Operation string          `json:"operation_uuid"`
+	At        time.Time       `json:"at"`
+	Trigger   string          `json:"trigger"`
+	Outcome   string          `json:"outcome"`
+	Intents   int             `json:"intents"`
+	Nodes     json.RawMessage `json:"nodes"`
+}
+
+// DAGSeries returns a workflow's evaluations since a time, oldest first, each with
+// every node's status, its "out" value and when that was observed, and for a branch
+// the side it took. It is bounded by the retention limit.
+func (s *Store) DAGSeries(ctx context.Context, org, workflow string, since time.Time) ([]DAGSeriesPoint, error) {
+	rows, err := s.Pool.Query(ctx, `SELECT id::text,operation_uuid::text,received_at,trigger,outcome,jsonb_array_length(intent_ids),
+		coalesce((SELECT jsonb_agg(jsonb_build_object('node_id',t->>'node_id','status',t->>'status','known',coalesce((t->'outputs'->'out'->>'known')::boolean,false),'value',t->'outputs'->'out'->'value','reason',coalesce(t->'outputs'->'out'->>'reason',''),'observed_at',t->'outputs'->'out'->>'observed_at','side',CASE WHEN (t->'outputs'->'true'->>'known')::boolean THEN 'true' WHEN (t->'outputs'->'false'->>'known')::boolean THEN 'false' END))
+			FROM jsonb_array_elements(trace) t),'[]'::jsonb)
+		FROM device_runtime.dag_evaluations WHERE organization_uuid=$1::uuid AND workflow_uuid=$2::uuid AND received_at>=$3 ORDER BY id DESC LIMIT $4`, org, workflow, since, DAGTimelineLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []DAGSeriesPoint{}
+	for rows.Next() {
+		var item DAGSeriesPoint
+		if err = rows.Scan(&item.ID, &item.Operation, &item.At, &item.Trigger, &item.Outcome, &item.Intents, &item.Nodes); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+	return result, rows.Err()
+}
