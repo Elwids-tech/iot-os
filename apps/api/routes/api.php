@@ -18,3 +18,4 @@ require app_path('Domain/Branding/routes/api.php');
 require app_path('Domain/Audit/routes/api.php');
 require app_path('Domain/Firmware/routes/api.php');
 require app_path('Domain/Connectivity/routes/api.php');
+require app_path('Domain/Entities/routes/api.php');

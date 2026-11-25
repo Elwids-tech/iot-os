@@ -83,6 +83,8 @@ IOT_ADAPTER_PORT_LIMIT=19999
 # token (64 hex) authenticates the receiver's reports to the API.
 IOT_WEBHOOK_PUBLIC_URL=
 IOT_WEBHOOK_RECEIVER_TOKEN=
+# Entity hierarchy (spec 009): the most entities one organization may have.
+IOT_ENTITIES_MAX_PER_ORGANIZATION=100000
 # Portal addresses (spec 036, docs/ops/release.md): billing accounts' branded portals
 # on names under DOMAIN. Turn on only after the wildcard DNS record *.DOMAIN points at
 # this host. The token (64 hex, `openssl rand -hex 32`) guards the certificate question.

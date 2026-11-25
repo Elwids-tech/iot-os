@@ -9,6 +9,8 @@ use App\Domain\Automation\Permissions\WorkflowPermission;
 use App\Domain\Dashboards\Permissions\DashboardPermission;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\Devices\Permissions\DevicePermission;
+use App\Domain\Entities\Permissions\EntityPermission;
+use App\Domain\Entities\Permissions\EntityTypePermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use App\Domain\Shared\Permissions\UserPermission;
 
@@ -41,9 +43,12 @@ enum OrganizationRoleName: string
                 ...array_map(static fn ($permission): string => $permission->value, DevicePermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, WorkflowPermission::cases()),
                 ...array_map(static fn ($permission): string => $permission->value, DashboardPermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, EntityPermission::cases()),
+                ...array_map(static fn ($permission): string => $permission->value, EntityTypePermission::cases()),
             ],
             self::MODERATOR => [
                 DevicePermission::VIEW->value,
+                EntityPermission::VIEW->value,
                 DashboardPermission::VIEW->value,
                 DashboardPermission::CREATE->value,
                 WorkflowPermission::VIEW->value,
@@ -56,6 +61,7 @@ enum OrganizationRoleName: string
             ],
             self::MEMBER => [
                 DevicePermission::VIEW->value,
+                EntityPermission::VIEW->value,
                 DashboardPermission::VIEW->value,
                 WorkflowPermission::VIEW->value,
                 OrganizationPermission::VIEW->value,

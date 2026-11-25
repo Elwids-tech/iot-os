@@ -74,6 +74,7 @@ export * from "./support"
 export * from "./billing"
 export * from "./branding"
 export * from "./activity"
+export * from "./entities"
 export type * from "./security"
 export type * from "./sign-up"
 
@@ -2355,6 +2356,65 @@ export class ApiClient {
   }
   deleteSite(org: string, site: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/sites/${encodeURIComponent(site)}`, { method: "DELETE" })
+  }
+  entityTypes(org: string) {
+    return this.request<{ data: import("./entities").EntityType[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-types`)
+  }
+  createEntityType(org: string, input: import("./entities").EntityTypeInput) {
+    return this.data<import("./entities").EntityType>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-types`, "POST", input)
+  }
+  updateEntityType(org: string, type: string, input: Partial<Omit<import("./entities").EntityTypeInput, "key">>) {
+    return this.data<import("./entities").EntityType>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-types/${encodeURIComponent(type)}`, "PATCH", input)
+  }
+  deleteEntityType(org: string, type: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-types/${encodeURIComponent(type)}`, { method: "DELETE" })
+  }
+  entityPresets(org: string) {
+    return this.request<{ data: import("./entities").EntityPreset[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-presets`)
+  }
+  applyEntityPreset(org: string, preset: string) {
+    return this.data<{ added: string[]; merged: string[] }>(`/api/v1/organizations/${encodeURIComponent(org)}/entity-presets/${encodeURIComponent(preset)}/apply`, "POST")
+  }
+  /** One level of the tree: the children of `parent`, or the top level. */
+  entities(org: string, options: { parent?: string | null; archived?: "only" | "with"; page?: number } = {}) {
+    const query = new URLSearchParams({ page: String(options.page ?? 1) })
+    if (options.parent) query.set("parent", options.parent)
+    if (options.archived) query.set("archived", options.archived)
+    return this.request<PaginatedResponse<import("./entities").EntitySummary>>(`/api/v1/organizations/${encodeURIComponent(org)}/entities?${query}`)
+  }
+  searchEntities(org: string, q: string, page = 1) {
+    const query = new URLSearchParams({ q, page: String(page) })
+    return this.request<PaginatedResponse<import("./entities").EntitySummary>>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/search?${query}`)
+  }
+  entity(org: string, entity: string) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}`)
+  }
+  createEntity(org: string, input: import("./entities").EntityInput) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities`, "POST", input)
+  }
+  updateEntity(org: string, entity: string, input: import("./entities").EntityUpdate) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}`, "PATCH", input)
+  }
+  /** What a move would change; ask before moving. */
+  entityMoveImpact(org: string, entity: string, parent: string | null) {
+    const query = parent ? `?${new URLSearchParams({ parent })}` : ""
+    return this.data<import("./entities").EntityMoveImpact>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/move-impact${query}`)
+  }
+  moveEntity(org: string, entity: string, parentUuid: string | null) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/move`, "POST", { parent_uuid: parentUuid })
+  }
+  archiveEntity(org: string, entity: string) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/archive`, "POST")
+  }
+  restoreEntity(org: string, entity: string, pathName?: string) {
+    return this.data<import("./entities").Entity>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/restore`, "POST", pathName ? { path_name: pathName } : {})
+  }
+  /** Only an entity that never held anything; archive any other. */
+  deleteEntity(org: string, entity: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}`, { method: "DELETE" })
+  }
+  entityPathNameSuggestion(org: string, name: string) {
+    return this.data<{ path_name: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/path-name-suggestion?${new URLSearchParams({ name })}`)
   }
   /** The organization's zone applies to devices without a site; null means UTC. */
   setOrganizationTimezone(org: string, timezone: string | null) {

@@ -10,6 +10,8 @@ use App\Domain\Automation\Permissions\WorkflowPermission;
 use App\Domain\Dashboards\Permissions\DashboardPermission;
 use App\Domain\DeviceProfiles\Permissions\DeviceProfilePermission;
 use App\Domain\Devices\Permissions\DevicePermission;
+use App\Domain\Entities\Permissions\EntityPermission;
+use App\Domain\Entities\Permissions\EntityTypePermission;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use App\Domain\Shared\Permissions\UserPermission;
 use Illuminate\Database\Seeder;
@@ -29,6 +31,8 @@ class PermissionSeeder extends Seeder
             DevicePermission::getPermissionGroup() => DevicePermission::cases(),
             WorkflowPermission::getPermissionGroup() => WorkflowPermission::cases(),
             DashboardPermission::getPermissionGroup() => DashboardPermission::cases(),
+            EntityPermission::getPermissionGroup() => EntityPermission::cases(),
+            EntityTypePermission::getPermissionGroup() => EntityTypePermission::cases(),
             PlatformAdministrationPermission::getPermissionGroup() => PlatformAdministrationPermission::cases(),
         ];
         // The agent guard carries no roles: agents act with the person's web permissions.
