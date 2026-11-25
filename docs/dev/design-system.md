@@ -23,6 +23,9 @@ portal or admin images.
   `@iot-os/ui/lib/status` and the `Status` component from
   `@iot-os/ui/components/status-mark`. Add new values to `lib/status.ts`, never to a
   local map. "pending" is always info.
+- **Colour keys** are `ColorMark` (`@iot-os/ui/components/color-mark`): a small
+  square with rounded corners, used for status marks, legends, state bands and
+  unread markers. No round dots and no local swatch spans.
 - **Times** use `RelativeTime` or `Freshness` (`@iot-os/ui/components/freshness`);
   never a local `Age`.
 - **Allowances** use `AllowanceMeter`, and a billing account's usage by month

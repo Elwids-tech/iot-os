@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import type { NodeType } from "@iot-os/workflow-editor"
 import { ActivityIcon, ChevronDownIcon, ClockIcon, PauseIcon, PlayIcon, RefreshCwIcon } from "lucide-react"
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Button } from "@iot-os/ui/components/button"
 import { Badge } from "@iot-os/ui/components/badge"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@iot-os/ui/components/accordion"
@@ -161,7 +162,7 @@ export function ExecutionTimeline({ org, workflowId, registry, evidenceTarget, r
       </PanelHeader>
       <PanelContent className="flex flex-col gap-3">
         {series.isPending ? <Skeleton className="h-24" /> : view && !data?.data.length ? <Empty><EmptyHeader><EmptyTitle>No recorded evaluations</EmptyTitle><EmptyDescription>Nothing was evaluated in the last {range}. An automation that is not active records nothing.</EmptyDescription></EmptyHeader></Empty> : view && <>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-muted-foreground">{legend.filter((entry) => view.bands.some((band) => band.segments.some((segment) => segment.tone === entry.tone))).map((entry) => <span key={entry.label} className="inline-flex items-center gap-1.5"><span aria-hidden="true" className={cn("size-3 rounded-sm", segmentClass[entry.tone])} />{entry.label}</span>)}</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-muted-foreground">{legend.filter((entry) => view.bands.some((band) => band.segments.some((segment) => segment.tone === entry.tone))).map((entry) => <span key={entry.label} className="inline-flex items-center gap-1.5"><ColorMark className={cn("size-3", segmentClass[entry.tone])} />{entry.label}</span>)}</div>
           <div className="grid grid-cols-[minmax(4rem,9rem)_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
             {view.bands.map((band) => <div key={band.id} className="contents">
               <div className="truncate text-meta text-muted-foreground" title={band.label}>{band.label}</div>

@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { useNow } from "@iot-os/ui/hooks/use-now"
 import {
   formatAge,
@@ -88,7 +89,7 @@ function Freshness({
         className,
       )}
     >
-      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", dots[state])} />
+      <ColorMark className={cn("size-2", dots[state])} />
       <RelativeTime at={at} never={never} now={now} timezone={timezone} />
       {state === "late" && <span className="sr-only">, late</span>}
     </span>

@@ -5,6 +5,7 @@ import type {
   StateHistorySegment,
 } from "@iot-os/api-client"
 import { EChart, timelineOption, useChartTheme } from "@iot-os/charts"
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Badge } from "@iot-os/ui/components/badge"
 import { cn } from "@iot-os/ui/lib/utils"
 import {
@@ -223,11 +224,7 @@ export function StateHistoryVisualization({
         <div className="flex flex-wrap gap-2" role="group" aria-label="Colours observed">
           {observedColours.slice(0, 20).map((value) => (
             <Badge key={value} variant="outline" className="gap-1.5 font-mono">
-              <span
-                aria-hidden
-                className="size-3 rounded-sm border"
-                style={{ backgroundColor: value }}
-              />
+              <ColorMark className="size-3 border" color={value} />
               {value}
             </Badge>
           ))}

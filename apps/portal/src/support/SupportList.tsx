@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { LifeBuoyIcon, PlusIcon } from "lucide-react"
 import { ticketTypes, type TicketSummary, type TicketType } from "@iot-os/api-client"
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Button } from "@iot-os/ui/components/button"
 import { DataTable, RowLink, type DataColumn } from "@iot-os/ui/components/data-table"
 import { EmptyState } from "@iot-os/ui/components/empty-state"
@@ -42,7 +43,7 @@ export function SupportList() {
         cell: (ticket) => (
           <>
             <span className="flex min-w-0 items-center gap-2">
-              {ticket.unread && <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" role="img" />}
+              {ticket.unread && <ColorMark className="size-2 bg-primary" aria-label="Unread" role="img" />}
               <RowLink to={supportPath(org, `/${ticket.uuid}`)} className={ticket.unread ? "truncate font-semibold" : "truncate"}>
                 {ticket.title}
               </RowLink>

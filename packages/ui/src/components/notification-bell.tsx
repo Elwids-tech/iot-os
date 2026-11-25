@@ -2,6 +2,7 @@ import * as React from "react"
 import { BellIcon } from "lucide-react"
 import { Link, type To } from "react-router-dom"
 
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { Button } from "@iot-os/ui/components/button"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { Popover, PopoverContent, PopoverTrigger } from "@iot-os/ui/components/popover"
@@ -133,10 +134,7 @@ function NotificationBell({
                     }}
                     className="flex gap-2.5 px-3 py-2 outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
                   >
-                    <span
-                      aria-hidden="true"
-                      className={cn("mt-1.5 size-2 shrink-0 rounded-full", item.unread ? "bg-primary" : "bg-transparent")}
-                    />
+                    <ColorMark className={cn("mt-1.5 size-2", item.unread ? "bg-primary" : "bg-transparent")} />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-baseline justify-between gap-2">
                         <span className={cn("min-w-0 truncate", item.unread && "font-medium")}>

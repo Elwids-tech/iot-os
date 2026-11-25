@@ -1,3 +1,4 @@
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
@@ -55,11 +56,7 @@ export function formatReading(value: unknown, precision?: number) {
 export function BandMark({ band }: { band: DashboardBand }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span
-        aria-hidden
-        className="size-2 shrink-0"
-        style={{ backgroundColor: bandColor(band.color) }}
-      />
+      <ColorMark color={bandColor(band.color)} />
       {band.label.charAt(0).toUpperCase() + band.label.slice(1)}
     </span>
   )
@@ -315,7 +312,7 @@ export function TablePanel({ org, widget, view }: PanelProps) {
               ) : (
                 <>
                   {state?.tone && (
-                    <span aria-hidden className="mr-2 inline-block size-2.5 align-middle" style={{ backgroundColor: TONE_COLOR[state.tone] }} />
+                    <ColorMark className="mr-2 align-middle" color={TONE_COLOR[state.tone]} />
                   )}
                   {state ? state.label : reading ? formatReading(reading.value, precision) : "—"}
                   {source.unit && !state && (

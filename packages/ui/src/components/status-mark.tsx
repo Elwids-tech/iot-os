@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { statusOf, type StatusDomain } from "@iot-os/ui/lib/status"
 import { cn } from "@iot-os/ui/lib/utils"
 
@@ -14,7 +15,7 @@ const tones = {
 
 export type StatusTone = keyof typeof tones
 
-/** Status as an 8px square in the tone colour plus a label, never colour alone. */
+/** Status as a rounded square in the tone colour plus a label, never colour alone. */
 export function StatusMark({
   tone,
   className,
@@ -28,7 +29,7 @@ export function StatusMark({
       className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}
       {...props}
     >
-      <span aria-hidden="true" className={cn("size-2 shrink-0", tones[tone])} />
+      <ColorMark className={tones[tone]} />
       {children}
     </span>
   )

@@ -1,3 +1,4 @@
+import { ColorMark } from "@iot-os/ui/components/color-mark"
 import { RelativeTime } from "@iot-os/ui/components/freshness"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import type { Measurement } from "@iot-os/api-client"
@@ -348,11 +349,7 @@ function Sparkline({
 function ToneSquare({ tone }: { tone?: StateTone }) {
   if (!tone) return null
   return (
-    <span
-      aria-hidden
-      className="mr-2 inline-block size-2.5 align-middle"
-      style={{ backgroundColor: TONE_COLOR[tone] }}
-    />
+    <ColorMark className="mr-2 align-middle" color={TONE_COLOR[tone]} />
   )
 }
 
