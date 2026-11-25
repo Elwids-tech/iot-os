@@ -2,12 +2,12 @@
 
 Under `/api/v1/organizations/{organization}` unless noted. Every route resolves the
 organization and checks membership before the permission named (constitution III); an
-entity, type or device of another organization answers `404`. Validation errors are
-`422` with field errors that name the broken rule (`rule` in the error's meta: `depth`,
-`cycle`, `parent_type`, `naming`, `sibling_clash`, `leaf_clash`, `accepts_devices`,
-`ceiling`, `in_use`). A request that changes nothing records no activity (FR-019).
-Every change is described in `contracts/openapi/supplements/entities.yaml` and
-`packages/api-client/src/entities.ts` in the same pull request (FR-022).
+entity, type or device of another organization answers `404`. A broken rule is a
+standard `422` whose field message names the rule and what is allowed ("Line cannot
+sit under Site. Allowed: Area."). A request that changes nothing records no activity
+(FR-019). Operations are described in the generated OpenAPI contract (statuses that
+inference misses in `contracts/openapi/supplements/entities.yaml`) and in
+`packages/api-client/src/entities.ts`, in the same pull request (FR-022).
 
 ## Types and presets — PR 1
 
@@ -41,7 +41,8 @@ Type view:
 | `GET entities/{entity}` | `Entity.view` | the entity with ancestors (breadcrumb) and counts |
 | `POST entities` | `Entity.manage` | `parent_uuid` optional |
 | `PATCH entities/{entity}` | `Entity.manage` | name, path name, description, time zone, location, attributes, `type_key` (retype) |
-| `POST entities/{entity}/move` | `Entity.manage` | `{parent_uuid: uuid|null, confirm_impact: bool}`; without `confirm_impact` answers `409` with the impact below |
+| `GET entities/{entity}/move-impact?parent=` | `Entity.view` | what a move would change (below); the portal shows it before moving |
+| `POST entities/{entity}/move` | `Entity.manage` | `{parent_uuid: uuid|null}` |
 | `POST entities/{entity}/archive`, `…/restore` | `Entity.manage` | restore takes an optional new `path_name` |
 | `DELETE entities/{entity}` | `Entity.manage` | only an entity that never held anything; otherwise `422` asking to archive |
 | `GET entities/path-name-suggestion?name=` | `Entity.view` | R11 |
@@ -61,7 +62,8 @@ Entity view:
 }
 ```
 
-Move impact (`409` body, also `GET entities/{entity}/move-impact?parent_uuid=`):
+Move impact (`GET entities/{entity}/move-impact`, `data`). PR 1 returns `entities` only;
+the device, site, time zone and application counts join in PR 2:
 
 ```json
 {

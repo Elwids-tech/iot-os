@@ -50,7 +50,7 @@ Rules:
 | `description` | text, null | ≤ 2,000 |
 | `timezone` | string(64), null | IANA; only when the type carries one; required for Site entities |
 | `address` | text, null; `latitude`, `longitude` decimal(9,6), null | only when the type carries a location; both coordinates or neither |
-| `attributes` | json | ≤ 30 `{key, value}` |
+| `custom_attributes` | json | ≤ 30 `{key: value}` (served as `attributes`; the column name avoids Eloquent's own `attributes`) |
 | `archived_at` | timestamp, null | with `archived_by` |
 | `created_by`, `updated_by` | user_id, null | |
 | timestamps | | |

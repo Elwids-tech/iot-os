@@ -7,6 +7,8 @@ const groupLabels: Record<string, string> = {
   Device: "Devices",
   Workflow: "Automations",
   Dashboard: "Dashboards",
+  Entity: "Hierarchy",
+  EntityType: "Hierarchy types",
 }
 
 const permissionLabels: Record<string, string> = {
@@ -51,6 +53,9 @@ const permissionLabels: Record<string, string> = {
   "Dashboard.view": "Open dashboards shared with them",
   "Dashboard.create": "Create and share their own dashboards",
   "Dashboard.manage": "Edit, share and delete every dashboard",
+  "Entity.view": "View the hierarchy",
+  "Entity.manage": "Change the hierarchy",
+  "EntityType.manage": "Define entity types, rules and naming",
 }
 
 export const permissionGroupLabel = (group: string) => groupLabels[group] ?? group

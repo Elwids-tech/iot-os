@@ -114,6 +114,9 @@ Things that have cost time before. Add to this list when something surprises you
   The billing accounts migration makes `organizations.billing_account_id` required
   before it creates `billing_account_assignments` for that reason. Production runs
   PostgreSQL, but `contract:export` and the local suite migrate SQLite.
+- **Test requests lose a trailing `/`, even inside the query string.** Laravel's
+  test client trims `/` from the end of the whole URL, so `getJson('…/search?q=line2/')`
+  sends `q=line2`. Put another parameter after such a value (`?q=line2/&page=1`).
 - **`assertThrows` with a closure needs a `bool` back.** Laravel calls the closure
   with the exception and treats its return value as the verdict, so
   `fn (HttpException $e) => $this->assertSame(409, $e->getStatusCode())` fails with

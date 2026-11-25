@@ -1,0 +1,22 @@
+# Entity hierarchy operations (spec 009, specs/009-entity-hierarchy/contracts/api.md).
+#
+# Statuses the hierarchy's rules return that inference cannot see: a rule broken
+# inside EntityTree, EntityTypes or EntityPresets is a 422 naming the field.
+# Format: ../meta/supplement.schema.json.
+operations:
+  POST /v1/organizations/{organization}/entities/{entity}/archive:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  DELETE /v1/organizations/{organization}/entities/{entity}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  DELETE /v1/organizations/{organization}/entity-types/{type}:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/entity-presets/{preset}/apply:
+    responses:
+      '422':
+        $ref: '#/components/responses/ValidationFailed'

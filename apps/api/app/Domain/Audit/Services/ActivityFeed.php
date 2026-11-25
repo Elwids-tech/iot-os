@@ -25,6 +25,8 @@ final class ActivityFeed
     private const NAMED_BY_UUID = [
         'device' => ['devices', 'name'],
         'site' => ['sites', 'name'],
+        'entity' => ['entities', 'name'],
+        'entity_type' => ['entity_types', 'name'],
         'dashboard' => ['dashboards', 'name'],
         'device_profile' => ['device_profiles', 'name'],
         'device_adapter' => ['device_adapters', 'name'],

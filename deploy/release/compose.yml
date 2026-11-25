@@ -60,6 +60,7 @@ x-api-env: &api-env
   # AI agents through MCP (spec 004). Organizations still switch it on themselves.
   IOT_AGENTS_ENABLED: ${IOT_AGENTS_ENABLED:-false}
   IOT_AGENTS_REDIRECT_DOMAINS: ${IOT_AGENTS_REDIRECT_DOMAINS:-*}
+  IOT_ENTITIES_MAX_PER_ORGANIZATION: ${IOT_ENTITIES_MAX_PER_ORGANIZATION:-100000}
   # Signing keys for agent tokens (manage.py init or passport-keys). Rotating them disconnects every agent.
   PASSPORT_PRIVATE_KEY: ${PASSPORT_PRIVATE_KEY:-}
   PASSPORT_PUBLIC_KEY: ${PASSPORT_PUBLIC_KEY:-}
