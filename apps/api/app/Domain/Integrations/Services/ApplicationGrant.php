@@ -6,7 +6,9 @@ namespace App\Domain\Integrations\Services;
 
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Models\Site;
+use App\Domain\Entities\Models\EntityType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * What one application may see, resolved for one request (spec 030, research R7).
@@ -57,6 +59,12 @@ final class ApplicationGrant
         return $device->site_id !== null && in_array((int) $device->site_id, $this->siteIds(), true);
     }
 
+    /** Whether a site is the scope's or inside a scoped site's branch. */
+    public function coversSite(int $siteId): bool
+    {
+        return $this->kind() === self::SITES && in_array($siteId, $this->siteIds(), true);
+    }
+
     /**
      * The granted devices as a query, always inside the organization: a `whereIn('uuid')`
      * for a list, a `whereIn('site_id')` for a scope. An empty scope matches nothing.
@@ -82,13 +90,25 @@ final class ApplicationGrant
     }
 
     /**
-     * The scope's site ids, resolved once per request through the organization.
+     * The scope's sites and every site inside their branches, resolved once per request
+     * through the organization. A device's site is the nearest Site entity above its
+     * place (spec 009, research R8), so a device placed anywhere in a scoped site's
+     * branch, under a nested site too, is covered.
      *
      * @return list<int>
      */
     private function siteIds(): array
     {
-        return $this->siteIds ??= $this->siteUuids === [] ? []
-            : Site::where('organization_id', $this->organizationId)->whereIn('uuid', $this->siteUuids)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($this->siteIds !== null) {
+            return $this->siteIds;
+        }
+        $scoped = $this->siteUuids === [] ? collect()
+            : Site::where('organization_id', $this->organizationId)->whereIn('uuid', $this->siteUuids)->pluck('id');
+
+        return $this->siteIds = $scoped->isEmpty() ? [] : DB::table('entity_closure')
+            ->join('entities', 'entities.id', '=', 'entity_closure.descendant_id')
+            ->join('entity_types', 'entity_types.id', '=', 'entities.entity_type_id')
+            ->whereIn('entity_closure.ancestor_id', $scoped)->where('entity_types.key', EntityType::SITE)
+            ->pluck('entities.id')->map(fn ($id) => (int) $id)->unique()->values()->all();
     }
 }

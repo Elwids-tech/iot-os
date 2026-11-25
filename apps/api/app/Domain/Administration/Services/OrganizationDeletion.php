@@ -9,6 +9,7 @@ use App\Domain\Agents\Enums\RevocationReason;
 use App\Domain\Agents\Models\AgentConnection;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Services\AssistantRecovery;
+use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\Pipes;
 use App\Domain\Shared\Models\Organization;
@@ -103,7 +104,9 @@ final class OrganizationDeletion
             ['key' => 'roles', 'label' => 'Roles', 'count' => DB::table('roles')->where('organization_id', $id)->count()],
             ['key' => 'invitations', 'label' => 'Open invitations', 'count' => DB::table('organization_invitations')->where('organization_id', $id)->whereNull('accepted_at')->whereNull('revoked_at')->count()],
             ['key' => 'dashboards', 'label' => 'Dashboards', 'count' => DB::table('dashboards')->where('organization_id', $id)->count()],
-            ['key' => 'sites', 'label' => 'Sites', 'count' => DB::table('sites')->where('organization_id', $id)->count()],
+            // Sites are the hierarchy's Site entities (spec 009); the rest of the hierarchy is counted apart.
+            ['key' => 'sites', 'label' => 'Sites', 'count' => Site::query()->where('organization_id', $id)->count()],
+            ['key' => 'entities', 'label' => 'Other hierarchy entities', 'count' => DB::table('entities')->where('organization_id', $id)->whereNull('archived_at')->count() - Site::query()->where('organization_id', $id)->count()],
             ['key' => 'agent_connections', 'label' => 'AI agent connections', 'count' => DB::table('agent_connections')->where('organization_id', $id)->whereNull('revoked_at')->count()],
             ['key' => 'assistant_conversations', 'label' => 'Assistant conversations', 'count' => DB::table('assistant_conversations')->where('organization_id', $id)->count()],
             ['key' => 'audit_events', 'label' => 'Audit events', 'count' => DB::table('activity_log')->where('organization_id', $id)->count()],
@@ -157,7 +160,7 @@ final class OrganizationDeletion
                 ->whereNull('ended_at')
                 ->update(['ended_at' => now(), 'ended_by' => $actor->getKey()]);
 
-            // Members, roles, invitations, dashboards, sites, settings and agent connections cascade.
+            // Members, roles, invitations, dashboards, the hierarchy (sites included), settings and agent connections cascade.
             $locked->forceDelete();
 
             DeviceAudit::record('organization.deleted', null, $actor->getKey(), $locked->uuid, [

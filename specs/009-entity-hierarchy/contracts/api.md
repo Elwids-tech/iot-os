@@ -77,10 +77,10 @@ the device, site, time zone and application counts join in PR 2:
 
 | Method and path | Permission | Notes |
 | --- | --- | --- |
-| `PUT devices/{device}/placement` | `Entity.manage` | `{entity_uuid, leaf_names?: {parameter_uuid: leaf}}`; ends the current placement and starts this one; refused clashes list every clashing name |
+| `PUT devices/{device}/placement` | `Entity.manage` | `{entity_uuid}`; ends the current placement and starts this one; returns the placement (`200`). Leaf names and clash checks join in PR 4 |
 | `DELETE devices/{device}/placement` | `Entity.manage` | ends it (`unplaced`) |
-| `GET devices/{device}/placements` | `Entity.view` | history, newest first, with entity path at the time and who |
-| `GET entities/{entity}/devices?branch=0|1&page=` | `Entity.view` | devices placed at the entity, or anywhere in its coverage |
+| `GET devices/{device}/placements` | `Entity.view` | history, newest first: entity (path today), start, end, end reason, who |
+| `GET entities/{entity}/devices?branch=0|1&page=` | `Entity.view` | devices placed at the entity, or anywhere in its branch (coverage with memberships in PR 5) |
 
 The device view gains `entity` (`{uuid, name, path}` or null) and `path`. The device
 create and update requests accept `entity_uuid` beside `site_uuid` (one of them, `422`

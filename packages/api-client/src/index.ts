@@ -2413,6 +2413,21 @@ export class ApiClient {
   deleteEntity(org: string, entity: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}`, { method: "DELETE" })
   }
+  /** Places the device at the entity, ending where it was. */
+  placeDevice(org: string, device: string, entityUuid: string) {
+    return this.data<import("./entities").EntityPlacement>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, "PUT", { entity_uuid: entityUuid })
+  }
+  unplaceDevice(org: string, device: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, { method: "DELETE" })
+  }
+  devicePlacements(org: string, device: string, page = 1) {
+    return this.request<PaginatedResponse<import("./entities").EntityPlacement>>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placements?page=${page}`)
+  }
+  /** Devices placed at the entity, or anywhere below it with `branch`. */
+  entityDevices(org: string, entity: string, options: { branch?: boolean; page?: number } = {}) {
+    const query = new URLSearchParams({ page: String(options.page ?? 1), branch: options.branch ? "1" : "0" })
+    return this.request<PaginatedResponse<import("./entities").PlacedDevice>>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/devices?${query}`)
+  }
   entityPathNameSuggestion(org: string, name: string) {
     return this.data<{ path_name: string }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/path-name-suggestion?${new URLSearchParams({ name })}`)
   }

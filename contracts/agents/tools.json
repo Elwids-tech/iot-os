@@ -14,6 +14,7 @@
                         "type": "string"
                     },
                     "site_uuid": {
+                        "description": "A site from list_sites: devices whose nearest site in the hierarchy is that one.",
                         "format": "uuid",
                         "type": "string"
                     },
@@ -230,6 +231,7 @@
                         "type": "string"
                     },
                     "site_uuid": {
+                        "description": "A site from list_sites: alerts of devices whose nearest site in the hierarchy is that one.",
                         "format": "uuid",
                         "type": "string"
                     },
@@ -261,7 +263,7 @@
         {
             "name": "list_sites",
             "title": "List Sites",
-            "description": "The organization's sites with their time zones and how many devices each holds. Use a site_uuid to filter find_devices or list_alerts.",
+            "description": "The organization's sites with their time zones and how many devices each holds. Sites are the top places of the organization's hierarchy; a device belongs to the nearest site above where it is placed. Use a site_uuid to filter find_devices or list_alerts.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}

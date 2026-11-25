@@ -121,14 +121,15 @@ The details are in [research.md](research.md) (decisions R1–R21),
   - `EntityHistory` (history pages, `branchAt` R12);
   - `HierarchyOperations`, `HierarchyQueries`, `HierarchyBatch` and its item and result
     classes (R13);
-  - `SiteView` (site shapes from Site entities for every compatibility reader).
+  - `Devices\Models\Site` kept as a model over Site-type entities (a type scope on
+    `entities`), the compatibility view for every reader of sites.
 - `Domain/Entities/Http`: `EntityTypeController`, `EntityPresetController`,
   `EntityController` (tree, search, move impact), `PlacementController`,
   `PointController`, `MembershipController`, `EntityHistoryController`;
   `Domain/Entities/routes/api.php` required from `routes/api.php`.
 - Changed readers ([contracts/site-compatibility.md](contracts/site-compatibility.md)):
   `Device::site()` and `reportingTimezone()`; `SiteController` through
-  `HierarchyOperations` and `SiteView`; `DeviceController` (`entity_uuid`, `site_uuid`
+  the hierarchy's services and the `Site` model over entities; `DeviceController` (`entity_uuid`, `site_uuid`
   places, archive ends placements); `DeviceDirectory` and `AlertQuery` (`entity_uuid`
   coverage filter); `MovePreview`, `MoveRequests`, `MoveCutover` (R7);
   `ApplicationGrant`, `ApplicationGrants::entityArchived` (R8);

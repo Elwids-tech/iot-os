@@ -95,7 +95,7 @@ final class EntityController
     /**
      * What moving the entity under `parent` would change; ask before moving.
      *
-     * @return array{data: array{entities: int}}
+     * @return array{data: array{entities: int, devices: int, devices_changing_site: int, devices_changing_timezone: int, applications: list<array{uuid: string, name: string, gains: int, loses: int}>}}
      */
     #[QueryParameter('parent', description: 'The new parent\'s UUID; omit for the top level.', type: 'string', format: 'uuid')]
     public function moveImpact(Request $request, Organization $organization, Entity $entity): array

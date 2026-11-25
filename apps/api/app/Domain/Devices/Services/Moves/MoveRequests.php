@@ -117,7 +117,7 @@ final class MoveRequests
                 $successor = $review['devices'][$i]['successor'];
                 DeviceMoveDevice::create([
                     'device_move_id' => $move->id, 'predecessor_device_id' => $device->id, 'name' => $successor['name'], 'code' => $successor['code'],
-                    'target_site_id' => $row['site']?->id, 'was_active' => $row['was_active'], 'arrives_active' => $review['devices'][$i]['arrives_active'],
+                    'target_entity_id' => $row['entity']?->id, 'was_active' => $row['was_active'], 'arrives_active' => $review['devices'][$i]['arrives_active'],
                     'stop_operation_uuid' => $stop, 'state' => $stop ? 'stopping' : 'waiting', 'outstanding_key' => $device->id,
                 ]);
             }

@@ -104,6 +104,7 @@ final class DeviceView
         $data['link'] = self::link($device);
         $data['profile'] = self::profile($device);
         $data['site'] = self::site($device);
+        $data['entity'] = self::entity($device);
         $data['tags'] = $device->tags ?? [];
         $data['attributes'] = (object) ($device->custom_attributes ?? []);
         if ($detail) {
@@ -134,6 +135,16 @@ final class DeviceView
         $artifact = ($device->appliedConfiguration ?? $device->lastAppliedConfiguration)?->artifact;
 
         return $artifact?->profile ? ['uuid' => $artifact->profile->uuid, 'name' => $artifact->profile->name, 'revision' => $artifact->revision] : null;
+    }
+
+    /**
+     * Where the device is in the hierarchy (spec 009): its place, or its last place when archived.
+     *
+     * @return ?array{uuid: string, name: string, path: string}
+     */
+    public static function entity(Device $device): ?array
+    {
+        return $device->entity ? ['uuid' => $device->entity->uuid, 'name' => $device->entity->name, 'path' => $device->entity->path] : null;
     }
 
     /** @return ?array{uuid: string, name: string, timezone: string} */

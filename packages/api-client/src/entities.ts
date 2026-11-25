@@ -105,4 +105,29 @@ export type EntityUpdate = Partial<Omit<EntityInput, "parent_uuid">>
 export type EntityMoveImpact = {
   /** The entity and everything below it. */
   entities: number
+  /** Devices placed in the branch (not archived). */
+  devices: number
+  devices_changing_site: number
+  devices_changing_timezone: number
+  /** Integration applications following a site that would gain or lose devices. */
+  applications: { uuid: string; name: string; gains: number; loses: number }[]
+}
+
+export type EntityPlacement = {
+  uuid: string
+  entity: { uuid: string; name: string; path: string; archived: boolean }
+  /** Null for a placement from before placement history was kept. */
+  started_at: string | null
+  ended_at: string | null
+  end_reason: "moved" | "unplaced" | "device_archived" | "moved_out" | "entity_archived" | null
+  started_by: number | null
+  ended_by: number | null
+}
+
+export type PlacedDevice = {
+  uuid: string
+  name: string
+  code: string
+  lifecycle: string
+  entity: { uuid: string; name: string; path: string }
 }

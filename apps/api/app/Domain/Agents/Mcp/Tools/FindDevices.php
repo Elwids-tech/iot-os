@@ -34,7 +34,7 @@ final class FindDevices extends AgentTool
     {
         return [
             'search' => $schema->string()->max(255)->description('Part of the device name or code.'),
-            'site_uuid' => $schema->string()->format('uuid'),
+            'site_uuid' => $schema->string()->format('uuid')->description('A site from list_sites: devices whose nearest site in the hierarchy is that one.'),
             'tag' => $schema->string()->max(32),
             'profile_uuid' => $schema->string()->format('uuid'),
             'lifecycle' => $schema->string()->enum(['registered', 'active', 'deactivated', 'archived']),

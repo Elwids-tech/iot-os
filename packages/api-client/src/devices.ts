@@ -163,8 +163,10 @@ export type Device = {
   candidate: DeviceCandidate | null
   /** Profile of the applied configuration, else of the last one the runtime confirmed. */
   profile: { uuid: string; name: string; revision: number } | null
-  /** Calendar periods use the site's time zone, else the organization's. */
+  /** The nearest site at or above where the device is placed (spec 009). Calendar periods use `reporting_timezone`. */
   site?: { uuid: string; name: string; timezone: string } | null
+  /** Where the device is in the hierarchy, or where it was last when archived (spec 009). */
+  entity?: { uuid: string; name: string; path: string } | null
   tags?: string[]
   attributes?: Record<string, DeviceAttributeValue>
   /** The open connectivity alert listing this device: its own, or its gateway's (spec 018). Presence reads offline while it is open. */
@@ -207,7 +209,10 @@ export type DeviceInput = {
   code: string
   serial_number?: string | null
   description?: string | null
+  /** Deprecated: places the device at a site. Use `entity_uuid`, never both. */
   site_uuid?: string | null
+  /** Places the device at any entity that accepts devices (needs `Entity.manage`). */
+  entity_uuid?: string | null
   tags?: string[]
   attributes?: Record<string, DeviceAttributeValue>
 }

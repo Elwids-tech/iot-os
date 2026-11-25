@@ -21,7 +21,9 @@ final class BillingAccountBackfillTest extends TestCase
         // accounts, so they go first and come back last; PostgreSQL refuses to drop a table
         // others point at. Carried items and archive columns point at device moves. Sign-ups
         // (spec 035) point at billing accounts too, and so do brands and their images (spec
-        // 036), which organizations' logos point at, and portal addresses.
+        // 036), which organizations' logos point at, and portal addresses. Sites became
+        // entities after device moves were created (spec 009), so that goes first of all.
+        $sitesBecomeEntities = require database_path('migrations/2026_12_08_000200_sites_become_entities.php');
         $pushAddress = require database_path('migrations/2026_12_04_000100_add_portal_address_to_push_devices.php');
         $addresses = require database_path('migrations/2026_11_30_000100_create_portal_addresses_table.php');
         $logos = require database_path('migrations/2026_11_28_000300_add_logos_to_organizations.php');
@@ -36,6 +38,7 @@ final class BillingAccountBackfillTest extends TestCase
         $usage = require database_path('migrations/2026_11_07_200000_create_billing_usage.php');
         $plans = require database_path('migrations/2026_11_07_100000_create_billing_plans.php');
         $migration = require database_path('migrations/2026_10_31_000000_create_billing_accounts.php');
+        $sitesBecomeEntities->down();
         $pushAddress->down();
         $addresses->down();
         $logos->down();
@@ -86,6 +89,7 @@ final class BillingAccountBackfillTest extends TestCase
         $moves->up();
         $items->up();
         $signUps->up();
+        $sitesBecomeEntities->up();
         $this->assertSame(0, DB::table('billing_allowance_overrides')->count());
     }
 

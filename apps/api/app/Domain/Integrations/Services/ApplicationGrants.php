@@ -6,6 +6,8 @@ namespace App\Domain\Integrations\Services;
 
 use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Services\DeviceAudit;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Models\EntityType;
 use App\Domain\Integrations\Models\IntegrationApplication;
 use Illuminate\Support\Facades\Auth;
 
@@ -28,6 +30,52 @@ final class ApplicationGrants
      * resolves to no device until a manager edits the application. Call inside the
      * transaction that deletes the site.
      */
+    /**
+     * An archived entity leaves every scope that names it, as a deleted site always did
+     * (spec 009). Only Site entities can be in a scope until applications follow any
+     * entity (spec 009 PR 8).
+     */
+    public static function entityArchived(Entity $entity, ?int $actor = null): void
+    {
+        $site = Site::withoutGlobalScopes()->find($entity->id);
+        if ($site && Entity::query()->whereKey($entity->id)->whereHas('type', fn ($q) => $q->where('key', EntityType::SITE))->exists()) {
+            self::siteDeleted($site, $actor);
+        }
+    }
+
+    /**
+     * Which applications gain or lose devices when devices change site, for a move's
+     * confirmation (spec 009 US1 AS4). Each change is `[old site id, new site id]`.
+     *
+     * @param  list<array{0: ?int, 1: ?int}>  $changes
+     * @return list<array{uuid: string, name: string, gains: int, loses: int}>
+     */
+    public static function siteChanges(int $organizationId, array $changes): array
+    {
+        if ($changes === []) {
+            return [];
+        }
+        $result = [];
+        foreach (IntegrationApplication::where('organization_id', $organizationId)->whereNotNull('site_uuids')->orderBy('name')->get() as $application) {
+            if (($application->site_uuids ?? []) === [] || ($application->device_uuids ?? []) !== []) {
+                continue;
+            }
+            $grant = self::for($application);
+            $gains = $loses = 0;
+            foreach ($changes as [$old, $new]) {
+                $before = $old !== null && $grant->coversSite($old);
+                $after = $new !== null && $grant->coversSite($new);
+                $gains += (int) (! $before && $after);
+                $loses += (int) ($before && ! $after);
+            }
+            if ($gains + $loses > 0) {
+                $result[] = ['uuid' => (string) $application->uuid, 'name' => (string) $application->name, 'gains' => $gains, 'loses' => $loses];
+            }
+        }
+
+        return $result;
+    }
+
     public static function siteDeleted(Site $site, ?int $actor = null): void
     {
         $actor ??= Auth::id();

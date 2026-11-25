@@ -17,7 +17,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsOpenWorld;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
-#[Description('The organization\'s sites with their time zones and how many devices each holds. Use a site_uuid to filter find_devices or list_alerts.')]
+#[Description('The organization\'s sites with their time zones and how many devices each holds. Sites are the top places of the organization\'s hierarchy; a device belongs to the nearest site above where it is placed. Use a site_uuid to filter find_devices or list_alerts.')]
 #[IsReadOnly]
 #[IsIdempotent]
 #[IsOpenWorld(false)]

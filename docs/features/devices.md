@@ -559,11 +559,19 @@ inputs.
 ## Sites, tags and attributes
 
 **Locations → Sites** holds named sites with an IANA time zone and optional address
-and coordinates. A device belongs to at most one site. The organization time zone
-(Settings → General) applies to devices without a site; otherwise UTC. Daily,
-monthly and shift totals use that zone so every viewer sees the same totals;
-timestamps still display in the viewer's zone. Deleting a site keeps its devices.
-Sites are not an access boundary.
+and coordinates. Sites are the top-level entities of the organization's hierarchy, of
+the reserved Site type ([spec 009](../../specs/009-entity-hierarchy/spec.md),
+[ADR-054](../adr/ADR-054-organization-hierarchy.md)); the hierarchy API
+(`entity-types`, `entity-presets`, `entities`) builds areas, lines, buildings, floors
+and other places below them, and a device is placed at one entity at a time
+(`PUT devices/{device}/placement`, or `site_uuid` / `entity_uuid` on the device form).
+A device's site is the nearest site at or above where it is placed, and its reporting
+time zone is the nearest time zone at or above that place, else the organization's
+(Settings → General), else UTC. Daily, monthly and shift totals use that zone so every
+viewer sees the same totals; timestamps still display in the viewer's zone. Placements
+are kept as history; an archived device keeps its last place. Deleting a site is
+refused while entities sit under it; otherwise its devices are unplaced and the site
+is archived. Sites are not an access boundary.
 
 Devices carry up to 20 tags (unique, case-insensitive) and 30 attributes (keys
 start with a lowercase letter; values are text up to 255 characters, numbers or
@@ -666,7 +674,8 @@ Organization routes are under `/api/v1/organizations/{organization}`
 | `devices/{d}/commands`, `commands/send`, `commands/{c}/confirm`, `cancel` | Command log and sending |
 | `sparkplug-connections`, `gateways` (`kind=gateway\|adapter`), `discovery-candidates` | Sources and discovery review |
 | `gateways/{g}/bulk-onboardings`, `bulk-onboardings/{run}`, `.../retry` | Bulk onboarding runs |
-| `sites`, `settings/timezone` | Sites and organization time zone |
+| `sites`, `settings/timezone` | Sites (deprecated: the hierarchy's Site entities) and organization time zone |
+| `entity-types`, `entity-presets`, `entities`, `devices/{device}/placement(s)`, `entities/{entity}/devices` | The entity hierarchy and where devices are (spec 009) |
 | `telemetry-captures` | Telemetry viewer |
 | `runtime-status` | Runtime and automation readiness for the portal |
 | `device-move-targets`, `device-moves/preview`, `device-moves`, `device-moves/{move}` | [Moving devices](#moving-devices): targets, review, confirm, progress ([contract](../../specs/031-move-devices-within-account/contracts/platform-api.md)) |

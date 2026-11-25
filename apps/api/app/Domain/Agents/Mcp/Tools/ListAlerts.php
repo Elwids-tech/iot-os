@@ -35,7 +35,7 @@ final class ListAlerts extends AgentTool
             'condition' => $schema->string()->enum(['active', 'cleared'])->default('active'),
             'kind' => $schema->string()->enum(Alert::KINDS)->description('Only alerts of this kind; device_offline, gateway_offline and connection_lost are offline alerts.'),
             'device_uuid' => $schema->string()->format('uuid'),
-            'site_uuid' => $schema->string()->format('uuid'),
+            'site_uuid' => $schema->string()->format('uuid')->description('A site from list_sites: alerts of devices whose nearest site in the hierarchy is that one.'),
             'workflow_uuid' => $schema->string()->format('uuid'),
             'cursor' => $schema->string(),
             'limit' => $schema->integer()->min(1)->max(50)->default(20),

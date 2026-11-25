@@ -1,6 +1,6 @@
 # ADR-054: One Hierarchy of Typed Entities per Organization; Sites Are Its Site Entities
 
-**Status:** Proposed
+**Status:** Accepted (built from spec 009 PR 2)
 **Date:** 2026-11-25
 **Relates to:** [ADR-032](ADR-032-applications-follow-a-plant.md) (grants by site, `entities:read`), [ADR-039](ADR-039-hosted-devices-and-moves.md) (moves), spec 038's ADR-052 (typed protocols), spec 009
 
