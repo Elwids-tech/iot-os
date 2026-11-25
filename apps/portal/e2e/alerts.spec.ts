@@ -353,6 +353,23 @@ async function setup(page: Page, manage = true, offline = false) {
           occurrences: 1,
         },
         {
+          // A device offline alert (spec 018): its own event type, which once crashed the log.
+          uuid: "e3",
+          source: "connectivity",
+          severity: "warning",
+          status: "firing",
+          active: true,
+          title: "Cold room sensor is offline",
+          summary: "No data since the last report.",
+          service: null,
+          environment: null,
+          link: `${base}/${offlineIds.box}`,
+          labels: null,
+          occurred_at: ago(30),
+          last_seen_at: ago(30),
+          occurrences: 1,
+        },
+        {
           uuid: "e1",
           source: "service",
           severity: "critical",
@@ -370,12 +387,12 @@ async function setup(page: Page, manage = true, offline = false) {
         },
       ].filter(
         (e) =>
-          !url.searchParams.get("status") ||
-          (url.searchParams.get("status") === "active") === e.active,
+          (!url.searchParams.get("status") || (url.searchParams.get("status") === "active") === e.active) &&
+          (!url.searchParams.get("source") || url.searchParams.get("source") === e.source),
       );
       return reply({
         data: events,
-        summary: { critical: 0, warning: 1, info: 0, resolved: 1, sources: { workflow: 1, service: 0, watchdog: 0 } },
+        summary: { critical: 0, warning: 1, info: 0, resolved: 1, sources: { workflow: 1, service: 0, watchdog: 0, connectivity: 1 } },
         meta: { current_page: 1, last_page: 1, total: events.length },
       });
     }
@@ -957,6 +974,13 @@ test("the event log lives in Alerts, email preferences in Settings, and old link
   await expect(page).toHaveURL(/source=workflow/);
   await expect(log.getByRole("row")).toHaveCount(2);
   await expect(log).toContainText("Active");
+  // Device offline alerts are an event type of their own; the log once failed on them.
+  await page.getByRole("button", { name: "Device offline" }).click();
+  await expect(page).toHaveURL(/source=connectivity/);
+  await expect(log.getByRole("row")).toHaveCount(2);
+  await expect(log).toContainText("Cold room sensor is offline");
+  await expect(log.getByRole("row").nth(1)).toContainText("Device offline");
+  await expect(page.getByRole("radio", { name: "Device offline" })).toBeChecked();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
 
   await expect(page.getByRole("tab", { name: "Email preferences" })).toHaveCount(0);
