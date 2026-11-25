@@ -123,6 +123,14 @@ Grouped by area. Links point at the decision or doc that explains the item.
 
 ### Devices and adapters
 
+- **OPC UA connector and building simulator** ([spec 038](../specs/038-opc-ua-connector/spec.md),
+  [ADR-052](adr/ADR-052-server-connections-and-point-maps.md)): a simulated building
+  management server first, then a read-only OPC UA client that browses a server,
+  maps its points to devices with a point map instead of a decoder, and collects
+  through the existing adapter path; first from the tenant runtime, then from an
+  on-site agent. Its last step proposes entities and placements from the server's
+  structure and needs the entity hierarchy (spec 009, a draft) built first.
+
 - **Move devices within a billing account** ([spec 031](../specs/031-move-devices-within-account/spec.md),
   [ADR-039](adr/ADR-039-hosted-devices-and-moves.md)): move devices to another
   organization of the same account as an archived predecessor and a linked successor,
