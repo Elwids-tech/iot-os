@@ -1,4 +1,6 @@
 export type NotificationSource = "workflow" | "service" | "watchdog"
+/** What an event in the log came from: the email sources plus device offline alerts, which have their own settings. */
+export type NotificationEventSource = NotificationSource | "connectivity"
 export type NotificationLevel = "critical" | "warning" | "info" | "recovery"
 export type NotificationPreferences = {
   revision: number
@@ -10,7 +12,8 @@ export type NotificationPreferences = {
 }
 export type NotificationEvent = {
   uuid: string
-  source: NotificationSource
+  /** A newer API may send a source this client does not know. */
+  source: NotificationEventSource | (string & {})
   severity: Exclude<NotificationLevel, "recovery">
   status: "firing" | "resolved"
   active: boolean
@@ -27,7 +30,7 @@ export type NotificationEvent = {
 export type NotificationEventsPage = {
   data: NotificationEvent[]
   /** Active counts by severity and by type; `resolved` counts clear notices. */
-  summary: Record<Exclude<NotificationLevel, "recovery">, number> & { resolved: number; sources: Record<NotificationSource, number> }
+  summary: Record<Exclude<NotificationLevel, "recovery">, number> & { resolved: number; sources: Partial<Record<NotificationEventSource, number>> }
   meta: { current_page: number; last_page: number; total: number }
 }
 

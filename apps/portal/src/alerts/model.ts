@@ -4,10 +4,11 @@ import type {
   AlertSource,
   AlertTrigger,
   NotificationEvent,
+  NotificationEventSource,
   WorkflowAlert,
 } from "@iot-os/api-client";
 import { formatAge, formatNumber } from "@iot-os/ui/lib/format";
-import { statusOf } from "@iot-os/ui/lib/status";
+import { humanize, statusOf } from "@iot-os/ui/lib/status";
 import { formatDuration, subjectId } from "../devices/model";
 
 type Titled =
@@ -195,6 +196,16 @@ export const isAlertId = (value: string) => UUID.test(value);
 export function eventState(event: Pick<NotificationEvent, "status" | "active">) {
   return event.status === "firing" && event.active ? "Active" : "Cleared";
 }
+
+/** Event types in the log. Device offline alerts are events too, though they have no email grid of their own. */
+export const eventSources: Record<NotificationEventSource, string> = {
+  workflow: "Workflow alerts",
+  connectivity: "Device offline",
+  service: "Service monitoring",
+  watchdog: "Host watchdog",
+};
+/** A source this portal does not know yet still gets a name, so one new event type cannot break the log. */
+export const eventSourceLabel = (source: string) => (eventSources as Record<string, string>)[source] ?? humanize(source);
 
 /**
  * Notification center links used tab=preferences and status=resolved. Preferences now live in

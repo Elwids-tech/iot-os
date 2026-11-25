@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { RefreshCwIcon } from "lucide-react";
-import type { NotificationEvent, NotificationSource } from "@iot-os/api-client";
+import type { NotificationEvent, NotificationEventSource } from "@iot-os/api-client";
 import { Button } from "@iot-os/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@iot-os/ui/components/card";
 import { FilterBar, FilterSearch } from "@iot-os/ui/components/filter-bar";
@@ -16,8 +16,8 @@ import { api } from "../lib/api";
 import { RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
 import { Inbox } from "./Inbox";
-import { labels, sources, tones } from "./EmailPreferences";
-import { eventState } from "./model";
+import { labels, tones } from "./EmailPreferences";
+import { eventSourceLabel, eventSources, eventState } from "./model";
 
 const severities = ["critical", "warning", "info"] as const;
 
@@ -74,9 +74,9 @@ export function EventLogPage() {
             onValueChange={(value) => value && filter({ source: value })}
           >
             <SegmentedControlItem value="all">All types</SegmentedControlItem>
-            {(Object.keys(sources) as NotificationSource[]).map((key) => (
+            {(Object.keys(eventSources) as NotificationEventSource[]).map((key) => (
               <SegmentedControlItem key={key} value={key}>
-                {sources[key].label}
+                {eventSources[key]}
               </SegmentedControlItem>
             ))}
           </SegmentedControl>
@@ -138,7 +138,7 @@ export function EventLogPage() {
             </CardHeader>
             <CardContent>
               <ul className="flex flex-col gap-1">
-                {(Object.keys(sources) as NotificationSource[]).map((key) => (
+                {(Object.keys(eventSources) as NotificationEventSource[]).map((key) => (
                   <li key={key} className="flex items-center justify-between gap-3">
                     <Button
                       variant="link"
@@ -146,9 +146,9 @@ export function EventLogPage() {
                       disabled={!summary}
                       onClick={() => filter({ status: "active", source: key })}
                     >
-                      {sources[key].label}
+                      {eventSources[key]}
                     </Button>
-                    <span className="font-semibold tabular-nums">{summary ? summary.sources[key] : "—"}</span>
+                    <span className="font-semibold tabular-nums">{summary ? summary.sources[key] ?? 0 : "—"}</span>
                   </li>
                 ))}
               </ul>
@@ -184,10 +184,10 @@ export function EventLogPage() {
             {
               id: "type",
               header: "Type",
-              value: (event) => sources[event.source].label,
+              value: (event) => eventSourceLabel(event.source),
               cell: (event) => (
                 <>
-                  {sources[event.source].label}
+                  {eventSourceLabel(event.source)}
                   <span className="block text-meta text-muted-foreground">{event.service ?? ""}</span>
                 </>
               ),
@@ -246,7 +246,7 @@ export function EventLogPage() {
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selected?.title ?? "Event details"}</SheetTitle>
-            <SheetDescription>{selected && sources[selected.source].label}</SheetDescription>
+            <SheetDescription>{selected && eventSourceLabel(selected.source)}</SheetDescription>
           </SheetHeader>
           {selected && (
             <div className="flex flex-col gap-4 p-4">

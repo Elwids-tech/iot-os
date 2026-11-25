@@ -8,6 +8,8 @@ import {
   alertSpan,
   alertTitle,
   conditionOf,
+  eventSourceLabel,
+  eventSources,
   eventState,
   isAlertId,
   kindsOf,
@@ -147,6 +149,12 @@ describe("Event log vocabulary", () => {
     expect(eventState({ status: "firing", active: true })).toBe("Active");
     expect(eventState({ status: "firing", active: false })).toBe("Cleared");
     expect(eventState({ status: "resolved", active: false })).toBe("Cleared");
+  });
+  it("names device offline events, and any type it does not know, without failing", () => {
+    expect(eventSourceLabel("connectivity")).toBe("Device offline");
+    expect(eventSourceLabel("workflow")).toBe("Workflow alerts");
+    expect(eventSourceLabel("billing_limit")).toBe("Billing limit");
+    expect(Object.keys(eventSources)).toEqual(["workflow", "connectivity", "service", "watchdog"]);
   });
   it("redirects notification center links into the event log and Settings", () => {
     expect(
