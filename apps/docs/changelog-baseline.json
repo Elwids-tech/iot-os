@@ -9,6 +9,7 @@
     "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/history",
     "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/latest",
     "GET /integration/v1/organizations/{organization}/devices/{uuid}/telemetry/records",
+    "GET /integration/v1/organizations/{organization}/entities",
     "GET /integration/v1/organizations/{organization}/events",
     "GET /integration/v1/organizations/{organization}/events/checkpoint",
     "GET /integration/v1/organizations/{organization}/geofences",
