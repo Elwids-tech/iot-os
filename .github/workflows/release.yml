@@ -15,6 +15,10 @@ jobs:
   verify:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     uses: ./.github/workflows/ci.yml
+    # The docs job reads the published contract at DOCS_HOSTED_REF, as on main. Without it the
+    # release read the working tree, so any contract change since the hosted commit failed the
+    # changelog check, which is refreshed only after the hosted deploy (docs/ops/docs-site.md).
+    secrets: inherit
   release-checks:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.export_existing_run == '' }}
     runs-on: ubuntu-latest
