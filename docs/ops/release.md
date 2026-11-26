@@ -335,8 +335,8 @@ In order, `ship.py`:
    running release other than `--expect-current`, `IOT_STAGING_DEMO_ENABLED=true` or
    running demo simulators, and a running release with no super administrator.
 3. Counts rows in the running release: organizations, users, super administrators,
-   organization members, invitations, platform administrators, sites, devices and any
-   `unchanged` tables. It also reads the runtime state. `--preflight` ends here.
+   organization members, invitations, platform administrators, entities (places in
+   the hierarchy), devices and any `unchanged` tables. It also reads the runtime state. `--preflight` ends here.
 4. Copies the environment and the private manifests to `before-<time>/` in the release
    directory, moves the installed source to a new `source-before-<time>-<old commit>`
    beside it, puts the new source in its place and deploys.

@@ -487,6 +487,9 @@ class Deployment:
             if tenants: run(["docker", "stop", "--time", "20", *tenants], stdout=subprocess.DEVNULL)
         self.compose("stop", "caddy", "simulator", "gps-simulator", *WRITERS, stdout=subprocess.DEVNULL)
         self.database_ready()
+        # Extensions the migrations use need the superuser: the application role may not create
+        # them (spec 009's pg_trgm stopped the first deploy of its release on the pilot).
+        self.database_command("psql", "-U", "postgres", "-d", "iot", "-v", "ON_ERROR_STOP=1", "-c", "CREATE EXTENSION IF NOT EXISTS pg_trgm", stdout=subprocess.DEVNULL)
         # Generated files are atomically replaced. Recreate their bind mounts so
         # Docker cannot retain the previous config inode after a release.
         self.compose("up", "-d", "--force-recreate", "--wait", "nats", BROKER, stdout=subprocess.DEVNULL)
