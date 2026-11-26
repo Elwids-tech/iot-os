@@ -8622,7 +8622,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_150",
+        "operationId": "domain.devices.retention.show_152",
         "tags": [
           "Retention"
         ],
@@ -8671,7 +8671,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_151",
+        "operationId": "domain.devices.retention.update_153",
         "tags": [
           "Retention"
         ],
@@ -9334,7 +9334,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_148",
+        "operationId": "domain.devices.retention.show_150",
         "tags": [
           "Retention"
         ],
@@ -9366,7 +9366,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_149",
+        "operationId": "domain.devices.retention.update_151",
         "tags": [
           "Retention"
         ],
@@ -24578,6 +24578,94 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/organizations/{organization}/device-profiles/{profile}/archive": {
+      "post": {
+        "operationId": "v1.organizations.device-profiles.archive",
+        "summary": "Archives a profile nothing uses (devices, adapters, running bulk onboardings)",
+        "tags": [
+          "DeviceProfile"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "path",
+            "required": true,
+            "description": "The profile UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draft_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "draft_revision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The profile, archived or restored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStatusChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/DraftConflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Archives a profile nothing uses, so it leaves profile pickers and cannot be edited, published or chosen for a new device, onboarding or adapter. Refused (422) while a device that is not archived is configured on, or has a draft on, one of its versions, while a device adapter uses one, while a bulk onboarding with one is unfinished, or while it has unpublished changes. Needs DeviceProfile.publish; recorded as device_profile.archived."
+      }
+    },
     "/v1/organizations/{organization}/device-profiles/{profile}/artifacts": {
       "get": {
         "operationId": "deviceProfileArtifact.index",
@@ -26224,6 +26312,93 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-profiles/{profile}/restore": {
+      "post": {
+        "operationId": "v1.organizations.device-profiles.restore",
+        "tags": [
+          "DeviceProfile"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "path",
+            "required": true,
+            "description": "The profile UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draft_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "draft_revision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The profile, archived or restored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileStatusChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/DraftConflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Restores an archived profile: live again when it has a published version, otherwise a draft. Needs DeviceProfile.publish; recorded as device_profile.restored."
       }
     },
     "/v1/organizations/{organization}/device-profiles/{profile}/transport-bindings": {
@@ -39289,7 +39464,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_194",
+        "operationId": "domain.automation.dag.settings_196",
         "tags": [
           "Dag"
         ],
@@ -39364,7 +39539,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_195",
+        "operationId": "domain.automation.dag.settings_197",
         "tags": [
           "Dag"
         ],
@@ -40771,7 +40946,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_210",
+        "operationId": "domain.automation.scenario.save_212",
         "tags": [
           "Scenario"
         ],
@@ -40887,7 +41062,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_211",
+        "operationId": "domain.automation.scenario.save_213",
         "tags": [
           "Scenario"
         ],
@@ -41683,7 +41858,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_201",
+        "operationId": "domain.automation.dag.timeline_203",
         "tags": [
           "Dag"
         ],
@@ -41754,7 +41929,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_202",
+        "operationId": "domain.automation.dag.timeline_204",
         "tags": [
           "Dag"
         ],
@@ -51437,6 +51612,93 @@
           "derived"
         ],
         "title": "ProfileParameterKind"
+      },
+      "ProfileStatusChange": {
+        "type": "object",
+        "description": "The profile after an archive or a restore, without its parameters, groups, alarm templates or live version. It also carries the profile's free-form extensions.",
+        "required": [
+          "uuid",
+          "code",
+          "name",
+          "description",
+          "category",
+          "status",
+          "revision",
+          "draft_revision",
+          "definition_hash",
+          "published_at",
+          "updated_at"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "description": "The latest published version; 0 when never published."
+          },
+          "draft_revision": {
+            "type": "integer"
+          },
+          "definition_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ProfileStatusChangeResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProfileStatusChange"
+          }
+        }
       },
       "ProfileValidationError": {
         "type": "object",

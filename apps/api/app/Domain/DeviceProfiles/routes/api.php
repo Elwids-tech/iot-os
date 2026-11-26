@@ -28,6 +28,8 @@ Route::prefix('v1/organizations/{organization}')
         Route::get('device-profiles/{profile}', [DeviceProfileController::class, 'show'])->name('device-profiles.show');
         Route::patch('device-profiles/{profile}', [DeviceProfileController::class, 'update'])->name('device-profiles.update');
         Route::delete('device-profiles/{profile}', [DeviceProfileController::class, 'destroy'])->name('device-profiles.destroy');
+        Route::post('device-profiles/{profile}/archive', [DeviceProfileController::class, 'archive'])->name('device-profiles.archive');
+        Route::post('device-profiles/{profile}/restore', [DeviceProfileController::class, 'restore'])->name('device-profiles.restore');
 
         Route::post('device-profiles/{profile}/parameter-groups', [ProfileParameterGroupController::class, 'store'])->name('device-profiles.parameter-groups.store');
         Route::patch('device-profiles/{profile}/parameter-groups/{group}', [ProfileParameterGroupController::class, 'update']);

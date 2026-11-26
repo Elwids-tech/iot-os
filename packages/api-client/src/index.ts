@@ -1004,6 +1004,13 @@ export class ApiClient {
       draft_revision: revision,
     })
   }
+  /** Archives a profile nothing uses; 422 names what still uses it. */
+  archiveDeviceProfile(org: string, profile: string, revision: number): Promise<DeviceProfile> {
+    return this.profileOperation(org, profile, "/archive", "POST", { draft_revision: revision })
+  }
+  restoreDeviceProfile(org: string, profile: string, revision: number): Promise<DeviceProfile> {
+    return this.profileOperation(org, profile, "/restore", "POST", { draft_revision: revision })
+  }
   saveProfileParameter(
     org: string,
     profile: string,

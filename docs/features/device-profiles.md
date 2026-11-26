@@ -52,6 +52,17 @@ For a ready-made example, run the Schneider three-phase meter seeder
 - **Dependencies block deletion.** A parameter referenced by a calculation, alarm
   template or mapping cannot be deleted; the error names the dependants. Only
   unused, never-published draft profiles can be deleted.
+- **Archiving retires a profile nothing uses.** **Archive** (the list's row menu or
+  the profile page, `DeviceProfile.publish`) is refused while a device that is not
+  archived is configured on, or has a draft on, one of its versions, while a device
+  adapter uses one, while a bulk onboarding with one is unfinished, or while it has
+  unpublished changes; the message names what still uses it. An archived profile
+  keeps its versions, cannot be edited or published, and leaves every profile picker:
+  the list omits archived profiles unless `status=archived` is asked for (the
+  **Archived** view), the adapter profile list leaves them out, and new devices,
+  onboardings, bulk onboardings and adapters refuse its versions. **Restore** makes
+  it live again, or a draft when it was never published. Both are recorded in the
+  activity log (`device_profile.archived`, `device_profile.restored`).
 - **Optimistic concurrency.** Every draft mutation sends `draft_revision`; a
   conflict returns 409 and keeps the local form until you choose what to reapply.
 - **Validation is server-side.** Expressions are evaluated by a bounded,
@@ -121,13 +132,14 @@ Under `/api/v1/organizations/{organization}/device-profiles`
 
 | Path | Purpose |
 | --- | --- |
-| `/`, `/{profile}` | List (`search`, `status`, `category`, paging), create, read, update, delete draft |
+| `/`, `/{profile}` | List (`search`, `status`, `category`, paging; archived profiles only with `status=archived`), create, read, update, delete draft |
 | `/gateway-health` | Create and publish the organization's gateway health profile once, or return it ([the gateway itself](devices.md#the-gateway-itself)) |
 | `/{profile}/parameters`, `parameter-order`, `parameter-groups`, `group-order` | Parameters and groups |
 | `/{profile}/calculations`, `parameters/{p}/calculation` | Calculations |
 | `/{profile}/alarm-templates` | Alarm suggestions |
 | `/{profile}/preview` | Non-saving validation, calculation or conversion preview for a draft revision |
 | `/{profile}/validate`, `compile`, `publish` | Validation, compilation, publication |
+| `/{profile}/archive`, `restore` | Archive a profile nothing uses, or restore it |
 | `/{profile}/artifacts`, `artifacts/active`, `artifacts/{revision}` | Published revisions |
 | `/{profile}/transport-bindings` | Stored binding records; not used by the runtime |
 

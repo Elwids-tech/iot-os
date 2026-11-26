@@ -48,7 +48,7 @@ final class DeviceConfigurationService
     public function saveDraft(Device $device, array $draft, int $revision, int $actor): Device
     {
         return $this->locked($device, $revision, function (Device $locked) use ($draft, $actor) {
-            $artifact = $this->artifact($locked, $draft['artifact_uuid']);
+            $artifact = $this->artifact($locked, $draft['artifact_uuid'])->ensureNotArchived();
             $previous = $locked->configurations()->first();
             if ($previous) {
                 abort_unless($previous->artifact->device_profile_id === $artifact->device_profile_id, 422, 'Choose a revision of the device’s existing profile.');

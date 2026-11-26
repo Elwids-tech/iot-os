@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { FieldGroup } from "@iot-os/ui/components/field"
 import { Button } from "@iot-os/ui/components/button"
@@ -34,7 +34,7 @@ import {
   useProfileValidation,
   publishBlocker,
 } from "./use-studio"
-import { plural } from "./ProfileDirectory"
+import { ArchiveProfile, archivable, plural, restoreProfile } from "./ProfileDirectory"
 import { DeviceSetupBanner, useReturnTo } from "./device-setup"
 import { withParam } from "./return-to"
 import { ParametersSection } from "./ParametersSection"
@@ -78,6 +78,8 @@ function Workspace() {
   const navigate = useNavigate()
   const check = useProfileValidation()
   const [confirm, setConfirm] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const cache = useQueryClient()
   const base =
     "/organizations/" + studio.org + "/device-profiles/" + profile.uuid
   const current = sections.some((item) => item.key === section)
@@ -141,13 +143,23 @@ function Workspace() {
         }}
         actions={
           <>
-            {profile.revision > 0 && deviceCapabilities.manage && !returnTo && <Button asChild size="sm" variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
+            {studio.capabilities.publish && profile.status === "archived" && (
+              <Button size="sm" onClick={() => void restoreProfile(cache, studio.org, profile)}>
+                Restore
+              </Button>
+            )}
+            {studio.capabilities.publish && archivable(profile) && !returnTo && (
+              <Button size="sm" variant="ghost" onClick={() => setArchiving(true)}>
+                Archive
+              </Button>
+            )}
+            {profile.revision > 0 && profile.status !== "archived" && deviceCapabilities.manage && !returnTo && <Button asChild size="sm" variant="outline"><Link to={`/organizations/${studio.org}/devices/onboard?profile=${profile.uuid}`}>Connect a device</Link></Button>}
             {back && unchanged ? (
               <Button asChild size="sm">
                 <Link to={back}>Continue setup with version {profile.revision}</Link>
               </Button>
             ) : (
-              studio.capabilities.publish && (
+              studio.capabilities.publish && profile.status !== "archived" && (
                 <>
                   {blocker && !unchanged && !checking && (
                     <span className="text-meta text-muted-foreground">{blocker}</span>
@@ -242,6 +254,7 @@ function Workspace() {
           )}
         </TabsContent>
       </EntityPage>
+      <ArchiveProfile profile={archiving ? profile : null} onClose={() => setArchiving(false)} />
       <Confirm
         open={confirm}
         title={"Publish version " + next + "?"}

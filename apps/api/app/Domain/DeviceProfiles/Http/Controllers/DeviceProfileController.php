@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\DeviceProfiles\Http\Controllers;
 
 use App\Domain\Audit\Services\ActivityLog;
+use App\Domain\DeviceProfiles\Actions\ArchiveDeviceProfile;
 use App\Domain\DeviceProfiles\Actions\CreateDeviceProfile;
 use App\Domain\DeviceProfiles\Actions\UpdateDeviceProfile;
 use App\Domain\DeviceProfiles\Enums\DeviceProfileStatus;
@@ -62,7 +63,10 @@ final class DeviceProfileController
                         ->orWhereRaw('LOWER(description) LIKE ?', [$like]));
                 }
             })
-            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            // Archived profiles are listed only when asked for, so pickers never offer them.
+            ->when($filters['status'] ?? null,
+                fn ($query, $status) => $query->where('status', $status),
+                fn ($query) => $query->where('status', '!=', 'archived'))
             ->when($filters['category'] ?? null, fn ($query, $category) => $query->where('category', $category))
             ->orderBy('name')
             ->paginate((int) $request->integer('per_page', 25));
@@ -135,6 +139,25 @@ final class DeviceProfileController
         });
 
         return response()->noContent();
+    }
+
+    /** Archives a profile nothing uses (devices, adapters, running bulk onboardings). */
+    public function archive(Request $request, Organization $organization, DeviceProfile $profile, ArchiveDeviceProfile $archive): DeviceProfileResource
+    {
+        $this->authorization->authorize($request->user(), DeviceProfilePermission::PUBLISH);
+        $this->authorization->ensureOrganizationProfile($profile, $organization);
+        $revision = $request->validate(['draft_revision' => ['required', 'integer', 'min:1']])['draft_revision'];
+
+        return DeviceProfileResource::make($archive->archive($profile, $request->user(), $revision));
+    }
+
+    public function restore(Request $request, Organization $organization, DeviceProfile $profile, ArchiveDeviceProfile $archive): DeviceProfileResource
+    {
+        $this->authorization->authorize($request->user(), DeviceProfilePermission::PUBLISH);
+        $this->authorization->ensureOrganizationProfile($profile, $organization);
+        $revision = $request->validate(['draft_revision' => ['required', 'integer', 'min:1']])['draft_revision'];
+
+        return DeviceProfileResource::make($archive->restore($profile, $request->user(), $revision));
     }
 
     public function authoringState(DeviceProfile $profile): DeviceProfile

@@ -26,6 +26,44 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/GatewayHealthProfile'
+    ProfileStatusChange:
+      type: object
+      description: The profile after an archive or a restore, without its parameters, groups, alarm templates or live version. It also carries the profile's free-form extensions.
+      required: [uuid, code, name, description, category, status, revision, draft_revision, definition_hash, published_at, updated_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        category:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [draft, published, archived]
+        revision:
+          type: integer
+          description: The latest published version; 0 when never published.
+        draft_revision:
+          type: integer
+        definition_hash:
+          type: [string, 'null']
+        published_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+    ProfileStatusChangeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ProfileStatusChange'
 operations:
   POST /v1/organizations/{organization}/device-profiles/gateway-health:
     description: Creates and publishes the organization's gateway health profile (code gateway-health) from the embedded SDK's health metrics, or returns the existing one unchanged, edited or not. The request has no body. Needs DeviceProfile.create and DeviceProfile.publish; a creation is recorded as device_profile.gateway_health.created.
@@ -50,6 +88,40 @@ operations:
     responses:
       '409':
         $ref: '#/components/responses/DraftConflict'
+  POST /v1/organizations/{organization}/device-profiles/{profile}/archive:
+    description: >-
+      Archives a profile nothing uses, so it leaves profile pickers and cannot be edited,
+      published or chosen for a new device, onboarding or adapter. Refused (422) while a
+      device that is not archived is configured on, or has a draft on, one of its versions,
+      while a device adapter uses one, while a bulk onboarding with one is unfinished, or
+      while it has unpublished changes. Needs DeviceProfile.publish; recorded as
+      device_profile.archived.
+    responses:
+      '200':
+        description: The profile, archived or restored.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileStatusChangeResponse'
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  POST /v1/organizations/{organization}/device-profiles/{profile}/restore:
+    description: >-
+      Restores an archived profile: live again when it has a published version, otherwise a
+      draft. Needs DeviceProfile.publish; recorded as device_profile.restored.
+    responses:
+      '200':
+        description: The profile, archived or restored.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileStatusChangeResponse'
+      '409':
+        $ref: '#/components/responses/DraftConflict'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
   POST /v1/organizations/{organization}/device-profiles/{profile}/calculations:
     responses:
       '409':

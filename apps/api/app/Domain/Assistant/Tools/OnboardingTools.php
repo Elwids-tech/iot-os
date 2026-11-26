@@ -153,7 +153,7 @@ final class OnboardingTools implements Tool
         $v = Validator::make($args, ['mode' => 'required|in:reuse,create', 'summary' => 'required|string|max:1000', 'adapter_uuid' => 'required_if:mode,reuse|nullable|uuid', 'name' => 'required_if:mode,create|nullable|string|max:255',
             'artifact_uuid' => 'required|uuid', 'source' => 'required|array', 'fixtures' => 'sometimes|array|max:10', 'code' => 'nullable|string|max:64000',
             'evidence' => 'sometimes|array|max:20'])->validate();
-        $artifact = DeviceProfileArtifact::where('uuid', $v['artifact_uuid'])->whereHas('profile', fn ($q) => $q->where('organization_id', $conversation->organization_id))->firstOrFail();
+        $artifact = DeviceProfileArtifact::where('uuid', $v['artifact_uuid'])->whereHas('profile', fn ($q) => $q->where('organization_id', $conversation->organization_id))->firstOrFail()->ensureNotArchived();
         if ($v['mode'] === 'reuse') {
             $adapter = DeviceAdapter::where('organization_id', $conversation->organization_id)->where('uuid', $v['adapter_uuid'])->firstOrFail();
             app(DeviceAuthorization::class)->authorize($conversation->user, DevicePermission::MANAGE, $conversation->organization, $adapter);
