@@ -8,6 +8,7 @@ use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Tools\OnboardingTools;
 use App\Domain\Assistant\Tools\ProfileAssistantTools;
+use App\Domain\DeviceAdapters\Models\AdapterProposal;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceProfiles\Models\DeviceProfile;
 use App\Domain\Shared\Models\Organization;
@@ -168,6 +169,64 @@ final class OnboardingAssistantFlowTest extends TestCase
         $this->assertStringContainsString('mode create', $repoint['reason']);
         // Settings that keep the same endpoint and account can still change.
         $this->assertSame('change', $this->act($run, 'propose_change', ['summary' => 'Records are under /items', 'source' => [...$this->pollSource('A1'), 'records' => '/items']])['kind']);
+    }
+
+    public function test_a_change_whose_fixtures_would_overfill_the_adapter_is_refused_up_front(): void
+    {
+        $meters = $this->adapter(['type' => 'platform', 'topics' => ['meters/+/telemetry']], $this->waterMeter);
+        $sample = fn (int $n) => ['topic' => "meters/WM-{$n}/telemetry", 'payload' => ['device_id' => "WM-{$n}", 'flow_l_min' => $n, 'total_l' => $n]];
+        $meters->update(['fixtures' => array_map($sample, range(1, 9))]);
+        $conversation = $this->conversation();
+        $conversation->update(['device_adapter_id' => $meters->id]);
+        $run = $this->startRun($conversation);
+        $code = 'function decode(input){const p=input.payload;return {sourceDeviceId:p.device_id,metrics:[{name:"flow_rate",value:p.flow_l_min}]}}';
+
+        $status = $this->act($run, 'status')['adapter'];
+        $this->assertSame(9, $status['fixtures']);
+        $this->assertSame(10, $status['fixture_limit']);
+
+        // Two new samples would make 11: refused before a card the person could never apply.
+        $over = $this->act($run, 'propose_change', ['summary' => 'Read probes', 'code' => $code, 'fixtures' => [$sample(20), $sample(21)]]);
+        $this->assertStringContainsString('keeps 9 of at most 10 fixtures', $over['reason']);
+        $this->assertStringContainsString('without fixtures', $over['reason']);
+        $this->assertSame(0, AdapterProposal::where('conversation_id', $conversation->id)->count());
+
+        // Samples the adapter already keeps do not count twice, and one new sample still fits.
+        $fits = $this->act($run, 'propose_change', ['summary' => 'Read probes', 'code' => $code, 'fixtures' => [$sample(1), $sample(20)]]);
+        $this->assertSame('change', $fits['kind']);
+
+        // Samples carried over from a test are dropped, not refused, so the decoder can still be proposed.
+        $this->assertTrue($this->act($run, 'test_decoder', ['code' => $code, 'fixtures' => [$sample(30), $sample(31)]])['valid']);
+        $codeOnly = $this->act($run, 'propose_change', ['summary' => 'Read probes', 'code' => $code]);
+        $this->assertSame('change', $codeOnly['kind']);
+        $this->assertNull($codeOnly['fixtures']);
+        $this->assertStringContainsString('were not added', $codeOnly['note']);
+
+        // The code-only change applies; the earlier one is now against an old draft but can still be dismissed.
+        $run->update(['status' => 'completed']);
+        $this->apply($conversation, $codeOnly)->assertOk();
+        $this->assertCount(9, $meters->fresh()->fixtures);
+        config(['assistant.enabled' => true, 'ai.providers.openai.key' => 'sk-test-openai-key', 'ai.conversations.generate_title' => false]);
+        $conversation->runs()->update(['status' => 'completed']);
+        $runs = $conversation->runs()->count();
+        $dismiss = fn (array $proposal) => $this->postJson($this->prefix.'/assistant/conversations/'.$conversation->id.'/adapter-proposals/'.$proposal['uuid'].'/decision', ['action' => 'reject', 'content_hash' => $proposal['content_hash'], 'request_id' => (string) Str::uuid()]);
+        $dismiss($fits)->assertOk()->assertJsonPath('data.status', 'rejected')->assertJsonPath('data.run', null);
+        // No assistant reply is queued for an outdated proposal, so the next one can be dismissed straight away.
+        $dismiss($this->staleChange($conversation, $meters))->assertOk()->assertJsonPath('data.run', null);
+        $this->assertSame($runs, $conversation->runs()->count());
+        // Dismissing a proposal for the current draft still asks the assistant what to change.
+        $current = $this->act($this->startRun($conversation), 'propose_change', ['summary' => 'Read probes', 'code' => $code]);
+        $conversation->runs()->update(['status' => 'completed']);
+        $this->assertNotNull($dismiss($current)->assertOk()->json('data.run.id'));
+    }
+
+    /** A pending change pinned to the draft before the adapter's current one. */
+    private function staleChange(AssistantConversation $conversation, DeviceAdapter $adapter): array
+    {
+        $proposal = AdapterProposal::create(['uuid' => (string) Str::uuid(), 'kind' => 'change', 'organization_id' => $adapter->organization_id, 'conversation_id' => $conversation->id, 'user_id' => $conversation->user_id,
+            'device_adapter_id' => $adapter->id, 'draft_revision' => $adapter->fresh()->draft_revision - 1, 'code' => $adapter->code, 'summary' => 'Older change', 'evidence' => [], 'content_hash' => str_repeat('a', 64), 'status' => 'pending']);
+
+        return ['uuid' => $proposal->uuid, 'content_hash' => $proposal->content_hash];
     }
 
     public function test_a_profile_is_drafted_from_what_the_person_said_in_chat(): void

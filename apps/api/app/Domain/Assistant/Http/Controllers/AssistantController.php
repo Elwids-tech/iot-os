@@ -294,10 +294,17 @@ final class AssistantController
         abort_unless($conversation->scope === 'onboarding' && $adapterProposal->conversation_id === $conversation->id, 404);
         $values = $request->validate(['action' => 'required|in:apply,reject', 'content_hash' => 'required|string|size:64', 'request_id' => 'required|uuid']);
         abort_if($conversation->runs()->whereIn('status', ['queued', 'running'])->exists(), 409, 'Wait for the current response before deciding.');
+        // Dismissing a change made against an older draft is housekeeping: the assistant is not asked to respond,
+        // so several outdated proposals can be cleared one after another.
+        $outdated = $values['action'] === 'reject' && $adapterProposal->kind === 'change'
+            && $adapterProposal->draft_revision !== DeviceAdapter::whereKey($adapterProposal->device_adapter_id)->value('draft_revision');
         $result = app(OnboardingProposals::class)->decide($adapterProposal, $request->user(), $organization, $values['action'], $values['content_hash']);
         $kind = ['reuse' => 'chose this adapter', 'create' => 'created this adapter draft', 'change' => 'applied this change to the draft'][$adapterProposal->kind] ?? 'applied this proposal';
         $run = null;
         $notice = null;
+        if ($outdated) {
+            return response()->json(['data' => [...$result, 'run' => null, 'notice' => null]]);
+        }
         try {
             $run = $this->queueRun($conversation->fresh(), $values['request_id'], $values['action'] === 'apply' ? "I {$kind}. Continue onboarding." : 'I rejected this proposal. Ask me what to change.');
         } catch (HttpException) {
