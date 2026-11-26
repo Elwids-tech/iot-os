@@ -6,7 +6,7 @@ alert, emit an integration event, or send a device command. There are two engine
 
 - **DAG automation (workflow v2)**: general typed graphs authored in the visual
   editor. Use this for anything new.
-- **Geofence rules (workflow v1)**: the fixed geofence chain that **Locations →
+- **Geofence rules (workflow v1)**: the fixed geofence chain that **Hierarchy →
   Geofences** creates behind the scenes. Legacy; kept until geofences move to v2.
 
 Alerts, notifications and the event log are in [alerts](alerts.md).
@@ -374,7 +374,7 @@ The runtime resolves one committed event at a time into a **location fix**
 
 ### Geofences
 
-**Locations → Geofences** draws polygons on a MapLibre map and assigns them to
+**Hierarchy → Geofences** draws polygons on a MapLibre map and assigns them to
 devices with location bindings. Saving creates one activation batch: for each
 assignment, a v1 workflow named "{fence} — {device}" is compiled, saved and
 deployed; removed assignments are disabled

@@ -54,6 +54,7 @@ import {
   locationProblems,
   numericParameters,
 } from "./model"
+import { hierarchyPath } from "../hierarchy/shared"
 import {
   deviceProfile,
   devicePath,
@@ -541,6 +542,18 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
         <Detail label="Serial number">
           {device.serial_number || <span className="text-muted-foreground">Not set</span>}
         </Detail>
+        <Detail label="Place">
+          {device.entity ? (
+            <Link
+              className="font-mono text-code break-all text-primary underline-offset-4 hover:underline"
+              to={hierarchyPath(org, device.entity.uuid)}
+            >
+              {device.entity.path.split("/").join(" / ")}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">Not placed</span>
+          )}
+        </Detail>
         <Detail label="Site">
           {device.site ? (
             <span title="Daily, monthly and shift totals use this time zone.">
@@ -550,6 +563,18 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
             <span className="text-muted-foreground">None (organization time zone)</span>
           )}
         </Detail>
+        {(device.parameter_placements?.length ?? 0) > 0 && (
+          <Detail label="Placed elsewhere">
+            <ul className="flex flex-col gap-0.5">
+              {device.parameter_placements!.map((placement) => (
+                <li key={placement.parameter_uuid}>
+                  <span className="text-muted-foreground">{placement.key} → </span>
+                  <span className="font-mono text-code break-all">{placement.path}</span>
+                </li>
+              ))}
+            </ul>
+          </Detail>
+        )}
         {(device.tags?.length ?? 0) > 0 && (
           <Detail label="Tags">
             <span className="flex flex-wrap gap-1">

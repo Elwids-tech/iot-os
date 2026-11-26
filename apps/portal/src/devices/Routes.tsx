@@ -6,15 +6,13 @@ import { GatewaysPage } from "./GatewaysPage"
 import { GatewayPage } from "./GatewayPage"
 import { ConnectionsPage } from "./ConnectionsPage"
 import { DeviceOnboarding } from "./DeviceOnboarding"
-import SitesPage from "./SitesPage"
 
 export default function DeviceRoutes({
   page,
 }: {
-  page?: "discovery" | "gateways" | "sites" | "connections"
+  page?: "discovery" | "gateways" | "connections"
 }) {
   if (page === "discovery") return <DiscoveryPage />
-  if (page === "sites") return <SitesPage />
   if (page === "connections") return <ConnectionsPage />
   if (page === "gateways")
     return (

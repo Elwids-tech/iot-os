@@ -12,6 +12,9 @@ use App\Domain\Branding\Services\Brands;
 use App\Domain\Dashboards\Services\DashboardAccess;
 use App\Domain\DeviceProfiles\Services\DeviceProfileAuthorization;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Entities\Permissions\EntityPermission;
+use App\Domain\Entities\Permissions\EntityTypePermission;
+use App\Domain\Entities\Services\EntityAuthorization;
 use App\Domain\Shared\Models\User;
 use App\Domain\Shared\Permissions\OrganizationPermission;
 use Illuminate\Http\Request;
@@ -86,6 +89,12 @@ final class OrganizationResource extends JsonResource
         return [
             'device_profiles' => app(DeviceProfileAuthorization::class)->capabilities($user, $this->resource),
             'devices' => app(DeviceAuthorization::class)->capabilities($user, $this->resource),
+            // The entity hierarchy (spec 009): the Hierarchy page, entity changes and types.
+            'entities' => [
+                'view' => app(EntityAuthorization::class)->allows($user, EntityPermission::VIEW, $this->resource),
+                'manage' => app(EntityAuthorization::class)->allows($user, EntityPermission::MANAGE, $this->resource),
+                'manage_types' => app(EntityAuthorization::class)->allows($user, EntityTypePermission::MANAGE, $this->resource),
+            ],
             'dashboards' => app(DashboardAccess::class)->capabilities($user, $this->resource),
             'automation' => app(DagAuthorization::class)->capabilities($user, $this->resource),
             'manage_administration' => $manageAdministration,

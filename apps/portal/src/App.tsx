@@ -102,7 +102,7 @@ import {
   DownloadIcon,
   HouseIcon,
   KeyRoundIcon,
-  MapPinnedIcon,
+  NetworkIcon,
   PlugIcon,
   SearchIcon,
   SettingsIcon,
@@ -143,6 +143,7 @@ const GeofenceRoutes = lazy(() => import("./geospatial/Geofences"))
 const TelemetryViewer = lazy(() => import("./telemetry/TelemetryViewer"))
 const AdapterRoutes = lazy(() => import("./adapters/Routes"))
 const DeviceRoutes = lazy(() => import("./devices/Routes"))
+const HierarchyRoutes = lazy(() => import("./hierarchy/Routes"))
 const IntegrationRoutes = lazy(() => import("./integrations/Integrations"))
 const AlertRoutes = lazy(() => import("./alerts/Alerts"))
 const SettingsRoutes = lazy(() => import("./settings/Settings"))
@@ -437,7 +438,9 @@ function Session() {
           <Route path="organizations/:organizationUuid/roles/*" element={<MovedTo from="roles" section="settings/roles" />} />
           <Route path="organizations/:organizationUuid/connections" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="connections" /></Suspense>} />
                   <Route path="organizations/:organizationUuid/gateways/*" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="gateways" /></Suspense>} />
-                  <Route path="organizations/:organizationUuid/sites" element={<Suspense fallback={<PageFallback />}><DeviceRoutes page="sites" /></Suspense>} />
+                  {/* Locations became Hierarchy (spec 009): sites are entities of the Site type. */}
+                  <Route path="organizations/:organizationUuid/sites" element={<MovedTo from="sites" section="hierarchy" />} />
+                  <Route path="organizations/:organizationUuid/hierarchy/*" element={<Suspense fallback={<PageFallback />}><HierarchyRoutes /></Suspense>} />
           <Route path="organizations/:organizationUuid/dashboards/:dashboardUuid?" element={<DashboardRoute />} />
           <Route path="organizations/:organizationUuid/geofences/*" element={<Suspense fallback={<PageFallback />}><GeofenceRoutes /></Suspense>} />
           <Route
@@ -672,7 +675,7 @@ type NavigationItem = {
   path: string
   label: string
   icon: LucideIcon
-  /** Other sections that light this item, e.g. Geofences under Locations. */
+  /** Other sections that light this item, e.g. Geofences under Hierarchy. */
   also?: string[]
   /** Older payloads without capabilities keep the link; the API still authorizes every request. */
   visible?: (organization: Organization) => boolean
@@ -718,7 +721,7 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     items: [
       { path: "devices", label: "Devices", icon: CpuIcon, visible: devicesCan("view") },
       { path: "gateways", label: "Gateways", icon: RouterIcon, visible: devicesCan("view") },
-      { path: "sites", label: "Locations", icon: MapPinnedIcon, also: ["geofences"], visible: devicesCan("view") },
+      { path: "hierarchy", label: "Hierarchy", icon: NetworkIcon, also: ["geofences", "sites"], visible: (organization) => organization.capabilities?.entities?.view ?? devicesCan("view")(organization) },
     ],
   },
   {

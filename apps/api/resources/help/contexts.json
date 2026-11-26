@@ -123,6 +123,18 @@
     "title": "Geofences · Editor",
     "overview": "geofences"
   },
+  "hierarchy": {
+    "title": "Hierarchy",
+    "overview": "hierarchy"
+  },
+  "hierarchy.entity": {
+    "title": "Hierarchy · Entity",
+    "overview": "hierarchy"
+  },
+  "hierarchy.types": {
+    "title": "Hierarchy · Types",
+    "overview": "hierarchy"
+  },
   "automation": {
     "title": "Automation",
     "overview": "automations"

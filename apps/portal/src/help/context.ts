@@ -17,6 +17,8 @@ export function helpContextForPath(pathname: string): string {
       return resource ? "automation.editor" : "automation";
     case "geofences":
       return resource ? "geofences.editor" : "geofences";
+    case "hierarchy":
+      return resource === "types" ? "hierarchy.types" : resource ? "hierarchy.entity" : "hierarchy";
     case "integrations":
       return resource ? "integrations.application" : "integrations";
     case "alerts":

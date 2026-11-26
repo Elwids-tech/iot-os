@@ -12,7 +12,10 @@ import {
 } from "@iot-os/ui/components/table"
 import { Skeleton } from "@iot-os/ui/components/skeleton"
 import { Button } from "@iot-os/ui/components/button"
-import { LayoutDashboardIcon } from "lucide-react"
+import { useState } from "react"
+import { LayoutDashboardIcon, MapPinIcon } from "lucide-react"
+import { PlaceParameterDialog } from "../hierarchy/PlaceParameterDialog"
+import { useHierarchyOrganization } from "../hierarchy/shared"
 import { api } from "../lib/api"
 import { RequestError } from "../components/forms"
 import {
@@ -26,12 +29,16 @@ export function MeasurementTable({
   readings,
   precision,
   onAdd,
+  onPlace,
 }: {
   readings: Measurement[]
   precision?: Map<string, number | undefined>
   /** Starts Add to dashboard with this parameter selected. */
   onAdd?: (parameterUuid: string) => void
+  /** Opens Place this parameter (spec 009). */
+  onPlace?: (reading: Measurement) => void
 }) {
+  const actions = Boolean(onAdd || onPlace)
   return (
     <Table>
       <TableHeader>
@@ -41,7 +48,7 @@ export function MeasurementTable({
           <TableHead>Quality</TableHead>
           <TableHead className="text-right">Observed</TableHead>
           <TableHead className="text-right">Received</TableHead>
-          {onAdd && <TableHead className="w-0"><span className="sr-only">Actions</span></TableHead>}
+          {actions && <TableHead className="w-0"><span className="sr-only">Actions</span></TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -69,17 +76,30 @@ export function MeasurementTable({
             <TableCell className="text-right">
               <RelativeTime at={r.received_at} />
             </TableCell>
-            {onAdd && (
-              <TableCell className="text-right">
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={`Add ${r.label} to a dashboard`}
-                  title="Add to dashboard"
-                  onClick={() => onAdd(r.parameter_uuid)}
-                >
-                  <LayoutDashboardIcon />
-                </Button>
+            {actions && (
+              <TableCell className="text-right whitespace-nowrap">
+                {onPlace && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Place ${r.label}`}
+                    title="Place this parameter"
+                    onClick={() => onPlace(r)}
+                  >
+                    <MapPinIcon />
+                  </Button>
+                )}
+                {onAdd && (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Add ${r.label} to a dashboard`}
+                    title="Add to dashboard"
+                    onClick={() => onAdd(r.parameter_uuid)}
+                  >
+                    <LayoutDashboardIcon />
+                  </Button>
+                )}
               </TableCell>
             )}
           </TableRow>
@@ -113,6 +133,8 @@ export function MeasurementsSection({
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   })
+  const { capabilities } = useHierarchyOrganization()
+  const [placing, setPlacing] = useState<Measurement | null>(null)
   return (
     <Section
       title="Latest measurements"
@@ -135,11 +157,20 @@ export function MeasurementsSection({
           readings={query.data.data}
           precision={parameterPrecisions(device)}
           onAdd={onAddToDashboard}
+          onPlace={capabilities.manage && device.lifecycle !== "archived" ? setPlacing : undefined}
         />
       ) : (
         <DeviceEmpty
           title="Waiting for measurements"
           description="The configuration is applied. The next source update fills this table."
+        />
+      )}
+      {placing && (
+        <PlaceParameterDialog
+          org={org}
+          device={device}
+          parameter={{ uuid: placing.parameter_uuid, key: placing.key, label: placing.label }}
+          onClose={() => setPlacing(null)}
         />
       )}
     </Section>

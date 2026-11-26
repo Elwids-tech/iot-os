@@ -103,7 +103,7 @@ it runs in every app's lint.
 | --- | --- | --- |
 | Tokens | Surfaces (`background` canvas, `card` panel, `popover` raised, `sunken` inside a panel), elevation (`shadow-panel`, `shadow-raised`, `shadow-overlay`), type scale, layout widths (`max-w-reading`, `max-w-form`), motion durations, skins and palettes | [`src/styles/globals.css`](../../packages/ui/src/styles/globals.css) |
 | Primitives | shadcn/ui on Radix, style `radix-nova` | [`components.json`](../../packages/ui/components.json), `src/components` |
-| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `SegmentedControl`, `PageHeader`, `CommandPalette`, `FilterBar`, `FilterSheet`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
+| Product components | `Panel` (+ header, title, actions, content, footer), `DataTable`, `TreeTable`, `PropertyList`, `Freshness`, `RelativeTime`, `RowLink`, `RefLink`, `Status`, `DraftBar`, `InlineName`, `EmptyState`, `ErrorState`, `ErrorBoundary`, `RouteError`, `Pager`, `ViewsRail`, `PageTabs`, `SegmentedControl`, `PageHeader`, `CommandPalette`, `FilterBar`, `FilterSheet`, form fields, `Stepper`, `ChoiceCard`, `PermissionMatrix`, `Markdown`, `Thinking`, `Thread`, `TicketThread`, `Composer` (with `useMarkdownEditor` and `MarkdownToolbar`), workflow overview components | `src/components` |
 | Templates | `CollectionPage`, `EntityPage`, `InboxPage`, `WorkspacePage`, `SettingsPage`; `useUrlState` keeps search, filters, view and page in the URL | `src/templates`, `src/hooks` |
 
 `DataTable` (TanStack Table) gives pages, from column descriptions: saved views with
@@ -115,6 +115,14 @@ header, run separators for logs, skeleton rows, empty and filtered-empty states,
 phone card layout and a polling note. Phone cards keep the row's selection box and
 ⋯ menu, with "Select all" above them, and the toolbar adds a Sort menu in place of
 the sortable headers.
+
+`TreeTable` is for a tree too large to load at once, such as the entity hierarchy:
+the page passes a `useLevel` hook that loads one level (top level, or a row's
+children) a page at a time from the query cache, so invalidating it refreshes the
+tree. It is a WAI-ARIA treegrid: arrow keys move between rows, Right opens a row or
+enters it, Left closes it or goes to its parent, Home and End jump, Enter selects.
+Columns other than the first can hide on phones (`phoneHidden`). Search results
+belong in a `DataTable` beside it, not inside the tree.
 
 Toolbar buttons show only their icon at every width, each named by a tooltip and
 its accessible name ("Filters, 2 active", "Group: Site", "Sort: Device, ascending"),

@@ -149,6 +149,10 @@ export function alertQuery(params: URLSearchParams, me?: number) {
   else query.set("condition", condition);
   query.delete("assignee");
   if (params.get("assignee") === "me" && me !== undefined) query.set("assignee", String(me));
+  // The page keeps entity=…; the API filters by the place's coverage as entity_uuid (spec 009).
+  const entity = query.get("entity");
+  query.delete("entity");
+  if (entity) query.set("entity_uuid", entity);
   // The page keeps kind=…&kind=…; the API takes a repeated kind[].
   query.delete("kind");
   for (const kind of kindsOf(params)) query.append("kind[]", kind);

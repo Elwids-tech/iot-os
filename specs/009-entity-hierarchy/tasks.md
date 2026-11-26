@@ -148,14 +148,14 @@ explore without the API.
 
 **Independent Test**: [quickstart F](quickstart.md#f-portal-pr-6).
 
-- [ ] T057 [P] Create packages/ui/src/components/tree-table.tsx with a story in apps/storybook (lazy children, pagination per level, keyboard navigation, selection), unless spec 038 has merged it; then reuse it
-- [ ] T058 [US1] Create apps/portal/src/hierarchy/HierarchyPage.tsx (tree, search, preset prompt for an empty organization, organization time zone from the old SitesPage) and register it under Devices in apps/portal/src/App.tsx with the nav label **Hierarchy**; remove apps/portal/src/devices/SitesPage.tsx and redirect its route
-- [ ] T059 [US1] Create apps/portal/src/hierarchy/EntityForm.tsx (types allowed at the parent only, path-name suggestion, naming rule hints, time zone and location when carried) and MoveDialog.tsx (impact first, including applications that gain or lose devices)
-- [ ] T060 [US4] Create apps/portal/src/hierarchy/EntityPage.tsx: a `Panel` with **Points** (`DataTable`, `Freshness`, copy path, open history), **Devices**, **History** (placeholder until PR 7) and **Details** (outside-rules notices, memberships)
-- [ ] T061 [US5] Create apps/portal/src/hierarchy/TypesTab.tsx: types, rules, naming templates and presets with what they add and merge
-- [ ] T062 [US2] Create apps/portal/src/hierarchy/EntityPicker.tsx (searchable combobox showing paths) and use it in apps/portal/src/devices/DeviceActions.tsx, DeviceDirectory.tsx (filter and column), apps/portal/src/alerts/Alerts.tsx (filter) and apps/portal/src/devices/moves/WhatComesAlong.tsx; DeviceOverview.tsx shows the breadcrumb path and parameters placed elsewhere; MeasurementsSection.tsx offers **Place this parameter**
-- [ ] T063 [P] Vitest for path suggestions and tree state; Playwright with a mocked API for build, move, place, clash rename and the empty-organization preset prompt; axe in light and dark
-- [ ] T064 [P] Update apps/portal/src/assistant/suggestions.ts and the help guides that mention Locations
+- [x] T057 [P] Create packages/ui/src/components/tree-table.tsx with a story in apps/storybook (lazy children, pagination per level, keyboard navigation, selection), unless spec 038 has merged it; then reuse it
+- [x] T058 [US1] Create apps/portal/src/hierarchy/HierarchyPage.tsx (tree, search, preset prompt for an empty organization, organization time zone from the old SitesPage) and register it under Devices in apps/portal/src/App.tsx with the nav label **Hierarchy**; remove apps/portal/src/devices/SitesPage.tsx and redirect its route
+- [x] T059 [US1] Create apps/portal/src/hierarchy/EntityForm.tsx (types allowed at the parent only, path-name suggestion, naming rule hints, time zone and location when carried) and MoveDialog.tsx (impact first, including applications that gain or lose devices)
+- [x] T060 [US4] Create apps/portal/src/hierarchy/EntityPage.tsx: a `Panel` with **Points** (`DataTable`, `Freshness`, copy path, open history), **Devices**, **History** (placeholder until PR 7) and **Details** (outside-rules notices, memberships)
+- [x] T061 [US5] Create apps/portal/src/hierarchy/TypesTab.tsx: types, rules, naming templates and presets with what they add and merge
+- [x] T062 [US2] Create apps/portal/src/hierarchy/EntityPicker.tsx (searchable combobox showing paths) and use it in apps/portal/src/devices/DeviceActions.tsx, DeviceDirectory.tsx (filter and column), apps/portal/src/alerts/Alerts.tsx (filter) and apps/portal/src/devices/moves/WhatComesAlong.tsx; DeviceOverview.tsx shows the breadcrumb path and parameters placed elsewhere; MeasurementsSection.tsx offers **Place this parameter**
+- [x] T063 [P] Vitest for path suggestions and tree state; Playwright with a mocked API for build, move, place, clash rename and the empty-organization preset prompt; axe in light and dark
+- [x] T064 [P] Update apps/portal/src/assistant/suggestions.ts and the help guides that mention Locations
 - [ ] T065 Run `pnpm --filter @iot-os/portal lint`, rebuild the portal, run [quickstart F](quickstart.md#f-portal-pr-6) and SC-001, and ask for the owner's screenshot design pass
 
 ---

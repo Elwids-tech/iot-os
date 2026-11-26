@@ -48,14 +48,17 @@ import {
   DEFAULT_VIEW,
 } from "../dashboards/model"
 import { useDashboardCapabilities } from "../dashboards/access"
+import { EntityPicker } from "../hierarchy/EntityPicker"
+import { useEntityTypes } from "../hierarchy/shared"
 import type { DeviceOperation } from "./DeviceWorkspace"
 import { writableParameters } from "../controls/model"
 import { PANEL_LABELS } from "../dashboards/model"
 import { PANEL_ICONS } from "../dashboards/icons"
 import { panelFor, suggestPanels, type Candidate, type PanelType } from "../dashboards/suggest"
 
-type DetailsForm = Omit<DeviceInput, "tags" | "attributes"> & {
-  site_uuid: string
+type DetailsForm = Omit<DeviceInput, "tags" | "attributes" | "site_uuid" | "entity_uuid"> & {
+  /** Where it sits in the hierarchy (spec 009); empty for nowhere. */
+  entity_uuid: string
   /** Comma-separated in the form, an array in the API. */
   tags: string
   attributes: Array<{ key: string; value: string }>
@@ -66,15 +69,20 @@ const savedValues = (d: DeviceDetail): DetailsForm => ({
   code: d.code,
   serial_number: d.serial_number ?? "",
   description: d.description ?? "",
-  site_uuid: d.site?.uuid ?? "",
+  entity_uuid: d.entity?.uuid ?? "",
   tags: (d.tags ?? []).join(", "),
   attributes: Object.entries(d.attributes ?? {}).map(([key, value]) => ({ key, value: value === null ? "" : String(value) })),
 })
 
-function deviceInput(values: DetailsForm): DeviceInput {
+/**
+ * The place is sent only when it changed. A site goes as `site_uuid`, which device
+ * management alone allows; any other entity needs entity management too.
+ */
+function deviceInput({ entity_uuid, ...values }: DetailsForm, device: DeviceDetail, chosenType: string | null): DeviceInput {
+  const moved = entity_uuid !== (device.entity?.uuid ?? "")
   return {
     ...values,
-    site_uuid: values.site_uuid || null,
+    ...(moved ? (chosenType === "site" ? { site_uuid: entity_uuid } : { entity_uuid: entity_uuid || null }) : {}),
     tags: values.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
     attributes: Object.fromEntries(
       values.attributes
@@ -101,15 +109,10 @@ export function EditDetails({
   const form = useForm<DetailsForm>({ defaultValues: savedValues(device) }),
     [revision, setRevision] = useState(device.draft_revision),
     [error, setError] = useState<unknown>(null),
-    [siteSearch, setSiteSearch] = useState("")
+    [chosenType, setChosenType] = useState<string | null>(null)
   const attributes = useFieldArray({ control: form.control, name: "attributes" })
-  const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
-  const siteOptions = [
-    { value: "", label: "No site (organization time zone)" },
-    ...(sites.data?.data ?? [])
-      .filter((site) => site.name.toLowerCase().includes(siteSearch.trim().toLowerCase()))
-      .map((site) => ({ value: site.uuid, label: `${site.name} · ${site.timezone.replaceAll("_", " ")}` })),
-  ]
+  const types = useEntityTypes(org)
+  const holdsDevices = new Set((types.data?.data ?? []).filter((type) => type.accepts_devices).map((type) => type.key))
   const dirty = form.formState.isDirty
   useUnsaved(dirty)
   useEffect(() => {
@@ -133,7 +136,7 @@ export function EditDetails({
           try {
             const result = await run(() =>
               api.updateDevice(org, device.uuid, {
-                ...deviceInput(values),
+                ...deviceInput(values, device, chosenType),
                 draft_revision: revision,
               }),
             )
@@ -151,15 +154,23 @@ export function EditDetails({
             <TextField label="Device code" required {...form.register("code")} />
             <TextField label="Serial number" {...form.register("serial_number")} />
             <TextField label="Description" {...form.register("description")} />
-            <SearchableSelect
-              label="Site"
-              value={form.watch("site_uuid")}
-              options={siteOptions}
-              onChange={(value) => form.setValue("site_uuid", value, { shouldDirty: true })}
-              search={siteSearch}
-              onSearchChange={setSiteSearch}
-              loading={sites.isLoading}
-              help={fieldError(error, "site_uuid") ?? "Daily, monthly and shift totals use the site's time zone."}
+            <EntityPicker
+              org={org}
+              label="Place"
+              value={form.watch("entity_uuid")}
+              selectedLabel={device.entity?.path}
+              none="Not placed (organization time zone)"
+              accept={(entity) => !types.data || holdsDevices.has(entity.type.key)}
+              onChange={(uuid, entity) => {
+                form.setValue("entity_uuid", uuid, { shouldDirty: true })
+                setChosenType(entity?.type.key ?? null)
+              }}
+              help={
+                fieldError(error, "entity_uuid") ??
+                fieldError(error, "site_uuid") ??
+                fieldError(error, "leaf_names") ??
+                "Where it sits in the hierarchy. Days and shifts use the time zone of its site, or the nearest place above with one."
+              }
             />
             <TextField
               label="Tags"

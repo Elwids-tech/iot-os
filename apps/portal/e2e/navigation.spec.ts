@@ -88,7 +88,7 @@ test("desktop navigation collapses to icon tooltips", async ({ page }) => {
   const labels = sidebar
     .getByRole("navigation", { name: "Workspace" })
     .locator('[data-sidebar="menu-button"] > span')
-  // Home, Dashboards, Alerts · Devices, Gateways, Locations · Automations, Device profiles ·
+  // Home, Dashboards, Alerts · Devices, Gateways, Hierarchy · Automations, Device profiles ·
   // Discovery, Integrations, Connections. Device adapters needs the organization feature;
   // Telemetry viewer and Settings sit in the footer group, outside this navigation.
   await expect(labels).toHaveCount(11)
