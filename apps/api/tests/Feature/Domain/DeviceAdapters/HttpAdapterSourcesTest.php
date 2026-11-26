@@ -229,6 +229,28 @@ final class HttpAdapterSourcesTest extends TestCase
         $this->postJson($url, ['draft_revision' => 1])->assertStatus(429);
     }
 
+    public function test_samples_keep_their_order_when_only_some_have_a_topic(): void
+    {
+        // An empty page has no topic; the records do. Validation used to put it last and store an object.
+        $empty = ['source' => 'poll', 'payload' => ['total' => 0, 'maxDate' => 0], 'expect_error' => true];
+        $record = fn (int $n) => ['topic' => 'bewhere/stream', 'source' => 'poll', 'payload' => ['id' => "TRK-100{$n}-1", 'deviceId' => "TRK-100{$n}", 'flow' => $n, 'timestamp' => '2026-10-27T09:12:00Z']];
+        $a = $this->poll();
+        $saved = $this->putJson($this->prefix.'/device-adapters/'.$a['uuid'], ['name' => 'Trackers', 'artifact_uuid' => $this->artifact, 'code' => $this->code(), 'source' => $this->pollSource(), 'fixtures' => [$empty, $record(1), $record(2)], 'draft_revision' => 1])
+            ->assertOk()->json('data');
+        $this->assertEquals([$empty, $record(1), $record(2)], $saved['fixtures']);
+        $adapter = DeviceAdapter::where('uuid', $a['uuid'])->firstOrFail();
+        $this->assertStringStartsWith('[', DB::table('device_adapters')->where('id', $adapter->id)->value('fixtures'));
+
+        // Rows already stored as an object read and test as a list in their original order.
+        DB::table('device_adapters')->where('id', $adapter->id)->update(['fixtures' => json_encode([1 => $record(1), 2 => $record(2), 0 => $empty])]);
+        $revision = DB::table('device_adapter_revisions')->where('device_adapter_id', $adapter->id)->where('revision', $saved['draft_revision']);
+        $revision->update(['definition' => json_encode([...json_decode($revision->value('definition'), true), 'fixtures' => [1 => $record(1), 2 => $record(2), 0 => $empty]])]);
+        $this->assertEquals([$empty, $record(1), $record(2)], $adapter->fresh()->fixtures);
+        $this->assertEquals([$empty, $record(1), $record(2)], $this->getJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertOk()->json('data.fixtures'));
+        $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/test', ['draft_revision' => $saved['draft_revision']])->assertOk();
+        $this->assertEquals([$empty, $record(1), $record(2)], $this->calls('/test')[0]['body']['fixtures']);
+    }
+
     public function test_first_deploy_starts_the_cursor_and_runs_reset_and_resume_it(): void
     {
         $a = $this->poll();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceAdapters\Models;
 
+use App\Domain\DeviceAdapters\Casts\FixtureList;
 use App\Domain\DeviceAdapters\Enums\AdapterSourceType;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
 use App\Domain\Devices\Models\DeviceModel;
@@ -15,7 +16,7 @@ final class DeviceAdapter extends DeviceModel
 
     protected function casts(): array
     {
-        return ['fixtures' => 'array', 'source' => 'array', 'secrets' => 'encrypted:array', 'health' => 'array', 'draft_revision' => 'integer', 'poll_state' => 'array', 'cursor_generation' => 'integer', 'cursor_start' => 'datetime'];
+        return ['fixtures' => FixtureList::class, 'source' => 'array', 'secrets' => 'encrypted:array', 'health' => 'array', 'draft_revision' => 'integer', 'poll_state' => 'array', 'cursor_generation' => 'integer', 'cursor_start' => 'datetime'];
     }
 
     public function artifact()
