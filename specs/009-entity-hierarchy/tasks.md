@@ -170,7 +170,7 @@ explore without the API.
 - [x] T067 [US6] Create api/Entities/Http/EntityHistoryController.php per [contracts/api.md](contracts/api.md#history--pr-7) and describe it
 - [x] T068 [US6] Fill the **History** tab of EntityPage.tsx and add placement history to the device page
 - [x] T069 [P] [US6] Tests: US6 AS1–AS3, migrated placements with no start counting as open earlier
-- [ ] T070 Rebuild the API family and the portal; run [quickstart G](quickstart.md#g-history-pr-7)
+- [x] T070 Rebuild the API family and the portal; run [quickstart G](quickstart.md#g-history-pr-7)
 
 ---
 
