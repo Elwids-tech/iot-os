@@ -113,13 +113,13 @@ refused or reported, and an entity's points show their latest values.
 
 **Independent Test**: [quickstart D](quickstart.md#d-parameter-placements-and-points-pr-4).
 
-- [ ] T043 [US2] Create the migration for `parameter_placements` and api/Entities/Models/ParameterPlacement.php
-- [ ] T044 [US2] Create api/Entities/Services/ParameterPlacements.php (place, move, end; the parameter must be in the device's current profile revision when placed; activity `parameter.placed` and `parameter.unplaced`) and add the leaf-name clash check to Placements and ParameterPlacements under the entity lock (FR-011)
-- [ ] T045 [US4] Create api/Entities/Services/EntityPoints.php: points at an entity or its branch per [research R9](research.md#r9-points-are-computed-not-stored), states `placed`, `name_clash`, `not_in_configuration`, pages of 50, latest values through the runtime's `latest-batch` and `DeviceReadings::forOwner` (R17)
-- [ ] T046 [US4] Create api/Entities/Http/PointController.php and the parameter placement routes per [contracts/api.md](contracts/api.md#parameter-placements-and-points--pr-4); describe them in entities.yaml and the API client
-- [ ] T047 [P] [US2] Tests: US2 AS1–AS4, the clash refusal listing names and its rename in the same step, a profile upgrade's clash reported and never blocking activation, a dropped parameter shown **Not in the current configuration**, a registered device's placement showing points once configured
-- [ ] T048 [P] [US4] Tests: US4 AS1–AS2 with a faked runtime: unknown is `latest: null`, stale values carry their age, branch paths are relative
-- [ ] T049 Rebuild the API family and run [quickstart D](quickstart.md#d-parameter-placements-and-points-pr-4)
+- [x] T043 [US2] Create the migration for `parameter_placements` and api/Entities/Models/ParameterPlacement.php
+- [x] T044 [US2] Create api/Entities/Services/ParameterPlacements.php (place, move, end; the parameter must be in the device's current profile revision when placed; activity `parameter.placed` and `parameter.unplaced`) and add the leaf-name clash check to Placements and ParameterPlacements under the entity lock (FR-011)
+- [x] T045 [US4] Create api/Entities/Services/EntityPoints.php: points at an entity or its branch per [research R9](research.md#r9-points-are-computed-not-stored), states `placed`, `name_clash`, `not_in_configuration`, pages of 50, latest values through the runtime's `latest-batch` and `DeviceReadings::forOwner` (R17)
+- [x] T046 [US4] Create api/Entities/Http/PointController.php and the parameter placement routes per [contracts/api.md](contracts/api.md#parameter-placements-and-points--pr-4); describe them in entities.yaml and the API client
+- [x] T047 [P] [US2] Tests: US2 AS1–AS4, the clash refusal listing names and its rename in the same step, a profile upgrade's clash reported and never blocking activation, a dropped parameter shown **Not in the current configuration**, a registered device's placement showing points once configured
+- [x] T048 [P] [US4] Tests: US4 AS1–AS2 with a faked runtime: unknown is `latest: null`, stale values carry their age, branch paths are relative
+- [x] T049 Rebuild the API family and run [quickstart D](quickstart.md#d-parameter-placements-and-points-pr-4)
 
 ---
 

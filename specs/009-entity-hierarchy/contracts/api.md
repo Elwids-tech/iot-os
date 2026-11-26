@@ -77,7 +77,7 @@ the device, site, time zone and application counts join in PR 2:
 
 | Method and path | Permission | Notes |
 | --- | --- | --- |
-| `PUT devices/{device}/placement` | `Entity.manage` | `{entity_uuid}`; ends the current placement and starts this one; returns the placement (`200`). Leaf names and clash checks join in PR 4 |
+| `PUT devices/{device}/placement` | `Entity.manage` | `{entity_uuid, leaf_names?: {parameter_uuid: leaf}}`; ends the current placement and starts this one; returns the placement (`200`); a clash is `422` on `leaf_names` listing every clashing name |
 | `DELETE devices/{device}/placement` | `Entity.manage` | ends it (`unplaced`) |
 | `GET devices/{device}/placements` | `Entity.view` | history, newest first: entity (path today), start, end, end reason, who |
 | `GET entities/{entity}/devices?branch=0|1&page=` | `Entity.view` | devices placed at the entity, or anywhere in its branch (coverage with memberships in PR 5) |
@@ -91,7 +91,7 @@ when both); either places the device (needs `Entity.manage` as well as
 
 | Method and path | Permission | Notes |
 | --- | --- | --- |
-| `PUT devices/{device}/parameters/{parameter}/placement` | `Entity.manage` | `{entity_uuid, leaf_name?}` |
+| `PUT devices/{device}/parameters/{parameter}/placement` | `Entity.manage` | `{entity_uuid, leaf_name?}`; returns the parameter placement (`200`) |
 | `DELETE devices/{device}/parameters/{parameter}/placement` | `Entity.manage` | |
 | `GET entities/{entity}/points?branch=0|1&page=` | `Entity.view` | 50 a page (R17) |
 
@@ -106,12 +106,15 @@ Point view:
   "parameter": { "uuid": "…", "key": "oil_temp", "unit": "°C" },
   "via": "placement",
   "state": "placed",
-  "latest": { "value": 61.5, "quality": "good", "observed_at": "…", "stale": false }
+  "latest": { "value": 61.5, "quality": "good", "observed_at": "…", "received_at": "…" }
 }
 ```
 
 `via`: `placement` or `parameter_placement`. `state`: `placed`, `name_clash` (**Not
-placed: name clash**), `not_in_configuration`. `latest` is null when unknown, never zero.
+placed: name clash**), `not_in_configuration`. `latest` is null when unknown, never zero
+(and for structured values, which the device page shows). The response is
+`{data, meta: {current_page, last_page, per_page, total}}`. The device detail gains
+`parameter_placements: [{parameter_uuid, key, leaf_name, path}]`.
 
 ## Memberships and filters — PR 5
 

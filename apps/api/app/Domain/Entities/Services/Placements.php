@@ -9,6 +9,7 @@ use App\Domain\Devices\Models\Device;
 use App\Domain\Entities\Exceptions\HierarchyRuleBroken;
 use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityPlacement;
+use App\Domain\Entities\Models\ParameterPlacement;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class Placements
 {
-    public function __construct(private readonly DeviceAnchors $anchors) {}
+    public function __construct(private readonly DeviceAnchors $anchors, private readonly EntityPoints $points) {}
 
     /**
      * Places the device at the entity. `$log` is false when the caller records the change
@@ -49,6 +50,7 @@ final class Placements
             if ($current && $current->entity_id === $entity->id && ($current->leaf_names ?? []) === $leafNames) {
                 return $current;
             }
+            $this->checkLeaves($device, $entity, $leafNames);
             $now = now();
             $current?->forceFill(['ended_at' => $now, 'end_reason' => EntityPlacement::MOVED, 'ended_by' => $actor?->id])->save();
             $placement = EntityPlacement::create([
@@ -89,6 +91,46 @@ final class Placements
     public function archived(Device $device, ?User $actor, string $reason = EntityPlacement::DEVICE_ARCHIVED): void
     {
         $this->end($device, $actor, $reason, false);
+        ParameterPlacement::query()->where('device_id', $device->id)->whereNull('ended_at')
+            ->update(['ended_at' => now(), 'end_reason' => $reason, 'ended_by' => $actor?->id]);
+    }
+
+    /**
+     * The names the device's parameters would take at the entity must follow the path-name
+     * rules and be free there (FR-011). Its own placement is left out, so renaming leaves
+     * where it already is works.
+     *
+     * @param  array<string, string>  $leafNames
+     */
+    private function checkLeaves(Device $device, Entity $entity, array $leafNames): void
+    {
+        $parameters = DeviceParameters::of($device);
+        foreach (array_keys($leafNames) as $uuid) {
+            if (! isset($parameters[$uuid])) {
+                throw HierarchyRuleBroken::rule('not_found', 'leaf_names', "This device has no parameter {$uuid}.");
+            }
+        }
+        $elsewhere = ParameterPlacement::query()->where('device_id', $device->id)->whereNull('ended_at')->pluck('parameter_uuid')->flip();
+        $taken = $this->points->namesAt($entity, [$device->id, null]);
+        $mine = [];
+        $clashes = [];
+        foreach ($parameters as $uuid => $parameter) {
+            if (isset($elsewhere[$uuid])) {
+                continue;
+            }
+            $name = $leafNames[$uuid] ?? $parameter['key'];
+            if (! PathNames::valid($name)) {
+                throw HierarchyRuleBroken::rule('invalid', 'leaf_names', "{$name}: ".PathNames::RULE);
+            }
+            $key = strtolower($name);
+            if (isset($taken[$key]) || isset($mine[$key])) {
+                $clashes[] = $name;
+            }
+            $mine[$key] = true;
+        }
+        if ($clashes !== []) {
+            throw HierarchyRuleBroken::rule('leaf_clash', 'leaf_names', 'These names are already used at '.$entity->path.': '.implode(', ', $clashes).'. Rename their leaves.');
+        }
     }
 
     public function current(Device $device): ?EntityPlacement
