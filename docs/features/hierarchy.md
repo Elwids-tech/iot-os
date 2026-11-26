@@ -118,7 +118,7 @@ Other domains build the hierarchy through PHP services, never its tables: reads 
 `HierarchyQueries`, single changes with `HierarchyOperations`, and checked or applied
 batches of up to 2,000 items, each with the same rules, locks, permissions and activity
 entries as the portal. The contract is
-[hierarchy operations](../../specs/009-entity-hierarchy/contracts/hierarchy-operations.md);
+[hierarchy operations](../reference/hierarchy-operations.md);
 the OPC UA connector ([spec 038](../../specs/038-opc-ua-connector/spec.md)) uses it to
 propose a building's places.
 
