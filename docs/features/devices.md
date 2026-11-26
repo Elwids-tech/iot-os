@@ -558,8 +558,14 @@ inputs.
 
 ## Sites, tags and attributes
 
-**Locations → Sites** holds named sites with an IANA time zone and optional address
-and coordinates. Sites are the top-level entities of the organization's hierarchy, of
+**Devices → Hierarchy** (which replaced Locations; old `/sites` links redirect) shows
+the organization's tree a level at a time, with search by name or path, a preset
+prompt for an empty organization, an entity page (Points, Devices, History, Details
+with group memberships), a move dialog that shows the impact first, and a Types tab
+for rules, naming templates and presets. The device form chooses a place with a
+searchable picker showing paths; the device list and alerts filter by a place (its
+coverage); the Data tab offers **Place this parameter**. Sites hold an IANA time zone
+and optional address and coordinates. Sites are the top-level entities of the organization's hierarchy, of
 the reserved Site type ([spec 009](../../specs/009-entity-hierarchy/spec.md),
 [ADR-054](../adr/ADR-054-organization-hierarchy.md)); the hierarchy API
 (`entity-types`, `entity-presets`, `entities`) builds areas, lines, buildings, floors

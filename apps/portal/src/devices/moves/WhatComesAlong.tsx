@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CircleAlertIcon, InfoIcon, TriangleAlertIcon } from "lucide-react"
 import type {
@@ -16,8 +17,8 @@ import { api } from "../../lib/api"
 import { RequestError, fieldError } from "../../components/forms"
 import type { MoveSelection } from "./MoveDialog"
 import type { MoveTarget } from "./WhereTo"
-
-const NO_SITE = "__none"
+import { EntityPicker } from "../../hierarchy/EntityPicker"
+import { useEntityTypes } from "../../hierarchy/shared"
 
 /**
  * What the move does, as the review says: each device with its name, code and site in
@@ -61,11 +62,11 @@ export function WhatComesAlong({
   turnOnAutomations: boolean
   onTurnOnAutomations: (turnOn: boolean) => void
 }) {
+  // Names the site a successor keeps; any other place is chosen with the picker.
   const sites = useQuery({ queryKey: ["sites", target.uuid], queryFn: () => api.sites(target.uuid) })
-  const siteOptions = [
-    { value: NO_SITE, label: "No site" },
-    ...(sites.data?.data ?? []).map((site) => ({ value: site.uuid, label: site.name })),
-  ]
+  const types = useEntityTypes(target.uuid)
+  const holdsDevices = new Set((types.data?.data ?? []).filter((type) => type.accepts_devices).map((type) => type.key))
+  const [labels, setLabels] = useState<Record<string, string>>({})
   if (!review) {
     return (
       <div className="flex flex-col gap-3" aria-busy={loading}>
@@ -126,12 +127,21 @@ export function WhatComesAlong({
                       onChange={(event) => onOverride(device.uuid, { code: event.target.value })}
                       error={fieldError(error, `devices.${index}.code`)}
                     />
-                    <SelectField
-                      label="Site"
-                      value={(override.site_uuid ?? device.successor.site_uuid) || NO_SITE}
-                      options={siteOptions}
-                      onChange={(site) => onOverride(device.uuid, { site_uuid: site === NO_SITE ? null : site })}
-                      error={fieldError(error, `devices.${index}.site_uuid`)}
+                    <EntityPicker
+                      org={target.uuid}
+                      label="Place in the target"
+                      value={(override.entity_uuid !== undefined ? override.entity_uuid : (override.site_uuid ?? device.successor.site_uuid)) ?? ""}
+                      selectedLabel={
+                        labels[device.uuid] ??
+                        sites.data?.data.find((site) => site.uuid === (override.site_uuid ?? device.successor.site_uuid))?.name
+                      }
+                      none="Not placed"
+                      accept={(entity) => !types.data || holdsDevices.has(entity.type.key)}
+                      onChange={(uuid, entity) => {
+                        setLabels((current) => ({ ...current, [device.uuid]: entity?.path ?? "Not placed" }))
+                        onOverride(device.uuid, { entity_uuid: uuid || null, site_uuid: undefined })
+                      }}
+                      error={fieldError(error, `devices.${index}.entity_uuid`) ?? fieldError(error, `devices.${index}.site_uuid`)}
                     />
                   </div>
                 </li>

@@ -71,7 +71,7 @@ describe("assistant suggestions", () => {
     expect(ids({ pathname: `${org}/alerts/x`, can: all }).here).toEqual(["automation.threshold"])
     expect(assistantSuggestions({ pathname: `${org}/alerts`, can: all }).here[0].title).toBe("Set up a new alert")
     expect(ids({ pathname: `${org}/geofences/g-1`, can: all }).here).toEqual(["automation.geofence"])
-    expect(ids({ pathname: `${org}/sites`, can: all }).here).toEqual(["automation.geofence"])
+    expect(ids({ pathname: `${org}/hierarchy/e-1`, can: all }).here).toEqual(["automation.threshold"])
     expect(ids({ pathname: `${org}/dashboards/d-1`, can: all }).here).toEqual(["automation.threshold"])
     expect(ids({ pathname: `${org}/settings/notifications`, can: all }).here).toEqual(["automation.threshold"])
     expect(ids({ pathname: `${org}/settings/members`, can: all }).here).toEqual([])

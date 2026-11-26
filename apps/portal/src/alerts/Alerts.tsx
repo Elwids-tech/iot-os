@@ -51,6 +51,7 @@ import { formatAge, formatDateTime } from "@iot-os/ui/lib/format";
 import { statusOf } from "@iot-os/ui/lib/status";
 import { cn } from "@iot-os/ui/lib/utils";
 import { api } from "../lib/api";
+import { EntityPicker } from "../hierarchy/EntityPicker";
 import { alertBellKeys } from "./bell/model";
 import { useDashboardCapabilities } from "../dashboards/access";
 import { useUnsavedContribution } from "../lib/unsaved";
@@ -280,6 +281,11 @@ function AlertsPage() {
     queryFn: () => api.devices(org, { search: deviceSearch, page: devicePage }),
     enabled: listed,
   });
+  const placeEntity = useQuery({
+    queryKey: ["entity", org, params.get("entity")],
+    queryFn: () => api.entity(org, params.get("entity")!),
+    enabled: listed && Boolean(params.get("entity")),
+  });
   const [workflowSearch, setWorkflowSearch] = useState("");
   const [workflowPage, setWorkflowPage] = useState(1);
   const workflows = useQuery({
@@ -348,7 +354,7 @@ function AlertsPage() {
   const denied = !organization.isPending && !capabilities.view;
   const shown: AlertItem[] = grouped ? groups.map((group) => group.latest) : rows;
   const kinds = kindsOf(params);
-  const filtered = ["acknowledged", "device", "workflow", "assignee", "kind"].some((key) =>
+  const filtered = ["acknowledged", "device", "entity", "workflow", "assignee", "kind"].some((key) =>
     params.has(key),
   );
   const deviceName =
@@ -371,7 +377,7 @@ function AlertsPage() {
         ? ["No cleared alerts", "Alerts appear here once their condition clears."]
         : ["No alerts yet", "Alerts appear when an active workflow's condition changes or a device goes offline."];
   const total = query.data?.meta.total;
-  const activeFilters = [params.get("device") && deviceName, params.get("workflow") && workflowName, kinds.length > 0].filter(Boolean).length;
+  const activeFilters = [params.get("device") && deviceName, params.get("entity"), params.get("workflow") && workflowName, kinds.length > 0].filter(Boolean).length;
   const changeKinds = (values: string[]) => {
     const next = new URLSearchParams(params);
     next.delete("page");
@@ -468,6 +474,17 @@ function AlertsPage() {
         hasNextPage={devicePage < (devices.data?.meta.last_page ?? 1)}
         loading={devices.isFetching}
         onChange={(value) => change("device", value)}
+      />
+      <EntityPicker
+        org={org}
+        label="Place"
+        className="w-full"
+        value={params.get("entity") ?? ""}
+        selectedLabel={placeEntity.data?.path}
+        none="Anywhere"
+        placeholder="Anywhere"
+        help="Alerts of devices placed here or below."
+        onChange={(value) => change("entity", value || null)}
       />
       <SearchableSelect
         label="Workflow"

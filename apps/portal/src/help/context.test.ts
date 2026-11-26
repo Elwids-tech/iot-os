@@ -41,6 +41,9 @@ describe("Help context", () => {
     expect(helpContextForPath("/organizations/private-org/geofences/new")).toBe(
       "geofences.editor",
     );
+    expect(helpContextForPath("/organizations/private-org/hierarchy")).toBe("hierarchy");
+    expect(helpContextForPath("/organizations/private-org/hierarchy/types")).toBe("hierarchy.types");
+    expect(helpContextForPath("/organizations/private-org/hierarchy/e-1/points")).toBe("hierarchy.entity");
     expect(helpContextForPath("/organizations/private-org/members")).toBe("members");
     expect(helpContextForPath("/organizations/private-org/roles")).toBe("roles");
     expect(helpContextForPath("/organizations/private-org/roles/42")).toBe("roles.editor");

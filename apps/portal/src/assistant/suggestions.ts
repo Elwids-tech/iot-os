@@ -130,8 +130,10 @@ export function assistantSuggestions({ pathname, slot, profile, deviceProfile, c
         if (!slot) here.push(buildAutomation, thresholdAlert)
         break
       case "geofences":
-      case "sites":
         here.push(geofenceAlert)
+        break
+      case "hierarchy":
+        here.push({ ...thresholdAlert, title: "Alert on a point in this place" })
         break
       case "device-adapters":
         if (resource && resource !== "new" && can.adapters)

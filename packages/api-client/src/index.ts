@@ -102,6 +102,8 @@ export type Organization = {
     administration?: AdministrationCapabilities
     device_profiles?: DeviceProfileCapabilities
     devices?: DeviceCapabilities
+    /** The entity hierarchy (spec 009). Older payloads omit it. */
+    entities?: import("./entities").EntityCapabilities
     /** Dashboard permissions of their own. Older payloads omit it. */
     dashboards?: import("./dashboards").DashboardCapabilities
     /** Automation permissions (Workflow.*). Older payloads omit it. */

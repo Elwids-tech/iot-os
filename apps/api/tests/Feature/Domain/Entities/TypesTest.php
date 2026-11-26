@@ -10,6 +10,18 @@ use App\Domain\Entities\Models\EntityType;
 /** Spec 009 US5: types, rules and presets. */
 final class TypesTest extends EntityTestCase
 {
+    public function test_the_organization_context_says_what_the_hierarchy_allows(): void
+    {
+        $context = $this->getJson($this->prefix.'/context')->assertOk()->json('data.capabilities.entities');
+        $this->assertSame(['view' => true, 'manage' => true, 'manage_types' => true], $context);
+
+        $this->actAs('acme.member@example.test');
+        $member = $this->getJson($this->prefix.'/context')->assertOk()->json('data.capabilities.entities');
+        $this->assertTrue($member['view']);
+        $this->assertFalse($member['manage']);
+        $this->assertFalse($member['manage_types']);
+    }
+
     public function test_every_organization_has_a_site_type_whose_essentials_cannot_change(): void
     {
         $types = $this->getJson($this->prefix.'/entity-types')->assertOk()->json('data');

@@ -30,6 +30,7 @@ export function TimezoneField({
   disabled,
   help,
   allowNone,
+  noneLabel = "Not set (UTC)",
 }: {
   label: string
   value: string
@@ -38,6 +39,8 @@ export function TimezoneField({
   help?: string
   /** Offer "Not set" (UTC) as an option. */
   allowNone?: boolean
+  /** What the empty choice means here, e.g. "From Riverside plant (Europe/Berlin)". */
+  noneLabel?: string
 }) {
   const [search, setSearch] = useState("")
   const all = useMemo(() => zones().map((zone) => ({ zone, offset: utcOffset(zone) })), [])
@@ -47,13 +50,13 @@ export function TimezoneField({
       ? all.filter(({ zone, offset }) => zone.toLowerCase().includes(needle) || offset.toLowerCase().includes(needle))
       : all
     return [
-      ...(allowNone ? [{ value: "", label: "Not set (UTC)" }] : []),
+      ...(allowNone ? [{ value: "", label: noneLabel }] : []),
       ...matches.slice(0, 200).map(({ zone, offset }) => ({
         value: zone,
         label: `${zone.replaceAll("_", " ")} · ${offset}`,
       })),
     ]
-  }, [all, search, allowNone])
+  }, [all, search, allowNone, noneLabel])
   return (
     <SearchableSelect
       label={label}

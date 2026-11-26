@@ -32,6 +32,8 @@ import { CollectionPage } from "@iot-os/ui/templates/collection-page"
 import { ArchiveIcon, CpuIcon, InboxIcon, MoveRightIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { onboardingPath } from "./DeviceOnboarding"
+import { EntityPicker } from "../hierarchy/EntityPicker"
+import { hierarchyPath } from "../hierarchy/shared"
 import { useDirtyContext, useUnsaved } from "../lib/unsaved"
 import {
   TextField,
@@ -79,14 +81,16 @@ export function DeviceDirectory() {
   const search = url.get("search"),
     lifecycle = url.get("lifecycle"),
     statuses = url.getAll("status"),
-    site = url.get("site"),
+    // Sites are entities with the same UUIDs (spec 009), so older ?site= links filter by place.
+    place = url.get("entity") || url.get("site"),
     profile = url.get("profile")
   const page = Number(url.get("page") || 1),
     pageSize = Number(url.get("per_page") || 25),
     sort = url.get("sort") || "name"
-  const sites = useQuery({ queryKey: ["sites", org], queryFn: () => api.sites(org) })
-  // Site filter and column appear once the organization uses sites.
-  const hasSites = (sites.data?.data.length ?? 0) > 0
+  // The place filter and column appear once the organization has a hierarchy.
+  const topLevel = useQuery({ queryKey: ["entities", org, "level", null, "count"], queryFn: () => api.entities(org) })
+  const hasSites = (topLevel.data?.meta?.total ?? 0) > 0
+  const placeEntity = useQuery({ queryKey: ["entity", org, place], queryFn: () => api.entity(org, place!), enabled: Boolean(place) })
   const profiles = useQuery({
     queryKey: ["device-profiles", org, "filter-options"],
     queryFn: () => api.deviceProfiles(org, { perPage: 100 }),
@@ -96,11 +100,11 @@ export function DeviceDirectory() {
   const listFilters = {
     search,
     status: statuses,
-    site_uuid: site || undefined,
+    entity_uuid: place || undefined,
     profile_uuid: profile || undefined,
   }
   const query = useQuery({
-    queryKey: ["devices", org, { search, lifecycle, statuses, site, profile, sort, page, pageSize }],
+    queryKey: ["devices", org, { search, lifecycle, statuses, place, profile, sort, page, pageSize }],
     queryFn: () =>
       api.devices(org, {
         ...listFilters,
@@ -116,7 +120,7 @@ export function DeviceDirectory() {
   })
   // The default view says how many archived devices it leaves out.
   const archived = useQuery({
-    queryKey: ["devices", org, "archived-count", { search, statuses, site, profile }],
+    queryKey: ["devices", org, "archived-count", { search, statuses, place, profile }],
     queryFn: async () =>
       (await api.devices(org, { ...listFilters, lifecycle: "archived", per_page: 1 })).meta.total,
     enabled: !lifecycle,
@@ -212,16 +216,18 @@ export function DeviceDirectory() {
       ...(hasSites
         ? [
             {
-              id: "site",
-              header: "Site",
+              id: "place",
+              header: "Place",
               mobile: "hidden",
-              className: "max-w-48 truncate",
-              value: (device) => device.site?.name,
+              className: "max-w-64 truncate",
+              value: (device) => device.entity?.path,
               cell: (device) =>
-                device.site ? (
-                  <span title={device.site.timezone}>{device.site.name}</span>
+                device.entity ? (
+                  <RefLink to={hierarchyPath(org, device.entity.uuid)} title={device.entity.path}>
+                    {device.entity.path}
+                  </RefLink>
                 ) : (
-                  <span className="text-muted-foreground">None</span>
+                  <span className="text-muted-foreground">Not placed</span>
                 ),
             } satisfies DataColumn<Device>,
           ]
@@ -255,7 +261,7 @@ export function DeviceDirectory() {
       { id: "status", label: "Status", value: (device) => deviceHealth(device, listFreshness).label },
       { id: "profile", label: "Profile", value: (device) => device.profile?.name },
       { id: "gateway", label: "Gateway", value: (device) => (device.pipe?.hosted ? hostedPipe(device) : device.candidate && via(org, device.candidate.gateway).label) },
-      ...(hasSites ? [{ id: "site", label: "Site", value: (device: Device) => device.site?.name }] : []),
+      ...(hasSites ? [{ id: "site", label: "Site", value: (device: Device) => device.site?.name }, { id: "place", label: "Place", value: (device: Device) => device.entity?.path }] : []),
     ],
     [org, hasSites],
   )
@@ -273,6 +279,23 @@ export function DeviceDirectory() {
           </Button>
         )
       }
+      filters={
+        hasSites || place ? (
+          <EntityPicker
+            org={org}
+            label="Place"
+            labelHidden
+            value={place ?? ""}
+            selectedLabel={placeEntity.data?.path}
+            none="Anywhere"
+            placeholder="Anywhere"
+            onChange={(uuid) => url.set({ entity: uuid || null, site: null, page: null })}
+            className="w-full sm:w-72"
+          />
+        ) : undefined
+      }
+      activeFilterCount={place ? 1 : 0}
+      onResetFilters={() => url.clear(["site", "entity"])}
     >
       <DataTable
         id="devices"
@@ -330,21 +353,10 @@ export function DeviceDirectory() {
                 },
               ]
             : []),
-          ...(hasSites
-            ? [
-                {
-                  id: "site",
-                  label: "Site",
-                  options: (sites.data?.data ?? []).map((s) => ({ value: s.uuid, label: s.name })),
-                  value: site ? [site] : [],
-                  onChange: (value: string[]) => url.set({ site: value[0] ?? null }),
-                },
-              ]
-            : []),
         ]}
         // "All" widens the default view, so its count reads as a total, not a match.
-        filtered={Boolean(search || statuses.length || (lifecycle && lifecycle !== "all") || site || profile)}
-        onReset={() => url.clear(["search", "status", "lifecycle", "site", "profile"])}
+        filtered={Boolean(search || statuses.length || (lifecycle && lifecycle !== "all") || place || profile)}
+        onReset={() => url.clear(["search", "status", "lifecycle", "site", "entity", "profile"])}
         toolbar={capabilities.manage && <DiscoveryWaiting org={org} />}
         note={
           !lifecycle && (

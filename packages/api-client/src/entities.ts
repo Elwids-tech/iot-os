@@ -169,3 +169,12 @@ export type EntityMemberships = {
   /** Members the entity holds (or held). */
   members: (EntityMembershipPeriod & { member: EntityMembershipEnd })[]
 }
+
+/** What the signed-in person may do with the hierarchy in an organization. */
+export type EntityCapabilities = {
+  view: boolean
+  /** Create, rename, move, archive entities; place devices and parameters. */
+  manage: boolean
+  /** Types, rules and presets. */
+  manage_types: boolean
+}

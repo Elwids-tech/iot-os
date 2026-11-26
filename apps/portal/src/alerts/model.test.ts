@@ -64,6 +64,8 @@ describe("Alert list filters", () => {
       "device=d1&condition=active",
     );
     expect(alertQuery(new URLSearchParams("condition=all&page=2")).toString()).toBe("page=2");
+    // A place filter reaches the API as entity_uuid, which covers the branch (spec 009).
+    expect(alertQuery(new URLSearchParams("entity=e1")).toString()).toBe("condition=active&entity_uuid=e1");
   });
   it("treats only a UUID path segment as an alert id", () => {
     expect(isAlertId("0f8fad5b-d9cb-469f-a165-70867728950e")).toBe(true);

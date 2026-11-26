@@ -22,7 +22,7 @@ import { toast } from "sonner"
 import { api } from "../lib/api"
 import { LoadError, RequestError } from "../components/forms"
 import { useDeviceOrganization } from "../devices/shared"
-import { LocationTabs } from "../devices/SitesPage"
+import { HierarchyTabs } from "../hierarchy/shared"
 import { closeRing, validateVertices } from "./geometry"
 const LocationMap = lazy(() => import("./LocationMap").then((module) => ({ default: module.LocationMap })))
 
@@ -75,9 +75,9 @@ function GeofenceDirectory() {
   ]
   return (
     <CollectionPage
-      title="Locations"
+      title="Hierarchy"
       description="Geofences: boundaries that raise events when GPS devices enter or leave them."
-      tabs={<LocationTabs org={organizationUuid} />}
+      tabs={<HierarchyTabs org={organizationUuid} />}
       actions={
         capabilities.manage && (
           <Button size="sm" asChild>
