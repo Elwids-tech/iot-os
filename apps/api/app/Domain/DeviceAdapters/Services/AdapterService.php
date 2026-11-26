@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceAdapters\Services;
 
+use App\Domain\DeviceAdapters\Casts\FixtureList;
 use App\Domain\DeviceAdapters\Jobs\DeployAdapter;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
@@ -50,6 +51,8 @@ final class AdapterService
         ])->validate();
         // Validated data keeps only keys with rules; the source settings validate their own shape.
         $v['source'] = app(SourceSettings::class)->normalize($input['source']);
+        // Validation rebuilds the samples rule by rule and can reorder them (FixtureList).
+        $v['fixtures'] = FixtureList::normalize($v['fixtures']);
         abort_if(strlen(json_encode($v['fixtures'])) > 6 * 1024 * 1024, 422, 'Test fixtures are too large.');
         foreach ($v['fixtures'] as $fixture) {
             abort_unless(array_key_exists('payload', $fixture) || filled($fixture['payload_base64'] ?? null), 422, 'Each fixture requires a payload.');
@@ -172,7 +175,7 @@ final class AdapterService
     {
         abort_unless($adapter->draft_revision === $expected, 409, 'Save and test the latest draft.');
         $revision = $this->current($adapter);
-        $result = app(AdapterManager::class)->request('/test', ['code' => $revision->definition['code'], 'fixtures' => $revision->definition['fixtures'], 'profile' => $adapter->artifact->definition]);
+        $result = app(AdapterManager::class)->request('/test', ['code' => $revision->definition['code'], 'fixtures' => FixtureList::normalize($revision->definition['fixtures'] ?? []), 'profile' => $adapter->artifact->definition]);
         DB::transaction(function () use ($adapter, $revision, $result) {
             $locked = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->draft_revision === $revision->revision, 409, 'The draft changed while tests ran.');

@@ -4,6 +4,12 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Data and API contracts
 
+- **Validated wildcard arrays come back reordered.** `Validator::validate()` rebuilds
+  `fixtures.*.topic`, `fixtures.*.payload`… rule by rule, so items that have the first
+  rule's key come first: samples `[no topic, topic, topic]` came back keyed `1, 2, 0` and
+  were stored as a JSON object, which the adapter runtime refuses to test. Adapter
+  fixtures go through `FixtureList` (cast and `normalize`); restore the input order
+  (`ksort` then `array_values`) wherever a validated list is stored or sent on.
 - **A migration cannot create an extension in a release.** The release's application
   role (`iot_api`) has no `CREATE` on the database, so `CREATE EXTENSION` in a
   migration passes locally and in CI (superuser) and fails on a deployed host. Spec
