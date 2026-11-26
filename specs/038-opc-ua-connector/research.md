@@ -227,3 +227,52 @@ before building on them.
 - **Decision**: `adapters.opcua.max_points` (10,000) and `max_connections` (10) per
   organization, checked by Laravel when a revision is saved and deployed; the scan
   limit (20,000 nodes) and browse page size (200) are enforced in the library.
+
+## R18. The building is one model file
+
+- **Decision (2026-11-25, with the owner)**: Example Tower is defined once, in
+  `tooling/simulators/bms/buildings/example-tower.yaml`, planned in
+  [building.md](building.md). The simulator builds its address space, physics and both
+  naming styles from it and can export it. A 3D model of the building and the check of
+  the hierarchy proposal read the same keys and positions.
+- **Rationale**: the owner wants a digital twin of the simulated building. Without one
+  definition, the simulator, the 3D model and the expected hierarchy become three
+  hand-kept copies. Names follow the Brick vocabulary where it has a term, so the
+  building reads like a real one.
+- **Alternatives**: the building written in Python (nothing else could read it); a full
+  Brick or IFC model as the source (far more than the simulator needs, and neither
+  carries the point limits and sizes).
+- **Verify in PR 1a**: each Brick class named in the model file exists in the Brick
+  release the file cites.
+
+## R19. Built-in physics behind an interface
+
+- **Decision**: the simulator runs simple physics of its own behind a three-call
+  interface (step the clock, read values, apply a command).
+- **Rationale**: the local stack needs a server that starts in seconds in a small
+  container and is repeatable from a seed. A search on 2026-11-25 found open source
+  building simulators with good physics and controls (BOPTEST on Modelica, Sinergym on
+  EnergyPlus), but none that speaks OPC UA, and each brings a heavy run-time. The
+  interface leaves room to put one of them behind the same server later.
+- **Alternatives**: BOPTEST as the engine from the start (its buildings and point names
+  are fixed, so the floor-by-floor plan and the 3D model would have to follow one of
+  its test cases); no physics, only curves (commands would change nothing, so
+  automations could not be shown).
+- **Not verified**: the size of BOPTEST's container and whether it can be paced in real
+  time. A spike before anyone commits to it.
+
+## R20. The simulator has controls; the connector still reads only
+
+- **Decision (2026-11-25, with the owner)**: the simulated building has local control
+  loops and 531 command points, writable only by an operator sign-in and inside each
+  point's limits. The connector, the point map and the platform in this spec do not
+  write. Writing is a later spec with its own ADR (which points may be written, limits,
+  audit, release of an override, and the path from a device command to an OPC UA
+  write).
+- **Rationale**: the owner wants to set up automations against the building. Controls
+  are cheap to build into a simulator from the start and costly to add to a building
+  that was modelled as curves. Keeping the connector read only keeps pull requests 2 to
+  7 as planned.
+- **Alternatives**: add writing to this spec (reverses a decision merged the same day
+  and widens every pull request); leave controls out of the simulator until the writing
+  spec (the building and its 3D model would be redone).

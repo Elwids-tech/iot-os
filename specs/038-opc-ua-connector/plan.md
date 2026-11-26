@@ -95,10 +95,18 @@ the "own edge runtime" ADR-023 leaves open) is written and accepted before PR 7.
 
 ### Simulator (`tooling/simulators`)
 
-- `bms/model.py`: the building (site, building, 4 floors, 16 zones) and its equipment
-  with every point's type, unit, range and description.
-- `bms/dynamics.py`: the simulated day from a seed: occupancy schedule, outdoor
-  temperature curve, zone drift towards setpoint, plant staging, meter totals.
+- `bms/buildings/example-tower.yaml` and its schema: the one definition of the building
+  ([building plan](building.md)): levels, zones, equipment with positions and sizes,
+  the point library, the sizes.
+- `bms/model.py`: loads and checks the model file and builds the equipment and points
+  for the chosen size.
+- `bms/physics.py`: a small interface (step, read, apply a command) and the built-in
+  physics behind it: weather, people, zone heat balance, coil and plant load,
+  electricity and water that add up (R19).
+- `bms/controls.py`: each equipment type's own control loop, and the command points
+  with their limits (R20).
+- `bms/dynamics.py`: the simulated day from a seed: schedules, the weather curve, the
+  clock and its speed.
 - `bms/scenarios.py`: the named faults of US1 scenario 4, switchable at run time.
 - `bms/naming.py`: the structured and flat styles over the same model.
 - `bms_server.py`: the `asyncua` server (endpoints, sign-in methods, certificates
@@ -202,7 +210,8 @@ stacked.
 | PR | Contents | Stories | Verified by |
 | --- | --- | --- | --- |
 | 0 | Documents: spec, plan, research, data model, contracts, quickstart, tasks, ADR-052 | | review |
-| 1 | BMS simulator, its overlay, tests and docs | US1 | quickstart A |
+| 1a | Building model file, physics, control loops, command points, the structured server at `standard` and `tower` sizes, tests | US1 scenarios 1 to 3 and 7 to 10 | quickstart A steps 1, 2, 5, 7 to 9 |
+| 1b | Scenarios, flat naming, security options, `large` size, controls page, the overlay, docs | US1 scenarios 4 to 6 | quickstart A |
 | 2 | Point map contract; connector core library with tests against the simulator; memory measurement (R2) | part of US2 to US4 | `node --test`, quickstart B |
 | 3 | Connections: API, manager routes, portal connect and address tree | US2, US3 scenario 1 | quickstart C |
 | 4 | Point map editor, revisions, review check | US3 | quickstart D |
@@ -211,7 +220,7 @@ stacked.
 | 7 | On-site agent (after ADR-053) | US6 | quickstart G, SC-008 |
 | 8 | Hierarchy proposal (after spec 009 is built) | US7 | quickstart H, SC-009 |
 
-Spec 009 runs beside this as its own plan and pull requests. PR 1 to PR 7 do not wait
+Spec 009 runs beside this as its own plan and pull requests. PR 1a to PR 7 do not wait
 for it.
 
 ## Project Structure

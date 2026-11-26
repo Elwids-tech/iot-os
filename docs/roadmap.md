@@ -130,6 +130,10 @@ Grouped by area. Links point at the decision or doc that explains the item.
   through the existing adapter path; first from the tenant runtime, then from an
   on-site agent. Its last step proposes entities and placements from the server's
   structure and needs the entity hierarchy (spec 009) built first.
+- **Building networks and stories** ([spec 039](../specs/039-building-stories/spec.md)):
+  the simulated building's pipes, ducts and cables with meters on them, and scripted
+  stories (a riser leak, a basement flood, a fire, a power outage) that say what the
+  platform and a digital twin should detect and show. Builds on spec 038's simulator.
 - **Entity hierarchy** ([spec 009](../specs/009-entity-hierarchy/spec.md),
   [ADR-054](adr/ADR-054-organization-hierarchy.md)): each organization's tree of typed
   entities (site, area, line, asset; building, floor, zone; region, substation, feeder)
