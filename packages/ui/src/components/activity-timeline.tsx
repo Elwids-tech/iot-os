@@ -54,7 +54,8 @@ function ActivityItem({
   ...props
 }: Omit<React.ComponentProps<"li">, "children"> & {
   actor: string | null
-  at: string
+  /** Null when the time is not known, such as a record from before history was kept. */
+  at: string | null
   /** A fixed clock for stories and tests. */
   now?: number
   meta?: React.ReactNode
@@ -75,7 +76,7 @@ function ActivityItem({
         <p className="min-w-0 text-body break-words">{children}</p>
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted-foreground">
           {meta}
-          <RelativeTime at={at} now={now} />
+          {at !== null && <RelativeTime at={at} now={now} />}
         </p>
         {changes}
       </div>

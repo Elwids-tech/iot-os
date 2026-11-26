@@ -54,7 +54,16 @@ import {
   locationProblems,
   numericParameters,
 } from "./model"
-import { hierarchyPath } from "../hierarchy/shared"
+import { hierarchyPath, useHierarchyOrganization } from "../hierarchy/shared"
+import { DevicePlaceHistory } from "../hierarchy/History"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@iot-os/ui/components/sheet"
 import {
   deviceProfile,
   devicePath,
@@ -474,6 +483,29 @@ function TrendChart({
   )
 }
 
+/** Where the device and its separately placed parameters have been (spec 009 US6). */
+function PlaceHistory({ org, device }: { org: string; device: DeviceDetail }) {
+  const { capabilities } = useHierarchyOrganization()
+  const [open, setOpen] = useState(false)
+  if (!capabilities.view) return null
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-meta">
+          History
+        </Button>
+      </SheetTrigger>
+      <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Where {device.name} has been</SheetTitle>
+          <SheetDescription>Its places and its parameters placed on their own, newest first.</SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-4">{open && <DevicePlaceHistory org={org} device={device} />}</div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -543,16 +575,19 @@ function DeviceDetails({ org, device }: { org: string; device: DeviceDetail }) {
           {device.serial_number || <span className="text-muted-foreground">Not set</span>}
         </Detail>
         <Detail label="Place">
-          {device.entity ? (
-            <Link
-              className="font-mono text-code break-all text-primary underline-offset-4 hover:underline"
-              to={hierarchyPath(org, device.entity.uuid)}
-            >
-              {device.entity.path.split("/").join(" / ")}
-            </Link>
-          ) : (
-            <span className="text-muted-foreground">Not placed</span>
-          )}
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            {device.entity ? (
+              <Link
+                className="font-mono text-code break-all text-primary underline-offset-4 hover:underline"
+                to={hierarchyPath(org, device.entity.uuid)}
+              >
+                {device.entity.path.split("/").join(" / ")}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground">Not placed</span>
+            )}
+            <PlaceHistory org={org} device={device} />
+          </span>
         </Detail>
         <Detail label="Site">
           {device.site ? (

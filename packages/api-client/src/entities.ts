@@ -178,3 +178,55 @@ export type EntityCapabilities = {
   /** Types, rules and presets. */
   manage_types: boolean
 }
+
+type EntityRef = { uuid: string; name: string; path: string }
+
+/**
+ * One line of an entity's or a device's history (spec 009 US6), newest first. Which fields
+ * are present depends on `kind`. `at` is null for a placement from before history was kept.
+ * Paths are as they are today.
+ */
+export type HistoryEvent = {
+  id: string
+  kind:
+    | "created"
+    | "moved"
+    | "renamed"
+    | "retyped"
+    | "archived"
+    | "restored"
+    | "device_placed"
+    | "device_removed"
+    | "point_placed"
+    | "point_removed"
+    | "joined_group"
+    | "left_group"
+    | "member_added"
+    | "member_removed"
+  at: string | null
+  user: { id: number; name: string } | null
+  old_parent?: EntityRef | null
+  new_parent?: EntityRef | null
+  old_path_name?: string | null
+  new_path_name?: string | null
+  old_type?: { key: string; name: string } | null
+  new_type?: { key: string; name: string } | null
+  entity?: EntityRef | null
+  device?: { uuid: string; name: string } | null
+  parameter?: { uuid: string; key: string; leaf_name: string }
+  member?: EntityRef | null
+  group?: EntityRef | null
+  /** moved, unplaced, device_archived, moved_out, entity_archived; for groups replaced, left, archived. */
+  end_reason?: string | null
+}
+
+/** A device or point placed in a branch at a past time, using the tree as it was then. */
+export type BranchAtRow = {
+  kind: "device" | "point"
+  device: { uuid: string; name: string }
+  entity: EntityRef | null
+  parameter_key: string | null
+  leaf_name: string | null
+  started_at: string | null
+  ended_at: string | null
+}

@@ -30,13 +30,14 @@ import { SegmentedControl, SegmentedControlItem } from "@iot-os/ui/components/se
 import { Status, StatusMark } from "@iot-os/ui/components/status-mark"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@iot-os/ui/components/tabs"
 import { EntityPage as EntityTemplate, PropertyList } from "@iot-os/ui/templates/entity-page"
-import { EllipsisIcon, HistoryIcon, NetworkIcon, PlusIcon } from "lucide-react"
+import { EllipsisIcon, NetworkIcon, PlusIcon } from "lucide-react"
 import { api } from "../lib/api"
 import { Confirm, LoadError, RequestError } from "../components/forms"
 import { devicePath, formatValue } from "../devices/shared"
 import { utcOffset } from "../devices/TimezoneField"
 import { EntityForm } from "./EntityForm"
 import { EntityPicker } from "./EntityPicker"
+import { EntityHistoryTab } from "./History"
 import { MoveDialog } from "./MoveDialog"
 import { allowedTypes, hierarchyPath, refreshHierarchy, useEntityTypes, useHierarchyOrganization } from "./shared"
 
@@ -165,14 +166,7 @@ export default function EntityRecord() {
           ) : current === "devices" ? (
             <DevicesTab org={org} entity={entity} />
           ) : current === "history" ? (
-            <Panel>
-              <EmptyState
-                inset
-                icon={<HistoryIcon />}
-                title="History is on its way"
-                description="Renames, moves, placements and memberships of this entity will be listed here."
-              />
-            </Panel>
+            <EntityHistoryTab org={org} entity={entity} />
           ) : (
             <DetailsTab org={org} entity={entity} canManage={capabilities.manage} />
           )}

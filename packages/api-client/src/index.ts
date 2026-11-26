@@ -2448,6 +2448,18 @@ export class ApiClient {
   unplaceDevice(org: string, device: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, { method: "DELETE" })
   }
+  /** The entity's moves, renames, placements and memberships, newest first, 50 a page. */
+  entityHistory(org: string, entity: string, page = 1) {
+    return this.request<{ data: import("./entities").HistoryEvent[]; meta: { current_page: number; last_page: number; per_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/history?page=${page}`)
+  }
+  /** Devices and points in the entity's branch at a past time, using the tree as it was then. */
+  entityBranchAt(org: string, entity: string, time: string, page = 1) {
+    return this.request<{ data: import("./entities").BranchAtRow[]; meta: { current_page: number; last_page: number; per_page: number; total: number; existed: boolean } }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/branch-at?${new URLSearchParams({ time, page: String(page) })}`)
+  }
+  /** Where the device and its separately placed parameters have been, newest first. */
+  devicePlaceHistory(org: string, device: string, page = 1) {
+    return this.request<{ data: import("./entities").HistoryEvent[]; meta: { current_page: number; last_page: number; per_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/place-history?page=${page}`)
+  }
   devicePlacements(org: string, device: string, page = 1) {
     return this.request<PaginatedResponse<import("./entities").EntityPlacement>>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placements?page=${page}`)
   }

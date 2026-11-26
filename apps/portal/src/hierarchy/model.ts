@@ -40,3 +40,20 @@ export function impactLines(impact: EntityMoveImpact, name: string): string[] {
   }
   return lines
 }
+
+const endReasons: Record<string, string> = {
+  moved: "moved elsewhere",
+  unplaced: "taken out of the hierarchy",
+  device_archived: "the device was archived",
+  moved_out: "moved to another organization",
+  entity_archived: "the place was archived",
+  replaced: "joined another group of that type",
+  left: "left",
+  archived: "archived",
+}
+
+/** Why a placement or membership ended, as a clause: "moved elsewhere". */
+export function endReasonText(reason: string | null | undefined) {
+  return reason ? (endReasons[reason] ?? reason.replaceAll("_", " ")) : undefined
+}
+

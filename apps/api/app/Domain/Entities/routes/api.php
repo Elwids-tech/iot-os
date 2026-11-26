@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Entities\Http\Controllers\EntityController;
+use App\Domain\Entities\Http\Controllers\EntityHistoryController;
 use App\Domain\Entities\Http\Controllers\EntityPresetController;
 use App\Domain\Entities\Http\Controllers\EntityTypeController;
 use App\Domain\Entities\Http\Controllers\MembershipController;
@@ -26,12 +27,15 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'en
     Route::get('entities/{entity}', [EntityController::class, 'show']);
     Route::patch('entities/{entity}', [EntityController::class, 'update']);
     Route::get('entities/{entity}/move-impact', [EntityController::class, 'moveImpact']);
+    Route::get('entities/{entity}/history', [EntityHistoryController::class, 'entity']);
+    Route::get('entities/{entity}/branch-at', [EntityHistoryController::class, 'branchAt']);
     Route::post('entities/{entity}/move', [EntityController::class, 'move']);
     Route::post('entities/{entity}/archive', [EntityController::class, 'archive']);
     Route::post('entities/{entity}/restore', [EntityController::class, 'restore']);
     Route::delete('entities/{entity}', [EntityController::class, 'destroy']);
     Route::get('entities/{entity}/devices', [PlacementController::class, 'devices']);
     Route::get('devices/{device}/placements', [PlacementController::class, 'index']);
+    Route::get('devices/{device}/place-history', [EntityHistoryController::class, 'device']);
     Route::put('devices/{device}/placement', [PlacementController::class, 'update']);
     Route::delete('devices/{device}/placement', [PlacementController::class, 'destroy']);
     Route::get('entities/{entity}/points', [PointController::class, 'index']);

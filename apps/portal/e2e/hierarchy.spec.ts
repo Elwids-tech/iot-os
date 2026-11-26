@@ -3,7 +3,8 @@ import AxeBuilder from "@axe-core/playwright"
 
 // Spec 009 PR 6: Devices → Hierarchy with a mocked API. An empty organization starts from a
 // preset, builds a branch, moves it after reading the impact, and places a parameter apart
-// from its device, renaming it past a leaf name clash.
+// from its device, renaming it past a leaf name clash. PR 7: an entity's history, what was in
+// its branch at a past time, and where a device has been.
 const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a"
 const deviceId = "11111111-1111-4111-8111-111111111111"
 const parameterId = "22222222-2222-4222-8222-222222222222"
@@ -39,6 +40,7 @@ async function setup(page: Page) {
     entities: [] as Row[],
     moved: null as null | { uuid: string; parent: string | null },
     placed: null as null | { entity: string; leaf: string },
+    branchAt: null as null | string,
   }
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
@@ -180,6 +182,27 @@ async function setup(page: Page) {
           meta: { current_page: 1, last_page: 1, per_page: 50, total: state.placed ? 1 : 0 },
         })
       if (rest === "/devices") return json(page1([]))
+      if (rest === "/history") {
+        const ref = (uuid: string, name: string, path: string) => ({ uuid, name, path })
+        const user = { id: 1, name: "Ana Silva" }
+        const device = { uuid: deviceId, name: "Energy meter" }
+        return json(
+          page1([
+            { id: "change:4:moved", kind: "moved", at: "2026-11-20T10:00:00Z", user, old_parent: ref("p", "Packaging", "Plant/Packaging"), new_parent: ref("a", "Assembly", "Plant/Assembly"), old_path_name: null, new_path_name: null, old_type: null, new_type: null },
+            { id: "change:3:renamed", kind: "renamed", at: "2026-11-19T10:00:00Z", user, old_parent: null, new_parent: null, old_path_name: "Line2", new_path_name: "Bottling", old_type: null, new_type: null },
+            { id: "placement:2:device_placed", kind: "device_placed", at: "2026-11-18T10:00:00Z", user, entity: ref(row.uuid, row.name, pathOf(row)), device, end_reason: null },
+            { id: "change:1:created", kind: "created", at: "2026-11-17T10:00:00Z", user, old_parent: null, new_parent: ref("p", "Packaging", "Plant/Packaging"), old_path_name: null, new_path_name: "Line2", old_type: null, new_type: { key: "zone", name: "Zone" } },
+            { id: "placement:1:device_placed", kind: "device_placed", at: null, user: null, entity: ref(row.uuid, row.name, pathOf(row)), device: { uuid: "33333333-3333-4333-8333-333333333333", name: "Old pump" }, end_reason: null },
+          ]),
+        )
+      }
+      if (rest === "/branch-at") {
+        state.branchAt = url.searchParams.get("time")
+        return json({
+          data: [{ kind: "device", device: { uuid: deviceId, name: "Energy meter" }, entity: { uuid: row.uuid, name: row.name, path: pathOf(row) }, parameter_key: null, leaf_name: null, started_at: "2026-11-18T10:00:00Z", ended_at: null }],
+          meta: { current_page: 1, last_page: 1, per_page: 50, total: 1, existed: true },
+        })
+      }
       if (rest === "/memberships") return json({ data: { groups: [], members: [] } })
       return json({ data: detail(row) })
     }
@@ -223,6 +246,13 @@ async function setup(page: Page) {
         ],
         presence: "online",
       })
+    if (path.endsWith(`/devices/${deviceId}/place-history`))
+      return json(
+        page1([
+          { id: "placement:2:device_removed", kind: "device_removed", at: "2026-11-20T10:00:00Z", user: { id: 1, name: "Ana Silva" }, entity: { uuid: "e1", name: "Line 1", path: "Plant/Packaging/Line1" }, device: { uuid: deviceId, name: "Energy meter" }, end_reason: "unplaced" },
+          { id: "placement:2:device_placed", kind: "device_placed", at: "2026-11-18T10:00:00Z", user: { id: 1, name: "Ana Silva" }, entity: { uuid: "e1", name: "Line 1", path: "Plant/Packaging/Line1" }, device: { uuid: deviceId, name: "Energy meter" }, end_reason: null },
+        ]),
+      )
     if (path.endsWith(`/devices/${deviceId}`))
       return json({
         data: {
@@ -243,7 +273,7 @@ async function setup(page: Page) {
         },
       })
     if (path.endsWith("/devices")) return json(page1([]))
-    return json({ data: [] })
+    return json(page1([]))
   })
   return { state, errors }
 }
@@ -336,5 +366,45 @@ test("a parameter is placed apart from its device, renamed past a leaf name clas
     await page.emulateMedia({ colorScheme: scheme })
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   }
+  expect(errors).toEqual([])
+})
+
+test("an entity's history and its branch at a past time; a device's places over time", async ({ page }) => {
+  const { state, errors } = await setup(page)
+  state.applied = true
+  state.entities.push(
+    { uuid: "00000000-0000-4000-8000-000000000001", name: "Riverside plant", path_name: "RiversidePlant", type: { key: "site", name: "Site" }, parent_uuid: null },
+    { uuid: "00000000-0000-4000-8000-000000000002", name: "Bottling", path_name: "Bottling", type: { key: "zone", name: "Zone" }, parent_uuid: "00000000-0000-4000-8000-000000000001" },
+  )
+  await page.goto(`/organizations/${org}/hierarchy/00000000-0000-4000-8000-000000000002/history`)
+  const history = page.getByRole("region", { name: "History" })
+  await expect(history.getByText("Moved from Packaging to Assembly")).toBeVisible()
+  await expect(history.getByText("Path name changed")).toBeVisible()
+  await expect(history.getByText("Bottling", { exact: true })).toBeVisible()
+  await expect(history.getByText("Energy meter placed here")).toBeVisible()
+  await expect(history.getByRole("heading", { name: "Before history was kept" })).toBeVisible()
+  await expect(history.getByText("Old pump placed here")).toBeVisible()
+
+  // What was in the branch at a past time.
+  const then = page.getByRole("region", { name: "What was here" })
+  await expect(then.getByText("Choose a time to see what was placed here then.")).toBeVisible()
+  await then.getByLabel("As of").fill("2026-11-18T12:00")
+  await expect(then.getByRole("link", { name: "Energy meter" })).toBeVisible()
+  // The input has no zone: the browser reads it in its own.
+  expect(state.branchAt).toBe(await page.evaluate(() => new Date("2026-11-18T12:00").toISOString()))
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"))
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  }
+
+  // The device page opens where the device has been.
+  await page.goto(`/organizations/${org}/devices/${deviceId}`)
+  await page.getByRole("button", { name: "History", exact: true }).click()
+  const sheet = page.getByRole("dialog", { name: "Where Energy meter has been" })
+  await expect(sheet.getByText("Left Line 1: taken out of the hierarchy")).toBeVisible()
+  await expect(sheet.getByText("Placed at Line 1")).toBeVisible()
+  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"))
+  expect((await new AxeBuilder({ page }).include('[role="dialog"]').analyze()).violations).toEqual([])
   expect(errors).toEqual([])
 })
