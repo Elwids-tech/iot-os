@@ -3,34 +3,49 @@
 `tooling/simulators/bms_server.py`. A development tool; nothing in the product
 depends on it.
 
-## Building (default size)
+## Building
 
 Namespace `urn:example:bms:example-tower`. Site **Example Campus**, building
-**Example Tower**, floors 1 to 4, zones 1 to 4 on each floor.
+**Example Tower**: fourteen levels (two basements, ground, levels 1 to 10, roof),
+described floor by floor in [the building plan](../building.md), which lists every
+zone, equipment item, sensor, actuator and command.
 
-| Equipment | Count | Points each (examples) |
-| --- | --- | --- |
-| Air handling unit | 2 | 20: supply, return, mixed and outdoor air temperature, supply air setpoint, supply and return fan status, speed and fault, cooling and heating valve position, outdoor damper position, filter differential pressure, filter alarm, duct static pressure and setpoint, operating mode (state), run hours |
-| Zone controller | 16 | 12: zone temperature, setpoint, effective setpoint, occupancy, damper position, airflow, airflow setpoint, reheat valve position, CO₂, operating mode (state), window contact, communication alarm |
-| Chiller | 2 | 14: status, fault, chilled water supply and return temperature, setpoint, load, power, condenser water temperatures, run hours, starts, alarm code (state) |
-| Chilled water pump | 2 | 6: status, fault, speed, differential pressure, power, run hours |
-| Cooling tower | 1 | 8: fan status, fan speed, basin temperature, supply and return temperature, makeup valve, vibration alarm, power |
-| Boiler | 1 | 10: status, fault, supply and return temperature, setpoint, firing rate, flue gas temperature, gas valve, run hours, alarm code (state) |
-| Heating pump | 2 | 6: as chilled water pump |
-| Electricity meter | 5 | 12: energy imported (total), power, per-phase voltage and current, power factor, frequency |
-| Water meter | 1 | 3: volume (total), flow, leak alarm |
-| Heat meter | 1 | 5: energy (total), power, flow, supply and return temperature |
+The building is read from one model file,
+`tooling/simulators/bms/buildings/example-tower.yaml`. The address space, the physics,
+both naming styles and the totals below all come from it.
 
-About 400 points. Every point has a display name, a description, a source timestamp
-and a status; analog points have `EngineeringUnits` and `EURange`; states have their
-labels.
+| Size | What runs | Points | Of which commands | Devices |
+| --- | --- | --- | --- | --- |
+| `standard` | Levels 2 and 3, the plant floor, the roof, the main meter | 706 | 148 | 84 |
+| `tower` | The whole building | 2,466 | 531 | 294 |
+| `large` | The tower with 30 office floors | 6,602 | 1,565 | 778 |
+
+Every point has a display name, a description, a source timestamp and a status; analog
+points have `EngineeringUnits` and `EURange`; states have their labels.
+
+## Commands
+
+The simulator is built with controls although the connector of this spec reads only
+([research R20](../research.md)).
+
+- A command point is a variable with write access; every other point is read only.
+- Anonymous sessions read only. Writing needs the `operator` test sign-in (name and
+  password, or its certificate).
+- A value outside the point's limits is refused with `BadOutOfRange`; the wrong data
+  type with `BadTypeMismatch`; a write without the right with `BadUserAccessDenied`.
+- An accepted write takes effect in the physics at the next step. Equipment in hand
+  mode accepts the write and ignores it, and its operating state reads `hand`.
+- `--writes off` makes every point read only.
 
 ## Options
 
 | Option | Values | Default |
 | --- | --- | --- |
-| `--style` | `structured` (folders and typed objects), `flat` (one folder of tags such as `B1_F03_VAV_2.ZN-T`) | `structured` |
-| `--size` | `standard` (about 400 points), `large` (at least 5,000: more floors and zones) | `standard` |
+| `--style` | `structured` (folders and typed objects), `flat` (one folder of tags such as `ET_L03_VAV_2.ZN-T`) | `structured` |
+| `--size` | `standard`, `tower`, `large` (see the table above) | `standard` |
+| `--writes` | `on`, `off` | `on` |
+| `--season` | `summer`, `winter`, `mild` | `summer` |
+| `--export-model` | print the building model as JSON and stop | |
 | `--speed` | simulated seconds per second | `1` |
 | `--seed` | integer | `7` |
 | `--security` | any of `none`, `basic256sha256` | both |
@@ -45,7 +60,9 @@ Test sign-in values are written to `.local/devices/bms-simulator.json` at first 
 ## Scenarios
 
 Switched with `POST /scenarios/{name}` (`{"on": true, "target": "…"}`) on the control
-port, or from `bms_controls.html`.
+port, or from `bms_controls.html`. The control port also answers `GET /state`
+(scenarios in force, simulated time) and `POST /write` (`{"point": "L03-VAV-2.temperature_setpoint", "value": 23}`),
+which writes as the operator would, for tests and for trying controls by hand.
 
 | Name | Effect |
 | --- | --- |
@@ -61,9 +78,18 @@ port, or from `bms_controls.html`.
 | `meter_replaced` | A meter's total starts again from zero |
 | `session_limit` | The server accepts one session only |
 | `slow_browse` | Browse answers are delayed |
+| `hand_mode` | One equipment item is switched to hand at its panel; writes to it are accepted and ignored |
+| `power_outage` | The mains fail; the generator starts and the transfer switch moves to it; the uninterruptible supply runs on battery until then |
+| `water_leak` | A leak detector turns on and the level's water flow rises |
+| `car_park_co` | Carbon monoxide rises on one car park level; its fans speed up |
+| `lift_fault` | One lift goes out of service |
+| `fire_alarm` | One level's fire alarm turns on; its air handling unit stops |
 
 ## Tests
 
-`pytest` covers the model (counts, units, ranges), a seeded day (repeatable values,
-totals only rise), every scenario's effect, both naming styles exposing the same
-points, and one read through a standard client for each security and sign-in choice.
+`pytest` covers the model file against its schema and the totals above, a seeded day
+(repeatable values, totals only rise, sub-meters add up to the main meter), every
+local control loop reaching its setpoint, every command kind (accepted, out of range,
+wrong type, not allowed, hand mode), every scenario's effect, both naming styles
+exposing the same points, and one read through a standard client for each security
+and sign-in choice.

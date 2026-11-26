@@ -23,7 +23,7 @@ description: "Tasks for spec 038, OPC UA connector and building simulator"
 API tests run on PostgreSQL only. In a worktree, follow the worktree API test recipe:
 copy `vendor`, run `composer install`, and use a throwaway `APP_KEY`.
 
-**Organization**: phases follow the nine pull requests in the plan's **Delivery**
+**Organization**: phases follow the ten pull requests in the plan's **Delivery**
 section. Each pull request is based on `main`, opened after the one before it merges,
 and never stacked. Story labels map tasks to the spec's user stories (US1 to US7).
 
@@ -53,26 +53,39 @@ plan.
 
 ---
 
-## Phase 2: The simulated building (pull request 1) — User Story 1 (P1)
+## Phase 2: The simulated building (pull requests 1a and 1b) — User Story 1 (P1)
 
-**Goal**: a BMS server to build against.
+**Goal**: a BMS server to build against: Example Tower as planned in
+[building.md](building.md), with its own control loops and command points.
 
-**Independent Test**: [quickstart A](quickstart.md#a-the-simulated-building-pr-1).
+**Independent Test**: [quickstart A](quickstart.md#a-the-simulated-building-pr-1a-and-1b).
 
-- [ ] T004 [US1] Add `asyncua` (pinned) to tooling/simulators/requirements.txt and note its licence and development-only use in docs/dev/simulators-and-fixtures.md
-- [ ] T005 [P] [US1] Create tooling/simulators/bms/model.py: the building of [contracts/simulator.md](contracts/simulator.md) (site, building, 4 floors, 16 zones, every equipment and point with data type, unit, range, description and state labels), plus the `large` size of at least 5,000 points
-- [ ] T006 [P] [US1] Create tooling/simulators/bms/dynamics.py: a seeded, repeatable simulated day (occupancy schedule, outdoor curve, zone drift to setpoint, plant staging, totals that only rise) with an adjustable speed
-- [ ] T007 [P] [US1] Create tooling/simulators/bms/scenarios.py: the twelve scenarios of the simulator contract, each switchable at run time with an optional target
-- [ ] T008 [P] [US1] Create tooling/simulators/bms/naming.py: the `structured` style (folders and typed objects, object types declared) and the `flat` style (one folder of tags such as `B1_F03_VAV_2.ZN-T`) over the same model
-- [ ] T009 [US1] Create tooling/simulators/bms_server.py: the `asyncua` server with namespace `urn:example:bms:example-tower`, `AnalogItemType` points with `EURange` and `EngineeringUnits`, discrete types with labels, the options `--style --size --speed --seed --security --auth --strict-trust --node-ids --port --host --control-port`, certificates and test sign-in values generated into `.local/devices/` at first start, and the HTTP control port `POST /scenarios/{name}`
-- [ ] T010 [P] [US1] Create tooling/simulators/bms_controls.html: a page of scenario switches calling the control port, in the style of tooling/simulators/fire_watch_controls.html
-- [ ] T011 [P] [US1] Create tooling/simulators/test_bms_model.py, test_bms_dynamics.py and test_bms_scenarios.py: point counts, units and ranges; the same seed gives the same day; totals never fall; every scenario's effect; both styles expose the same points
+### Pull request 1a: the building, its physics and its controls
+
+- [ ] T004 [US1] Add `asyncua` and `PyYAML` (pinned) to tooling/simulators/requirements.txt and note their licences and development-only use in docs/dev/simulators-and-fixtures.md
+- [ ] T106 [US1] Create tooling/simulators/bms/buildings/example-tower.yaml and tooling/simulators/bms/buildings/building.schema.json: the levels, zones (outlines), equipment (key, type, level, zone, feeds, position `x, y, z`, facing, footprint), point library (key, name, kind, data type, unit, range, states, command limits, Brick class where one exists) and sizes of [building.md](building.md), with the keys of its **Names and keys** section
+- [ ] T005 [US1] Create tooling/simulators/bms/model.py: load the model file, check it against the schema, and build the equipment and points for `standard` (706 points, 84 devices), `tower` (2,466 points, 294 devices) and `large` (30 office floors, at least 5,000 points); `--export-model` prints it as JSON
+- [ ] T107 [P] [US1] Create tooling/simulators/bms/physics.py: the interface (step the clock, read values, apply a command) and the built-in physics of building.md **How the building behaves** (weather, people, zone heat balance with sun and blinds, coil and plant load, electricity and water that add up)
+- [ ] T108 [P] [US1] Create tooling/simulators/bms/controls.py: the local control loops of building.md **Controls** (zone box, air handling unit, chilled water plant, heating plant, car park ventilation, lighting, blinds, generator and transfer switch) and the command points with their limits and hand mode
+- [ ] T006 [P] [US1] Create tooling/simulators/bms/dynamics.py: a seeded, repeatable simulated day (schedules by zone kind, the weather curve and `--season`, totals that only rise) with an adjustable speed
+- [ ] T009 [US1] Create tooling/simulators/bms_server.py: the `asyncua` server with namespace `urn:example:bms:example-tower`, the structured style (folders and typed objects, object types declared), `AnalogItemType` points with `EURange` and `EngineeringUnits`, discrete types with labels, command points writable only by the `operator` sign-in and refused with `BadOutOfRange`, `BadTypeMismatch` or `BadUserAccessDenied`, the options `--size --speed --seed --season --writes --export-model --port --host --control-port`, and the control port's `GET /state` and `POST /write`
+- [ ] T011 [P] [US1] Create tooling/simulators/test_bms_model.py, test_bms_physics.py and test_bms_controls.py: the model file against its schema and the totals in building.md; the same seed gives the same day; totals never fall; sub-meters add up to the main meter within 1%; every control loop reaches its setpoint; every command kind accepted, out of range, wrong type, not allowed and in hand mode
+- [ ] T109 [US1] Run quickstart A steps 1, 2, 5, 7, 8 and 9 and record the result in the pull request
+
+### Pull request 1b: faults, naming styles, security and the stack
+
+- [ ] T007 [P] [US1] Create tooling/simulators/bms/scenarios.py: the eighteen scenarios of the simulator contract, each switchable at run time with an optional target
+- [ ] T008 [P] [US1] Create tooling/simulators/bms/naming.py: the `flat` style (one folder of tags such as `ET_L03_VAV_2.ZN-T`) beside the structured style, over the same model
+- [ ] T110 [US1] Extend tooling/simulators/bms_server.py with `--style --security --auth --strict-trust --node-ids`, certificates and test sign-in values (including `operator`) generated into `.local/devices/` at first start, and `POST /scenarios/{name}` on the control port
+- [ ] T010 [P] [US1] Create tooling/simulators/bms_controls.html: scenario switches and a small form that writes a command through the control port, in the style of tooling/simulators/fire_watch_controls.html
+- [ ] T111 [P] [US1] Create tooling/simulators/test_bms_scenarios.py: every scenario's effect; both styles expose the same points
 - [ ] T012 [US1] Create tooling/simulators/test_bms_server.py: one browse and read through an `asyncua` client for each security and sign-in choice, `--strict-trust` refusing an unknown client, and `--node-ids renumber` changing numeric ids while paths stay
 - [ ] T013 [US1] Create deploy/compose/compose.bms-simulator.yml (service `bms-simulator`, internal network, port 4840 also on `127.0.0.1`, control port on `127.0.0.1` only) and a small image definition deploy/docker/bms-simulator/Dockerfile on `python:3.12-slim`
-- [ ] T014 [P] [US1] Document the simulator in docs/dev/simulators-and-fixtures.md (options, scenarios, controls page, the overlay, and that a passing simulator run is not verification against a real building) and add it to the list in tooling/README.md
-- [ ] T015 [US1] Run quickstart A in the stack and record the result in the pull request
+- [ ] T014 [P] [US1] Document the simulator in docs/dev/simulators-and-fixtures.md (the building and its model file, options, commands, scenarios, controls page, the overlay, and that a passing simulator run is not verification against a real building) and add it to the list in tooling/README.md
+- [ ] T015 [US1] Run all of quickstart A in the stack and record the result in the pull request
 
-**Checkpoint**: any standard OPC UA client can browse the building and see a zone go offline.
+**Checkpoint**: any standard OPC UA client can browse the tower, see a zone go offline,
+and move a zone's temperature by writing its setpoint.
 
 ---
 
@@ -149,7 +162,7 @@ surface yet.
 - [ ] T059 [P] [US3] Add Vitest tests for point map editing logic and a Playwright test with a mocked API for the editor and review
 - [ ] T060 [US3] Rebuild and run quickstart D on both naming styles; record the result (SC-006)
 
-**Checkpoint**: 16 zone controllers found and reviewed in both styles; nothing is collecting yet.
+**Checkpoint**: 14 zone controllers found and reviewed in both styles; nothing is collecting yet.
 
 ---
 
@@ -256,7 +269,7 @@ surface yet.
 
 ## Parallel opportunities
 
-- Phase 2: T005 to T008 (four modules of the simulator), then T010, T011, T014.
+- Phase 2, pull request 1a: T107, T108 and T006 after T005; T011 beside them. Pull request 1b: T007, T008, T010, T111, T014.
 - Phase 3: T019, T020, T023, T024, T026 beside T021 and T022.
 - Phase 4: T031, T038, T041 and T045 beside the API work; T041 can start as soon as Phase 3 merges.
 - Phase 5: T056, T057 and T059 beside the API work.

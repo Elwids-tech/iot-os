@@ -13,16 +13,26 @@ through the API.
   `-f deploy/compose/compose.bms-simulator.yml up -d bms-simulator`.
 - Signed in to the portal as an organization admin of the check organization.
 
-## A. The simulated building (PR 1)
+## A. The simulated building (PR 1a and 1b)
 
 1. Start the simulator and connect a standard OPC UA client to
    `opc.tcp://localhost:4840`.
-2. Browse Example Campus → Example Tower → Floor 3 → Zone 2 → Zone controller.
-   **Expect** 12 points; zone temperature has a unit, a range and a good status.
+2. Browse Example Campus → Example Tower → Level 3 → East → Zone box `L03-VAV-2`.
+   **Expect** 14 points; zone temperature has a unit, a range and a good status.
 3. Open `bms_controls.html`, switch on **controller offline** for that zone.
    **Expect** its points turn bad (no communication); every other zone stays good.
 4. Restart with `--style flat`. **Expect** one folder of tags, the same point count.
-5. `pytest tooling/simulators/test_bms_*.py` passes.
+5. Sign in as the operator and write 21 to that zone's temperature setpoint.
+   **Expect** the effective setpoint changes at once and the zone temperature reaches
+   it within 30 simulated minutes. Write 40. **Expect** the write is refused as out of
+   range. Write as anonymous. **Expect** it is refused as not allowed.
+6. Switch on **power outage**. **Expect** the transfer switch reads generator, the
+   generator runs and the main meter reads no power.
+7. Start with `--size tower`. **Expect** fourteen levels, 2,466 points; the floor
+   sub-meters add up to the main meter within 1%.
+8. `--export-model` prints the building; its totals match
+   [the building plan](building.md#totals-and-sizes).
+9. `pytest tooling/simulators/test_bms_*.py` passes.
 
 ## B. The connector core (PR 2)
 
@@ -101,8 +111,8 @@ through the API.
 ## H. Hierarchy proposal (PR 8, with spec 009 built)
 
 1. Apply the buildings preset, then run the proposal on the structured building.
-   **Expect** 1 site, 1 building, 4 floors, 16 zones, zone controllers placed at their
-   zones and floor meters at their floors.
+   **Expect** 1 site, 1 building, 4 levels, 14 zones, zone controllers placed at their
+   zones and floor meters at their levels, matching `--export-model`.
 2. Rename a floor, drop a zone, apply. **Expect** entities and placements created;
    none refers to OPC UA.
 3. Run it again. **Expect** only the dropped zone offered.

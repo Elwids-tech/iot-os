@@ -27,16 +27,16 @@ applies to. The shared part is protocol-neutral; only `address` depends on `prot
   ],
   "equipment": [
     {
-      "source_id": "ExampleTower/Floor3/Zone2/ZoneController",
-      "display_name": "Floor 3 Zone 2 controller",
+      "source_id": "ExampleTower/Level3/East/L03-VAV-2",
+      "display_name": "Level 3 East zone box",
       "address": {
-        "node_id": "s=Floor3.Zone2.ZoneController",
+        "node_id": "s=L03-VAV-2",
         "namespace_uri": "urn:example:bms:example-tower",
         "path": [
           { "namespace_uri": "urn:example:bms:example-tower", "name": "ExampleTower" },
-          { "namespace_uri": "urn:example:bms:example-tower", "name": "Floor3" },
-          { "namespace_uri": "urn:example:bms:example-tower", "name": "Zone2" },
-          { "namespace_uri": "urn:example:bms:example-tower", "name": "ZoneController" }
+          { "namespace_uri": "urn:example:bms:example-tower", "name": "Level3" },
+          { "namespace_uri": "urn:example:bms:example-tower", "name": "East" },
+          { "namespace_uri": "urn:example:bms:example-tower", "name": "L03-VAV-2" }
         ]
       },
       "overrides": { "zone_temperature": { "node_id": "s=…", "namespace_uri": "…" } },

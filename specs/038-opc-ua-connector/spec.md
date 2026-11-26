@@ -60,7 +60,9 @@ that supervisory server. BACnet and Modbus stay separate connectors (ADR-023).
 - **Separate specs, linked.** This feature ships without spec 009. Its last story
   proposes entities and placements from the server's structure and is switched on only
   once spec 009 is built (US7). The connector never writes the hierarchy by itself.
-- **Read only.** No setpoints, no method calls.
+- **Read only.** No setpoints, no method calls. The simulated building is built with
+  controls all the same (decided 2026-11-25), so the later feature for writing has a
+  building to work against; the connector of this spec never writes to it.
 
 **Boundaries that do not change**
 
@@ -102,18 +104,24 @@ misbehave. Every later story is built and verified against it.
 for the simulation first. It also fixes what "a building" means before the connector
 is designed.
 
+The building is Example Tower, a multi-storey office tower planned floor by floor in
+[the building plan](building.md): its zones, its equipment, and every sensor, actuator
+and command. The same plan is what a 3D model of the building is drawn from.
+
 **Independent Test**: start the simulator, connect any standard OPC UA client, browse
-Site → Building → Floor → Zone, read a zone temperature with its unit and a good
+Site → Building → Level → Zone, read a zone temperature with its unit and a good
 status, switch on the "controller offline" scenario and see that zone's points turn bad
-while the rest stay good.
+while the rest stay good. Then write a zone's temperature setpoint as the operator and
+see the zone's temperature follow it.
 
 **Acceptance Scenarios**:
 
-1. **Given** the simulator is running, **Then** it exposes one site with one building
-   of four floors and four zones a floor, holding: 2 air handling units, 16 zone
-   controllers (one per zone), a chilled water plant (2 chillers, 2 pumps, a cooling
-   tower), a heating plant (a boiler, 2 pumps), electricity meters (one main, one per
-   floor), a water meter and a heat meter. Together they expose at least 400 points.
+1. **Given** the simulator is running at its default size, **Then** it exposes one site
+   with one building: two office levels of seven zones each (an air handling unit, 7
+   zone controllers, lighting, blinds and sub-meters a level), a server room, the plant
+   floor (3 chillers, their pumps and towers, 2 boilers, 2 outdoor air units), the roof
+   (solar, weather station) and the main electricity meter. Together they expose 706
+   points on 84 pieces of equipment, as listed in [the building plan](building.md).
 2. **Given** any point, **Then** it has a data type (number, on/off, a named state or
    text), a display name, a description, an engineering unit where it has one, a source
    time and a status.
@@ -129,12 +137,25 @@ while the rest stay good.
 5. **Given** the naming style option, **Then** the same building is exposed either
    **structured** (folders for site, building, floor and zone, with each equipment as
    an object) or **flat** (one long list of vendor-style tag names such as
-   `B1_F03_VAV_2.ZN-T` with no folders), because real sites come both ways.
+   `ET_L03_VAV_2.ZN-T` with no folders), because real sites come both ways.
 6. **Given** the security options, **Then** the simulator offers an unencrypted
    endpoint and an encrypted one, and accepts anonymous, name-and-password and
    certificate sign-in, each of which can be switched off to force the others.
-7. **Given** a size option, **Then** the simulator can expose a larger building of at
-   least 5,000 points for load checks.
+7. **Given** a size option, **Then** the simulator can expose the whole tower (fourteen
+   levels, 2,466 points, 294 pieces of equipment) and a larger building of at least
+   5,000 points for load checks.
+8. **Given** the building model, **Then** every level, zone, equipment item and point
+   comes from one model file with a stable key, a position in metres and a size, and
+   the simulator can export it for other tools.
+9. **Given** a command point (a setpoint, a mode or a request), **When** a session
+   signed in as the operator writes a value inside its limits, **Then** the building
+   responds as it would: a zone moves towards its new setpoint, a plant that is
+   switched off stops. A write from an anonymous session, outside the limits, or of the
+   wrong type is refused with its own reason. Sensors, statuses, alarms and totals can
+   never be written.
+10. **Given** the building is left alone, **Then** its own control loops run it: zones
+    hold their setpoints, air handling units follow their schedules, chillers start and
+    stop with load, and sub-meters add up to the main meter.
 
 ---
 
@@ -189,9 +210,9 @@ and it replaces writing a decoder.
 
 **Independent Test**: on the simulator's structured building, open one zone
 controller, keep zone temperature, setpoint, damper position and occupancy, and name
-the type "Zone controller". The review lists all 16 zone controllers with those four
+the type "Zone controller". The review lists all 14 zone controllers with those four
 readings, each with unit and a current value. Repeat on the flat style by giving the
-tag pattern; the same 16 are found.
+tag pattern; the same 14 are found.
 
 **Acceptance Scenarios**:
 
@@ -357,9 +378,10 @@ organization's physical structure), but it depends on a feature that is not buil
 US1 to US5 are useful without it.
 
 **Independent Test**: with spec 009 built and the buildings preset applied, run the
-proposal on the simulator's structured building: it proposes one site, one building,
-four floors and sixteen zones, with each zone controller placed at its zone and each
-floor meter at its floor. Rename one floor, drop one zone, apply. The entities and
+proposal on the simulator's structured building at its default size: it proposes one
+site, one building, four levels (levels 2, 3 and 10, and the roof) and fourteen zones,
+with each zone controller placed at its zone and each floor meter at its level. The
+result matches the building model file. Rename one floor, drop one zone, apply. The entities and
 placements exist; none carries a node address. Run the proposal again: it offers only
 the dropped zone.
 
@@ -436,10 +458,18 @@ the dropped zone.
   and 4. Scenarios MUST be switchable while it runs.
 - **FR-003**: The simulator MUST offer the structured and the flat naming styles, an
   unencrypted and an encrypted endpoint, the three sign-in methods (each
-  switchable), and a large-building option of at least 5,000 points.
+  switchable), the whole-tower size and a large-building option of at least 5,000
+  points.
 - **FR-004**: The simulator MUST start with the local stack on request, and MUST be
   documented with the other simulators, including the statement that a passing
   simulator run is not verification against a real building.
+- **FR-005**: The simulated building MUST be defined in one model file that gives every
+  level, zone, equipment item and point a stable key, and every equipment item a
+  position and a size. The simulator MUST be able to export it.
+- **FR-006**: The simulator MUST run each equipment item's own control loop, and MUST
+  accept writes to command points only: from a signed-in operator, inside the point's
+  limits and of the right type. Every other write MUST be refused with its reason. An
+  accepted write MUST change the building's behaviour.
 
 **Connection and security**
 
@@ -596,7 +626,7 @@ the dropped zone.
 ### Measurable Outcomes
 
 - **SC-001**: In the local stack, a person who has never used OPC UA takes the
-  simulated building from "enter the address" to 16 zone controllers storing readings
+  simulated building from "enter the address" to 14 zone controllers storing readings
   in under 15 minutes, without writing code and without leaving the journey.
 - **SC-002**: A change on the simulator is visible on the device's page within 15
   seconds at default settings.
@@ -626,7 +656,8 @@ the dropped zone.
   offers OPC UA. Field controllers that speak only BACnet or Modbus are reached
   through that server, a third-party gateway, or later connectors.
 - **Read only.** Writing setpoints and calling methods are a later spec with their own
-  approvals. Nothing in this feature can change a building.
+  approvals. Nothing the platform does in this feature can change a building. The
+  simulator's command points exist for that later spec and for its own tests.
 - **No alarm events, history or PubSub.** Alarm points are read as on/off values and
   alerts come from the platform's rules. OPC UA alarms and conditions, reading the
   server's own history to fill gaps, and OPC UA PubSub are out of scope; a gap during
