@@ -18,6 +18,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 ## Features
 
 - [Devices](features/devices.md): sources, onboarding, configuration, measurements, commands, telemetry viewer, retention
+- [Hierarchy](features/hierarchy.md): sites, areas, lines and other places; types and presets, placements and points, groups, history
 - [Device profiles](features/device-profiles.md): parameters, revisions, units, conversions, calculations
 - [Device adapters](features/adapters.md): vendor MQTT devices through per-tenant runtimes
 - [Embedded SDK](features/embedded-sdk.md): the C library gateway and device firmware use to speak Sparkplug B

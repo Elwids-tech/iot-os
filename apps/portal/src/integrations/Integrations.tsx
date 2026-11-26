@@ -54,6 +54,7 @@ import {
 import { formatDateTime } from "@iot-os/ui/lib/format";
 import { CopyIcon, PlugZapIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { api } from "../lib/api";
+import { EntityPicker } from "../hierarchy/EntityPicker";
 import { useUnsavedContribution } from "../lib/unsaved";
 import { Confirm, RequestError, TextField } from "../components/forms";
 import {
@@ -71,41 +72,41 @@ const permissions: { value: IntegrationAbility; label: string }[] = [
   { value: "geofences:read", label: "Geofences" },
   { value: "geofences:manage", label: "Manage geofences" },
   { value: "geofences:activate", label: "Activate geofence assignments" },
-  { value: "entities:read", label: "Sites" },
+  { value: "entities:read", label: "Hierarchy" },
   { value: "telemetry:stream", label: "Live telemetry stream" },
 ];
 const blank = (): IntegrationGrants => ({
   name: "",
   abilities: [],
   device_uuids: [],
-  site_uuids: [],
+  entity_uuids: [],
 });
 const grants = (app: IntegrationApplication): IntegrationGrants => ({
   name: app.name,
   abilities: app.abilities,
   device_uuids: app.device_uuids,
-  site_uuids: app.site_uuids,
+  entity_uuids: app.entity_uuids,
 });
-/** A grant is a device list or a scope of sites, never both (spec 030). */
-const scoped = (grant: Pick<IntegrationGrants, "site_uuids">) =>
-  grant.site_uuids.length > 0;
+/** A grant is a device list or a scope of places, never both (spec 030, spec 009). */
+const scoped = (grant: Pick<IntegrationGrants, "entity_uuids">) =>
+  grant.entity_uuids.length > 0;
 const abilitiesValid = (abilities: IntegrationAbility[]) =>
   (!abilities.includes("events:read") || abilities.includes("alerts:read")) &&
   (!abilities.includes("telemetry:stream") ||
     abilities.includes("telemetry:read"));
 const valid = (draft: IntegrationGrants) =>
   draft.name.trim() &&
-  draft.device_uuids.length > 0 !== draft.site_uuids.length > 0 &&
+  draft.device_uuids.length > 0 !== draft.entity_uuids.length > 0 &&
   draft.abilities.length > 0 &&
   abilitiesValid(draft.abilities);
 const plural = (count: number, word: string) =>
   `${count} ${word}${count === 1 ? "" : "s"}`;
-/** "3 sites" for a scope, "12 of 100 devices" for a list. */
-const grantSummary = (grant: Pick<IntegrationGrants, "device_uuids" | "site_uuids">) =>
+/** "3 places" for a scope, "12 of 100 devices" for a list. */
+const grantSummary = (grant: Pick<IntegrationGrants, "device_uuids" | "entity_uuids">) =>
   scoped(grant)
-    ? plural(grant.site_uuids.length, "site")
+    ? plural(grant.entity_uuids.length, "place")
     : `${grant.device_uuids.length} of 100 devices`;
-const grantHint = "Add a name, a permission and a device or site";
+const grantHint = "Add a name, a permission and a device or place";
 
 export default function IntegrationRoutes() {
   const { org, capabilities, query } = useDeviceOrganization();
@@ -183,7 +184,7 @@ function GrantFields({
   change,
   disabled,
   devices = [],
-  sites = [],
+  entities = [],
   emptiedScope = false,
 }: {
   org: string;
@@ -191,16 +192,16 @@ function GrantFields({
   change: (next: IntegrationGrants) => void;
   disabled: boolean;
   devices?: IntegrationApplication["devices"];
-  sites?: IntegrationApplication["sites"];
-  /** A saved scope whose sites were all deleted: open in Sites mode and say why nothing is read. */
+  entities?: IntegrationApplication["entities"];
+  /** A saved scope whose places were all archived: open in Places mode and say why nothing is read. */
   emptiedScope?: boolean;
 }) {
-  // Devices and sites are two modes of one grant: switching clears the other list.
-  const [mode, setMode] = useState<"devices" | "sites">(
-    scoped(draft) || emptiedScope ? "sites" : "devices",
+  // Devices and places are two modes of one grant: switching clears the other list.
+  const [mode, setMode] = useState<"devices" | "places">(
+    scoped(draft) || emptiedScope ? "places" : "devices",
   );
   const [search, setSearch] = useState("");
-  const [siteSearch, setSiteSearch] = useState("");
+  const [places, setPlaces] = useState<Record<string, { name: string; path: string }>>({});
   const [page, setPage] = useState(1);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const query = useQuery({
@@ -208,35 +209,14 @@ function GrantFields({
     queryFn: () => api.devices(org, { search, page }),
     enabled: mode === "devices",
   });
-  const siteQuery = useQuery({
-    queryKey: ["sites", org],
-    queryFn: () => api.sites(org),
-    enabled: mode === "sites",
-  });
   const label = (id: string) =>
     labels[id] ??
     (() => {
       const device = devices.find((d) => d.uuid === id);
       return device ? `${device.name} · ${device.code}` : id;
     })();
-  const siteName = (id: string) =>
-    siteQuery.data?.data.find((s) => s.uuid === id)?.name ??
-    sites.find((s) => s.uuid === id)?.name ??
-    id;
-  const siteDevices = (id: string) =>
-    siteQuery.data?.data.find((s) => s.uuid === id)?.devices_count ?? null;
-  const siteOptions = (siteQuery.data?.data ?? [])
-    .filter((s) => !draft.site_uuids.includes(s.uuid))
-    .filter((s) =>
-      s.name.toLowerCase().includes(siteSearch.trim().toLowerCase()),
-    )
-    .map((s) => ({
-      value: s.uuid,
-      label:
-        s.devices_count == null
-          ? s.name
-          : `${s.name} · ${plural(s.devices_count, "device")}`,
-    }));
+  const place = (id: string) =>
+    places[id] ?? entities.find((entity) => entity.uuid === id) ?? { name: id, path: "" };
   return (
     <FieldGroup>
       <TextField
@@ -273,12 +253,12 @@ function GrantFields({
       <Tabs
         value={mode}
         onValueChange={(value) => {
-          const next = value as "devices" | "sites";
+          const next = value as "devices" | "places";
           setMode(next);
           change(
-            next === "sites"
+            next === "places"
               ? { ...draft, device_uuids: [] }
-              : { ...draft, site_uuids: [] },
+              : { ...draft, entity_uuids: [] },
           );
         }}
       >
@@ -287,8 +267,8 @@ function GrantFields({
           <TabsTrigger value="devices" disabled={disabled}>
             Devices
           </TabsTrigger>
-          <TabsTrigger value="sites" disabled={disabled}>
-            Sites
+          <TabsTrigger value="places" disabled={disabled}>
+            Places
           </TabsTrigger>
         </TabsList>
         <TabsContent value="devices" className="flex flex-col gap-4">
@@ -351,50 +331,42 @@ function GrantFields({
             </ul>
           )}
         </TabsContent>
-        <TabsContent value="sites" className="flex flex-col gap-4">
-          {emptiedScope && draft.site_uuids.length === 0 && (
+        <TabsContent value="places" className="flex flex-col gap-4">
+          {emptiedScope && draft.entity_uuids.length === 0 && (
             <Alert>
-              <AlertTitle>No sites</AlertTitle>
+              <AlertTitle>No places</AlertTitle>
               <AlertDescription>
-                This application reads nothing until a site is granted. Its
-                sites were deleted.
+                This application reads nothing until a place is granted. Its
+                places were archived.
               </AlertDescription>
             </Alert>
           )}
-          <SearchableSelect
-            label="Add a site"
+          <EntityPicker
+            org={org}
+            label="Add a place"
             value=""
-            options={siteOptions}
-            onChange={(id) =>
-              change({ ...draft, site_uuids: [...draft.site_uuids, id] })
-            }
-            search={siteSearch}
-            onSearchChange={setSiteSearch}
-            loading={siteQuery.isFetching}
-            disabled={disabled || draft.site_uuids.length >= 50}
-            emptyText={
-              siteQuery.data && siteQuery.data.data.length === 0
-                ? "No sites yet. Create sites under Devices → Sites."
-                : "No matches found."
-            }
+            placeholder="Search the hierarchy"
+            accept={(entity) => !draft.entity_uuids.includes(entity.uuid)}
+            onChange={(id, entity) => {
+              if (!id) return;
+              if (entity) setPlaces((known) => ({ ...known, [id]: { name: entity.name, path: entity.path } }));
+              change({ ...draft, entity_uuids: [...draft.entity_uuids, id] });
+            }}
+            disabled={disabled || draft.entity_uuids.length >= 50}
             help={
-              draft.site_uuids.length >= 50
-                ? "The limit of 50 sites is reached."
-                : `${draft.site_uuids.length} of 50 sites. Every device at these sites is covered, including devices added later; a device with no site is never covered.`
+              draft.entity_uuids.length >= 50
+                ? "The limit of 50 places is reached."
+                : `${draft.entity_uuids.length} of 50 places. Every device placed in these branches is covered, including devices added or moved there later; a device moved out is no longer covered.`
             }
           />
-          <RequestError error={siteQuery.error} />
-          {draft.site_uuids.length > 0 && (
-            <ul className="flex flex-col divide-y border-y" aria-label="Granted sites">
-              {draft.site_uuids.map((id) => (
+          {draft.entity_uuids.length > 0 && (
+            <ul className="flex flex-col divide-y border-y" aria-label="Granted places">
+              {draft.entity_uuids.map((id) => (
                 <li key={id} className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="min-w-0 text-sm break-words">
-                    {siteName(id)}
-                    {siteDevices(id) != null && (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {plural(siteDevices(id) ?? 0, "device")}
-                      </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-sm break-words">{place(id).name}</span>
+                    {place(id).path && (
+                      <span className="text-meta break-all text-muted-foreground">{place(id).path}</span>
                     )}
                   </span>
                   <Button
@@ -402,11 +374,11 @@ function GrantFields({
                     variant="outline"
                     size="sm"
                     disabled={disabled}
-                    aria-label={`Remove ${siteName(id)}`}
+                    aria-label={`Remove ${place(id).name}`}
                     onClick={() =>
                       change({
                         ...draft,
-                        site_uuids: draft.site_uuids.filter(
+                        entity_uuids: draft.entity_uuids.filter(
                           (value) => value !== id,
                         ),
                       })
@@ -473,7 +445,7 @@ function Directory({ org }: { org: string }) {
       cell: (app) =>
         app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>,
     },
-    { id: "grant", header: "Grant", value: (app) => grantSummary(app), cell: (app) => <span className="tabular-nums">{scoped(app) ? plural(app.site_uuids.length, "site") : plural(app.device_uuids.length, "device")}</span> },
+    { id: "grant", header: "Grant", value: (app) => grantSummary(app), cell: (app) => <span className="tabular-nums">{scoped(app) ? plural(app.entity_uuids.length, "place") : plural(app.device_uuids.length, "device")}</span> },
     { id: "permissions", header: "Permissions", align: "end", value: (app) => app.abilities.length, cell: (app) => <span className="tabular-nums">{app.abilities.length}</span> },
     {
       id: "token",
@@ -541,7 +513,7 @@ function Directory({ org }: { org: string }) {
               inset
               icon={<PlugZapIcon />}
               title="No applications yet"
-              description="Create an application, choose its devices or sites, then issue a token for its backend."
+              description="Create an application, choose its devices or places, then issue a token for its backend."
             />
           }
         />
@@ -556,7 +528,7 @@ function Directory({ org }: { org: string }) {
           <SheetHeader className="border-b px-6 py-4">
             <SheetTitle>New application</SheetTitle>
             <SheetDescription>
-              Choose the read permissions and the devices or sites it needs.
+              Choose the read permissions and the devices or places it needs.
             </SheetDescription>
           </SheetHeader>
           <form
@@ -981,9 +953,9 @@ function Workspace({
           <dt className="text-xs text-muted-foreground">Grant</dt>
           <dd className="tabular-nums">
             {scoped(app)
-              ? `${plural(app.site_uuids.length, "site")}: ${app.sites.map((site) => site.name).join(", ")}`
+              ? `${plural(app.entity_uuids.length, "place")}: ${app.entities.map((entity) => entity.name).join(", ")}`
               : app.device_uuids.length === 0
-                ? "No sites"
+                ? "No places"
                 : `${app.device_uuids.length} of 100 devices`}
           </dd>
         </div>
@@ -1056,7 +1028,7 @@ function Workspace({
             ask(
               "Replace access grants?",
               scoped(draft)
-                ? "Every device at the chosen sites will be covered, including devices added later. The current token will stop working, event cursors will need a fresh checkpoint and pending webhook deliveries will be cancelled."
+                ? "Every device placed in the chosen branches will be covered, including devices added or moved there later. The current token will stop working, event cursors will need a fresh checkpoint and pending webhook deliveries will be cancelled."
                 : "The current token will stop working and pending webhook deliveries will be cancelled.",
               "Save grants",
               async () => {
@@ -1081,7 +1053,7 @@ function Workspace({
             draft={draft}
             change={setDraft}
             devices={app.devices}
-            sites={app.sites}
+            entities={app.entities}
             emptiedScope={!scoped(app) && app.device_uuids.length === 0}
             disabled={locked}
           />
@@ -1427,7 +1399,7 @@ function Workspace({
           {app.revoked_at ? <StatusMark tone="muted">Revoked</StatusMark> : <StatusMark tone="good">Active</StatusMark>}
           <span className="text-muted-foreground">
             {scoped(app)
-              ? plural(app.site_uuids.length, "site")
+              ? plural(app.entity_uuids.length, "place")
               : plural(app.device_uuids.length, "device")}{" "}
             · {plural(app.abilities.length, "permission")}
           </span>

@@ -148,7 +148,7 @@ final class LatestBatchTest extends TestCase
         $this->online->update(['site_id' => $hall->id]);
         $this->never->update(['site_id' => $hall->id]);
         $application = IntegrationApplication::create(['organization_id' => $this->organization->id, 'name' => 'Plant twin',
-            'abilities' => ['telemetry:read'], 'device_uuids' => [], 'site_uuids' => [$hall->uuid]])->fresh();
+            'abilities' => ['telemetry:read'], 'device_uuids' => [], 'entity_uuids' => [$hall->uuid]])->fresh();
         $secret = Str::random(40);
         $token = $application->tokens()->create(['name' => 'plant', 'token' => hash('sha256', $secret), 'abilities' => ['telemetry:read'], 'expires_at' => now()->addDay()]);
         $this->token = $token->id.'|'.$secret;

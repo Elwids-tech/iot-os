@@ -58,12 +58,24 @@ export interface DeviceParameter {
 }
 export interface DeviceProfileSummary { uuid: string; name: string; revision: number }
 export interface DeviceSite { uuid: string; name: string; timezone: string }
+/** A device parameter as it appears in the hierarchy (0.7.0): its name there and its full path. */
+export interface DevicePoint { parameter_uuid: string; leaf_name: string; path: string }
 export interface Device {
   uuid: string; code: string; name: string; lifecycle: string; presence: string;
   last_seen_at: string | null;
   /** The device read carries these (0.6.0); the list does not. `parameters` is empty without a profile revision. */
   profile?: DeviceProfileSummary | null; site?: DeviceSite | null; parameters?: DeviceParameter[];
+  /** With `entities:read` as well (0.7.0): where the device is placed, or was last placed when archived, and its points. */
+  entity?: { uuid: string; path: string } | null; points?: DevicePoint[];
 }
+/**
+ * An entity of the hierarchy the application may see (0.7.0, `entities:read`).
+ * `in_scope` is false for an ancestor shown only to complete a path; its devices are not granted.
+ */
+export interface Entity {
+  uuid: string; name: string; path: string; type_key: string; parent_uuid: string | null; in_scope: boolean;
+}
+export interface EntityPage { schema_version: "integration-entities.v1"; data: Entity[]; next_cursor: string | null }
 /** A site of the organization with the number of granted devices at it (0.6.0, `entities:read`). */
 export interface Site {
   uuid: string; name: string; timezone: string; address: string | null;
@@ -151,7 +163,17 @@ function device(value: unknown): Device {
     if (!Array.isArray(result.parameters)) throw new IotContractError();
     result.parameters.forEach(parameter);
   }
+  if (result.entity !== undefined && result.entity !== null) fields(result.entity, ["uuid", "path"], []);
+  if (result.points !== undefined) {
+    if (!Array.isArray(result.points)) throw new IotContractError();
+    result.points.forEach(point => fields(point, ["parameter_uuid", "leaf_name", "path"], []));
+  }
   return result as unknown as Device;
+}
+function entity(item: unknown): Entity {
+  const result = fields(item, ["uuid", "name", "path", "type_key"], ["parent_uuid"]);
+  if (typeof result.in_scope !== "boolean") throw new IotContractError();
+  return result as unknown as Entity;
 }
 function site(item: unknown): Site {
   const result = fields(item, ["uuid", "name", "timezone"], ["address"]);
@@ -455,6 +477,28 @@ export class IotClient {
     const response = record(await this.#request("sites", signal));
     if (!Array.isArray(response.data)) throw new IotContractError();
     return response.data.map(site);
+  }
+  /**
+   * One page of the entities the application may see, ordered by path (0.7.0); needs
+   * `entities:read`. Pass `next_cursor` back as `cursor`; it is null on the last page.
+   */
+  async entities(options: { cursor?: string; signal?: AbortSignal } = {}): Promise<EntityPage> {
+    const query = options.cursor ? "?" + new URLSearchParams({ cursor: options.cursor }) : "";
+    const response = record(await this.#request("entities" + query, options.signal));
+    if (response.schema_version !== "integration-entities.v1" || !Array.isArray(response.data) || response.data.length > 100
+      || (response.next_cursor !== null && typeof response.next_cursor !== "string")) throw new IotContractError();
+    return { schema_version: "integration-entities.v1", data: response.data.map(entity), next_cursor: response.next_cursor as string | null };
+  }
+  /** Every entity the application may see, page by page (0.7.0). */
+  async *allEntities(options: { signal?: AbortSignal } = {}): AsyncGenerator<Entity> {
+    let cursor: string | undefined;
+    for (let pages = 0; pages < 100000; pages++) {
+      const response = await this.entities({ cursor, signal: options.signal });
+      yield* response.data;
+      if (response.next_cursor === null) return;
+      if (response.next_cursor === cursor) throw new IotContractError();
+      cursor = response.next_cursor;
+    }
   }
   async alerts(options: AlertOptions = {}): Promise<Page<Alert>> {
     return page(await this.#request("alerts" + this.#query(options), options.signal), alert);

@@ -1,19 +1,21 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-// Spec 030 PR 030-1: the grant editor's Sites mode, with mocked management APIs.
+// Spec 030 PR 030-1, spec 009 PR 8: the grant editor's Places mode, with mocked management APIs.
 const org = "08b842d4-dbe9-44b7-a82f-8409bf31401a";
 const id = "08b842d4-dbe9-44b7-a82f-8409bf31402a";
 const device = "08b842d4-dbe9-44b7-a82f-8409bf31403a";
 const hall = "08b842d4-dbe9-44b7-a82f-8409bf31404a";
 const yard = "08b842d4-dbe9-44b7-a82f-8409bf31405a";
 const base = `/organizations/${org}/integrations`;
-const siteRows = [
-  { uuid: hall, name: "Packaging hall", timezone: "Asia/Colombo", address: null, latitude: null, longitude: null, devices_count: 3 },
-  { uuid: yard, name: "Yard", timezone: "UTC", address: null, latitude: null, longitude: null, devices_count: 0 },
+const type = (key: string, name: string) => ({ key, name });
+const entityRows = [
+  { uuid: hall, name: "Packaging hall", path_name: "PackagingHall", path: "Riverside/PackagingHall", depth: 1, type: type("area", "Area"), parent_uuid: null, children_count: 0, archived_at: null },
+  { uuid: yard, name: "Yard", path_name: "Yard", path: "Yard", depth: 0, type: type("site", "Site"), parent_uuid: null, children_count: 0, archived_at: null },
 ];
+const page1 = (data: unknown[]) => ({ data, meta: { current_page: 1, last_page: 1, per_page: 50, total: data.length } });
 async function setup(page: Page) {
-  const state: { app: any; sitesDeleted: boolean } = { app: null, sitesDeleted: false };
+  const state: { app: any } = { app: null };
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route("**/api/**", async (route) => {
@@ -28,8 +30,8 @@ async function setup(page: Page) {
       slug: "test",
       capabilities: { devices: { view: true, manage: true, command: false } },
     };
-    const sitesOf = (uuids: string[]) =>
-      siteRows.filter((site) => uuids.includes(site.uuid)).map((site) => ({ uuid: site.uuid, name: site.name }));
+    const entitiesOf = (uuids: string[]) =>
+      entityRows.filter((entity) => uuids.includes(entity.uuid)).map((entity) => ({ uuid: entity.uuid, name: entity.name, path: entity.path, type_key: entity.type.key }));
     if (path === "/api/v1/me")
       return reply({
         data: {
@@ -42,8 +44,11 @@ async function setup(page: Page) {
         },
       });
     if (path.endsWith("/context")) return reply({ data: context });
-    if (path.endsWith("/sites"))
-      return reply({ data: state.sitesDeleted ? [] : siteRows, organization_timezone: null });
+    if (path.endsWith("/entities/search")) {
+      const q = (new URL(req.url()).searchParams.get("q") ?? "").toLowerCase();
+      return reply(page1(entityRows.filter((entity) => entity.name.toLowerCase().includes(q))));
+    }
+    if (path.endsWith("/entities")) return reply(page1(entityRows.filter((entity) => entity.depth === 0)));
     if (path.endsWith("/devices"))
       return reply({
         data: [{ uuid: device, name: "Field tag", code: "tag-1" }],
@@ -59,7 +64,7 @@ async function setup(page: Page) {
           revoked_at: null,
           credential: null,
           devices: [],
-          sites: sitesOf(body.site_uuids ?? []),
+          entities: entitiesOf(body.entity_uuids ?? []),
         };
       return reply(
         { data: req.method() === "POST" ? state.app : state.app ? [state.app] : [] },
@@ -75,7 +80,7 @@ async function setup(page: Page) {
         grant_revision: state.app.grant_revision + 1,
         credential: null,
         devices: [],
-        sites: sitesOf(body.site_uuids ?? []),
+        entities: entitiesOf(body.entity_uuids ?? []),
       };
       return reply({ data: state.app });
     }
@@ -86,50 +91,52 @@ async function setup(page: Page) {
 async function confirm(page: Page, name: string) {
   await page.getByRole("alertdialog").getByRole("button", { name, exact: true }).click();
 }
-async function pickSite(page: Page, name: string) {
-  await page.getByRole("combobox", { name: "Add a site", exact: true }).click();
-  await page.getByRole("combobox", { name: "Search add a site" }).fill(name.slice(0, 4));
+async function pickPlace(page: Page, name: string) {
+  await page.getByRole("combobox", { name: "Add a place", exact: true }).click();
+  await page.getByRole("combobox", { name: "Search add a place" }).fill(name.slice(0, 4));
   await page.getByRole("option", { name: new RegExp("^" + name) }).click();
 }
 
-test("manager grants sites, saves past the scope confirmation and sees an emptied scope", async ({ page }) => {
+test("manager grants places, saves past the scope confirmation and sees an emptied scope", async ({ page }) => {
   const { state, errors } = await setup(page);
   await page.goto(base);
   await page.getByRole("button", { name: "New application", exact: true }).click();
   await page.getByLabel("Application name").fill("Twin");
-  for (const name of ["Device details", "Sites"])
+  for (const name of ["Device details", "Hierarchy"])
     await page.getByRole("checkbox", { name, exact: true }).check();
-  // Both modes are offered; Sites replaces the device list with a scope.
+  // Both modes are offered; Places replaces the device list with a scope of any entities.
   await expect(page.getByRole("tab", { name: "Devices" })).toBeVisible();
-  await page.getByRole("tab", { name: "Sites" }).click();
-  await pickSite(page, "Packaging hall");
-  await pickSite(page, "Yard");
-  await expect(page.getByRole("list", { name: "Granted sites" }).getByRole("listitem")).toHaveCount(2);
-  await expect(page.getByText("2 of 50 sites", { exact: false })).toBeVisible();
+  await page.getByRole("tab", { name: "Places" }).click();
+  await pickPlace(page, "Packaging hall");
+  await pickPlace(page, "Yard");
+  const granted = page.getByRole("list", { name: "Granted places" });
+  await expect(granted.getByRole("listitem")).toHaveCount(2);
+  await expect(granted.getByRole("listitem").first()).toContainText("Riverside/PackagingHall");
+  await expect(page.getByText("2 of 50 places", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Save application", exact: true }).click();
-  expect(state.app.site_uuids).toEqual([hall, yard]);
+  expect(state.app.entity_uuids).toEqual([hall, yard]);
+  expect(state.app.site_uuids).toBeUndefined();
   expect(state.app.device_uuids).toEqual([]);
   expect(state.app.abilities).toEqual(["devices:read", "entities:read"]);
-  await expect(page.getByRole("cell", { name: "2 sites" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "2 places" })).toBeVisible();
   await page.getByRole("link", { name: "Twin", exact: true }).click();
-  await expect(page.getByText("2 sites: Packaging hall, Yard")).toBeVisible();
+  await expect(page.getByText("2 places: Packaging hall, Yard")).toBeVisible();
   await expect(page.getByText("2 of 10", { exact: true })).toBeVisible();
-  // Removing a site is a scope change: the confirmation names the consequences and the revision moves.
+  // Removing a place is a scope change: the confirmation names the consequences and the revision moves.
   await page.getByRole("button", { name: "Remove Yard" }).click();
   await page.getByRole("button", { name: "Save grants", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("including devices added later");
+  await expect(page.getByRole("alertdialog")).toContainText("including devices added or moved there later");
   await confirm(page, "Save grants");
   await expect(page.getByText("Grants saved.", { exact: false })).toBeVisible();
   expect(state.app.grant_revision).toBe(2);
-  expect(state.app.site_uuids).toEqual([hall]);
-  await expect(page.getByText("1 site: Packaging hall")).toBeVisible();
-  // The last site is deleted elsewhere: the reloaded application shows the emptied scope.
-  state.app = { ...state.app, site_uuids: [], sites: [], revision: 3, grant_revision: 3 };
-  state.sitesDeleted = true;
+  expect(state.app.entity_uuids).toEqual([hall]);
+  await expect(page.getByText("1 place: Packaging hall")).toBeVisible();
+  // The last place is archived elsewhere: the reloaded application shows the emptied scope.
+  state.app = { ...state.app, entity_uuids: [], entities: [], revision: 3, grant_revision: 3 };
   await page.getByRole("button", { name: "Reload latest state" }).click();
   await confirm(page, "Reload");
-  await expect(page.getByRole("alert").filter({ hasText: "No sites" })).toContainText(
-    "This application reads nothing until a site is granted",
+  await expect(page.getByRole("alert").filter({ hasText: "No places" })).toContainText(
+    "This application reads nothing until a place is granted",
   );
   await expect(page.getByRole("button", { name: "Save grants", exact: true })).toBeDisabled();
   expect(errors).toEqual([]);
@@ -146,11 +153,11 @@ test("a scope and a device list cannot both be set", async ({ page }) => {
   await page.getByRole("combobox", { name: "Search add a device" }).fill("Field");
   await page.getByRole("option", { name: "Field tag · tag-1" }).click();
   await expect(page.getByRole("button", { name: "Save application", exact: true })).toBeEnabled();
-  // Switching to Sites clears the device list, so the form is incomplete until a site is picked.
-  await page.getByRole("tab", { name: "Sites" }).click();
+  // Switching to Places clears the device list, so the form is incomplete until a place is picked.
+  await page.getByRole("tab", { name: "Places" }).click();
   await expect(page.getByRole("button", { name: "Save application", exact: true })).toBeDisabled();
-  await expect(page.getByText("Add a name, a permission and a device or site")).toBeVisible();
-  await pickSite(page, "Yard");
+  await expect(page.getByText("Add a name, a permission and a device or place")).toBeVisible();
+  await pickPlace(page, "Yard");
   await expect(page.getByRole("button", { name: "Save application", exact: true })).toBeEnabled();
   await page.getByRole("tab", { name: "Devices" }).click();
   await expect(page.getByRole("list", { name: "Granted devices" })).toHaveCount(0);

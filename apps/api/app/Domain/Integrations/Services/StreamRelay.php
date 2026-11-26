@@ -288,7 +288,7 @@ final class StreamRelay
             return;
         }
         $this->sessions->touch($session, $this->position);
-        if ($this->grant->kind() !== ApplicationGrant::SITES) {
+        if ($this->grant->kind() !== ApplicationGrant::ENTITIES) {
             return;
         }
         $resolved = $this->grant->resolveUuids();

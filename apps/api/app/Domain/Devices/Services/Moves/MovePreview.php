@@ -19,6 +19,7 @@ use App\Domain\Entities\Services\DeviceAnchors;
 use App\Domain\Geospatial\Models\GeofenceAssignment;
 use App\Domain\Geospatial\Models\LocationBinding;
 use App\Domain\Integrations\Models\IntegrationApplication;
+use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Support\Collection;
@@ -341,18 +342,11 @@ final class MovePreview
         $ids = $devices->pluck('id');
         $alerts = Alert::where('organization_id', $source->id)->whereNull('cleared_at')->endingWithMoved($ids)->count();
         $geofences = GeofenceAssignment::whereIn('device_location_binding_id', LocationBinding::where('organization_id', $source->id)->whereIn('device_id', $ids)->select('id'))->count();
-        $uuids = $devices->keys()->all();
-        $sites = $devices->pluck('site_id')->filter()->unique();
-        $siteUuids = Site::whereIn('id', $sites)->pluck('uuid', 'id');
         $grants = IntegrationApplication::where('organization_id', $source->id)->whereNull('revoked_at')->orderBy('name')->get()
-            ->map(function (IntegrationApplication $application) use ($devices, $uuids, $siteUuids): array {
-                $scope = $application->site_uuids;
-                $count = $scope === null
-                    ? count(array_intersect($uuids, $application->device_uuids ?? []))
-                    : $devices->filter(fn (Device $device): bool => $device->site_id !== null && in_array($siteUuids[$device->site_id] ?? null, $scope, true))->count();
-
-                return ['name' => $application->name, 'devices' => $count];
-            })->filter(fn (array $grant): bool => $grant['devices'] > 0)->values()->all();
+            ->map(fn (IntegrationApplication $application): array => [
+                'name' => $application->name,
+                'devices' => ApplicationGrants::for($application)->deviceQuery()->whereIn('id', $ids)->count(),
+            ])->filter(fn (array $grant): bool => $grant['devices'] > 0)->values()->all();
 
         return ['alerts' => $alerts, 'geofence_assignments' => $geofences, 'application_grants' => $grants];
     }

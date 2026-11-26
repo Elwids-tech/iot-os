@@ -558,33 +558,22 @@ inputs.
 
 ## Sites, tags and attributes
 
-**Devices → Hierarchy** (which replaced Locations; old `/sites` links redirect) shows
-the organization's tree a level at a time, with search by name or path, a preset
-prompt for an empty organization, an entity page (Points, Devices, History, Details
-with group memberships), a move dialog that shows the impact first, and a Types tab
-for rules, naming templates and presets. The device form chooses a place with a
-searchable picker showing paths; the device list and alerts filter by a place (its
-coverage); the Data tab offers **Place this parameter**. Sites hold an IANA time zone
-and optional address and coordinates. Sites are the top-level entities of the organization's hierarchy, of
-the reserved Site type ([spec 009](../../specs/009-entity-hierarchy/spec.md),
-[ADR-054](../adr/ADR-054-organization-hierarchy.md)); the hierarchy API
-(`entity-types`, `entity-presets`, `entities`) builds areas, lines, buildings, floors
-and other places below them, and a device is placed at one entity at a time
-(`PUT devices/{device}/placement`, or `site_uuid` / `entity_uuid` on the device form).
-A device's site is the nearest site at or above where it is placed, and its reporting
-time zone is the nearest time zone at or above that place, else the organization's
-(Settings → General), else UTC. Daily, monthly and shift totals use that zone so every
-viewer sees the same totals; timestamps still display in the viewer's zone. Placements
-are kept as history; an archived device keeps its last place. A place's **History**
-tab lists its moves, renames, type changes, archiving, the devices and points placed
-there and taken away, and its groups, with who and when (`GET entities/{entity}/history`);
-**What was here** lists the devices and points in its branch at a past time, using the
-tree as it was then (`GET entities/{entity}/branch-at?time=`). **History** beside a
-device's place opens where it and its separately placed parameters have been
-(`GET devices/{device}/place-history`). Placements from before history was kept have no
-start and count as open at any earlier time. Deleting a site is
-refused while entities sit under it; otherwise its devices are unplaced and the site
-is archived. Sites are not an access boundary.
+Devices are placed in the organization's [hierarchy](hierarchy.md) (**Devices →
+Hierarchy**, which replaced Locations; old `/sites` links redirect): sites, areas,
+lines, buildings and any other places, with types, presets, points, groups and history
+([spec 009](../../specs/009-entity-hierarchy/spec.md),
+[ADR-054](../adr/ADR-054-organization-hierarchy.md)). The device form chooses a place
+with a searchable picker showing paths (`site_uuid` or `entity_uuid`, or
+`PUT devices/{device}/placement`); the device list and alerts filter by a place's
+coverage; the Data tab offers **Place this parameter**; **History** beside a device's
+place shows where it and its separately placed parameters have been. Sites are the
+top-level entities of the reserved Site type and hold an IANA time zone and optional
+address and coordinates. A device's site is the nearest site at or above where it is
+placed, and its reporting time zone is the nearest time zone at or above that place,
+else the organization's (Settings → General), else UTC. Daily, monthly and shift totals
+use that zone so every viewer sees the same totals; timestamps still display in the
+viewer's zone. An archived device keeps its last place. Sites are not an access
+boundary.
 
 Devices carry up to 20 tags (unique, case-insensitive) and 30 attributes (keys
 start with a lowercase letter; values are text up to 255 characters, numbers or

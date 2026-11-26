@@ -139,7 +139,7 @@ final class PlacementTest extends EntityTestCase
         $pump = $this->device('pump-1');
         $this->putJson($this->prefix.'/devices/'.$pump->uuid.'/placement', ['entity_uuid' => $line['uuid']])->assertOk();
         DB::table('integration_applications')->insert(['uuid' => (string) Str::uuid(), 'organization_id' => $this->organization->id, 'name' => 'Plant viewer',
-            'abilities' => json_encode(['devices:read']), 'site_uuids' => json_encode([$site['uuid']]), 'device_uuids' => json_encode([]), 'created_at' => now(), 'updated_at' => now()]);
+            'abilities' => json_encode(['devices:read']), 'entity_uuids' => json_encode([$site['uuid']]), 'device_uuids' => json_encode([]), 'created_at' => now(), 'updated_at' => now()]);
 
         $this->getJson($this->prefix.'/entities/'.$line['uuid'].'/move-impact?parent='.$otherArea['uuid'])->assertOk()
             ->assertJsonPath('data.entities', 1)->assertJsonPath('data.devices', 1)

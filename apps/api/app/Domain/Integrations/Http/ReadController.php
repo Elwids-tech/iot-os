@@ -7,6 +7,10 @@ namespace App\Domain\Integrations\Http;
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Devices\Services\DeviceView;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Models\EntityPlacement;
+use App\Domain\Entities\Models\ParameterPlacement;
+use App\Domain\Entities\Services\EntityPoints;
 use App\Domain\Integrations\Services\AlertSnapshot;
 use App\Domain\Integrations\Services\ApplicationGrants;
 use App\Domain\Shared\Models\Organization;
@@ -32,7 +36,33 @@ final class ReadController
     {
         $device = $this->deviceQuery($request, $organization)->where('uuid', $uuid)->firstOrFail();
 
-        return ['data' => [...$this->deviceView($device), 'profile' => DeviceView::profile($device), 'site' => DeviceView::site($device), 'parameters' => $this->parameters($device)]];
+        $view = [...$this->deviceView($device), 'profile' => DeviceView::profile($device), 'site' => DeviceView::site($device), 'parameters' => $this->parameters($device)];
+        if (in_array('entities:read', $request->attributes->get('integration_abilities', []), true)) {
+            $view = [...$view, ...$this->place($device)];
+        }
+
+        return ['data' => $view];
+    }
+
+    /**
+     * Where the device is, for an application that also reads the hierarchy (spec 009,
+     * FR-026): its anchor and the points its parameters make, each with its path. Points
+     * whose name is taken at their entity are left out, as they have no path of their own.
+     *
+     * @return array{entity: array{uuid: string, path: string}|null, points: list<array{parameter_uuid: string, leaf_name: string, path: string}>}
+     */
+    private function place(Device $device): array
+    {
+        $entity = $device->entity_id === null ? null : Entity::query()->find($device->entity_id, ['id', 'uuid', 'path']);
+        $at = EntityPlacement::query()->where('device_id', $device->id)->whereNull('ended_at')->pluck('entity_id')
+            ->merge(ParameterPlacement::query()->where('device_id', $device->id)->whereNull('ended_at')->pluck('entity_id'))->unique()->values();
+        $paths = Entity::query()->whereIn('id', $at)->pluck('path', 'id');
+        $points = collect(app(EntityPoints::class)->at($at->map(fn ($id) => (int) $id)->all()))
+            ->filter(fn (array $point) => $point['device']->id === $device->id && $point['state'] === 'placed')
+            ->map(fn (array $point) => ['parameter_uuid' => (string) $point['parameter']['uuid'], 'leaf_name' => $point['name'], 'path' => $paths[$point['entity_id']].'/'.$point['name']])
+            ->sortBy('path')->values()->all();
+
+        return ['entity' => $entity ? ['uuid' => (string) $entity->uuid, 'path' => (string) $entity->path] : null, 'points' => $points];
     }
 
     // Scramble does not read the rules in pagination(); these describe them in the

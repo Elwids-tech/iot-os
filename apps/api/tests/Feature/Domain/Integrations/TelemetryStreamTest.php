@@ -98,7 +98,7 @@ final class TelemetryStreamTest extends TestCase
         $this->foreign = Device::create(['organization_id' => $this->other->id, 'code' => 'N-1', 'name' => 'Northstar meter']);
         $abilities = ['telemetry:read', 'telemetry:stream'];
         $this->listed = IntegrationApplication::create(['organization_id' => $this->org->id, 'name' => 'Twin', 'abilities' => $abilities, 'device_uuids' => [$this->pump1->uuid, $this->pump2->uuid]])->fresh();
-        $this->scoped = IntegrationApplication::create(['organization_id' => $this->org->id, 'name' => 'Plant twin', 'abilities' => $abilities, 'device_uuids' => [], 'site_uuids' => [$this->hall->uuid]])->fresh();
+        $this->scoped = IntegrationApplication::create(['organization_id' => $this->org->id, 'name' => 'Plant twin', 'abilities' => $abilities, 'device_uuids' => [], 'entity_uuids' => [$this->hall->uuid]])->fresh();
         [$this->listedToken, $this->listedTokenRow] = $this->token($this->listed, $abilities);
         [$this->scopedToken] = $this->token($this->scoped, $abilities);
         $this->path = '/api/integration/v1/organizations/'.$this->org->uuid.'/telemetry/stream';
@@ -502,7 +502,7 @@ final class TelemetryStreamTest extends TestCase
 
     public function test_an_emptied_scope_has_nothing_to_stream(): void
     {
-        $this->scoped->update(['site_uuids' => []]);
+        $this->scoped->update(['entity_uuids' => []]);
         [$token] = $this->token($this->scoped, ['telemetry:read', 'telemetry:stream']);
         $this->stream($token)->assertNotFound();
         Http::assertNothingSent();

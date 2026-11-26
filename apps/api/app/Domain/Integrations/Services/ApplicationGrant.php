@@ -5,48 +5,49 @@ declare(strict_types=1);
 namespace App\Domain\Integrations\Services;
 
 use App\Domain\Devices\Models\Device;
-use App\Domain\Devices\Models\Site;
-use App\Domain\Entities\Models\EntityType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 /**
  * What one application may see, resolved for one request (spec 030, research R7).
  *
- * A grant is a list of devices or a scope of sites, never both. This is the only place
+ * A grant is a list of devices or a scope of entities, never both. This is the only place
  * a device is judged granted: every integration read, the event feed and webhook
  * deliveries filter through it (constitution III). The resolved set is computed afresh
- * for each request and never stored; a site scope has no ceiling.
+ * for each request and never stored; a scope has no ceiling.
+ *
+ * A scope covers every device anchored in a scoped entity's branch: placed there now, or
+ * last placed there when archived (spec 009, FR-026, research R5). A site scope is a scope
+ * of Site entities. A device whose site was set without a placement (old fixtures) is
+ * judged by that site, as its time zone is.
  */
 final class ApplicationGrant
 {
     public const DEVICES = 'devices';
 
-    public const SITES = 'sites';
+    public const ENTITIES = 'entities';
 
     /** @var ?list<int> */
-    private ?array $siteIds = null;
+    private ?array $branchIds = null;
 
     /**
      * @param  list<string>  $deviceUuids
-     * @param  list<string>  $siteUuids
+     * @param  list<string>  $entityUuids
      */
     public function __construct(
         public readonly int $organizationId,
         public readonly array $deviceUuids,
-        public readonly array $siteUuids,
+        public readonly array $entityUuids,
     ) {}
 
-    /** `devices` when the device list is non-empty, else `sites`. */
+    /** `devices` when the device list is non-empty, else `entities`. */
     public function kind(): string
     {
-        return $this->deviceUuids !== [] ? self::DEVICES : self::SITES;
+        return $this->deviceUuids !== [] ? self::DEVICES : self::ENTITIES;
     }
 
-    /**
-     * Whether the device is granted right now: in the list, or at a site of the scope.
-     * A device with no site is never covered by a site scope.
-     */
+    /** Whether the device is granted right now: in the list, or anchored in a scoped branch. */
     public function covers(Device $device): bool
     {
         if ($device->organization_id !== $this->organizationId) {
@@ -56,18 +57,16 @@ final class ApplicationGrant
             return in_array($device->uuid, $this->deviceUuids, true);
         }
 
-        return $device->site_id !== null && in_array((int) $device->site_id, $this->siteIds(), true);
-    }
+        // A site set without a placement (old fixtures) stands in for the anchor, as for time zones.
+        $anchor = $device->entity_id ?? $device->site_id;
 
-    /** Whether a site is the scope's or inside a scoped site's branch. */
-    public function coversSite(int $siteId): bool
-    {
-        return $this->kind() === self::SITES && in_array($siteId, $this->siteIds(), true);
+        return $anchor !== null && in_array((int) $anchor, $this->branchIds(), true);
     }
 
     /**
      * The granted devices as a query, always inside the organization: a `whereIn('uuid')`
-     * for a list, a `whereIn('site_id')` for a scope. An empty scope matches nothing.
+     * for a list, the anchors in the scoped branches for a scope. An empty scope matches
+     * nothing.
      */
     public function deviceQuery(?Builder $query = null): Builder
     {
@@ -75,12 +74,13 @@ final class ApplicationGrant
 
         return $this->kind() === self::DEVICES
             ? $query->whereIn('uuid', $this->deviceUuids)
-            : $query->whereIn('site_id', $this->siteIds());
+            : $query->where(fn (Builder $query) => $query->whereIn($query->qualifyColumn('entity_id'), $this->branchQuery())
+                ->orWhere(fn (Builder $query) => $query->whereNull($query->qualifyColumn('entity_id'))->whereIn($query->qualifyColumn('site_id'), $this->branchQuery())));
     }
 
     /**
      * The UUIDs of the devices covered right now, for the feed page filter and the
-     * webhook delivery check. No ceiling for a site scope.
+     * webhook delivery check. No ceiling for a scope.
      *
      * @return list<string>
      */
@@ -89,26 +89,22 @@ final class ApplicationGrant
         return $this->deviceQuery()->pluck('uuid')->all();
     }
 
-    /**
-     * The scope's sites and every site inside their branches, resolved once per request
-     * through the organization. A device's site is the nearest Site entity above its
-     * place (spec 009, research R8), so a device placed anywhere in a scoped site's
-     * branch, under a nested site too, is covered.
-     *
-     * @return list<int>
-     */
-    private function siteIds(): array
+    /** The active scoped entities of the organization, as an id subquery. */
+    public function scopedQuery(): QueryBuilder
     {
-        if ($this->siteIds !== null) {
-            return $this->siteIds;
-        }
-        $scoped = $this->siteUuids === [] ? collect()
-            : Site::where('organization_id', $this->organizationId)->whereIn('uuid', $this->siteUuids)->pluck('id');
+        return DB::table('entities')->select('id')->where('organization_id', $this->organizationId)
+            ->whereNull('archived_at')->whereIn('uuid', $this->kind() === self::ENTITIES ? $this->entityUuids : []);
+    }
 
-        return $this->siteIds = $scoped->isEmpty() ? [] : DB::table('entity_closure')
-            ->join('entities', 'entities.id', '=', 'entity_closure.descendant_id')
-            ->join('entity_types', 'entity_types.id', '=', 'entities.entity_type_id')
-            ->whereIn('entity_closure.ancestor_id', $scoped)->where('entity_types.key', EntityType::SITE)
-            ->pluck('entities.id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+    /** Every entity in a scoped branch, the scoped entities included, as an id subquery. */
+    public function branchQuery(): QueryBuilder
+    {
+        return DB::table('entity_closure')->select('descendant_id')->whereIn('ancestor_id', $this->scopedQuery());
+    }
+
+    /** @return list<int> */
+    private function branchIds(): array
+    {
+        return $this->branchIds ??= $this->branchQuery()->distinct()->pluck('descendant_id')->map(fn ($id) => (int) $id)->all();
     }
 }

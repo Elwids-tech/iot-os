@@ -9,7 +9,7 @@ published to a registry.
 pnpm --filter @iot-os/integration-sdk build
 pnpm --filter @iot-os/integration-sdk pack --pack-destination /tmp
 # In an independent application:
-npm install /tmp/iot-os-integration-sdk-0.6.0.tgz
+npm install /tmp/iot-os-integration-sdk-0.7.0.tgz
 ```
 
 ```ts
@@ -222,9 +222,41 @@ const sites = await client.sites() // needs entities:read
 `granted_devices_count`: the devices at the site within the application's grant. A
 grant can now be a scope of sites instead of a device list, so an application
 follows a plant as devices are added; see
-[grants by site](../../docs/features/integrations.md#grants-by-site).
+[grants by place](../../docs/features/integrations.md#grants-by-place).
+
+## The hierarchy (0.7.0)
+
+A grant can now be a scope of any entities of the hierarchy: a zone, a line, a feeder
+or a site. The application sees every device placed in their branches, resolved again
+on every request, so a device moved out of a scoped branch leaves the next read and the
+stream within a minute. With `entities:read`:
+
+```ts
+for await (const entity of client.allEntities()) {
+  console.log(entity.path, entity.in_scope ? 'granted' : 'path only')
+}
+const device = await client.device(deviceUuid)
+console.log(device.entity?.path) // where it is placed
+for (const point of device.points ?? []) console.log(point.path) // e.g. North/EastgateSS/Feeder12/Ch3Energy
+```
+
+`entities({cursor})` returns one page of 100 at most, ordered by path, with
+`next_cursor`; `allEntities()` follows it. It lists each scoped entity's branch
+(`in_scope: true`) and the ancestors that complete their paths (`in_scope: false`, their
+other devices are not granted). An application granted a list of devices sees the
+places of its devices and their ancestors. The device read gains `entity` (where it is
+placed, or was last placed when archived) and `points` (`parameter_uuid`, `leaf_name`,
+`path`) only when the application holds `entities:read`; both are validated when present.
 
 ## Changelog
+
+### 0.7.0
+
+Additions, for applications that follow the hierarchy (spec 009); nothing from 0.6 changed:
+
+- `entities({cursor})` and `allEntities()` list the visible hierarchy
+  (`integration-entities.v1`, `entities:read`).
+- `device()` carries `entity` and `points` when the application holds `entities:read`.
 
 ### 0.6.0
 

@@ -25,11 +25,11 @@ An **application** belongs to one organization and has:
   | `locations:read` | Location map query (current positions and trails) |
   | `geofences:read` | Geofences and activation status |
   | `geofences:manage`, `geofences:activate` | Create and update geofences; activation needs both |
-  | `entities:read` | Sites (and, once spec 009 lands, the entity hierarchy) |
+  | `entities:read` | The hierarchy the grant can see, a device's place and points, and sites |
   | `telemetry:stream` | The live telemetry stream ([below](#the-telemetry-stream), [ADR-032](../adr/ADR-032-applications-follow-a-plant.md)); also needs `telemetry:read` |
 
 - **a grant**: either 1–100 named devices of that organization, or a scope of 1–50
-  of its sites ([grants by site](#grants-by-site)). Every request resolves the grant
+  of its places in the [hierarchy](hierarchy.md) ([grants by place](#grants-by-place)). Every request resolves the grant
   afresh through one resolver
   ([`ApplicationGrant`](../../apps/api/app/Domain/Integrations/Services/ApplicationGrant.php)),
   the only place a device is judged granted; alerts are scoped by their deployment's
@@ -54,31 +54,35 @@ and the token.
   `IOT_STREAMS_MAX_OPEN` (default 10) per deployment, counted on the
   `integration_stream_sessions` table ([the telemetry stream](#the-telemetry-stream)).
 
-### Grants by site
+### Grants by place
 
-A grant is a device list or a scope of sites, never both (spec 030, ADR-032). A
-device counts as granted when it is in the list, or when its site is in the scope at
-the time of the request. A device's site is the nearest site above where it is
-placed in the hierarchy (spec 009), so a device placed anywhere inside a granted site,
-under a site nested in it too, is covered; devices placed there later are covered
-without touching the application, a device moved, or a branch moved, out of the site
-stops being visible at its next request, an archived device stays where it was last
-placed, and a device with no site is never in a scope. A scope
-has no ceiling; the limit of 100 is for named lists.
+A grant is a device list or a scope of entities of the [hierarchy](hierarchy.md), never
+both (spec 030, ADR-032; spec 009, FR-026). A scope names 1–50 active entities of any
+type: a site, an area, a line, a feeder, a zone. A device counts as granted when it is
+in the list, or when its anchor (where it is placed, or where it was last placed when
+archived) is inside a scoped entity's branch at the time of the request. Devices placed
+there later are covered without touching the application; a device moved, or a branch
+moved, out of the scope stops being visible at its next request, and an unplaced device
+is never in a scope. A scope has no ceiling; the limit of 100 is for named lists. A site
+scope is a scope of Site entities: `site_uuids` is still accepted when creating or
+saving an application.
 
 Every read, the event feed and webhook deliveries filter by the same resolved set.
 Changing the scope bumps `grant_revision` with the consequences of changing the list
-(token invalidated, event cursors rejected until rebuilt, webhook disabled). Deleting
-(archiving) a site removes it from every scope naming it with the same consequences, audited as
-`application.grants_updated` with `reason: site_deleted`; a scope left empty stays
-empty and the application reads nothing until a manager grants a site again. A scope
-naming another organization's site is refused with the generic
-"Every site must belong to this organization." message, as a foreign device is.
+(token invalidated, event cursors rejected until rebuilt, webhook disabled). Moving a
+branch shows first which applications gain or lose devices. Archiving a scoped entity
+(deleting a site archives it) removes it from every scope naming it with the same
+consequences, audited as `application.grants_updated` with `reason: site_deleted` for a
+site and `entity_archived` otherwise; a scope left empty stays empty and the application
+reads nothing until a manager grants a place again. A scope naming another
+organization's entity is refused with the generic "Every entity must belong to this
+organization." message (or "Every site …" for `site_uuids`), as a foreign device is.
 
 ### Managing applications
 
 **Connect → Integrations** (needs `Device.view` and `Device.manage`) creates
-applications, picks abilities and either devices or sites (**Grant access by**),
+applications, picks abilities and either devices or places (**Grant access by**;
+places are chosen with a searchable picker showing paths),
 issues tokens and configures the webhook. Secrets appear once in a masked panel and live only in component state;
 dismissing it or leaving the page clears them. Saving grants explains that it
 invalidates the token and disables the webhook. Conflicts keep your edits until
@@ -89,8 +93,8 @@ Management API under `/api/v1/organizations/{organization}/applications`
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /`, `POST /` | List (never tokens); create `{name, abilities, device_uuids}` or `{name, abilities, site_uuids}` |
-| `PUT /{application}` | Replace grants with `{revision, name, abilities, device_uuids \| site_uuids}`; the view carries both lists plus `devices[]` and `sites[]` |
+| `GET /`, `POST /` | List (never tokens); create `{name, abilities, device_uuids}` or `{name, abilities, entity_uuids}` (`site_uuids` for Site entities, never with `entity_uuids`) |
+| `PUT /{application}` | Replace grants with `{revision, name, abilities, device_uuids \| entity_uuids \| site_uuids}`; the view carries `device_uuids`, `entity_uuids`, `devices[]` and `entities[]` (`uuid`, `name`, `path`, `type_key`), and `site_uuids` and `sites[]` while every scoped entity is a site (else null) |
 | `POST /{application}/token` | Issue or rotate `{revision, abilities, expires_in_days}` |
 | `POST /{application}/revoke` | Revoke permanently `{revision}` |
 | `GET/PUT /{application}/webhook`, `POST .../webhook/disable` | Webhook endpoint |
@@ -116,7 +120,8 @@ in time. Responses to authenticated requests carry `Cache-Control: no-store`.
 
 | Method and path | Ability | Contract |
 | --- | --- | --- |
-| `GET devices`, `GET devices/{uuid}` | `devices:read` | `uuid`, `code`, `name`, `lifecycle`, `presence`, `last_seen_at`; the single read adds `profile`, `site` and `parameters` (below) |
+| `GET devices`, `GET devices/{uuid}` | `devices:read` | `uuid`, `code`, `name`, `lifecycle`, `presence`, `last_seen_at`; the single read adds `profile`, `site` and `parameters`, and with `entities:read` also `entity` and `points` (below) |
+| `GET entities?cursor=` | `entities:read` | `integration-entities.v1`: the hierarchy the grant can see, 100 a page by path (below) |
 | `GET sites` | `entities:read` | Every site of the organization by name, not paginated, with `granted_devices_count` |
 | `GET alerts`, `GET alerts/{uuid}` | `alerts:read` | Episode snapshot; `condition=active\|cleared` filter |
 | `GET events/checkpoint`, `GET events?cursor=&limit=` | `events:read` | Ordered event feed (below) |
@@ -147,6 +152,21 @@ absent; `parameters` is empty when the device has no profile revision, never an
 error. The device list is unchanged. `GET sites` returns every site of the
 organization ordered by name with `granted_devices_count`, the devices at the site
 within the application's resolved grant; without `entities:read` it is 403.
+
+### The hierarchy
+
+With `entities:read`, `GET entities` lists what the application may see, 100 a page,
+ordered by path, as `{schema_version: "integration-entities.v1", data, next_cursor}`:
+each scoped entity's branch (`in_scope: true`) and the ancestors that complete their
+paths (`in_scope: false`; their other devices are not granted). A device list sees the
+places of its devices and their ancestors, none in scope. Each entity carries `uuid`,
+`name`, `path`, `type_key` and `parent_uuid`; pass `next_cursor` back as `cursor`.
+
+The device read of an application that also holds `entities:read` adds `entity`
+(`uuid`, `path` of the anchor, or null) and `points`: the device's parameters as they
+appear in the hierarchy, each with `parameter_uuid`, `leaf_name` and `path`, for example
+`North/EastgateSS/Feeder12/Ch3Energy`. A point whose name is taken at its entity is left
+out.
 
 ### Telemetry semantics
 
@@ -223,8 +243,8 @@ and the SDK's `telemetryStream()` ([README](../../packages/integration-sdk/READM
   devices, at most 1000 distinct; any device outside the grant refuses the whole
   request with 404 and reveals nothing. Absent, the stream carries the whole resolved
   grant, which must hold 1 to 1000 devices (an emptied scope is 404, a larger scope a
-  422 asking for a subset). A site scope is re-resolved every 30 s: a device moved
-  into a granted site appears, one moved out disappears, with no second `open`.
+  422 asking for a subset). A scope is re-resolved every 30 s: a device moved
+  into a scoped branch appears, one moved out disappears, with no second `open`.
 - **Positions and resume.** The `id` of a reading is its position: the committed
   outbox sequence as a decimal string, unique and increasing in storage order with
   gaps, opaque to clients. Reconnecting with `Last-Event-ID` (or `?after=`) replays

@@ -209,6 +209,30 @@ test('sites are listed with their granted device counts and malformed sites are 
   await assert.rejects(make(async()=>Response.json({message:'forbidden'},{status:403})).sites(),e=>e instanceof IotApiError&&e.status===403)
 })
 
+// Applications follow entities (spec 009 PR 8, 0.7.0).
+test('entities are listed by cursor and a device read carries its place and points', async () => {
+  const zone={uuid:id,name:'Zone B',path:'RiversidePlant/ZoneB',type_key:'area',parent_uuid:id,in_scope:true}
+  const site={...zone,name:'Riverside plant',path:'RiversidePlant',type_key:'site',parent_uuid:null,in_scope:false}
+  const requests=[]
+  const client=make(async(url)=>{requests.push(url);return Response.json(url.includes('cursor=')
+    ?{schema_version:'integration-entities.v1',data:[zone],next_cursor:null}
+    :{schema_version:'integration-entities.v1',data:[site],next_cursor:'abc'})})
+  const all=[]
+  for await (const entity of client.allEntities()) all.push(entity)
+  assert.deepEqual(all,[site,zone])
+  assert.match(requests[0],/\/entities$/)
+  assert.match(requests[1],/\/entities\?cursor=abc$/)
+  for(const invalid of [{schema_version:'integration-entities.v1',data:[{...zone,in_scope:'yes'}],next_cursor:null},{schema_version:'other',data:[],next_cursor:null},{schema_version:'integration-entities.v1',data:[{...zone,path:null}],next_cursor:null},{schema_version:'integration-entities.v1',data:[],next_cursor:3}]) {
+    await assert.rejects(make(async()=>Response.json(invalid)).entities(),IotContractError)
+  }
+  const points=[{parameter_uuid:id,leaf_name:'Ch3Energy',path:'RiversidePlant/ZoneB/LineB/Ch3Energy'}]
+  const placed=await make(async()=>Response.json({data:{...item,entity:{uuid:id,path:'RiversidePlant/ZoneB'},points}})).device(id)
+  assert.deepEqual(placed.points,points)
+  assert.equal(placed.entity.path,'RiversidePlant/ZoneB')
+  assert.equal((await make(async()=>Response.json({data:{...item,entity:null,points:[]}})).device(id)).entity,null)
+  await assert.rejects(make(async()=>Response.json({data:{...item,points:[{parameter_uuid:id,leaf_name:'x'}]}})).device(id),IotContractError)
+})
+
 // 0.6.0 adds methods and fields; nothing a 0.5 consumer calls changed. Every 0.5 read
 // method still accepts the success example of its operation in the contract.
 test('every 0.5 read method still accepts its contract example', async () => {

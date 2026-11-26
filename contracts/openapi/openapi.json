@@ -457,6 +457,9 @@
                         },
                         {
                           "$ref": "#/components/schemas/DeviceParameters"
+                        },
+                        {
+                          "$ref": "#/components/schemas/DevicePlace"
                         }
                       ]
                     }
@@ -544,7 +547,7 @@
             "key": "application"
           }
         ],
-        "description": "The device with its profile, site and parameters, so an application can learn what it can bind (spec 030). 404 when the device is not granted to the application."
+        "description": "The device with its profile, site and parameters, so an application can learn what it can bind (spec 030). With `entities:read` as well, also its place in the hierarchy and its points (spec 009). 404 when the device is not granted to the application."
       }
     },
     "/integration/v1/organizations/{organization}/devices/{uuid}/location-bindings": {
@@ -1294,6 +1297,114 @@
         ],
         "summary": "Read raw telemetry records",
         "description": "Unaggregated good-quality observations of one parameter (diagnostics excluded), newest first, in pages of `page_size` 1 to 100 (default 50) up to a total `limit` of 1 to 5000 (default 500). The window is at most 31 days. `cursor` is signed and bound to the query; pass `meta.next_cursor` with the same query. A device moved here with its readings shared (spec 031) continues into its predecessor's records from before the move, `recorded_in` `source`, under the same `limit`. 422 for an invalid window or a cursor the runtime rejects (under `errors.runtime`); 503 when the runtime is unavailable."
+      }
+    },
+    "/integration/v1/organizations/{organization}/entities": {
+      "get": {
+        "operationId": "entityRead.entities",
+        "summary": "List the entities the application may see",
+        "tags": [
+          "EntityRead"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of entities.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityPage"
+                },
+                "example": {
+                  "schema_version": "integration-entities.v1",
+                  "data": [
+                    {
+                      "uuid": "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+                      "name": "North",
+                      "path": "North",
+                      "type_key": "region",
+                      "parent_uuid": null,
+                      "in_scope": false
+                    },
+                    {
+                      "uuid": "2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f6a",
+                      "name": "Feeder 12",
+                      "path": "North/EastgateSS/Feeder12",
+                      "type_key": "feeder",
+                      "parent_uuid": "3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a7b",
+                      "in_scope": true
+                    }
+                  ],
+                  "next_cursor": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "applicationToken": []
+          }
+        ],
+        "x-audience": "integration",
+        "x-abilities": {
+          "all": [
+            "entities:read"
+          ]
+        },
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 240,
+            "per": "minute",
+            "key": "ip"
+          },
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "application"
+          }
+        ],
+        "description": "Each scoped entity's branch (`in_scope: true`) and the ancestors that complete their paths (`in_scope: false`), 100 a page, ordered by path (spec 009, FR-026). An application granted a list of devices sees the places of its devices and their ancestors, none in scope. Needs `entities:read`."
       }
     },
     "/integration/v1/organizations/{organization}/events": {
@@ -2771,7 +2882,7 @@
             "key": "application"
           }
         ],
-        "description": "Every site of the organization, ordered by name and not paginated, each with the number of devices at it that the application's grant covers. Needs `entities:read` (spec 030), which will also serve the entity hierarchy."
+        "description": "Every site of the organization, ordered by name and not paginated, each with the number of devices at it that the application's grant covers. Needs `entities:read` (spec 030); the whole hierarchy is under `GET entities`."
       }
     },
     "/integration/v1/organizations/{organization}/telemetry/latest/query": {
@@ -46850,6 +46961,54 @@
           }
         }
       },
+      "DevicePlace": {
+        "type": "object",
+        "description": "Where the device is, present when the application also holds `entities:read` (spec 009, FR-026). `entity` is the device's anchor: where it is placed, or where it was last placed when archived; null when it was never placed. `points` are the device's parameters as they appear in the hierarchy, each with its path; a point whose name is taken at its entity is left out. Both fields are absent without `entities:read`.",
+        "properties": {
+          "entity": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "uuid",
+              "path"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "path": {
+                "type": "string"
+              }
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "parameter_uuid",
+                "leaf_name",
+                "path"
+              ],
+              "properties": {
+                "parameter_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "leaf_name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "DraftConflictError": {
         "type": "object",
         "description": "409 when a device-profile draft changed since the caller read it.",
@@ -46885,6 +47044,35 @@
           "note"
         ],
         "title": "DraftInvoiceRequest"
+      },
+      "EntityPage": {
+        "type": "object",
+        "description": "One page of entities, 100 at most, ordered by path.",
+        "required": [
+          "schema_version",
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "integration-entities.v1"
+          },
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/IntegrationEntity"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass it back as `cursor` for the next page; null on the last page."
+          }
+        }
       },
       "EntityResource": {
         "type": "object",
@@ -47997,6 +48185,43 @@
               "null"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "IntegrationEntity": {
+        "type": "object",
+        "description": "An entity of the hierarchy the application may see. `in_scope` is false for an ancestor shown only to complete a path: its other devices are not granted.",
+        "required": [
+          "uuid",
+          "name",
+          "path",
+          "type_key",
+          "parent_uuid",
+          "in_scope"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "type_key": {
+            "type": "string"
+          },
+          "parent_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "in_scope": {
+            "type": "boolean"
           }
         }
       },

@@ -54,7 +54,7 @@ final class SitesReadTest extends TestCase
 
     private function application(array $grant, array $abilities = ['entities:read', 'devices:read']): IntegrationApplication
     {
-        return IntegrationApplication::create(['organization_id' => $this->org->id, 'name' => 'Twin', 'abilities' => $abilities, 'device_uuids' => [], 'site_uuids' => [], ...$grant])->fresh();
+        return IntegrationApplication::create(['organization_id' => $this->org->id, 'name' => 'Twin', 'abilities' => $abilities, 'device_uuids' => [], 'entity_uuids' => [], ...$grant])->fresh();
     }
 
     private function token(IntegrationApplication $application, array $abilities = ['entities:read', 'devices:read']): string
@@ -81,7 +81,7 @@ final class SitesReadTest extends TestCase
         $this->assertSame(['uuid' => $this->hall->uuid, 'name' => 'Packaging hall', 'timezone' => 'Asia/Colombo', 'address' => 'Example Road 1', 'latitude' => 6.9, 'longitude' => 79.8, 'granted_devices_count' => 1], $data[0]);
         $this->assertSame(['uuid' => $this->yard->uuid, 'name' => 'Yard', 'timezone' => 'UTC', 'address' => null, 'latitude' => null, 'longitude' => null, 'granted_devices_count' => 0], $data[1]);
         // A scope counts every device at its sites, now and later, and nothing elsewhere.
-        $scoped = $this->application(['site_uuids' => [$this->hall->uuid]]);
+        $scoped = $this->application(['entity_uuids' => [$this->hall->uuid]]);
         $token = $this->token($scoped);
         $this->api($token, $this->read.'/sites')->assertOk()->assertJsonPath('data.*.granted_devices_count', [2, 0]);
         $y1->update(['site_id' => $this->hall->id]);
@@ -105,7 +105,7 @@ final class SitesReadTest extends TestCase
         $foreignBase = '/api/integration/v1/organizations/'.$this->other->uuid;
         $listed = $this->application(['device_uuids' => [$this->devices[0]->uuid]]);
         $this->api($this->token($listed), $foreignBase.'/sites')->assertNotFound();
-        $scoped = $this->application(['site_uuids' => [$this->hall->uuid]]);
+        $scoped = $this->application(['entity_uuids' => [$this->hall->uuid]]);
         $this->api($this->token($scoped), $foreignBase.'/sites')->assertNotFound();
         $data = $this->api($this->token($scoped), $this->read.'/sites')->assertOk()->json('data');
         $this->assertNotContains('Foreign plant', array_column($data, 'name'));

@@ -124,7 +124,7 @@ final class GrantScopeTest extends TestCase
         $this->assertSame('Packaging hall', $app['sites'][0]['name']);
         $this->api($this->admin, 'GET', $this->manage)->assertOk()->assertJsonPath('data.0.sites.0.uuid', $this->hall->uuid);
         // Both lists, neither list, more than 50 sites, a foreign site: all refused, the foreign one with the generic message.
-        $this->api($this->admin, 'POST', $this->manage, ['name' => 'Both', 'abilities' => ['devices:read'], 'device_uuids' => [$this->loose->uuid], 'site_uuids' => [$this->hall->uuid]])->assertUnprocessable()->assertJsonValidationErrors('device_uuids');
+        $this->api($this->admin, 'POST', $this->manage, ['name' => 'Both', 'abilities' => ['devices:read'], 'device_uuids' => [$this->loose->uuid], 'entity_uuids' => [$this->hall->uuid]])->assertUnprocessable()->assertJsonValidationErrors('device_uuids');
         $this->api($this->admin, 'POST', $this->manage, ['name' => 'Neither', 'abilities' => ['devices:read'], 'device_uuids' => [], 'site_uuids' => []])->assertUnprocessable()->assertJsonValidationErrors('device_uuids');
         $this->api($this->admin, 'POST', $this->manage, ['name' => 'Neither', 'abilities' => ['devices:read']])->assertUnprocessable()->assertJsonValidationErrors('device_uuids');
         $this->api($this->admin, 'POST', $this->manage, ['name' => 'Too many', 'abilities' => ['devices:read'], 'site_uuids' => array_map(fn () => (string) Str::uuid(), range(1, 51))])->assertUnprocessable()->assertJsonValidationErrors('site_uuids');
@@ -132,7 +132,7 @@ final class GrantScopeTest extends TestCase
         $this->api($this->admin, 'POST', $this->manage, ['name' => 'Unknown', 'abilities' => ['devices:read'], 'site_uuids' => [(string) Str::uuid()]])->assertUnprocessable()->assertJsonPath('message', 'Every site must belong to this organization.');
         // The new abilities are accepted, up to ten of them.
         $ten = ['devices:read', 'alerts:read', 'events:read', 'telemetry:read', 'locations:read', 'geofences:read', 'geofences:manage', 'geofences:activate', 'entities:read', 'telemetry:stream'];
-        $this->api($this->admin, 'POST', $this->manage, ['name' => 'Everything', 'abilities' => $ten, 'site_uuids' => [$this->hall->uuid]])->assertCreated()->assertJsonPath('data.abilities', $ten);
+        $this->api($this->admin, 'POST', $this->manage, ['name' => 'Everything', 'abilities' => $ten, 'entity_uuids' => [$this->hall->uuid]])->assertCreated()->assertJsonPath('data.abilities', $ten);
         // A scope becomes a list and back; the list grant keeps its shape.
         $listed = $this->api($this->admin, 'PUT', $this->manage.'/'.$app['uuid'], ['revision' => $app['revision'], 'name' => 'Twin', 'abilities' => ['devices:read'], 'device_uuids' => [$this->loose->uuid]])->assertOk()->json('data');
         $this->assertSame([$this->loose->uuid], $listed['device_uuids']);
@@ -169,14 +169,14 @@ final class GrantScopeTest extends TestCase
         $this->api($token, 'GET', $this->read.'/devices/'.$first->uuid)->assertOk();
         // The other organization is never reachable, and its own scoped application sees only its own devices.
         $this->api($token, 'GET', '/api/integration/v1/organizations/'.$this->other->uuid.'/devices')->assertNotFound();
-        $foreignApp = IntegrationApplication::create(['organization_id' => $this->other->id, 'name' => 'Foreign twin', 'abilities' => ['devices:read'], 'device_uuids' => [], 'site_uuids' => [$this->foreignSite->uuid]]);
+        $foreignApp = IntegrationApplication::create(['organization_id' => $this->other->id, 'name' => 'Foreign twin', 'abilities' => ['devices:read'], 'device_uuids' => [], 'entity_uuids' => [$this->foreignSite->uuid]]);
         $secret = Str::random(40);
         $foreignToken = $foreignApp->tokens()->create(['name' => 'test', 'token' => hash('sha256', $secret), 'abilities' => ['devices:read'], 'expires_at' => now()->addDay()])->id.'|'.$secret;
         $this->api($foreignToken, 'GET', '/api/integration/v1/organizations/'.$this->other->uuid.'/devices')->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.uuid', $this->foreign->uuid);
         $this->api($foreignToken, 'GET', '/api/integration/v1/organizations/'.$this->other->uuid.'/devices/'.$first->uuid)->assertNotFound();
         $this->api($foreignToken, 'GET', $this->read.'/devices')->assertNotFound();
         // A site of the other organization smuggled into a scope resolves to nothing.
-        IntegrationApplication::where('uuid', $app['uuid'])->update(['site_uuids' => json_encode([$this->foreignSite->uuid])]);
+        IntegrationApplication::where('uuid', $app['uuid'])->update(['entity_uuids' => json_encode([$this->foreignSite->uuid])]);
         $this->api($token, 'GET', $this->read.'/devices')->assertOk()->assertJsonPath('meta.total', 0);
         $this->api($token, 'GET', $this->read.'/devices/'.$this->foreign->uuid)->assertNotFound();
     }
@@ -237,7 +237,7 @@ final class GrantScopeTest extends TestCase
         $this->api($this->admin, 'PUT', $this->manage.'/'.$app['uuid'].'/webhook', ['revision' => 0, 'url' => 'https://receiver.example.test/events'])->assertOk();
         $this->api($this->admin, 'DELETE', '/api/v1/organizations/'.$this->org->uuid.'/sites/'.$this->yard->uuid)->assertNoContent();
         $fresh = IntegrationApplication::where('uuid', $app['uuid'])->firstOrFail();
-        $this->assertSame([$this->hall->uuid], $fresh->site_uuids);
+        $this->assertSame([$this->hall->uuid], $fresh->entity_uuids);
         $this->assertSame(2, $fresh->grant_revision);
         // The token rotation bumped the revision once, the deletion once more.
         $this->assertSame(3, $fresh->revision);
@@ -254,7 +254,7 @@ final class GrantScopeTest extends TestCase
         // An emptied scope is kept, resolves to no device, and the manager sees why.
         $this->api($this->admin, 'DELETE', '/api/v1/organizations/'.$this->org->uuid.'/sites/'.$this->hall->uuid)->assertNoContent();
         $fresh->refresh();
-        $this->assertSame([], $fresh->site_uuids);
+        $this->assertSame([], $fresh->entity_uuids);
         $this->assertSame(3, $fresh->grant_revision);
         $this->api($this->admin, 'GET', $this->manage)->assertOk()->assertJsonPath('data.0.site_uuids', [])->assertJsonPath('data.0.sites', [])->assertJsonPath('data.0.device_uuids', []);
         $this->api($this->token(array_replace($app, ['revision' => $fresh->revision])), 'GET', $this->read.'/devices')->assertOk()->assertJsonPath('meta.total', 0);
