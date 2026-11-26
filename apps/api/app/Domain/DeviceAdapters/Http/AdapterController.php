@@ -56,7 +56,7 @@ final class AdapterController
     {
         $this->authorize($r, $organization, null, DevicePermission::VIEW);
 
-        return ['data' => DeviceProfileArtifact::whereHas('profile', fn ($q) => $q->where('organization_id', $organization->id))->latest()->limit(100)->get()->map(fn ($a) => ['uuid' => $a->uuid, 'name' => $a->profile->name, 'revision' => $a->revision, 'definition' => $a->definition])];
+        return ['data' => DeviceProfileArtifact::whereHas('profile', fn ($q) => $q->where('organization_id', $organization->id)->where('status', '!=', 'archived'))->latest()->limit(100)->get()->map(fn ($a) => ['uuid' => $a->uuid, 'name' => $a->profile->name, 'revision' => $a->revision, 'definition' => $a->definition])];
     }
 
     public function store(Request $r, Organization $organization)

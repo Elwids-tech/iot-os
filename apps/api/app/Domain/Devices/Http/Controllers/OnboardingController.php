@@ -53,7 +53,7 @@ final class OnboardingController
 
                 return $existing;
             }
-            $artifact = DeviceProfileArtifact::where('uuid', $v['artifact_uuid'])->whereHas('profile', fn ($q) => $q->where('organization_id', $organization->id))->firstOrFail();
+            $artifact = DeviceProfileArtifact::where('uuid', $v['artifact_uuid'])->whereHas('profile', fn ($q) => $q->where('organization_id', $organization->id))->firstOrFail()->ensureNotArchived();
             if ($v['mode'] === 'direct') {
                 $connection = SparkplugConnection::firstOrCreate(['group_id' => 'onboarding-'.$organization->uuid], [
                     'organization_id' => $organization->id, 'name' => 'Direct device connections',

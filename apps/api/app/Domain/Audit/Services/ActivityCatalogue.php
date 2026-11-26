@@ -163,6 +163,8 @@ final class ActivityCatalogue
         'device_profile.draft_changed' => ['changed the draft of device profile', 'device_profile'],
         'device_profile.published' => ['published device profile', 'device_profile'],
         'device_profile.deleted' => ['deleted device profile', 'device_profile'],
+        'device_profile.archived' => ['archived device profile', 'device_profile'],
+        'device_profile.restored' => ['restored device profile', 'device_profile'],
         'device_profile.gateway_health.created' => ['created the gateway health profile', 'device_profile'],
         // Adapters
         'device.adapter.draft.saved' => ['saved adapter', 'device_adapter'],

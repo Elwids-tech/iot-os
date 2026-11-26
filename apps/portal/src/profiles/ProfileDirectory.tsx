@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import type { DeviceProfile } from "@iot-os/api-client"
 import { Button } from "@iot-os/ui/components/button"
@@ -21,6 +22,7 @@ import {
   SaveBar,
   Confirm,
   RequestError,
+  errorMessage,
   fieldError,
 } from "../components/forms"
 import { useOrganization } from "./use-studio"
@@ -37,6 +39,9 @@ export function ProfileStatus({ profile }: { profile: DeviceProfile }) {
     <StatusMark tone="muted">Draft</StatusMark>
   )
 }
+/** A profile with unpublished changes can't be archived: its status is what marks them. */
+export const archivable = (profile: DeviceProfile) =>
+  profile.status === "published" || (profile.status === "draft" && profile.revision === 0)
 export const plural = (count: number, noun: string) =>
   `${count} ${noun}${count === 1 ? "" : "s"}`
 const statusViews = [
@@ -54,6 +59,7 @@ export function ProfileDirectory() {
   const { returnTo, keep } = useReturnTo()
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<DeviceProfile | null>(null)
+  const [archiving, setArchiving] = useState<DeviceProfile | null>(null)
   const search = url.get("search"),
     status = url.get("status")
   const page = Math.max(1, Number(url.get("page")) || 1),
@@ -223,6 +229,24 @@ export function ProfileDirectory() {
                 <DropdownMenuItem asChild>
                   <Link to={open(profile, "review")}>Review</Link>
                 </DropdownMenuItem>
+                {organization.capabilities.publish && profile.status === "archived" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => void restoreProfile(cache, organization.organizationUuid, profile)}
+                    >
+                      Restore {profile.name}
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {organization.capabilities.publish && archivable(profile) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setArchiving(profile)}>
+                      Archive {profile.name}
+                    </DropdownMenuItem>
+                  </>
+                )}
                 {organization.capabilities.delete_draft &&
                   profile.status === "draft" &&
                   profile.revision === 0 && (
@@ -265,6 +289,11 @@ export function ProfileDirectory() {
           }}
         />
       )}
+      <ArchiveProfile
+        profile={archiving}
+        onClose={() => setArchiving(null)}
+        onRefresh={() => query.refetch()}
+      />
       <Confirm
         open={Boolean(deleting)}
         title={"Delete " + deleting?.name + "?"}
@@ -283,6 +312,48 @@ export function ProfileDirectory() {
       />
     </>
   )
+}
+/** Confirms archiving; the API refuses a profile still in use and the dialog shows why. */
+export function ArchiveProfile({
+  profile,
+  onClose,
+  onRefresh,
+}: {
+  profile: DeviceProfile | null
+  onClose: () => void
+  onRefresh?: () => Promise<unknown>
+}) {
+  const organization = useOrganization()
+  const cache = useQueryClient()
+  return (
+    <Confirm
+      open={Boolean(profile)}
+      title={"Archive " + profile?.name + "?"}
+      description="Archived profiles keep their versions but leave profile pickers and can't be edited or published. Only a profile no device, adapter or running bulk onboarding uses can be archived. You can restore it later."
+      action="Archive"
+      onClose={onClose}
+      onRefresh={onRefresh}
+      onConfirm={async () => {
+        if (!profile) return
+        await api.archiveDeviceProfile(organization.organizationUuid, profile.uuid, profile.draft_revision)
+        await refreshProfile(cache, organization.organizationUuid, profile.uuid)
+      }}
+    />
+  )
+}
+const refreshProfile = (cache: QueryClient, org: string, uuid: string) =>
+  Promise.all([
+    cache.invalidateQueries({ queryKey: ["profiles", org] }),
+    cache.invalidateQueries({ queryKey: ["profile", org, uuid] }),
+  ])
+export async function restoreProfile(cache: QueryClient, org: string, profile: DeviceProfile) {
+  try {
+    await api.restoreDeviceProfile(org, profile.uuid, profile.draft_revision)
+    await refreshProfile(cache, org, profile.uuid)
+    toast.success(profile.name + " restored")
+  } catch (error) {
+    toast.error(errorMessage(error))
+  }
 }
 function CreateProfile({
   onClose,

@@ -61,7 +61,7 @@ final class AdapterService
     public function save(Organization $organization, array $values, int $actor, ?DeviceAdapter $adapter = null, ?int $expected = null): DeviceAdapter
     {
         $v = $this->fields($values);
-        $artifact = $this->artifact($organization->id, $v['artifact_uuid']);
+        $artifact = $this->artifact($organization->id, $v['artifact_uuid'])->ensureNotArchived();
         $saved = $this->persist($organization, $v, $actor, $adapter, $expected, $artifact);
         if ($saved->ingest_id) {
             app(WebhookRoutes::class)->syncLater($saved);

@@ -61,6 +61,7 @@ final class BulkOnboarding
         if (! $artifact) {
             throw ValidationException::withMessages(['artifact_uuid' => 'Choose a published revision of one of this organization’s profiles.']);
         }
+        $artifact->ensureNotArchived();
         $candidates = DiscoveryCandidate::where('sparkplug_gateway_id', $gateway->id)->whereIn('source_device_id', $ids)->pluck('id', 'source_device_id');
         $unknown = [];
         foreach ($input['source_device_ids'] as $i => $id) {
