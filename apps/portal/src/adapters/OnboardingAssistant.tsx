@@ -437,6 +437,20 @@ export default function OnboardingAssistantBody({
       setBusy(false);
     }
   }
+  async function renew(proposal: OnboardingProposal) {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.renewOnboardingProposal(org, selected, proposal.uuid);
+      setAdapterReview(null);
+      await refresh();
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function dismissOutdated(proposals: OnboardingProposal[]) {
     if (!selected) return;
     setBusy(true);
@@ -714,6 +728,7 @@ export default function OnboardingAssistantBody({
             blocked={blockedBy(proposal)}
             onReview={() => setAdapterReview(proposal)}
             onDecide={(action) => void decide(proposal, action)}
+            onRenew={() => void renew(proposal)}
           />
         ),
       });
@@ -1058,6 +1073,7 @@ export default function OnboardingAssistantBody({
           blocked={blockedBy(adapterReview)}
           onClose={() => setAdapterReview(null)}
           onDecide={(action) => void decide(adapterReview, action)}
+          onRenew={() => void renew(adapterReview)}
         />
       )}
       <Confirm
@@ -1181,6 +1197,7 @@ function AdapterProposalCard({
   blocked,
   onReview,
   onDecide,
+  onRenew,
 }: {
   org: string;
   proposal: OnboardingProposal;
@@ -1190,6 +1207,8 @@ function AdapterProposalCard({
   blocked: "dirty" | "stale" | null;
   onReview: () => void;
   onDecide: (action: "apply" | "reject") => void;
+  /** Makes an outdated change again against the current draft. */
+  onRenew: () => void;
 }) {
   const sourceType = (proposal.source?.type as string | undefined) ?? null;
   const parts = [
@@ -1197,6 +1216,8 @@ function AdapterProposalCard({
     proposal.source && "Source settings",
     proposal.fixtures?.length &&
       `${proposal.fixtures.length} test ${proposal.fixtures.length === 1 ? "sample" : "samples"}`,
+    proposal.removed_fixtures?.length &&
+      `${proposal.removed_fixtures.length} saved ${proposal.removed_fixtures.length === 1 ? "sample" : "samples"} removed`,
   ].filter(Boolean) as string[];
   return (
     <ActionCard
@@ -1236,9 +1257,14 @@ function AdapterProposalCard({
         Dismiss
       </Button>
       {blocked === "stale" && (
-        <p className="w-full text-meta text-muted-foreground">
-          The adapter draft changed after this proposal. Ask for a new one, and dismiss this one.
-        </p>
+        <>
+          <Button size="sm" variant="outline" disabled={disabled} onClick={onRenew}>
+            Make it for the current draft
+          </Button>
+          <p className="w-full text-meta text-muted-foreground">
+            The adapter draft changed after this proposal. Make it again for the current draft, or dismiss it.
+          </p>
+        </>
       )}
     </ActionCard>
   );
@@ -1254,6 +1280,7 @@ function AdapterProposalReview({
   blocked,
   onClose,
   onDecide,
+  onRenew,
 }: {
   org: string;
   proposal: OnboardingProposal;
@@ -1265,6 +1292,7 @@ function AdapterProposalReview({
   blocked: "dirty" | "stale" | null;
   onClose: () => void;
   onDecide: (action: "apply" | "reject") => void;
+  onRenew: () => void;
 }) {
   const change = proposal.kind === "change" && adapter;
   return (
@@ -1296,6 +1324,13 @@ function AdapterProposalReview({
               readOnly
             />
           ) : null}
+          {proposal.removed_fixtures?.length ? (
+            <JsonEditor
+              label={`${proposal.removed_fixtures.length} saved ${proposal.removed_fixtures.length === 1 ? "sample" : "samples"} to remove`}
+              value={JSON.stringify(proposal.removed_fixtures, null, 2)}
+              readOnly
+            />
+          ) : null}
           {proposal.evidence.map((evidence, index) => (
             <p key={index} className="text-meta text-muted-foreground">
               {evidenceLabel(evidence.origin)}
@@ -1308,7 +1343,7 @@ function AdapterProposalReview({
               <AlertDescription>
                 {blocked === "dirty"
                   ? "Save or discard your edits on the adapter before applying this change."
-                  : "The adapter draft changed after this proposal. Ask for a new one, and dismiss this one."}
+                  : "The adapter draft changed after this proposal. Make it again for the current draft, or dismiss it."}
               </AlertDescription>
             </Alert>
           )}
@@ -1335,6 +1370,11 @@ function AdapterProposalReview({
           <Button variant="outline" disabled={disabled} onClick={() => onDecide("reject")}>
             Dismiss proposal
           </Button>
+          {blocked === "stale" && (
+            <Button variant="outline" disabled={disabled} onClick={onRenew}>
+              Make it for the current draft
+            </Button>
+          )}
           <Button disabled={disabled || blocked !== null} onClick={() => onDecide("apply")}>
             {applyLabel(proposal)}
           </Button>

@@ -186,6 +186,8 @@ export type OnboardingProposal = {
   code: string | null
   source: Record<string, unknown> | null
   fixtures: Record<string, unknown>[] | null
+  /** Saved samples a change removes when applied, so new ones fit the adapter's limit of 10. */
+  removed_fixtures?: Record<string, unknown>[] | null
   summary: string
   evidence: { origin: string; source_id?: string; location?: string; note?: string }[]
   content_hash: string

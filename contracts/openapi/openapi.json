@@ -18413,6 +18413,108 @@
         ]
       }
     },
+    "/v1/organizations/{organization}/assistant/conversations/{conversation}/adapter-proposals/{adapterProposal}/renew": {
+      "post": {
+        "operationId": "assistant.renewAdapterProposal",
+        "summary": "Makes an outdated onboarding change again against the adapter's current draft and retires the old card",
+        "tags": [
+          "Assistant"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "conversation",
+            "in": "path",
+            "required": true,
+            "description": "The conversation ID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapterProposal",
+            "in": "path",
+            "required": true,
+            "description": "The adapter proposal UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An outdated onboarding change made again against the adapter's current draft; the old card is retired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "The new proposal, as the conversation lists its adapter proposals.",
+                      "required": [
+                        "uuid",
+                        "kind",
+                        "draft_revision",
+                        "status",
+                        "content_hash"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 30,
+            "per": "minute",
+            "key": "user"
+          }
+        ]
+      }
+    },
     "/v1/organizations/{organization}/assistant/conversations/{conversation}/events": {
       "get": {
         "operationId": "assistant.events",
@@ -39464,7 +39566,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_196",
+        "operationId": "domain.automation.dag.settings_197",
         "tags": [
           "Dag"
         ],
@@ -39539,7 +39641,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_197",
+        "operationId": "domain.automation.dag.settings_198",
         "tags": [
           "Dag"
         ],
@@ -40946,7 +41048,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_212",
+        "operationId": "domain.automation.scenario.save_213",
         "tags": [
           "Scenario"
         ],
@@ -41062,7 +41164,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_213",
+        "operationId": "domain.automation.scenario.save_214",
         "tags": [
           "Scenario"
         ],
@@ -41858,7 +41960,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_203",
+        "operationId": "domain.automation.dag.timeline_204",
         "tags": [
           "Dag"
         ],
@@ -41929,7 +42031,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_204",
+        "operationId": "domain.automation.dag.timeline_205",
         "tags": [
           "Dag"
         ],

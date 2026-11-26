@@ -3031,6 +3031,9 @@ export class ApiClient {
   createOnboardingConversation(org: string, adapter_uuid?: string) { return this.data<import("./assistant").OnboardingConversation>(this.assistantPath(org,undefined,"/conversations"),"POST",{scope:"onboarding",...(adapter_uuid ? {adapter_uuid} : {})}) }
   decideOnboardingProposal(org: string, conversation: string, proposal: string, input: {action: "apply" | "reject"; content_hash: string; request_id: string}) { return this.data<{status: "applied" | "rejected"; adapter: import("./adapters").DeviceAdapter | null; run: import("./assistant").AssistantRun | null; notice: string | null}>(this.assistantPath(org,conversation,`/adapter-proposals/${encodeURIComponent(proposal)}/decision`),"POST",input) }
 
+  /** Makes an outdated onboarding change again against the adapter's current draft; the old card is retired. */
+  renewOnboardingProposal(org: string, conversation: string, proposal: string) { return this.data<import("./assistant").OnboardingProposal>(this.assistantPath(org,conversation,`/adapter-proposals/${encodeURIComponent(proposal)}/renew`),"POST",{}) }
+
   private assistantPath(org: string, conversation?: string, suffix = "") {
     return `/api/v1/organizations/${encodeURIComponent(org)}/assistant${conversation ? `/conversations/${encodeURIComponent(conversation)}` : ""}${suffix}`
   }
