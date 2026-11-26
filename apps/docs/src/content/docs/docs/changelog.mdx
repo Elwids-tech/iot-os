@@ -5,6 +5,14 @@ description: Changes to the integration API, its event types and the integration
 
 Each entry lists what changed for applications: the integration API version, its operations and event types, and the SDK version. The build checks that the newest versions have an entry here.
 
+## SDK 0.7.0 · the hierarchy
+
+Applications can follow any place in the hierarchy (a zone, a line, a feeder or a site), not only a site. A grant may name entities, and the application sees every device placed in their branches.
+
+- **Integration API** (the contract version stays 1.1.0): `GET entities` (ability `entities:read`) lists the entities the application may see, ordered by path, 100 a page with `next_cursor`. Ancestors shown only to complete a path have `in_scope: false`. `GET devices/{uuid}` gains `entity` and `points` when the application holds `entities:read`. Nothing else changed.
+- **Event types**: unchanged.
+- **Integration SDK 0.7.0**: `entities({cursor})` and `allEntities()`; `device()` carries `entity` and `points`. Every 0.6.0 method is unchanged.
+
 ## Integration API 1.1.0 · SDK 0.6.0
 
 Applications can follow a plant: grant a whole site, load it in one request and stream its readings. A developer guide, "Following a plant", is published with this release.
