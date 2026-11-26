@@ -575,7 +575,14 @@ A device's site is the nearest site at or above where it is placed, and its repo
 time zone is the nearest time zone at or above that place, else the organization's
 (Settings → General), else UTC. Daily, monthly and shift totals use that zone so every
 viewer sees the same totals; timestamps still display in the viewer's zone. Placements
-are kept as history; an archived device keeps its last place. Deleting a site is
+are kept as history; an archived device keeps its last place. A place's **History**
+tab lists its moves, renames, type changes, archiving, the devices and points placed
+there and taken away, and its groups, with who and when (`GET entities/{entity}/history`);
+**What was here** lists the devices and points in its branch at a past time, using the
+tree as it was then (`GET entities/{entity}/branch-at?time=`). **History** beside a
+device's place opens where it and its separately placed parameters have been
+(`GET devices/{device}/place-history`). Placements from before history was kept have no
+start and count as open at any earlier time. Deleting a site is
 refused while entities sit under it; otherwise its devices are unplaced and the site
 is archived. Sites are not an access boundary.
 

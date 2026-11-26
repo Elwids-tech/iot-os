@@ -166,10 +166,10 @@ explore without the API.
 
 **Independent Test**: [quickstart G](quickstart.md#g-history-pr-7).
 
-- [ ] T066 [US6] Create api/Entities/Services/EntityHistory.php: history pages and `branchAt` per [research R12](research.md#r12-history-and-as-of-queries)
-- [ ] T067 [US6] Create api/Entities/Http/EntityHistoryController.php per [contracts/api.md](contracts/api.md#history--pr-7) and describe it
-- [ ] T068 [US6] Fill the **History** tab of EntityPage.tsx and add placement history to the device page
-- [ ] T069 [P] [US6] Tests: US6 AS1–AS3, migrated placements with no start counting as open earlier
+- [x] T066 [US6] Create api/Entities/Services/EntityHistory.php: history pages and `branchAt` per [research R12](research.md#r12-history-and-as-of-queries)
+- [x] T067 [US6] Create api/Entities/Http/EntityHistoryController.php per [contracts/api.md](contracts/api.md#history--pr-7) and describe it
+- [x] T068 [US6] Fill the **History** tab of EntityPage.tsx and add placement history to the device page
+- [x] T069 [P] [US6] Tests: US6 AS1–AS3, migrated placements with no start counting as open earlier
 - [ ] T070 Rebuild the API family and the portal; run [quickstart G](quickstart.md#g-history-pr-7)
 
 ---

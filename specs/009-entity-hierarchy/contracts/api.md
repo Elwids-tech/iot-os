@@ -132,7 +132,15 @@ placed: name clash**), `not_in_configuration`. `latest` is null when unknown, ne
 | Method and path | Permission | Notes |
 | --- | --- | --- |
 | `GET entities/{entity}/history?page=` | `Entity.view` | changes, placements and memberships, newest first |
-| `GET entities/{entity}/branch-at?time=&page=` | `Entity.view` | devices and points in the branch at that time (R12) |
+| `GET entities/{entity}/branch-at?time=&page=` | `Entity.view` | devices and points in the branch at that time (R12); `meta.existed` is false before the entity was created |
+| `GET devices/{device}/place-history?page=` | `Device.view` on the device and `Entity.view` | the device's placements and its parameter placements, newest first |
+
+Both history lists return events `{id, kind, at, user: {id, name}}` plus the fields of
+their kind: `created`, `moved`, `renamed`, `retyped`, `archived`, `restored` (old and new
+parent, path name, type); `device_placed`, `device_removed`, `point_placed`,
+`point_removed` (entity, device, parameter, `end_reason`); `joined_group`, `left_group`,
+`member_added`, `member_removed` (member, group). Paths are as they are today. A start
+with a null `at` is from before history was kept and sorts last.
 
 ## Site compatibility (unchanged shapes)
 

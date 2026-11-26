@@ -125,3 +125,24 @@ export const Changes: StoryObj = {
     />
   ),
 }
+
+/**
+ * An entry whose time is not known, such as a device placed before history was kept
+ * (spec 009): `at` is null, so the meta line has no time and the entry sits under its
+ * own heading after the dated days.
+ */
+export const UnknownTime: StoryObj = {
+  render: () => (
+    <Panel className="max-w-3xl">
+      <PanelContent>
+        <ActivityTimeline>
+          <ActivityDay label="Before history was kept">
+            <ActivityItem actor={null} at={null} meta={<span>Placed before history was kept</span>}>
+              <span className="font-medium">Pump 1</span> placed here
+            </ActivityItem>
+          </ActivityDay>
+        </ActivityTimeline>
+      </PanelContent>
+    </Panel>
+  ),
+}

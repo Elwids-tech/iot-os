@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { EntityType } from "@iot-os/api-client"
-import { allowedTypes, entityLabel, impactLines, namingHint } from "./model"
+import { allowedTypes, endReasonText, entityLabel, impactLines, namingHint } from "./model"
 
 const type = (key: string, rules: Partial<EntityType> = {}): EntityType => ({
   uuid: key,
@@ -68,5 +68,14 @@ describe("hierarchy model", () => {
       "Zone B gets a new path.",
       "No devices are placed in it.",
     ])
+  })
+})
+
+describe("endReasonText", () => {
+  it("says why a placement or membership ended", () => {
+    expect(endReasonText("moved_out")).toBe("moved to another organization")
+    expect(endReasonText("replaced")).toBe("joined another group of that type")
+    expect(endReasonText("something_new")).toBe("something new")
+    expect(endReasonText(null)).toBeUndefined()
   })
 })
