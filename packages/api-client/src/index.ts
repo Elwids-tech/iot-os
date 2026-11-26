@@ -2248,6 +2248,8 @@ export class ApiClient {
       /** Devices whose applied (or last applied) configuration uses this profile. */
       profile_uuid?: string
       site_uuid?: string
+      /** Devices placed anywhere in this entity's coverage: its branch and its current members' branches (spec 009). */
+      entity_uuid?: string
       /** Devices configured from a source behind this gateway. */
       gateway_uuid?: string
       tag?: string
@@ -2429,6 +2431,17 @@ export class ApiClient {
   entityPoints(org: string, entity: string, options: { branch?: boolean; page?: number } = {}) {
     const query = new URLSearchParams({ page: String(options.page ?? 1), branch: options.branch ? "1" : "0" })
     return this.request<{ data: import("./entities").EntityPoint[]; meta: { current_page: number; last_page: number; per_page: number; total: number } }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/points?${query}`)
+  }
+  /** The groups the entity is a member of and the members it holds, current first, with history. */
+  entityMemberships(org: string, entity: string) {
+    return this.data<import("./entities").EntityMemberships>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/memberships`)
+  }
+  /** Makes the entity a member of a group; a current membership in another group of that type ends. */
+  joinGroup(org: string, entity: string, groupUuid: string) {
+    return this.data<{ group: import("./entities").EntityMembershipEnd; started_at: string | null }>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/memberships`, "POST", { group_uuid: groupUuid })
+  }
+  leaveGroup(org: string, entity: string, group: string) {
+    return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/entities/${encodeURIComponent(entity)}/memberships/${encodeURIComponent(group)}`, { method: "DELETE" })
   }
   unplaceDevice(org: string, device: string) {
     return this.request<null>(`/api/v1/organizations/${encodeURIComponent(org)}/devices/${encodeURIComponent(device)}/placement`, { method: "DELETE" })
@@ -3143,7 +3156,7 @@ export class ApiClient {
     return `${this.baseUrl}${this.assistantPath(org, id, `/sources/${encodeURIComponent(source)}`)}`
   }
 
-  /** `query` is the alerts filters as a query string; repeat `kind[]` for several kinds. */
+  /** `query` is the alerts filters as a query string; repeat `kind[]` for several kinds; `entity_uuid` covers an entity's coverage. */
   alerts(org: string, query: string, signal?: AbortSignal) {
     return this.request<import("./alerts").AlertPage<import("./alerts").Alert>>(`/api/v1/organizations/${encodeURIComponent(org)}/alerts?${query}`, { signal })
   }

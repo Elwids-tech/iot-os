@@ -6,6 +6,8 @@ namespace App\Domain\Automation\Services;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Services\Coverage;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,7 +23,7 @@ final class AlertQuery
     public const LISTED_DEVICES = 100;
 
     /**
-     * @param  array{condition?: string, acknowledged?: bool, device?: string, workflow?: string, assignee?: int, site?: string, kind?: list<string>, muted?: bool}  $input
+     * @param  array{condition?: string, acknowledged?: bool, device?: string, workflow?: string, assignee?: int, site?: string, entity?: string, kind?: list<string>, muted?: bool}  $input
      */
     public function filtered(Organization $organization, array $input): Builder
     {
@@ -49,9 +51,12 @@ final class AlertQuery
         }
         if (isset($input['site'])) {
             // Agent tools only: alerts of the devices at one site.
-            $devices = Device::where('organization_id', $organization->id)->whereHas('site', fn ($q) => $q->where('uuid', $input['site']))->get(['id', 'uuid']);
-            $query->where(fn ($q) => $devices->isEmpty() ? $q->whereRaw('1 = 0') : $q->where(fn ($q) => $q->whereDoesntHave('devices')->whereHas('deployment', fn ($q) => $q->whereIn(DB::raw(self::device()), $devices->pluck('uuid')->all())))
-                ->orWhereHas('devices', fn ($q) => $q->whereIn('devices.id', $devices->modelKeys())));
+            $this->ofDevices($query, Device::where('organization_id', $organization->id)->whereHas('site', fn ($q) => $q->where('uuid', $input['site']))->select('id')->toBase());
+        }
+        if (isset($input['entity'])) {
+            // Alerts of the devices in an entity's coverage: its branch and its members' (spec 009, FR-016).
+            $entity = Entity::query()->where('organization_id', $organization->id)->where('uuid', $input['entity'])->first();
+            $entity ? $this->ofDevices($query, Coverage::deviceIds($entity)) : $query->whereRaw('1 = 0');
         }
         if (isset($input['workflow'])) {
             $query->whereHas('workflow', fn ($q) => $q->where('uuid', $input['workflow']));
@@ -61,6 +66,18 @@ final class AlertQuery
         }
 
         return $query;
+    }
+
+    /**
+     * Alerts that list one of these devices, or a workflow alert listing none whose bound
+     * device is one of them.
+     *
+     * @param  Builder<Alert>  $query
+     */
+    private function ofDevices(Builder $query, \Illuminate\Database\Query\Builder $deviceIds): void
+    {
+        $query->where(fn ($q) => $q->where(fn ($q) => $q->whereDoesntHave('devices')->whereHas('deployment', fn ($q) => $q->whereIn(DB::raw(self::device()), Device::query()->toBase()->whereIn('id', $deviceIds)->select(DB::raw('cast(uuid as varchar)')))))
+            ->orWhereHas('devices', fn ($q) => $q->whereIn('devices.id', $deviceIds)));
     }
 
     /** The bound device of an execution snapshot: geofence workflows bind one device, DAG workflows list bindings. */

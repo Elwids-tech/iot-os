@@ -157,3 +157,15 @@ export type ParameterPlacement = {
   started_at: string | null
   ended_at: string | null
 }
+
+/** One side of a grouping across the tree (spec 009, FR-023). */
+export type EntityMembershipEnd = { uuid: string; name: string; path: string; type_key: string }
+
+export type EntityMembershipPeriod = { started_at: string | null; ended_at: string | null; end_reason: "replaced" | "left" | "archived" | null }
+
+export type EntityMemberships = {
+  /** Groups the entity is (or was) a member of. */
+  groups: (EntityMembershipPeriod & { group: EntityMembershipEnd })[]
+  /** Members the entity holds (or held). */
+  members: (EntityMembershipPeriod & { member: EntityMembershipEnd })[]
+}

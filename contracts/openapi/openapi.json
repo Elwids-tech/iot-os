@@ -16215,6 +16215,14 @@
             }
           },
           {
+            "name": "entity_uuid",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
             "name": "workflow",
             "in": "query",
             "schema": {
@@ -26587,6 +26595,17 @@
             }
           },
           {
+            "name": "entity_uuid",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
             "name": "gateway_uuid",
             "in": "query",
             "schema": {
@@ -31239,6 +31258,379 @@
         "x-organization-scoped": true
       }
     },
+    "/v1/organizations/{organization}/entities/{entity}/memberships": {
+      "get": {
+        "operationId": "membership.index",
+        "summary": "The groups the entity belongs to and the members it holds, current first, with history",
+        "tags": [
+          "Membership"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "description": "The entity UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "group": {
+                                "type": "object",
+                                "properties": {
+                                  "uuid": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "type_key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "uuid",
+                                  "name",
+                                  "path",
+                                  "type_key"
+                                ]
+                              },
+                              "started_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "ended_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "end_reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "group",
+                              "started_at",
+                              "ended_at",
+                              "end_reason"
+                            ]
+                          }
+                        },
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "member": {
+                                "type": "object",
+                                "properties": {
+                                  "uuid": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "type_key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "uuid",
+                                  "name",
+                                  "path",
+                                  "type_key"
+                                ]
+                              },
+                              "started_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "ended_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "end_reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "member",
+                              "started_at",
+                              "ended_at",
+                              "end_reason"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "groups",
+                        "members"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      },
+      "post": {
+        "operationId": "membership.store",
+        "summary": "Makes the entity a member of a group. A current membership in another group of the\nsame type ends, so a feeder is in one division at a time",
+        "tags": [
+          "Membership"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "description": "The entity UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "group_uuid": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "group_uuid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "group": {
+                          "type": "object",
+                          "properties": {
+                            "uuid": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "type_key": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "uuid",
+                            "name",
+                            "path",
+                            "type_key"
+                          ]
+                        },
+                        "started_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "group",
+                        "started_at"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/entities/{entity}/memberships/{group}": {
+      "delete": {
+        "operationId": "membership.destroy",
+        "summary": "Ends the entity's current membership in that group",
+        "tags": [
+          "Membership"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "description": "The entity UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "description": "The group UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
     "/v1/organizations/{organization}/entities/{entity}/move": {
       "post": {
         "operationId": "entity.move",
@@ -31491,7 +31883,7 @@
           {
             "name": "branch",
             "in": "query",
-            "description": "1 to include every entity below.",
+            "description": "1 to include the entity's coverage: every entity below it, and below its current members (each point keeps its own path).",
             "schema": {
               "type": "integer"
             }

@@ -6,12 +6,13 @@ use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Entities\Http\Controllers\EntityController;
 use App\Domain\Entities\Http\Controllers\EntityPresetController;
 use App\Domain\Entities\Http\Controllers\EntityTypeController;
+use App\Domain\Entities\Http\Controllers\MembershipController;
 use App\Domain\Entities\Http\Controllers\PlacementController;
 use App\Domain\Entities\Http\Controllers\PointController;
 use Illuminate\Support\Facades\Route;
 
 // The entity hierarchy (spec 009, contracts/api.md).
-Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'entity', 'type', 'device', 'parameter'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'entity', 'type', 'device', 'parameter', 'group'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('entity-types', [EntityTypeController::class, 'index']);
     Route::post('entity-types', [EntityTypeController::class, 'store']);
     Route::patch('entity-types/{type}', [EntityTypeController::class, 'update']);
@@ -34,6 +35,9 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'en
     Route::put('devices/{device}/placement', [PlacementController::class, 'update']);
     Route::delete('devices/{device}/placement', [PlacementController::class, 'destroy']);
     Route::get('entities/{entity}/points', [PointController::class, 'index']);
+    Route::get('entities/{entity}/memberships', [MembershipController::class, 'index']);
+    Route::post('entities/{entity}/memberships', [MembershipController::class, 'store']);
+    Route::delete('entities/{entity}/memberships/{group}', [MembershipController::class, 'destroy']);
     Route::put('devices/{device}/parameters/{parameter}/placement', [PointController::class, 'update']);
     Route::delete('devices/{device}/parameters/{parameter}/placement', [PointController::class, 'destroy']);
 });

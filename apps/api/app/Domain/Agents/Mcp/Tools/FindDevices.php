@@ -35,6 +35,7 @@ final class FindDevices extends AgentTool
         return [
             'search' => $schema->string()->max(255)->description('Part of the device name or code.'),
             'site_uuid' => $schema->string()->format('uuid')->description('A site from list_sites: devices whose nearest site in the hierarchy is that one.'),
+            'entity_uuid' => $schema->string()->format('uuid')->description('The UUID of a hierarchy entity: devices placed anywhere in its coverage (its branch and the branches of its current members).'),
             'tag' => $schema->string()->max(32),
             'profile_uuid' => $schema->string()->format('uuid'),
             'lifecycle' => $schema->string()->enum(['registered', 'active', 'deactivated', 'archived']),
@@ -50,6 +51,7 @@ final class FindDevices extends AgentTool
         $input = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'site_uuid' => ['nullable', 'uuid'],
+            'entity_uuid' => ['nullable', 'uuid'],
             'tag' => ['nullable', 'string', 'max:32'],
             'profile_uuid' => ['nullable', 'uuid'],
             'lifecycle' => ['nullable', Rule::in(['registered', 'active', 'deactivated', 'archived'])],

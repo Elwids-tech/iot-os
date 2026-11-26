@@ -6,6 +6,8 @@ namespace App\Domain\Devices\Services;
 
 use App\Domain\Automation\Models\Alert;
 use App\Domain\Devices\Models\Device;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Services\Coverage;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -35,13 +37,19 @@ final class DeviceDirectory
     private const OFFLINE_KINDS = [Alert::DEVICE_OFFLINE, Alert::GATEWAY_OFFLINE];
 
     /**
-     * @param  array{search?: ?string, lifecycle?: ?string, profile_uuid?: ?string, site_uuid?: ?string, gateway_uuid?: ?string, tag?: ?string, presence?: ?string, status?: ?list<string>}  $filters
+     * @param  array{search?: ?string, lifecycle?: ?string, profile_uuid?: ?string, site_uuid?: ?string, entity_uuid?: ?string, gateway_uuid?: ?string, tag?: ?string, presence?: ?string, status?: ?list<string>}  $filters
      * @return Builder<Device>
      */
     public function query(Organization $organization, array $filters): Builder
     {
         return Device::query()->where('organization_id', $organization->id)->with(['candidate.gateway' => fn ($q) => $q->withCount('candidates'), 'candidate.gateway.connection', 'candidate.gateway.offlineAlert', 'candidate.gateway.adapter:'.self::ADAPTER, 'candidate.assignedDevice', 'latestOperation', 'appliedConfiguration.artifact.profile', 'lastAppliedConfiguration.artifact.profile', 'site', 'entity', 'organization', 'openInstallation.candidate.adapter:'.self::ADAPTER, 'openInstallation.candidate.adapter.gateway', 'movedTo', 'movedFrom', ...DeviceView::CONNECTIVITY])
             ->when($filters['site_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('site', fn ($site) => $site->where('uuid', $uuid)))
+            // Devices in an entity's coverage: its branch and its current members' (spec 009, FR-016).
+            ->when($filters['entity_uuid'] ?? null, function ($q, $uuid) use ($organization) {
+                $entity = Entity::query()->where('organization_id', $organization->id)->where('uuid', $uuid)->first();
+
+                return $entity ? $q->whereIn('devices.id', Coverage::deviceIds($entity)) : $q->whereRaw('1 = 0');
+            })
             // Devices reach a gateway through the source they were configured from.
             ->when($filters['gateway_uuid'] ?? null, fn ($q, $uuid) => $q->whereHas('candidate.gateway', fn ($gateway) => $gateway->where('organization_id', $organization->id)->where('uuid', $uuid)))
             ->when($filters['tag'] ?? null, fn ($q, $tag) => $q->whereJsonContains('tags', trim($tag)))
