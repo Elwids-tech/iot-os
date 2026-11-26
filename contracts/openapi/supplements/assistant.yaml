@@ -42,3 +42,20 @@ operations:
         $ref: '#/components/responses/Conflict'
       '422':
         $ref: '#/components/responses/ValidationFailed'
+  POST /v1/organizations/{organization}/assistant/conversations/{conversation}/adapter-proposals/{adapterProposal}/renew:
+    responses:
+      '200':
+        description: An outdated onboarding change made again against the adapter's current draft; the old card is retired.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  description: The new proposal, as the conversation lists its adapter proposals.
+                  required: [uuid, kind, draft_revision, status, content_hash]
+                  additionalProperties: {}
+      '409':
+        $ref: '#/components/responses/Conflict'

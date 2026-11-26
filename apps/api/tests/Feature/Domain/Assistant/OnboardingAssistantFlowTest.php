@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Domain\Assistant;
 
+use App\Domain\Assistant\Agents\OnboardingAssistant;
 use App\Domain\Assistant\Models\AssistantConversation;
 use App\Domain\Assistant\Models\AssistantRun;
 use App\Domain\Assistant\Tools\OnboardingTools;
@@ -184,11 +185,12 @@ final class OnboardingAssistantFlowTest extends TestCase
         $status = $this->act($run, 'status')['adapter'];
         $this->assertSame(9, $status['fixtures']);
         $this->assertSame(10, $status['fixture_limit']);
+        $this->assertTrue($this->act($run, 'test_decoder', ['code' => $code, 'inputs' => 'fixtures'])['valid']);
 
         // Two new samples would make 11: refused before a card the person could never apply.
         $over = $this->act($run, 'propose_change', ['summary' => 'Read probes', 'code' => $code, 'fixtures' => [$sample(20), $sample(21)]]);
         $this->assertStringContainsString('keeps 9 of at most 10 fixtures', $over['reason']);
-        $this->assertStringContainsString('without fixtures', $over['reason']);
+        $this->assertStringContainsString('remove_fixtures', $over['reason']);
         $this->assertSame(0, AdapterProposal::where('conversation_id', $conversation->id)->count());
 
         // Samples the adapter already keeps do not count twice, and one new sample still fits.
@@ -218,6 +220,66 @@ final class OnboardingAssistantFlowTest extends TestCase
         $current = $this->act($this->startRun($conversation), 'propose_change', ['summary' => 'Read probes', 'code' => $code]);
         $conversation->runs()->update(['status' => 'completed']);
         $this->assertNotNull($dismiss($current)->assertOk()->json('data.run.id'));
+    }
+
+    public function test_the_assistant_swaps_samples_tests_its_code_and_sees_outdated_proposals(): void
+    {
+        $meters = $this->adapter(['type' => 'platform', 'topics' => ['meters/+/telemetry']], $this->waterMeter);
+        $sample = fn (int $n) => ['topic' => "meters/WM-{$n}/telemetry", 'payload' => ['device_id' => "WM-{$n}", 'flow_l_min' => $n, 'total_l' => $n]];
+        $saved = array_map($sample, range(1, 10));
+        $meters->update(['fixtures' => $saved]);
+        $conversation = $this->conversation();
+        $conversation->update(['device_adapter_id' => $meters->id]);
+        $run = $this->startRun($conversation);
+        $code = 'function decode(input){const p=input.payload;return {sourceDeviceId:p.device_id,metrics:[{name:"flow_rate",value:p.flow_l_min}]}}';
+        $new = [$sample(20), $sample(21)];
+
+        // A decoder is proposed only once this exact code passed a test.
+        $this->assertStringContainsString('Run test_decoder with this exact code', $this->act($run, 'propose_change', ['summary' => 'Read flow', 'code' => $code])['reason']);
+        $this->assertStringContainsString('Pass the complete decoder', $this->act($run, 'test_decoder', ['fixtures' => $new])['reason']);
+        $this->assertTrue($this->act($run, 'test_decoder', ['code' => $code, 'fixtures' => $new])['valid']);
+        $conversation->update(['onboarding_state' => [...$conversation->fresh()->onboarding_state, 'tested_code' => [...$conversation->fresh()->onboarding_state['tested_code'], 'valid' => false]]]);
+        $this->assertStringContainsString('last test of this code failed', $this->act($run, 'propose_change', ['summary' => 'Read flow', 'code' => $code])['reason']);
+        $this->assertTrue($this->act($run, 'test_decoder', ['code' => $code, 'fixtures' => $new])['valid']);
+
+        // The adapter is full: new samples need saved ones swapped out, in the same proposal.
+        $status = $this->act($run, 'status')['adapter'];
+        $this->assertCount(10, $status['samples_saved']);
+        $this->assertSame(['n' => 1, 'topic' => 'meters/WM-1/telemetry'], array_intersect_key($status['samples_saved'][0], ['n' => 0, 'topic' => 0]));
+        $this->assertStringContainsString('remove_fixtures', $this->act($run, 'propose_change', ['summary' => 'Read flow', 'code' => $code, 'fixtures' => $new])['reason']);
+        $this->assertStringContainsString('no saved sample 11', $this->act($run, 'propose_change', ['summary' => 'Read flow', 'code' => $code, 'fixtures' => $new, 'remove_fixtures' => [1, 11]])['reason']);
+        $swap = $this->act($run, 'propose_change', ['summary' => 'Read flow', 'code' => $code, 'fixtures' => $new, 'remove_fixtures' => [1, 2]]);
+        $this->assertSame([$saved[0], $saved[1]], $swap['removed_fixtures']);
+        $later = $this->act($run, 'propose_change', ['summary' => 'Read flow again', 'code' => $code]);
+        $this->assertSame([false, false], array_column($this->act($run, 'status')['pending_proposals'], 'outdated'));
+
+        $run->update(['status' => 'completed']);
+        $this->apply($conversation, $swap)->assertOk();
+        $this->assertSame([...array_slice($saved, 2), ...$new], $meters->fresh()->fixtures);
+
+        // The other card was made against the old draft: the assistant sees it is outdated.
+        $run = $this->startRun($conversation);
+        $pending = (new OnboardingAssistant($run))->context()['adapter']['pending_proposals'];
+        $this->assertSame([[$later['uuid'], true]], array_map(fn ($p) => [$p['uuid'], $p['outdated']], $pending));
+
+        // One call remakes it against the current draft and retires the outdated card.
+        $remade = $this->act($run, 'repropose', ['proposal_uuid' => $later['uuid']]);
+        $this->assertSame($later['uuid'], $remade['replaced']);
+        $this->assertSame($meters->fresh()->draft_revision, $remade['draft_revision']);
+        $this->assertSame($later['code'], $remade['code']);
+        $this->assertSame('rejected', AdapterProposal::where('uuid', $later['uuid'])->value('status'));
+        $this->assertSame([[$remade['uuid'], false]], array_map(fn ($p) => [$p['uuid'], $p['outdated']], $this->act($run, 'status')['pending_proposals']));
+        $this->assertStringContainsString('current draft', $this->act($run, 'repropose', ['proposal_uuid' => $remade['uuid']])['reason']);
+        $run->update(['status' => 'completed']);
+        $this->apply($conversation, $remade)->assertOk();
+
+        // The person can do the same from the card, without the assistant.
+        $stale = $this->staleChange($conversation, $meters);
+        $renew = fn (string $uuid) => $this->postJson($this->prefix.'/assistant/conversations/'.$conversation->id.'/adapter-proposals/'.$uuid.'/renew');
+        $renewed = $renew($stale['uuid'])->assertOk()->json('data');
+        $this->assertSame([$meters->fresh()->draft_revision, 'pending'], [$renewed['draft_revision'], $renewed['status']]);
+        $this->assertSame('rejected', AdapterProposal::where('uuid', $stale['uuid'])->value('status'));
+        $renew($renewed['uuid'])->assertConflict();
     }
 
     /** A pending change pinned to the draft before the adapter's current one. */

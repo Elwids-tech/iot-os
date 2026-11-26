@@ -11,6 +11,7 @@ use App\Domain\Assistant\Services\AssistantQuestions;
 use App\Domain\Assistant\Services\FirmwareOffers;
 use App\Domain\Assistant\Services\OnboardingProposals;
 use App\Domain\DeviceAdapters\Models\AdapterDelivery;
+use App\Domain\DeviceAdapters\Models\AdapterProposal;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
 use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
@@ -48,7 +49,7 @@ final class OnboardingTools implements Tool
         return 'Device onboarding tools. Actions: find {kind: adapters|profiles, query?}; ask_questions {questions: [{id, prompt, required, options}]} (1-3); recommend_path {path: direct|gateway|adapter, source_type?: platform|vendor|webhook|poll, reason}; '
             .'propose_adapter {mode: reuse, adapter_uuid, artifact_uuid, source, summary} to continue on an existing ADAPTER from find adapters (only when its profile is the one these devices need and its source settings match theirs), or {mode: create, name, artifact_uuid, source, summary, code?, fixtures?} to create a new adapter for a published profile (artifact_uuid from find profiles; source holds non-secret settings such as {type: poll, request: {method, url, query}, credentials: {placement, name}, records, cursor}); status {}; samples {limit?}; fetch_now {}; '
             .'test_decoder {code, fixtures?: [{topic?, payload, source?}] (1-10 samples, such as the ones the person pasted), inputs?: fixtures|samples, artifact_uuid? (the profile to test against before an adapter is chosen)}; '
-            .'propose_change {summary, evidence, code?, source?, fixtures?}; next_step {step: credentials|secret|test|deploy|activate|cursor, message}; read_source {source_id}; '
+            .'propose_change {summary, evidence, code?, source?, fixtures?, remove_fixtures? (numbers n of saved samples from status, removed when applied)}; repropose {proposal_uuid} remakes an outdated change from pending_proposals against the current draft and retires the old card; next_step {step: credentials|secret|test|deploy|activate|cursor, message}; read_source {source_id}; '
             .'offer_firmware {profile_uuid (uuid from find profiles), target (a firmware target id such as linux or esp32-esp-idf), role: direct|gateway} shows the person a card that downloads a credential-free firmware starter for a published profile. '
             .'status, samples, fetch_now, propose_change and next_step need the conversation to be bound to an adapter (after a reuse or create proposal is applied). No action reveals credentials or secrets.';
     }
@@ -56,7 +57,7 @@ final class OnboardingTools implements Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'action' => $schema->string()->enum(['find', 'ask_questions', 'recommend_path', 'propose_adapter', 'status', 'samples', 'fetch_now', 'test_decoder', 'propose_change', 'next_step', 'read_source', 'offer_firmware'])->required(),
+            'action' => $schema->string()->enum(['find', 'ask_questions', 'recommend_path', 'propose_adapter', 'status', 'samples', 'fetch_now', 'test_decoder', 'propose_change', 'repropose', 'next_step', 'read_source', 'offer_firmware'])->required(),
             'arguments_json' => $schema->string()->description('A JSON object with the action arguments. Use {} when there are none.')->required(),
         ];
     }
@@ -82,6 +83,7 @@ final class OnboardingTools implements Tool
                 'fetch_now' => $this->fetch($run),
                 'test_decoder' => $this->test($run, $args),
                 'propose_change' => $this->proposeChange($run, $args),
+                'repropose' => $this->repropose($run, (string) ($args['proposal_uuid'] ?? $args['uuid'] ?? '')),
                 'next_step' => $this->nextStep($run, $args),
                 'read_source' => $this->source((string) ($args['source_id'] ?? '')),
                 'offer_firmware' => app(FirmwareOffers::class)->offer($run, $args),
@@ -161,6 +163,9 @@ final class OnboardingTools implements Tool
             abort_if($mismatch !== null, 422, "Do not reuse {$adapter->name}: {$mismatch} Propose mode create with a new adapter for these devices instead.");
             $proposal = $proposals->propose($run, ['kind' => 'reuse', 'device_adapter_id' => $adapter->id, 'name' => $adapter->name, 'summary' => $v['summary'], 'evidence' => $v['evidence'] ?? []]);
         } else {
+            if (isset($v['code'])) {
+                $this->testedCode($v['code']);
+            }
             $fixtures = isset($v['fixtures']) ? $proposals->fixtures($v['fixtures']) : (isset($v['code']) ? $this->tested(null, $artifact) : null);
             $proposal = $proposals->propose($run, ['kind' => 'create', 'name' => $v['name'], 'artifact_uuid' => $artifact->uuid, 'source' => $proposals->source($v['source']), 'code' => $v['code'] ?? null,
                 'fixtures' => $fixtures ?: null, 'summary' => $v['summary'], 'evidence' => $v['evidence'] ?? []]);
@@ -175,9 +180,10 @@ final class OnboardingTools implements Tool
         $current = $adapter->revisions()->where('revision', $adapter->draft_revision)->first();
 
         return ['adapter' => ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'status' => $adapter->status, 'source_type' => $adapter->source['type'] ?? null,
-            'fixtures' => count($adapter->fixtures ?? []), 'fixture_limit' => OnboardingProposals::MAX_FIXTURES, 'credentials_saved' => in_array($adapter->source['type'] ?? null, ['platform', 'webhook'], true) ? [] : collect($adapter->secrets ?? [])->filter(fn ($value) => filled($value))->keys()->values()->all()],
+            'fixtures' => count($adapter->fixtures ?? []), 'fixture_limit' => OnboardingProposals::MAX_FIXTURES, 'samples_saved' => app(OnboardingProposals::class)->savedSamples($adapter), 'credentials_saved' => in_array($adapter->source['type'] ?? null, ['platform', 'webhook'], true) ? [] : collect($adapter->secrets ?? [])->filter(fn ($value) => filled($value))->keys()->values()->all()],
             ...app(AdapterDiagnostics::class)->summary($adapter), 'counts' => app(AdapterDiagnostics::class)->counts($adapter),
             'last_test' => $current?->test_result ? ['valid' => $current->test_result['valid'] ?? false, 'tested_at' => $current->tested_at?->toIso8601String(), 'errors' => collect($current->test_result['results'] ?? [])->pluck('error')->filter()->take(5)->values()->all()] : null,
+            'pending_proposals' => app(OnboardingProposals::class)->pending($this->conversation(), $adapter),
             'discovered' => $adapter->candidates()->latest('last_seen_at')->limit(20)->get(['source_device_id', 'status', 'last_seen_at'])->toArray()];
     }
 
@@ -228,6 +234,7 @@ final class OnboardingTools implements Tool
             $args['fixtures'] ??= $args['inputs'];
             unset($args['inputs']);
         }
+        abort_unless(is_string($args['code'] ?? null) && trim($args['code']) !== '', 422, 'Pass the complete decoder to test as code (the whole decode function), with the samples it must decode as fixtures.');
         $v = Validator::make($args, ['code' => 'required|string|max:64000', 'inputs' => 'nullable|in:fixtures,samples', 'fixtures' => 'nullable|array|min:1|max:10', 'artifact_uuid' => 'nullable|uuid'])->validate();
         $artifact = $adapter?->artifact ?? (isset($v['artifact_uuid'])
             ? DeviceProfileArtifact::where('uuid', $v['artifact_uuid'])->whereHas('profile', fn ($q) => $q->where('organization_id', $conversation->organization_id))->firstOrFail()
@@ -244,12 +251,40 @@ final class OnboardingTools implements Tool
         }
         abort_if($fixtures === [], 422, 'There are no saved fixtures or captured samples yet. Pass the samples the person pasted as fixtures: [{"topic": "...", "payload": {...}}].');
         $result = app(AdapterManager::class)->request('/test', ['code' => $v['code'], 'fixtures' => array_slice($fixtures, 0, 10), 'profile' => $artifact->definition]);
+        // A decoder is proposed only after this exact code passed a test (see testedCode).
+        $conversation->update(['onboarding_state' => [...($conversation->fresh()->onboarding_state ?? []),
+            'tested_code' => ['hash' => hash('sha256', $v['code']), 'valid' => ($result['valid'] ?? false) === true, 'artifact_uuid' => $artifact->uuid]]]);
         if (! isset($v['fixtures'])) {
             return $result;
         }
         $conversation->update(['onboarding_state' => [...($conversation->fresh()->onboarding_state ?? []), 'tested' => ['adapter_uuid' => $adapter?->uuid, 'artifact_uuid' => $artifact->uuid, 'fixtures' => $fixtures, 'at' => now()->toIso8601String()]]]);
 
         return [...$result, 'note' => 'Your next decoder proposal (propose_change, or propose_adapter create with code) adds these samples as fixtures unless you pass other fixtures.'];
+    }
+
+    /**
+     * Makes an outdated change again against the current draft, in one step: the same decoder,
+     * settings and samples (its code passed a test when first proposed), and retires the old card.
+     */
+    private function repropose(AssistantRun $run, string $uuid): array
+    {
+        $this->adapter();
+        $old = AdapterProposal::where('conversation_id', $run->conversation_id)->where('uuid', $uuid)->where('status', 'pending')->where('kind', 'change')->first();
+        abort_unless($old, 422, 'No pending change with that uuid in this conversation. Use a uuid from pending_proposals.');
+        $proposals = app(OnboardingProposals::class);
+        $proposal = $proposals->renew($old, $run);
+
+        return [...$proposals->view($proposal), 'replaced' => $old->uuid,
+            'note' => 'The outdated card is gone and this card replaces it, made against the current draft. Tell the person to review and apply the new card. If the draft changed the decoder in between, this card puts the proposed decoder back: say so.'];
+    }
+
+    /** Refuses a decoder that has not passed test_decoder in this conversation, so no card offers untested code. */
+    private function testedCode(string $code): void
+    {
+        $tested = $this->conversation()->onboarding_state['tested_code'] ?? null;
+        abort_unless(is_array($tested) && hash_equals((string) ($tested['hash'] ?? ''), hash('sha256', $code)), 422,
+            'Run test_decoder with this exact code and the samples it must decode first; propose it only after every sample passes. Never tell the person what a decoder returns before a test showed it.');
+        abort_unless($tested['valid'] ?? false, 422, 'The last test of this code failed. Fix the code, test it again until every sample passes, then propose it.');
     }
 
     /** The samples last tested inline for this adapter or profile, minus those it already keeps. */
@@ -270,8 +305,20 @@ final class OnboardingTools implements Tool
         $adapter = $this->adapter();
         $proposals = app(OnboardingProposals::class);
         $args['evidence'] = $this->evidence($args['evidence'] ?? null);
-        $v = Validator::make($args, ['summary' => 'required|string|max:1000', 'code' => 'nullable|string|max:64000', 'source' => 'nullable|array', 'fixtures' => 'nullable|array|max:10', 'evidence' => 'present|array'])->validate();
-        abort_if(! isset($v['code']) && ! isset($v['source']) && ! isset($v['fixtures']), 422, 'Propose a decoder, source settings or fixtures.');
+        $v = Validator::make($args, ['summary' => 'required|string|max:1000', 'code' => 'nullable|string|max:64000', 'source' => 'nullable|array', 'fixtures' => 'nullable|array|max:10', 'remove_fixtures' => 'nullable|array|max:10', 'remove_fixtures.*' => 'integer|min:1', 'evidence' => 'present|array'])->validate();
+        abort_if(! isset($v['code']) && ! isset($v['source']) && ! isset($v['fixtures']) && ! isset($v['remove_fixtures']), 422, 'Propose a decoder, source settings or fixtures.');
+        if (isset($v['code'])) {
+            $this->testedCode($v['code']);
+        }
+        $saved = array_values($adapter->fixtures ?? []);
+        $removed = null;
+        if (isset($v['remove_fixtures'])) {
+            $numbers = array_values(array_unique($v['remove_fixtures']));
+            foreach ($numbers as $n) {
+                abort_unless(isset($saved[$n - 1]), 422, "{$adapter->name} has no saved sample {$n}; it keeps ".count($saved).'. Use the numbers n from samples_saved in status.');
+            }
+            $removed = array_map(fn ($n) => $saved[$n - 1], $numbers);
+        }
         foreach ($v['evidence'] ?? [] as $entry) {
             abort_if(isset($entry['source_id']) && ! $run->conversation->sources()->whereKey($entry['source_id'])->exists(), 422, 'The cited source is unavailable.');
         }
@@ -286,19 +333,23 @@ final class OnboardingTools implements Tool
         if (isset($v['fixtures'])) {
             $fixtures = $proposals->fixtures($v['fixtures']);
             // Applying merges these into the adapter's fixtures; refuse now rather than leave the person a proposal that cannot apply.
-            $total = count($proposals->merged($adapter, $fixtures));
-            abort_if($total > $limit, 422, "{$adapter->name} keeps {$kept} of at most {$limit} fixtures, and these would make {$total}. "
-                .'Propose the decoder or source without fixtures, or tell the person which saved samples to remove from Sample fixtures on the Decoder tab first. There is no admin action that raises the limit.');
+            $total = count($proposals->merged($adapter, $fixtures, $removed));
+            abort_if($total > $limit, 422, "{$adapter->name} keeps {$kept} of at most {$limit} fixtures, and this change would leave {$total}. "
+                .'Call propose_change again now, in this same turn, with remove_fixtures listing the numbers n of saved samples (status samples_saved) that the new ones make redundant, such as older samples of the same shape. Do not ask the person first: the card shows both lists and applying it is their approval. Then tell them which samples the card swaps and why. There is no admin action that raises the limit.');
         } else {
             $fixtures = isset($v['code']) ? $this->tested($adapter, $adapter->artifact) : null;
             // Samples carried over from an inline test are a convenience: leave them out when they would not fit.
-            if ($fixtures && count($proposals->merged($adapter, $fixtures)) > $limit) {
+            if ($fixtures && count($proposals->merged($adapter, $fixtures, $removed)) > $limit) {
                 $fixtures = null;
-                $note = "The tested samples were not added: {$adapter->name} already keeps {$kept} of at most {$limit} fixtures.";
+                $note = "The tested samples were not added: {$adapter->name} keeps {$kept} of at most {$limit} fixtures. To keep them, propose again with these samples as fixtures and remove_fixtures naming saved samples they replace.";
             }
         }
         $proposal = $proposals->propose($run, ['kind' => 'change', 'device_adapter_id' => $adapter->id, 'draft_revision' => $adapter->draft_revision, 'code' => $v['code'] ?? null, 'source' => $source,
-            'fixtures' => $fixtures ?: null, 'summary' => $v['summary'], 'evidence' => $v['evidence'] ?: [['origin' => 'suggested', 'note' => 'Review against the vendor documentation and the samples.']]]);
+            'fixtures' => $fixtures ?: null, 'removed_fixtures' => $removed ?: null, 'summary' => $v['summary'], 'evidence' => $v['evidence'] ?: [['origin' => 'suggested', 'note' => 'Review against the vendor documentation and the samples.']]]);
+
+        if ($removed) {
+            $note = trim(($note ?? '').' The card swaps out saved samples '.implode(', ', array_map(fn ($fixture) => $fixture['topic'] ?? 'without a topic', $removed)).': name them to the person and say why.');
+        }
 
         return [...$proposals->view($proposal), 'note' => trim('Shown to the person for review. Applying it saves a new draft revision; tests and deployment stay with them. '.($note ?? ''))];
     }

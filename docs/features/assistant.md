@@ -89,15 +89,21 @@ fixtures together. A proposal is a card in the chat; **Review** opens its code,
 settings and samples beside the current draft. Applying a proposal saves one draft
 revision, and applying a new adapter opens its workbench beside the panel. A change is
 pinned to the draft revision it was made against: once the draft moves on (a save, or
-another applied proposal), its card says so and only **Dismiss** stays on, and
+another applied proposal), its card says so and Apply turns off. **Make it for the
+current draft** on the card makes the same change again against today's draft and
+retires the old card; the assistant does the same with its `repropose` action, since
+it sees each pending card and whether it is outdated. **Dismiss** stays on, and
 **Dismiss outdated proposals** clears several at once. Dismissing an outdated change
-does not ask the assistant to reply (dismissing a current one does), so several can be
-cleared in a row; ask for a new proposal against the current draft. An adapter keeps at most 10 sample fixtures. The assistant's status
-reports the count and the limit, and a proposal whose fixtures would take the adapter
-past 10 is refused before it is shown (samples carried over from an inline test are
-left out instead, so the decoder can still be proposed); the assistant then proposes
-code only or names the samples to remove. Proposals have no admin action: the person
-decides each one. Credentials and
+does not ask the assistant to reply (dismissing a current one does).
+
+An adapter keeps at most 10 sample fixtures. The assistant sees every saved sample by
+number (topic and the start of its payload). A change that would take the adapter past
+10 is refused before it is shown; the assistant then proposes the same change with
+`remove_fixtures`, swapping out saved samples the new ones make redundant, and the card
+and **Review** list both what is added and what is removed. Applying the card is the
+person's approval. Samples carried over from an inline test that would not fit are left
+out instead. A decoder is proposed only after that exact code passed a test in the
+conversation. Proposals have no admin action: the person decides each one. Credentials and
 webhook secrets go in the form, never the chat; the assistant never sees them and
 does not repeat text that looks like one. Running the gating test, deploying,
 activating devices and resetting a cursor stay with the person; the assistant offers

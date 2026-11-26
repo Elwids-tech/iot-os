@@ -323,6 +323,8 @@ final class HttpAdapterSourcesTest extends TestCase
         $call = fn (string $action, array $args = []) => json_decode((string) $tool->handle(new Request(['action' => $action, 'arguments_json' => json_encode($args)])), true);
         $fetched = $call('fetch_now');
         $this->assertSame(200, $fetched['status']);
+        // A decoder is proposed only after the same code passed a test.
+        $this->assertTrue($call('test_decoder', ['code' => $this->code(), 'fixtures' => [['source' => 'poll', 'payload' => ['id' => 'TRK-1001-1', 'deviceId' => 'TRK-1001', 'flow' => 1, 'timestamp' => '2026-10-27T09:12:00Z']]]])['valid']);
         $change = $call('propose_change', ['summary' => 'Records are under /data', 'code' => $this->code(), 'fixtures' => [['source' => 'poll', 'payload' => ['id' => 'TRK-1001-1', 'deviceId' => 'TRK-1001', 'flow' => 1, 'timestamp' => '2026-10-27T09:12:00Z']]]]);
         $this->assertSame('change', $change['kind']);
         $this->assertArrayHasKey('error', $call('propose_change', ['summary' => 'Switch to webhooks', 'source' => ['type' => 'webhook', 'auth' => ['mode' => 'url']]]));

@@ -314,6 +314,17 @@ final class AssistantController
         return response()->json(['data' => [...$result, 'run' => $run ? $this->runData($run) : null, 'notice' => $notice]]);
     }
 
+    /** Makes an outdated onboarding change again against the adapter's current draft and retires the old card. */
+    public function renewAdapterProposal(Request $request, Organization $organization, AssistantConversation $conversation, AdapterProposal $adapterProposal)
+    {
+        $this->access->conversation($request->user(), $organization, $conversation);
+        abort_unless($conversation->scope === 'onboarding' && $adapterProposal->conversation_id === $conversation->id && $adapterProposal->user_id === $request->user()->id, 404);
+        abort_if($conversation->runs()->whereIn('status', ['queued', 'running'])->exists(), 409, 'Wait for the current response before deciding.');
+        $proposals = app(OnboardingProposals::class);
+
+        return response()->json(['data' => $proposals->view($proposals->renew($adapterProposal))]);
+    }
+
     public function cancel(Request $request, Organization $organization, AssistantConversation $conversation, AssistantRun $run)
     {
         $this->access->conversation($request->user(), $organization, $conversation);
