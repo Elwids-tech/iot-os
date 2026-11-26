@@ -175,7 +175,7 @@ final class OnboardingTools implements Tool
         $current = $adapter->revisions()->where('revision', $adapter->draft_revision)->first();
 
         return ['adapter' => ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'status' => $adapter->status, 'source_type' => $adapter->source['type'] ?? null,
-            'fixtures' => count($adapter->fixtures ?? []), 'credentials_saved' => in_array($adapter->source['type'] ?? null, ['platform', 'webhook'], true) ? [] : collect($adapter->secrets ?? [])->filter(fn ($value) => filled($value))->keys()->values()->all()],
+            'fixtures' => count($adapter->fixtures ?? []), 'fixture_limit' => OnboardingProposals::MAX_FIXTURES, 'credentials_saved' => in_array($adapter->source['type'] ?? null, ['platform', 'webhook'], true) ? [] : collect($adapter->secrets ?? [])->filter(fn ($value) => filled($value))->keys()->values()->all()],
             ...app(AdapterDiagnostics::class)->summary($adapter), 'counts' => app(AdapterDiagnostics::class)->counts($adapter),
             'last_test' => $current?->test_result ? ['valid' => $current->test_result['valid'] ?? false, 'tested_at' => $current->tested_at?->toIso8601String(), 'errors' => collect($current->test_result['results'] ?? [])->pluck('error')->filter()->take(5)->values()->all()] : null,
             'discovered' => $adapter->candidates()->latest('last_seen_at')->limit(20)->get(['source_device_id', 'status', 'last_seen_at'])->toArray()];
@@ -280,11 +280,27 @@ final class OnboardingTools implements Tool
         // A live adapter keeps reading where its devices are: another account or topic is another adapter.
         abort_if($source && $adapter->applied_revision_uuid !== null && ! $this->sourceCovers($source, $adapter->source ?? []), 422,
             "{$adapter->name} is live and its devices depend on where it reads. Do not repoint it; propose_adapter with mode create for the other account, endpoint or topics.");
-        $fixtures = isset($v['fixtures']) ? $proposals->fixtures($v['fixtures']) : (isset($v['code']) ? $this->tested($adapter, $adapter->artifact) : null);
+        $kept = count($adapter->fixtures ?? []);
+        $limit = OnboardingProposals::MAX_FIXTURES;
+        $note = null;
+        if (isset($v['fixtures'])) {
+            $fixtures = $proposals->fixtures($v['fixtures']);
+            // Applying merges these into the adapter's fixtures; refuse now rather than leave the person a proposal that cannot apply.
+            $total = count($proposals->merged($adapter, $fixtures));
+            abort_if($total > $limit, 422, "{$adapter->name} keeps {$kept} of at most {$limit} fixtures, and these would make {$total}. "
+                .'Propose the decoder or source without fixtures, or tell the person which saved samples to remove from Sample fixtures on the Decoder tab first. There is no admin action that raises the limit.');
+        } else {
+            $fixtures = isset($v['code']) ? $this->tested($adapter, $adapter->artifact) : null;
+            // Samples carried over from an inline test are a convenience: leave them out when they would not fit.
+            if ($fixtures && count($proposals->merged($adapter, $fixtures)) > $limit) {
+                $fixtures = null;
+                $note = "The tested samples were not added: {$adapter->name} already keeps {$kept} of at most {$limit} fixtures.";
+            }
+        }
         $proposal = $proposals->propose($run, ['kind' => 'change', 'device_adapter_id' => $adapter->id, 'draft_revision' => $adapter->draft_revision, 'code' => $v['code'] ?? null, 'source' => $source,
             'fixtures' => $fixtures ?: null, 'summary' => $v['summary'], 'evidence' => $v['evidence'] ?: [['origin' => 'suggested', 'note' => 'Review against the vendor documentation and the samples.']]]);
 
-        return [...$proposals->view($proposal), 'note' => 'Shown to the person for review. Applying it saves a new draft revision; tests and deployment stay with them.'];
+        return [...$proposals->view($proposal), 'note' => trim('Shown to the person for review. Applying it saves a new draft revision; tests and deployment stay with them. '.($note ?? ''))];
     }
 
     /** Where a source reads from, without secrets: the topics, broker, endpoint and account it is tied to. */

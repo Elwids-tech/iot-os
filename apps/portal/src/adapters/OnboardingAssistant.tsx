@@ -437,6 +437,24 @@ export default function OnboardingAssistantBody({
       setBusy(false);
     }
   }
+  async function dismissOutdated(proposals: OnboardingProposal[]) {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      for (const proposal of proposals)
+        await api.decideOnboardingProposal(org, selected, proposal.uuid, {
+          action: "reject",
+          content_hash: proposal.content_hash,
+          request_id: requestId(proposal.uuid + ":reject"),
+        });
+      await refresh();
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function decideSection(proposal: AssistantProposal, decision: "approve" | "reject") {
     if (!selected) return;
     if (decision === "approve" && dirty)
@@ -458,8 +476,16 @@ export default function OnboardingAssistantBody({
     state?.next_step && state.next_step.adapter_uuid === boundAdapter && !stepDone(state.next_step.step)
       ? state.next_step
       : null;
-  const changeBlocked = (proposal: OnboardingProposal) =>
-    proposal.kind === "change" && (dirty || proposal.draft_revision !== adapter?.draft_revision);
+  // A change is pinned to the draft revision it was made against: it can't be applied once the draft moves on,
+  // but it can always be dismissed.
+  const stale = (proposal: OnboardingProposal) =>
+    proposal.kind === "change" && proposal.draft_revision !== adapter?.draft_revision;
+  const changeBlocked = (proposal: OnboardingProposal) => proposal.kind === "change" && (dirty || stale(proposal));
+  const blockedBy = (proposal: OnboardingProposal): "dirty" | "stale" | null =>
+    changeBlocked(proposal) ? (dirty ? "dirty" : "stale") : null;
+  const outdated = (data?.adapter_proposals ?? []).filter(
+    (item) => adapter !== undefined && item.status === "pending" && stale(item),
+  );
 
   // The conversation, with decided proposals as markers in time order and what waits on the person last.
   const items: { id: string; at: number; anchor?: boolean; content: ReactNode }[] = [];
@@ -684,7 +710,8 @@ export default function OnboardingAssistantBody({
           <AdapterProposalCard
             org={org}
             proposal={proposal}
-            disabled={busy || active || !canEdit || changeBlocked(proposal)}
+            disabled={busy || active || !canEdit}
+            blocked={blockedBy(proposal)}
             onReview={() => setAdapterReview(proposal)}
             onDecide={(action) => void decide(proposal, action)}
           />
@@ -895,6 +922,21 @@ export default function OnboardingAssistantBody({
               Save or discard your edits on the page before applying a proposal.
             </p>
           )}
+          {outdated.length > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-meta text-muted-foreground">
+                {outdated.length} proposals were made against an older draft.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || active || !canEdit}
+                onClick={() => void dismissOutdated(outdated)}
+              >
+                Dismiss outdated proposals
+              </Button>
+            </div>
+          )}
           {sources.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {data?.sources
@@ -1012,8 +1054,8 @@ export default function OnboardingAssistantBody({
           proposal={adapterReview}
           adapter={adapter}
           busy={busy}
-          disabled={busy || active || !canEdit || changeBlocked(adapterReview)}
-          blocked={changeBlocked(adapterReview) ? (dirty ? "dirty" : "stale") : null}
+          disabled={busy || active || !canEdit}
+          blocked={blockedBy(adapterReview)}
           onClose={() => setAdapterReview(null)}
           onDecide={(action) => void decide(adapterReview, action)}
         />
@@ -1136,12 +1178,16 @@ function AdapterProposalCard({
   org,
   proposal,
   disabled,
+  blocked,
   onReview,
   onDecide,
 }: {
   org: string;
   proposal: OnboardingProposal;
+  /** Turns off both Apply and Dismiss. */
   disabled: boolean;
+  /** Why Apply alone is off: unsaved edits on the page, or a draft that moved on since the proposal. */
+  blocked: "dirty" | "stale" | null;
   onReview: () => void;
   onDecide: (action: "apply" | "reject") => void;
 }) {
@@ -1182,13 +1228,18 @@ function AdapterProposalCard({
           Review
         </Button>
       ) : (
-        <Button size="sm" disabled={disabled} onClick={() => onDecide("apply")}>
+        <Button size="sm" disabled={disabled || blocked !== null} onClick={() => onDecide("apply")}>
           {applyLabel(proposal)}
         </Button>
       )}
       <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onDecide("reject")}>
         Dismiss
       </Button>
+      {blocked === "stale" && (
+        <p className="w-full text-meta text-muted-foreground">
+          The adapter draft changed after this proposal. Ask for a new one, and dismiss this one.
+        </p>
+      )}
     </ActionCard>
   );
 }
@@ -1208,7 +1259,9 @@ function AdapterProposalReview({
   proposal: OnboardingProposal;
   adapter?: DeviceAdapter;
   busy: boolean;
+  /** Turns off both Apply and Dismiss. */
   disabled: boolean;
+  /** Why Apply alone is off. */
   blocked: "dirty" | "stale" | null;
   onClose: () => void;
   onDecide: (action: "apply" | "reject") => void;
@@ -1255,7 +1308,7 @@ function AdapterProposalReview({
               <AlertDescription>
                 {blocked === "dirty"
                   ? "Save or discard your edits on the adapter before applying this change."
-                  : "The draft changed since this was proposed. Ask the assistant to update the proposal."}
+                  : "The adapter draft changed after this proposal. Ask for a new one, and dismiss this one."}
               </AlertDescription>
             </Alert>
           )}
@@ -1282,7 +1335,7 @@ function AdapterProposalReview({
           <Button variant="outline" disabled={disabled} onClick={() => onDecide("reject")}>
             Dismiss proposal
           </Button>
-          <Button disabled={disabled} onClick={() => onDecide("apply")}>
+          <Button disabled={disabled || blocked !== null} onClick={() => onDecide("apply")}>
             {applyLabel(proposal)}
           </Button>
         </DialogFooter>

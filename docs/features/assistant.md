@@ -87,7 +87,17 @@ itself (read-only, within the adapter's 6-a-minute limit), tests decoder code ag
 samples, and proposes one change at a time: decoder, non-secret source settings and
 fixtures together. A proposal is a card in the chat; **Review** opens its code,
 settings and samples beside the current draft. Applying a proposal saves one draft
-revision, and applying a new adapter opens its workbench beside the panel. Credentials and
+revision, and applying a new adapter opens its workbench beside the panel. A change is
+pinned to the draft revision it was made against: once the draft moves on (a save, or
+another applied proposal), its card says so and only **Dismiss** stays on, and
+**Dismiss outdated proposals** clears several at once. Dismissing an outdated change
+does not ask the assistant to reply (dismissing a current one does), so several can be
+cleared in a row; ask for a new proposal against the current draft. An adapter keeps at most 10 sample fixtures. The assistant's status
+reports the count and the limit, and a proposal whose fixtures would take the adapter
+past 10 is refused before it is shown (samples carried over from an inline test are
+left out instead, so the decoder can still be proposed); the assistant then proposes
+code only or names the samples to remove. Proposals have no admin action: the person
+decides each one. Credentials and
 webhook secrets go in the form, never the chat; the assistant never sees them and
 does not repeat text that looks like one. Running the gating test, deploying,
 activating devices and resetting a cursor stay with the person; the assistant offers

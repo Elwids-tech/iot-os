@@ -26,6 +26,9 @@ use Illuminate\Support\Str;
  */
 final class OnboardingProposals
 {
+    /** How many fixtures an adapter keeps (the same limit as a save). */
+    public const MAX_FIXTURES = 10;
+
     public const STARTER = "function decode(input) {\n  const p = input.payload;\n  return {\n    sourceDeviceId: String(p.deviceId),\n    metrics: [],\n  };\n}";
 
     public function list(AssistantConversation $conversation): array
@@ -63,6 +66,19 @@ final class OnboardingProposals
         }
 
         return array_values($fixtures);
+    }
+
+    /** The adapter's fixtures with the proposed ones added, as applying the proposal saves them. */
+    public function merged(DeviceAdapter $adapter, ?array $proposed): array
+    {
+        $fixtures = $adapter->fixtures ?? [];
+        foreach ($proposed ?? [] as $fixture) {
+            if (! in_array($fixture, $fixtures, true)) {
+                $fixtures[] = $fixture;
+            }
+        }
+
+        return $fixtures;
     }
 
     public function source(array $source): array
@@ -103,13 +119,8 @@ final class OnboardingProposals
                 $adapter = DeviceAdapter::where('organization_id', $organization->id)->whereKey($p->device_adapter_id)->firstOrFail();
                 $authorization->authorize($user, DevicePermission::MANAGE, $organization, $adapter);
                 $authorization->authorize($user, DevicePermission::CONNECTIONS, $organization);
-                $fixtures = $adapter->fixtures ?? [];
-                foreach ($p->fixtures ?? [] as $fixture) {
-                    if (! in_array($fixture, $fixtures, true)) {
-                        $fixtures[] = $fixture;
-                    }
-                }
-                abort_if(count($fixtures) > 10, 422, 'An adapter keeps at most 10 fixtures. Remove some before applying.');
+                $fixtures = $this->merged($adapter, $p->fixtures);
+                abort_if(count($fixtures) > self::MAX_FIXTURES, 422, 'An adapter keeps at most '.self::MAX_FIXTURES.' fixtures. Remove some before applying.');
                 $saved = $service->save($organization, ['name' => $adapter->name, 'artifact_uuid' => $adapter->artifact->uuid, 'code' => $p->code ?? $adapter->code, 'fixtures' => $fixtures, 'source' => $p->source ?? $adapter->source], $user->id, $adapter, $p->draft_revision);
             }
             $p->status = 'applied';
