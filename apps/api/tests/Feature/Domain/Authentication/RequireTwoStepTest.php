@@ -219,7 +219,7 @@ final class RequireTwoStepTest extends TestCase
     {
         $this->acme->forceFill(['two_step_required' => true])->save();
         $site = Site::create(['organization_id' => $this->acme->id, 'name' => 'Hall', 'timezone' => 'UTC']);
-        $application = IntegrationApplication::create(['organization_id' => $this->acme->id, 'name' => 'Twin', 'abilities' => ['entities:read'], 'device_uuids' => [], 'site_uuids' => [$site->uuid]])->fresh();
+        $application = IntegrationApplication::create(['organization_id' => $this->acme->id, 'name' => 'Twin', 'abilities' => ['entities:read'], 'device_uuids' => [], 'entity_uuids' => [$site->uuid]])->fresh();
         $secret = Str::random(40);
         $token = $application->tokens()->create(['name' => 'test', 'token' => hash('sha256', $secret), 'abilities' => ['entities:read'], 'expires_at' => now()->addDay()]);
 

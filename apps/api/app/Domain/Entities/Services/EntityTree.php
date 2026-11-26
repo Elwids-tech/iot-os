@@ -161,7 +161,7 @@ final class EntityTree
             'devices' => $devices->count(),
             'devices_changing_site' => $changing->count(),
             'devices_changing_timezone' => $zoneChanges,
-            'applications' => app(ApplicationGrants::class)->siteChanges($entity->organization_id, $changing->map(fn ($device) => [(int) $device->site_id ?: null, $newSite])->values()->all()),
+            'applications' => ApplicationGrants::moveChanges($entity, $parent, $devices),
         ];
     }
 
@@ -228,7 +228,7 @@ final class EntityTree
             }
             $entity->forceFill(['archived_at' => now(), 'archived_by' => $actor->id, 'updated_by' => $actor->id])->save();
             $this->change($entity, EntityChange::ARCHIVED, $actor, []);
-            app(ApplicationGrants::class)->entityArchived($entity, $actor->id);
+            ApplicationGrants::entityArchived($entity, $actor->id);
             app(Memberships::class)->archived($entity, $actor);
             $log && ActivityLog::record('entity.archived', $organization, $actor, $entity, ['path' => $entity->path]);
 

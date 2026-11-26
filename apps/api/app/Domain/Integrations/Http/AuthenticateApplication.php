@@ -45,6 +45,8 @@ final class AuthenticateApplication
             return response()->json(['message' => 'Application rate limit exceeded.'], 429)->header('Retry-After', (string) RateLimiter::availableIn($key));
         }
         $request->attributes->set('integration_application', $application);
+        // What this request may do: the abilities both the application and its token hold.
+        $request->attributes->set('integration_abilities', array_values(array_intersect($application->abilities, $token->abilities ?? [])));
         $token->forceFill(['last_used_at' => now()])->save();
 
         // Set on the header bag so a streamed response (spec 030) carries it as JSON does.

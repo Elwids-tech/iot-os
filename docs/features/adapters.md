@@ -9,6 +9,11 @@ model is [ADR-010](../adr/ADR-010-per-tenant-adapter-runtimes.md), amended for w
 by [ADR-022](../adr/ADR-022-webhook-receiver.md); later protocols follow
 [ADR-023](../adr/ADR-023-protocol-connectors.md).
 
+Connectors that discover a site's structure, such as the OPC UA connector
+([spec 038](../../specs/038-opc-ua-connector/spec.md)), propose places in the
+organization's [hierarchy](hierarchy.md) through its hierarchy operations and never
+write its tables; the proposal is checked and applied with the same rules as the portal.
+
 Code: Laravel [`Domain/DeviceAdapters`](../../apps/api/app/Domain/DeviceAdapters);
 manager, webhook receiver and runtime [`services/adapters`](../../services/adapters); portal
 [`src/adapters`](../../apps/portal/src/adapters). Simulators:

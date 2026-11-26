@@ -9,6 +9,8 @@ use App\Domain\Devices\Models\Site;
 use App\Domain\Devices\Permissions\DevicePermission;
 use App\Domain\Devices\Services\DeviceAudit;
 use App\Domain\Devices\Services\DeviceAuthorization;
+use App\Domain\Entities\Models\Entity;
+use App\Domain\Entities\Models\EntityType;
 use App\Domain\Integrations\Models\IntegrationApplication;
 use App\Domain\Integrations\Services\ApplicationGrant;
 use App\Domain\Integrations\Services\ApplicationGrants;
@@ -118,35 +120,56 @@ final class ApplicationController
     }
 
     /**
-     * A grant is a list of 1 to 100 devices or a scope of 1 to 50 sites of the
-     * organization, never both and never neither (spec 030, FR-017). A foreign device
-     * or site is refused with the same generic message, revealing nothing (FR-022).
+     * A grant is a list of 1 to 100 devices or a scope of 1 to 50 active entities of the
+     * organization, any type, never both and never neither (spec 030, FR-017; spec 009,
+     * FR-026). `site_uuids` still names a scope of Site entities; it cannot be sent with
+     * `entity_uuids`. A foreign device or entity is refused with the same generic message,
+     * revealing nothing (FR-022).
+     *
+     * @return array{name: string, abilities: list<string>, device_uuids: list<string>, entity_uuids: list<string>}
      */
     private function grants(Request $request, Organization $organization): array
     {
         $input = $request->validate(['name' => 'required|string|max:255', 'abilities' => 'required|array|min:1|max:10', 'abilities.*' => ['required', 'string', 'distinct', Rule::in(self::ABILITIES)],
             'device_uuids' => 'sometimes|array|max:100', 'device_uuids.*' => 'required|uuid|distinct',
+            'entity_uuids' => 'sometimes|array|max:50', 'entity_uuids.*' => 'required|uuid|distinct',
             'site_uuids' => 'sometimes|array|max:50', 'site_uuids.*' => 'required|uuid|distinct']);
-        $input['device_uuids'] = array_values(array_map('strtolower', $input['device_uuids'] ?? []));
-        $input['site_uuids'] = array_values(array_map('strtolower', $input['site_uuids'] ?? []));
-        if (($input['device_uuids'] === []) === ($input['site_uuids'] === [])) {
-            throw ValidationException::withMessages(['device_uuids' => 'Grant either a list of devices or a scope of sites: exactly one of device_uuids and site_uuids must be non-empty.']);
+        $devices = array_values(array_map('strtolower', $input['device_uuids'] ?? []));
+        $entities = array_values(array_map('strtolower', $input['entity_uuids'] ?? []));
+        $sites = array_values(array_map('strtolower', $input['site_uuids'] ?? []));
+        if ($entities !== [] && $sites !== []) {
+            throw ValidationException::withMessages(['entity_uuids' => 'Send the scope as entity_uuids or as site_uuids, not both.']);
         }
-        abort_unless(count(array_unique($input['device_uuids'])) === count($input['device_uuids']) && Device::where('organization_id', $organization->id)->whereIn('uuid', $input['device_uuids'])->count() === count($input['device_uuids']), 422, 'Every device must belong to this organization.');
-        abort_unless(count(array_unique($input['site_uuids'])) === count($input['site_uuids']) && Site::where('organization_id', $organization->id)->whereIn('uuid', $input['site_uuids'])->count() === count($input['site_uuids']), 422, 'Every site must belong to this organization.');
+        $scope = $entities !== [] ? $entities : $sites;
+        if (($devices === []) === ($scope === [])) {
+            throw ValidationException::withMessages(['device_uuids' => 'Grant either a list of devices or a scope of entities: exactly one of device_uuids and entity_uuids must be non-empty.']);
+        }
+        abort_unless(count(array_unique($devices)) === count($devices) && Device::where('organization_id', $organization->id)->whereIn('uuid', $devices)->count() === count($devices), 422, 'Every device must belong to this organization.');
+        if ($sites !== []) {
+            abort_unless(count(array_unique($sites)) === count($sites) && Site::where('organization_id', $organization->id)->whereIn('uuid', $sites)->count() === count($sites), 422, 'Every site must belong to this organization.');
+        } else {
+            abort_unless(count(array_unique($entities)) === count($entities) && Entity::query()->where('organization_id', $organization->id)->whereNull('archived_at')->whereIn('uuid', $entities)->count() === count($entities), 422, 'Every entity must belong to this organization.');
+        }
 
-        return $input;
+        return ['name' => $input['name'], 'abilities' => $input['abilities'], 'device_uuids' => $devices, 'entity_uuids' => $scope];
     }
 
     private function view(IntegrationApplication $app): array
     {
         $grant = ApplicationGrants::for($app);
+        $entities = Entity::query()->where('entities.organization_id', $app->organization_id)->whereIn('entities.uuid', $app->entity_uuids ?? [])
+            ->join('entity_types', 'entity_types.id', '=', 'entities.entity_type_id')->orderBy('entities.path')
+            ->get(['entities.uuid', 'entities.name', 'entities.path', 'entity_types.key as type_key']);
+        // For readers of site scopes: the same scope as sites while every entity in it is a Site.
+        $sites = $entities->every(fn (Entity $entity) => $entity->type_key === EntityType::SITE);
 
         return [...$app->only(['uuid', 'name', 'abilities', 'device_uuids', 'revision', 'grant_revision', 'revoked_at']),
-            'site_uuids' => $app->site_uuids ?? [],
-            // The named devices of a list; a scope names sites and its devices are read live.
+            'entity_uuids' => $app->entity_uuids ?? [],
+            'entities' => $entities->map(fn (Entity $entity) => $entity->only(['uuid', 'name', 'path', 'type_key']))->values(),
+            'site_uuids' => $sites ? ($app->entity_uuids ?? []) : null,
+            'sites' => $sites ? $entities->sortBy('name')->map(fn (Entity $entity) => $entity->only(['uuid', 'name']))->values() : null,
+            // The named devices of a list; a scope names entities and its devices are read live.
             'devices' => $grant->kind() === ApplicationGrant::DEVICES ? $grant->deviceQuery()->get(['uuid', 'name', 'code']) : [],
-            'sites' => Site::where('organization_id', $app->organization_id)->whereIn('uuid', $app->site_uuids ?? [])->orderBy('name')->get(['uuid', 'name']),
             'credential' => $app->tokens()->latest('id')->first()?->only(['abilities', 'expires_at'])];
     }
 }

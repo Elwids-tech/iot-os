@@ -3,6 +3,7 @@
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\Integrations\Http\ApplicationController;
 use App\Domain\Integrations\Http\AuthenticateApplication;
+use App\Domain\Integrations\Http\EntityReadController;
 use App\Domain\Integrations\Http\EventController;
 use App\Domain\Integrations\Http\GeospatialController;
 use App\Domain\Integrations\Http\LocationController;
@@ -47,4 +48,5 @@ Route::prefix('integration/v1/organizations/{organization}')->whereUuid(['organi
     Route::get('alerts', [ReadController::class, 'alerts'])->middleware(AuthenticateApplication::class.':alerts:read');
     Route::get('alerts/{uuid}', [ReadController::class, 'alert'])->middleware(AuthenticateApplication::class.':alerts:read');
     Route::get('sites', [SiteReadController::class, 'sites'])->middleware(AuthenticateApplication::class.':entities:read');
+    Route::get('entities', [EntityReadController::class, 'entities'])->middleware(AuthenticateApplication::class.':entities:read');
 });

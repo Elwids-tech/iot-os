@@ -181,13 +181,14 @@ sites table goes; lasting docs move out of the spec.
 
 **Independent Test**: [quickstart H](quickstart.md#h-applications-follow-entities-pr-8).
 
-- [ ] T071 Create the migration renaming `integration_applications.site_uuids` to `entity_uuids` and update api/Integrations/Models/IntegrationApplication.php, ApplicationController.php (`entity_uuids`, `site_uuids` alias) and ApplicationGrant.php per [contracts/integration.md](contracts/integration.md)
-- [ ] T072 Create `GET entities` under `entities:read` and add `entity` and `points` to the device read in api/Integrations; describe them in contracts/openapi/supplements/integration.yaml; add `entities()` and `Device.points` to packages/integration-sdk
-- [ ] T073 apps/portal/src/integrations/Integrations.tsx: entity scopes with EntityPicker; the `entities:read` label reads "Hierarchy"
-- [ ] T074 [P] Tests in contracts/integration.md's list
-- [ ] T075 Create the migration dropping `legacy_sites`, at least one release after PR 2 reached the pilot
-- [ ] T076 [P] Write docs/features/hierarchy.md; update docs/features/devices.md, docs/features/integrations.md (grants by entity) and docs/features/adapters.md's pointer for spec 038
+- [x] T071 Create the migration renaming `integration_applications.site_uuids` to `entity_uuids` and update api/Integrations/Models/IntegrationApplication.php, ApplicationController.php (`entity_uuids`, `site_uuids` alias) and ApplicationGrant.php per [contracts/integration.md](contracts/integration.md)
+- [x] T072 Create `GET entities` under `entities:read` and add `entity` and `points` to the device read in api/Integrations; describe them in contracts/openapi/supplements/integration.yaml; add `entities()` and `Device.points` to packages/integration-sdk
+- [x] T073 apps/portal/src/integrations/Integrations.tsx: entity scopes with EntityPicker; the `entities:read` label reads "Hierarchy"
+- [x] T074 [P] Tests in contracts/integration.md's list
+- [ ] T075 Create the migration dropping `legacy_sites`, at least one release after PR 2 reached the pilot (left out of PR 8: the pilot had not yet run PR 2 when PR 8 merged, so this lands in a small last pull request with the freeze)
+- [x] T076 [P] Write docs/features/hierarchy.md; update docs/features/devices.md, docs/features/integrations.md (grants by entity) and docs/features/adapters.md's pointer for spec 038
 - [ ] T077 Rebuild the API family and the portal, run [quickstart H](quickstart.md#h-applications-follow-entities-pr-8) and `tooling/verify-integration-sdk.mjs`; freeze this folder
+  (PR 8: rebuilt and quickstart H passed on 2026-11-26; `verify-integration-sdk.php` no longer runs since users moved to Passport tokens in spec 004, so the SDK was checked by its tests and the same reads over HTTP; the freeze waits for T075)
 
 ---
 

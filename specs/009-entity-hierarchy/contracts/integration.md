@@ -11,11 +11,11 @@ re-resolution, and a scope change bumps `grant_revision`. The owner chose this o
 organization, any type) or the existing `site_uuids` (Site-type entities only), never
 both, and never with `device_uuids`. The view returns `entities: [{uuid, name, path,
 type_key}]` and, for compatibility, `site_uuids` and `sites` when every scoped entity is
-a Site entity.
+a Site entity, else null.
 
 ## Reads under `entities:read`
 
-`GET entities?page=` lists what the application may see: each scoped entity's branch
+`GET entities?cursor=` lists what the application may see: each scoped entity's branch
 and the ancestors of each scoped entity (a device-list grant: the anchors of its
 devices and their ancestors). 100 a page, ordered by path.
 

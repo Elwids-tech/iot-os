@@ -709,14 +709,18 @@ export type * from "./help"
 export type IntegrationAbility = "devices:read" | "alerts:read" | "events:read" | "telemetry:read" | "locations:read" | "geofences:read" | "geofences:manage" | "geofences:activate" | "entities:read" | "telemetry:stream"
 export interface IntegrationApplication {
   uuid: string; name: string; abilities: IntegrationAbility[];
-  /** A grant is a device list or a scope of sites, never both (spec 030): exactly one is non-empty. */
-  device_uuids: string[]; site_uuids: string[];
+  /** A grant is a device list or a scope of entities, never both (spec 030, spec 009 FR-026): exactly one is non-empty. */
+  device_uuids: string[]; entity_uuids: string[];
   revision: number; grant_revision: number; revoked_at: string | null;
   devices: {uuid: string; name: string; code: string}[];
-  sites: {uuid: string; name: string}[];
+  /** The scoped entities, by path. */
+  entities: {uuid: string; name: string; path: string; type_key: string}[];
+  /** The scope as sites while every scoped entity is a Site, else null (for readers of site scopes). */
+  site_uuids: string[] | null;
+  sites: {uuid: string; name: string}[] | null;
   credential: { abilities: IntegrationAbility[]; expires_at: string } | null;
 }
-export type IntegrationGrants = Pick<IntegrationApplication, "name" | "abilities" | "device_uuids" | "site_uuids">
+export type IntegrationGrants = Pick<IntegrationApplication, "name" | "abilities" | "device_uuids" | "entity_uuids">
 export interface IntegrationWebhook {
   uuid: string; url: string; revision: number; enabled: boolean; diagnostic: string | null; grant_revision: number;
 }
