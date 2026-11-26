@@ -36,6 +36,7 @@ final class ListAlerts extends AgentTool
             'kind' => $schema->string()->enum(Alert::KINDS)->description('Only alerts of this kind; device_offline, gateway_offline and connection_lost are offline alerts.'),
             'device_uuid' => $schema->string()->format('uuid'),
             'site_uuid' => $schema->string()->format('uuid')->description('A site from list_sites: alerts of devices whose nearest site in the hierarchy is that one.'),
+            'entity_uuid' => $schema->string()->format('uuid')->description('The UUID of a hierarchy entity: alerts of devices placed anywhere in its coverage (its branch and the branches of its current members).'),
             'workflow_uuid' => $schema->string()->format('uuid'),
             'cursor' => $schema->string(),
             'limit' => $schema->integer()->min(1)->max(50)->default(20),
@@ -49,6 +50,7 @@ final class ListAlerts extends AgentTool
             'kind' => ['nullable', Rule::in(Alert::KINDS)],
             'device_uuid' => ['nullable', 'uuid'],
             'site_uuid' => ['nullable', 'uuid'],
+            'entity_uuid' => ['nullable', 'uuid'],
             'workflow_uuid' => ['nullable', 'uuid'],
             'cursor' => ['nullable', 'string', 'max:20', 'regex:/^[1-9][0-9]*$/'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
@@ -60,6 +62,7 @@ final class ListAlerts extends AgentTool
             'condition' => $input['condition'] ?? 'active',
             'device' => $input['device_uuid'] ?? null,
             'site' => $input['site_uuid'] ?? null,
+            'entity' => $input['entity_uuid'] ?? null,
             'workflow' => $input['workflow_uuid'] ?? null,
             'kind' => isset($input['kind']) ? [$input['kind']] : null,
         ]))->orderByDesc('automation_alerts.id')->paginate((int) ($input['limit'] ?? 20), ['automation_alerts.*'], 'page', $page);

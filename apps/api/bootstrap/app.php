@@ -24,6 +24,7 @@ use App\Domain\DeviceAdapters\Console\PruneAdapterRecords;
 use App\Domain\DeviceAdapters\Console\TimestampAudit;
 use App\Domain\DeviceProfiles\Exceptions\ProfileDraftConflictException;
 use App\Domain\DeviceProfiles\Exceptions\ProfileValidationException;
+use App\Domain\Entities\Console\SeedScale;
 use App\Domain\Firmware\Console\StarterFixtures;
 use App\Domain\Help\Console\ValidateHelp;
 use App\Domain\Integrations\Console\WebhookWorker;
@@ -45,7 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class, PruneKeptSignIns::class, ResetTwoStepCommand::class, PruneSignUps::class, PruneBrandAssets::class, CheckPortalAddresses::class, ServingName::class])
+    ->withCommands([StarterFixtures::class, WebhookWorker::class, AutomationWorker::class, PruneAlertNotifications::class, ValidateHelp::class, PruneAgents::class, ExportToolCatalogue::class, PruneAdapterRecords::class, TimestampAudit::class, PruneBilling::class, RecordDevicePeaks::class, RetentionWarnings::class, DraftInvoices::class, PaymentReminders::class, EndTrials::class, PruneKeptSignIns::class, ResetTwoStepCommand::class, PruneSignUps::class, PruneBrandAssets::class, CheckPortalAddresses::class, ServingName::class, SeedScale::class])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         // Keep me signed in (spec 033, R11): after Sanctum has started the session, and

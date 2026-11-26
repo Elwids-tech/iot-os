@@ -30,7 +30,7 @@ final class PointController
      *
      * @return array{data: list<array{leaf_name: string, path: string, relative_path: string, device: array{uuid: string, name: string}, parameter: array{uuid: string, key: string, label: string, unit: string|null}, via: 'placement'|'parameter_placement', state: 'placed'|'name_clash'|'not_in_configuration', latest: array{value: string|int|float|bool, quality: string|null, observed_at: string|null, received_at: string|null}|null}>, meta: array{current_page: int, last_page: int, per_page: int, total: int}}
      */
-    #[QueryParameter('branch', description: '1 to include every entity below.', type: 'int')]
+    #[QueryParameter('branch', description: '1 to include the entity\'s coverage: every entity below it, and below its current members (each point keeps its own path).', type: 'int')]
     #[QueryParameter('page', type: 'int')]
     public function index(Request $request, Organization $organization, Entity $entity): array
     {

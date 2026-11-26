@@ -18,6 +18,11 @@
                         "format": "uuid",
                         "type": "string"
                     },
+                    "entity_uuid": {
+                        "description": "The UUID of a hierarchy entity: devices placed anywhere in its coverage (its branch and the branches of its current members).",
+                        "format": "uuid",
+                        "type": "string"
+                    },
                     "tag": {
                         "maxLength": 32,
                         "type": "string"
@@ -232,6 +237,11 @@
                     },
                     "site_uuid": {
                         "description": "A site from list_sites: alerts of devices whose nearest site in the hierarchy is that one.",
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "entity_uuid": {
+                        "description": "The UUID of a hierarchy entity: alerts of devices placed anywhere in its coverage (its branch and the branches of its current members).",
                         "format": "uuid",
                         "type": "string"
                     },

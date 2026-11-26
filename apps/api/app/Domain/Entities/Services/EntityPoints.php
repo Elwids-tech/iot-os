@@ -10,7 +10,6 @@ use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityPlacement;
 use App\Domain\Entities\Models\ParameterPlacement;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -120,7 +119,8 @@ final class EntityPoints
      */
     public function page(Entity $entity, bool $branch, int $page, int $perPage = 50): array
     {
-        $ids = $branch ? DB::table('entity_closure')->where('ancestor_id', $entity->id)->pluck('descendant_id')->map(fn ($id) => (int) $id)->all() : [$entity->id];
+        // A branch request covers the entity's coverage: its branch and its members' (FR-017).
+        $ids = $branch ? Coverage::entityIds($entity)->pluck('descendant_id')->map(fn ($id) => (int) $id)->all() : [$entity->id];
         $paths = Entity::query()->whereIn('id', $ids)->pluck('path', 'id');
         $points = collect($this->at($ids))->map(fn (array $point) => [...$point, 'path' => $paths[$point['entity_id']].'/'.$point['name']])
             ->sortBy(fn (array $point) => strtolower($point['path']).'|'.$point['device']->id)->values();
@@ -132,7 +132,8 @@ final class EntityPoints
             'data' => $slice->map(fn (array $point): array => [
                 'leaf_name' => $point['name'],
                 'path' => $point['path'],
-                'relative_path' => ltrim(substr($point['path'], strlen($entity->path)), '/'),
+                // Points of a member's branch keep their main-tree path; only the entity's own branch is shown relative.
+                'relative_path' => str_starts_with(strtolower($point['path']), strtolower($entity->path).'/') ? substr($point['path'], strlen($entity->path) + 1) : $point['path'],
                 'device' => ['uuid' => $point['device']->uuid, 'name' => $point['device']->name],
                 'parameter' => ['uuid' => $point['parameter']['uuid'], 'key' => $point['parameter']['key'], 'label' => $point['parameter']['label'], 'unit' => $point['parameter']['unit']],
                 'via' => $point['via'],

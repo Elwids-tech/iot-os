@@ -136,7 +136,7 @@ device's current profile revision is reported **Not in the current configuration
 | `organization_id` | fk | cascade |
 | `member_id`, `group_id` | fk → `entities` | restrict |
 | `group_type_id` | fk → `entity_types` | the group's type when the membership started |
-| `started_at`, `ended_at`, `started_by`, `ended_by` | | |
+| `started_at`, `ended_at`, `end_reason`, `started_by`, `ended_by` | | `end_reason`: `replaced` (joined another group of that type), `left` or `archived` |
 
 Partial unique `(member_id, group_type_id) where ended_at is null` (one division at a
 time). The group's type must list the member's type in `member_type_keys`; the two may

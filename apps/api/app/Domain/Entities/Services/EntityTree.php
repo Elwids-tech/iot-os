@@ -9,6 +9,7 @@ use App\Domain\Audit\Services\ActivityLog;
 use App\Domain\Entities\Exceptions\HierarchyRuleBroken;
 use App\Domain\Entities\Models\Entity;
 use App\Domain\Entities\Models\EntityChange;
+use App\Domain\Entities\Models\EntityMembership;
 use App\Domain\Entities\Models\EntityPlacement;
 use App\Domain\Entities\Models\EntityType;
 use App\Domain\Entities\Models\ParameterPlacement;
@@ -228,6 +229,7 @@ final class EntityTree
             $entity->forceFill(['archived_at' => now(), 'archived_by' => $actor->id, 'updated_by' => $actor->id])->save();
             $this->change($entity, EntityChange::ARCHIVED, $actor, []);
             app(ApplicationGrants::class)->entityArchived($entity, $actor->id);
+            app(Memberships::class)->archived($entity, $actor);
             $log && ActivityLog::record('entity.archived', $organization, $actor, $entity, ['path' => $entity->path]);
 
             return $entity;
@@ -276,7 +278,8 @@ final class EntityTree
             $heldChildren = Entity::query()->where('parent_id', $entity->id)->exists()
                 || EntityChange::query()->where('new_parent_id', $entity->id)->orWhere('old_parent_id', $entity->id)->exists()
                 || EntityPlacement::query()->where('entity_id', $entity->id)->exists()
-                || ParameterPlacement::query()->where('entity_id', $entity->id)->exists();
+                || ParameterPlacement::query()->where('entity_id', $entity->id)->exists()
+                || EntityMembership::query()->where('member_id', $entity->id)->orWhere('group_id', $entity->id)->exists();
             if ($heldChildren) {
                 throw HierarchyRuleBroken::rule('has_history', 'entity', 'This entity has held entities or devices, so its history matters: archive it instead.');
             }

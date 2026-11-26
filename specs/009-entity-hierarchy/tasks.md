@@ -131,13 +131,13 @@ coverage.
 **Independent Test**: [quickstart E](quickstart.md#e-memberships-and-filters-pr-5) and
 the scale run.
 
-- [ ] T050 [US1] Create the migration for `entity_memberships`, api/Entities/Models/EntityMembership.php and api/Entities/Services/Memberships.php (member types, one per group type, no self or tree relatives, end on archive of either side; activity)
-- [ ] T051 [US1] Create api/Entities/Services/Coverage.php (branch plus one step of members) and use it in EntityPoints for branch requests
-- [ ] T052 [US2] Add `entity_uuid` to api/Devices/Services/DeviceDirectory.php and api/Automation/Services/AlertQuery.php (portal list and agent filter) through Coverage; describe it in the supplements and the API client
-- [ ] T053 [US1] Create api/Entities/Http/MembershipController.php per [contracts/api.md](contracts/api.md#memberships-and-filters--pr-5)
-- [ ] T054 [P] [US1] Tests: US1 AS7, the membership edge cases, SC-005 with the power distribution preset
-- [ ] T055 [P] Create the local-only command `entities:seed-scale` and measure SC-003 (children, search, a 50-entity scope); record the numbers in the pull request
-- [ ] T056 Rebuild the API family and run [quickstart E](quickstart.md#e-memberships-and-filters-pr-5)
+- [x] T050 [US1] Create the migration for `entity_memberships`, api/Entities/Models/EntityMembership.php and api/Entities/Services/Memberships.php (member types, one per group type, no self or tree relatives, end on archive of either side; activity)
+- [x] T051 [US1] Create api/Entities/Services/Coverage.php (branch plus one step of members) and use it in EntityPoints for branch requests
+- [x] T052 [US2] Add `entity_uuid` to api/Devices/Services/DeviceDirectory.php and api/Automation/Services/AlertQuery.php (portal list and agent filter) through Coverage; describe it in the supplements and the API client
+- [x] T053 [US1] Create api/Entities/Http/MembershipController.php per [contracts/api.md](contracts/api.md#memberships-and-filters--pr-5)
+- [x] T054 [P] [US1] Tests: US1 AS7, the membership edge cases, SC-005 with the power distribution preset
+- [x] T055 [P] Create the local-only command `entities:seed-scale` and measure SC-003 (children, search, a 50-entity scope); record the numbers in the pull request
+- [x] T056 Rebuild the API family and run [quickstart E](quickstart.md#e-memberships-and-filters-pr-5)
 
 ---
 

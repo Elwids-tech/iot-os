@@ -137,6 +137,8 @@ final class ActivityCatalogue
         'entity.archived' => ['archived entity', 'entity'],
         'entity.restored' => ['restored entity', 'entity'],
         'entity.deleted' => ['deleted entity', 'entity'],
+        'entity.membership_started' => ['grouped entity', 'entity'],
+        'entity.membership_ended' => ['ended a grouping of entity', 'entity'],
         'entity_type.created' => ['created entity type', 'entity_type'],
         'entity_type.updated' => ['updated entity type', 'entity_type'],
         'entity_type.deleted' => ['deleted entity type', 'entity_type'],
