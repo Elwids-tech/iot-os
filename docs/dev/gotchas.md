@@ -4,6 +4,17 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Data and API contracts
 
+- **A migration cannot create an extension in a release.** The release's application
+  role (`iot_api`) has no `CREATE` on the database, so `CREATE EXTENSION` in a
+  migration passes locally and in CI (superuser) and fails on a deployed host. Spec
+  009's `pg_trgm` stopped the first deploy of its release this way. Add the
+  extension to `deploy/release/init-db.sql` and to the superuser step in
+  `manage.py deploy`, which runs before the migrations.
+- **A rename breaks the deployment's own release checks.** `ship.py` counts key
+  tables before and after, and a deployment's `checks.json` names tables and
+  columns. When a migration renames one (spec 009: `sites` → `legacy_sites`,
+  `integration_applications.site_uuids` → `entity_uuids`), list the old table
+  under `may_change` for that release and fix the deployment's `checks.json`.
 - **Users have no UUID.** The `users` table has no `uuid` column. Every API
   endpoint identifies users by integer id (`acknowledged_by`, `recipient_ids`,
   `created_by`, alert `assignee`, admin and organization member routes), so new
