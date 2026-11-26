@@ -15,14 +15,18 @@ use Illuminate\Support\Str;
 /**
  * Spec 009 US3, FR-014, SC-002: sites become entities and nothing that read them notices.
  * Built on the schema before the migration, then migrated, compared, rolled back and
- * migrated again.
+ * migrated again; T075's drop of the old table is rolled back first and applied last.
  */
 final class SiteMigrationTest extends EntityTestCase
 {
     private const MIGRATION = 'database/migrations/2026_12_08_000200_sites_become_entities.php';
 
+    private const DROP = 'database/migrations/2026_12_10_000100_drop_legacy_sites.php';
+
     public function test_sites_become_entities_with_the_same_identity_time_zones_and_grants(): void
     {
+        $this->assertFalse(Schema::hasTable('legacy_sites'));
+        $this->artisan('migrate:rollback', ['--path' => self::DROP])->assertSuccessful();
         $this->artisan('migrate:rollback', ['--path' => self::MIGRATION])->assertSuccessful();
         $this->assertTrue(Schema::hasTable('sites'));
         $this->organization->forceFill(['timezone' => 'America/Toronto'])->save();
@@ -74,6 +78,17 @@ final class SiteMigrationTest extends EntityTestCase
         $this->assertSame(0, DB::table('entities')->where('uuid', $this->legacyUuid($berlin))->count());
         $this->artisan('migrate', ['--path' => self::MIGRATION])->assertSuccessful();
         $this->assertSame($grantBefore, $this->resolvedGrant([$this->legacyUuid($berlin), $this->legacyUuid($plantA)]));
+
+        // T075: the old table goes; rolling the drop back rebuilds it from the Site entities.
+        $this->artisan('migrate', ['--path' => self::DROP])->assertSuccessful();
+        $this->assertFalse(Schema::hasTable('legacy_sites'));
+        $this->assertSame($sitesBefore, $this->getJson($this->prefix.'/sites')->assertOk()->json('data'));
+        $this->artisan('migrate:rollback', ['--path' => self::DROP])->assertSuccessful();
+        $this->assertSame(
+            collect($sitesBefore)->pluck('name')->all(),
+            DB::table('legacy_sites')->where('organization_id', $this->organization->id)->orderBy('name')->pluck('name')->all(),
+        );
+        $this->artisan('migrate', ['--path' => self::DROP])->assertSuccessful();
     }
 
     /** @param  array<string, mixed>  $values */

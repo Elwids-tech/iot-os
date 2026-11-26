@@ -129,19 +129,11 @@ Grouped by area. Links point at the decision or doc that explains the item.
   maps its points to devices with a point map instead of a decoder, and collects
   through the existing adapter path; first from the tenant runtime, then from an
   on-site agent. Its last step proposes entities and placements from the server's
-  structure and needs the entity hierarchy (spec 009) built first.
+  structure through the [hierarchy's operations](reference/hierarchy-operations.md).
 - **Building networks and stories** ([spec 039](../specs/039-building-stories/spec.md)):
   the simulated building's pipes, ducts and cables with meters on them, and scripted
   stories (a riser leak, a basement flood, a fire, a power outage) that say what the
   platform and a digital twin should detect and show. Builds on spec 038's simulator.
-- **Entity hierarchy** ([spec 009](../specs/009-entity-hierarchy/spec.md),
-  [ADR-054](adr/ADR-054-organization-hierarchy.md)): each organization's tree of typed
-  entities (site, area, line, asset; building, floor, zone; region, substation, feeder)
-  held to rules and presets, with devices and single parameters placed in it. Sites
-  become its Site entities without changing any reader, integration applications can
-  follow any branch, and other features (first, spec 038's OPC UA hierarchy proposal)
-  build it only through its own operations. Nine pull requests; the third unblocks
-  spec 038's last one.
 - **Move devices within a billing account** ([spec 031](../specs/031-move-devices-within-account/spec.md),
   [ADR-039](adr/ADR-039-hosted-devices-and-moves.md)): move devices to another
   organization of the same account as an archived predecessor and a linked successor,

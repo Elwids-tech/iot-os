@@ -39,6 +39,7 @@ on, in Spec Kit specs under `specs/` with the project constitution at
 
 - [API surface](reference/api.md)
 - [Branding API](reference/branding-api.md): brands, portal addresses and what a host learns before the portal starts
+- [Hierarchy operations](reference/hierarchy-operations.md): the PHP contract other domains use to read and build the hierarchy
 - [Events and messaging](reference/events.md): JetStream, control messages, runtime events, committed telemetry, integration events
 - [Sparkplug B](reference/sparkplug.md)
 - Contracts: [`contracts/`](../contracts/README.md)

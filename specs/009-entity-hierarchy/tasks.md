@@ -25,7 +25,7 @@ quickstart scenario, ticks its tasks here and updates the docs its behaviour cha
 
 - [x] T001 Write docs/adr/ADR-054-organization-hierarchy.md (Proposed) per [research R21](research.md#r21-one-adr) and add it to docs/adr/README.md; check that 052 and 053 are still spec 038's and 054 is free when the pull request opens
 - [x] T002 [P] Add the entity hierarchy under **Next** in docs/roadmap.md, naming the pull requests of the plan and spec 038's PR 8 as the first caller of PR 3
-- [ ] T003 Open the documents pull request with spec, plan, research, data model, contracts, quickstart, checklist, tasks and ADR-054
+- [x] T003 Open the documents pull request with spec, plan, research, data model, contracts, quickstart, checklist, tasks and ADR-054
 
 **Checkpoint**: the documents pull request merged; the plan is accepted.
 
@@ -100,7 +100,8 @@ placements through the hierarchy's own rules. Unblocks spec 038's PR 8.
 - [x] T039 [P] [US7] Create api/Entities/Services/HierarchyQueries.php: `types`, `findByPath`, `children`, `placementOf`
 - [x] T040 [US7] Tests in apps/api/tests/Feature/Domain/Entities/HierarchyOperationsTest.php: the contract's list (nothing saved by check, identical refusals in check and apply, refs and `parent_refused`, all-or-nothing, `already_placed`, `not_found` across organizations), the 41-item batch under 2 s (SC-007), and the schema test that no hierarchy table has a column for a protocol, endpoint, node or address (FR-025)
 - [x] T041 [P] [US7] Create tooling/verify-entity-batch.php for quickstart C and run it against the rebuilt stack
-- [ ] T042 [US7] Tell spec 038's owner session that PR 3 is merged (its T097 checks for it)
+- [x] T042 [US7] Tell spec 038's owner session that PR 3 is merged (its T097 checks for it)
+  (no session was waiting; spec 038's spec now points at the built hierarchy and its operations contract in docs/reference)
 
 **Checkpoint**: spec 038's hierarchy proposal can be built.
 
@@ -156,7 +157,8 @@ explore without the API.
 - [x] T062 [US2] Create apps/portal/src/hierarchy/EntityPicker.tsx (searchable combobox showing paths) and use it in apps/portal/src/devices/DeviceActions.tsx, DeviceDirectory.tsx (filter and column), apps/portal/src/alerts/Alerts.tsx (filter) and apps/portal/src/devices/moves/WhatComesAlong.tsx; DeviceOverview.tsx shows the breadcrumb path and parameters placed elsewhere; MeasurementsSection.tsx offers **Place this parameter**
 - [x] T063 [P] Vitest for path suggestions and tree state; Playwright with a mocked API for build, move, place, clash rename and the empty-organization preset prompt; axe in light and dark
 - [x] T064 [P] Update apps/portal/src/assistant/suggestions.ts and the help guides that mention Locations
-- [ ] T065 Run `pnpm --filter @iot-os/portal lint`, rebuild the portal, run [quickstart F](quickstart.md#f-portal-pr-6) and SC-001, and ask for the owner's screenshot design pass
+- [x] T065 Run `pnpm --filter @iot-os/portal lint`, rebuild the portal, run [quickstart F](quickstart.md#f-portal-pr-6) and SC-001, and ask for the owner's screenshot design pass
+  (the owner's design pass was still open at the freeze; changes it asks for get their own pull request)
 
 ---
 
@@ -185,10 +187,11 @@ sites table goes; lasting docs move out of the spec.
 - [x] T072 Create `GET entities` under `entities:read` and add `entity` and `points` to the device read in api/Integrations; describe them in contracts/openapi/supplements/integration.yaml; add `entities()` and `Device.points` to packages/integration-sdk
 - [x] T073 apps/portal/src/integrations/Integrations.tsx: entity scopes with EntityPicker; the `entities:read` label reads "Hierarchy"
 - [x] T074 [P] Tests in contracts/integration.md's list
-- [ ] T075 Create the migration dropping `legacy_sites`, at least one release after PR 2 reached the pilot (left out of PR 8: the pilot had not yet run PR 2 when PR 8 merged, so this lands in a small last pull request with the freeze)
+- [x] T075 Create the migration dropping `legacy_sites`, at least one release after PR 2 reached the pilot (left out of PR 8: the pilot had not yet run PR 2 when PR 8 merged, so this lands in a small last pull request with the freeze)
+  (PR 9: `2026_12_10_000100_drop_legacy_sites` after the pilot ran PR 2 in release 0e51981; its `down()` rebuilds the table from the Site entities, so PR 2 can still be rolled back)
 - [x] T076 [P] Write docs/features/hierarchy.md; update docs/features/devices.md, docs/features/integrations.md (grants by entity) and docs/features/adapters.md's pointer for spec 038
-- [ ] T077 Rebuild the API family and the portal, run [quickstart H](quickstart.md#h-applications-follow-entities-pr-8) and `tooling/verify-integration-sdk.mjs`; freeze this folder
-  (PR 8: rebuilt and quickstart H passed on 2026-11-26; `verify-integration-sdk.php` no longer runs since users moved to Passport tokens in spec 004, so the SDK was checked by its tests and the same reads over HTTP; the freeze waits for T075)
+- [x] T077 Rebuild the API family and the portal, run [quickstart H](quickstart.md#h-applications-follow-entities-pr-8) and `tooling/verify-integration-sdk.mjs`; freeze this folder
+  (PR 8: rebuilt and quickstart H passed on 2026-11-26; `verify-integration-sdk.php` no longer runs since users moved to Passport tokens in spec 004, so the SDK was checked by its tests and the same reads over HTTP; frozen with T075 in PR 9, the operations contract moved to docs/reference/hierarchy-operations.md)
 
 ---
 

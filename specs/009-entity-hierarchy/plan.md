@@ -180,7 +180,8 @@ Spec 038's PR 1 to PR 7 do not wait for any of these; its PR 8 needs PR 3 merged
 (`down()` restores `sites` and the two foreign keys, discarding entities created
 since). Before running an older image, roll back PR 2's migrations; after PR 8 drops
 `legacy_sites`, rolling back past PR 2 is no longer possible, so PR 8 ships at least one
-release after PR 2.
+release after PR 2. (Built: the drop came in a ninth pull request, and its `down()`
+rebuilds the table from the Site entities, so the rollback stays possible.)
 
 ## Project Structure
 

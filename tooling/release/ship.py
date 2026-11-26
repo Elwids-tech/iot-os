@@ -51,7 +51,7 @@ KEY_COUNTS = (
     {"table": "organization_user", "where": {}},
     {"table": "organization_invitations", "where": {}},
     {"table": "platform_role_user", "where": {}},
-    # Places in the hierarchy (spec 009). Sites became entities and their old table is legacy_sites until it is dropped.
+    # Places in the hierarchy (spec 009). Sites are entities; their old table was dropped.
     {"table": "entities", "where": {}},
     {"table": "devices", "where": {}},
 )

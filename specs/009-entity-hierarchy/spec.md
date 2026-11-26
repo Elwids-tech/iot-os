@@ -6,7 +6,8 @@
 
 **Updated**: 2026-11-25 (re-read against `main` at `ed6edee9` before planning)
 
-**Status**: Draft, planned ([plan.md](plan.md)), clarifications answered
+**Status**: Built and frozen (2026-11-26). Lasting behaviour: [hierarchy](../../docs/features/hierarchy.md),
+[hierarchy operations](../../docs/reference/hierarchy-operations.md), [ADR-054](../../docs/adr/ADR-054-organization-hierarchy.md)
 
 **Input**: User description: "I was thinking of creating a new model called entity and it
 should be a self-related or self-referring model and you could create … endless leaves so

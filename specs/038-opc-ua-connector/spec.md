@@ -21,8 +21,9 @@ edge gateway with a Sparkplug B uplink on a plant network). None of it is built.
 simulator speaks OPC UA, and the point map has no contract or editor ("specified with
 the first typed connector", [spec 021](../021-data-first-onboarding/spec.md) US8).
 
-The entity hierarchy is spec 009 (a draft on the branch `spec/009-entity-hierarchy`,
-not planned or built). It is independent of any protocol and
+The entity hierarchy is spec 009 (built; [hierarchy](../../docs/features/hierarchy.md),
+called through [hierarchy operations](../../docs/reference/hierarchy-operations.md)). It
+is independent of any protocol and
 already has a Buildings preset (Site → Building → Floor → Zone → Room) and the placement
 of a device or a single parameter at any entity.
 
