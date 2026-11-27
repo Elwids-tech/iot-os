@@ -38,13 +38,15 @@ DB::beginTransaction();
 try {
     $org = Organization::where('slug', 'acme-manufacturing')->firstOrFail();
     $actor = User::where('is_super_admin', true)->firstOrFail();
-    $token = $actor->createToken('temporary-workflow-verification')->plainTextToken;
-    $call = static function (string $method, string $path, array $body, int $expected, bool $authenticated = true) use ($app, $token, $check): array {
+    // The portal API signs people in by session (Sanctum's web guard); a token from
+    // createToken() is a Passport token for /mcp only. In-process, act as the person on
+    // the web guard, as Laravel's actingAs() does.
+    $call = static function (string $method, string $path, array $body, int $expected, bool $authenticated = true) use ($app, $actor, $check): array {
         Auth::forgetGuards();
-        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'];
         if ($authenticated) {
-            $server['HTTP_AUTHORIZATION'] = 'Bearer '.$token;
+            Auth::guard('web')->setUser($actor);
         }
+        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'];
         $request = Request::create($path, $method, [], [], [], $server, json_encode($body, JSON_THROW_ON_ERROR));
         $kernel = $app->make(Kernel::class);
         $response = $kernel->handle($request);
@@ -109,4 +111,4 @@ try {
     DB::rollBack();
 }
 $check(DB::table('automation_workflows')->count() === $before, 'verification did not roll back');
-echo "PASS temporary verification records and token rolled back\n";
+echo "PASS temporary verification records rolled back\n";
