@@ -463,3 +463,157 @@ operations:
                         type: string
       '422':
         $ref: '#/components/responses/Unprocessable'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/nodes/similar:
+    summary: Find equipment like one mapped
+    description: >-
+      By the server's declared type, by matching point names, or by a tag pattern for a
+      flat list (where `{equipment}` stands for the tag prefix). Each match lists the
+      readings it lacks (spec 038 FR-022).
+    responses:
+      '200':
+        description: The matches; `truncated` when the scan stopped at 20,000 nodes.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [matches, truncated]
+                  properties:
+                    matches:
+                      type: array
+                      items:
+                        type: object
+                        required: [source_id, display_name, address, missing]
+                        properties:
+                          source_id:
+                            type: string
+                          display_name:
+                            type: string
+                          address:
+                            type: object
+                            required: [node_id, namespace_uri, path]
+                            properties:
+                              node_id:
+                                type: [string, 'null']
+                              namespace_uri:
+                                type: [string, 'null']
+                              path:
+                                type: array
+                                items:
+                                  type: object
+                                  required: [namespace_uri, name]
+                                  properties:
+                                    namespace_uri:
+                                      type: [string, 'null']
+                                    name:
+                                      type: string
+                          missing:
+                            type: array
+                            items:
+                              type: string
+                    truncated:
+                      type: boolean
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/point-map/suggest:
+    summary: Suggest readings for ticked points
+    description: >-
+      Reads each point and suggests a reading: a key and name from its name, its unit,
+      data type and range, and the reporting defaults (FR-023, FR-031). Points the
+      platform cannot store are listed under `refused` with the reason.
+    responses:
+      '200':
+        description: The suggested readings, in the point map's reading shape without an address.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [readings, refused]
+                  properties:
+                    readings:
+                      type: array
+                      items:
+                        type: object
+                        required: [key, name, data_type, unit, report]
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                          data_type:
+                            type: string
+                            enum: [number, boolean, state, text]
+                          unit:
+                            type: [string, 'null']
+                          range:
+                            type: array
+                            items:
+                              type: number
+                          report:
+                            type: object
+                            required: [sample_ms, deadband]
+                            properties:
+                              sample_ms:
+                                type: integer
+                              deadband:
+                                type: object
+                                required: [kind, value]
+                                properties:
+                                  kind:
+                                    type: string
+                                    enum: [none, absolute, percent]
+                                  value:
+                                    type: number
+                    refused:
+                      type: array
+                      items:
+                        type: object
+                        required: [node, name, reason]
+                        properties:
+                          node:
+                            type: string
+                          name:
+                            type: string
+                          reason:
+                            type: string
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  POST /v1/organizations/{organization}/device-adapters/point-map/device-type:
+    summary: Make a device type from a point map's readings
+    description: Creates a device profile with one parameter per reading and publishes it, so the data source can use it at once (FR-023). Needs DeviceProfile.create and DeviceProfile.publish.
+    responses:
+      '200':
+        description: The published profile revision.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [artifact_uuid, profile_uuid, name, revision]
+                  properties:
+                    artifact_uuid:
+                      type: string
+                      format: uuid
+                    profile_uuid:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    revision:
+                      type: integer
+      '422':
+        $ref: '#/components/responses/Unprocessable'

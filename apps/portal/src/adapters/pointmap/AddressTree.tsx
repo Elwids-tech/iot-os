@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import { opcuaAddress, type OpcuaNode, type OpcuaPoint, type OpcuaSearchMatch } from "@iot-os/api-client";
+import { opcuaAddress, type OpcuaNode, type OpcuaPoint, type OpcuaSearchMatch, type PointMapSegment } from "@iot-os/api-client";
+import type { ReactNode } from "react";
 import { Badge } from "@iot-os/ui/components/badge";
 import { Button } from "@iot-os/ui/components/button";
 import { DataTable, type DataColumn } from "@iot-os/ui/components/data-table";
@@ -14,8 +15,8 @@ import { RequestError } from "../../components/forms";
 import { api } from "../../lib/api";
 import { formatValue } from "../sources/opcua";
 
-/** A node with its current value once read. */
-export type AddressRow = OpcuaNode & { point?: OpcuaPoint };
+/** A node with its path of names from the Objects folder and its current value once read. */
+export type AddressRow = OpcuaNode & { path: PointMapSegment[]; point?: OpcuaPoint };
 
 const LIVE_MS = 5_000;
 
@@ -45,7 +46,7 @@ function useAddressLevel(org: string, connection: string) {
     });
     const byAddress = useMemo(() => new Map((values.data?.points ?? []).map((point) => [opcuaAddress(point), point])), [values.data]);
     return {
-      rows: rows?.map((row) => ({ ...row, point: byAddress.get(opcuaAddress(row)) })),
+      rows: rows?.map((row) => ({ ...row, path: [...(parent?.path ?? []), { namespace_uri: row.namespace_uri, name: row.name }], point: byAddress.get(opcuaAddress(row)) })),
       hasMore: Boolean(nodes.hasNextPage),
       loadingMore: nodes.isFetchingNextPage,
       onLoadMore: () => void nodes.fetchNextPage(),
@@ -112,7 +113,18 @@ const matchColumns: DataColumn<OpcuaSearchMatch>[] = [
 ];
 
 /** The server's address space, one level at a time, with live values and a name search. */
-export function AddressTree({ org, connection }: { org: string; connection: string }) {
+export function AddressTree({
+  org,
+  connection,
+  rowActions,
+  description = "What the server offers, one level at a time. Values refresh every few seconds while a level is open; greyed points cannot be stored as readings.",
+}: {
+  org: string;
+  connection: string;
+  /** For example "Map this" on equipment. */
+  rowActions?: (row: AddressRow) => ReactNode;
+  description?: string;
+}) {
   const useLevel = useMemo(() => useAddressLevel(org, connection), [org, connection]);
   const [text, setText] = useState("");
   const search = useMutation({ mutationFn: (query: string) => api.searchOpcuaNodes(org, connection, query) });
@@ -120,9 +132,7 @@ export function AddressTree({ org, connection }: { org: string; connection: stri
     <Panel>
       <PanelHeader>
         <PanelTitle>Address space</PanelTitle>
-        <PanelDescription>
-          What the server offers, one level at a time. Values refresh every few seconds while a level is open; greyed points cannot be stored as readings.
-        </PanelDescription>
+        <PanelDescription>{description}</PanelDescription>
       </PanelHeader>
       <PanelContent className="flex flex-col gap-4">
         <form
@@ -167,6 +177,7 @@ export function AddressTree({ org, connection }: { org: string; connection: stri
           hasChildren={(row) => row.has_children}
           useLevel={useLevel}
           rowMuted={unstorable}
+          rowActions={rowActions}
           empty={<p className="p-6 text-center text-muted-foreground">The server shows nothing under Objects.</p>}
         />
       </PanelContent>

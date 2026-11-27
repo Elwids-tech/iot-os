@@ -9,7 +9,8 @@ const crypto = require("node:crypto");
 const os = require("node:os");
 const path = require("node:path");
 const { exploreCertificate } = require("node-opcua-crypto");
-const { children, read, search } = require("./browse.cjs");
+const { children, read, search, similar } = require("./browse.cjs");
+const { check } = require("./check.cjs");
 const { checkRanges } = require("./address.cjs");
 const { ConnectionFailed, endpoints, open } = require("./session.cjs");
 
@@ -148,6 +149,22 @@ class Routes {
         return this.guarded(async () => {
           ensure(typeof body.text === "string" && body.text.trim().length > 0, "Search for some text");
           return search(await this.session(body), body.root || null, body.text.trim());
+        });
+      case "/opcua/similar":
+        return this.guarded(async () => {
+          const e = body.equipment || {};
+          ensure(typeof e.namespace_uri === "string" && Array.isArray(e.path) && e.path.length > 0, "Name the equipment with its namespace URI and path");
+          ensure(Array.isArray(body.points) && body.points.length >= 1 && body.points.length <= 500, "Name 1 to 500 points");
+          const by = body.by || "type";
+          ensure(["type", "names", "pattern"].includes(by), "Look for similar equipment by type, names or pattern");
+          const found = await similar(await this.session(body), e, body.points, { by, root: body.root || null });
+          return { matches: [...found], truncated: Boolean(found.truncated) };
+        });
+      case "/opcua/check":
+        return this.guarded(async () => {
+          const map = body.point_map;
+          ensure(map && Array.isArray(map.readings) && Array.isArray(map.equipment), "A point map is required");
+          return check(await this.session(body), map);
         });
       default:
         return undefined;

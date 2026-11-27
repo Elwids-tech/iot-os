@@ -205,6 +205,23 @@ final class Connections
     }
 
     /** A manager call that needs a working connection; a failure becomes a 422 with its reason and fix. */
+    /**
+     * Equipment like the one mapped (spec 038 FR-022).
+     *
+     * @param  array{node_id: ?string, namespace_uri: string, path: list<array{namespace_uri: string, name: string}>}  $equipment
+     * @param  list<array{key: string, name?: string, pattern?: string}>  $points
+     */
+    public function similar(AdapterConnection $connection, array $equipment, array $points, string $by, ?array $root): array
+    {
+        return $this->call('/opcua/similar', $connection, ['equipment' => $equipment, 'points' => $points, 'by' => $by, 'root' => $root]);
+    }
+
+    /** The review check of a point map (research R11): every point found and read once. */
+    public function check(AdapterConnection $connection, array $pointMap): array
+    {
+        return $this->call('/opcua/check', $connection, ['point_map' => $pointMap]);
+    }
+
     private function call(string $path, AdapterConnection $connection, array $extra = []): array
     {
         abort_if($connection->state === 'paused', 409, 'Resume the connection first.');

@@ -1471,3 +1471,11 @@ The portal is a progressive web app (spec 033,
   `organization` or `application` in it. The `opcua-browse` limiter keys
   `opcua-browse-organization:<org>:<connection>`. Throttling runs before route-model
   binding, so a limiter sees route parameters as strings as often as models.
+- **A point map's reading needs `unit` even when it has none.** The contract requires
+  the key with `null` for booleans, states and text; leaving it out fails the schema
+  with "Missing unit". `PointMaps::suggest` always sets it.
+- **Declared type is narrower than "the same kind of equipment".** The simulator's zone
+  boxes declare three types (with reheat, cooling only, core), so similar-by-type finds
+  8 of the 14; matching point names or a tag pattern finds all 14. A tag pattern counts
+  a prefix only when it has at least half of the mapped points, or a unit that shares
+  one tag (a CRAC's `T-SP`) would join.

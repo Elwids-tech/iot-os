@@ -1,10 +1,10 @@
-import type { ChecklistItem, ChecklistStep } from "@iot-os/api-client";
+import type { AdapterSourceType, ChecklistItem, ChecklistStep } from "@iot-os/api-client";
 import { CheckIcon, SparklesIcon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import { Status } from "@iot-os/ui/components/status-mark";
 import { statusOf } from "@iot-os/ui/lib/status";
 import { cn } from "@iot-os/ui/lib/utils";
-import { checklistSteps } from "./source";
+import { checklistStep } from "./source";
 
 type StepState = ChecklistItem["state"];
 
@@ -58,16 +58,18 @@ export function StepMark({ number, state }: { number: number; state?: StepState 
  */
 export function SetupNext({
   checklist,
+  sourceType,
   onOpen,
   onAsk,
 }: {
   checklist: ChecklistItem[];
+  sourceType?: AdapterSourceType;
   onOpen: (tab: string) => void;
   onAsk?: () => void;
 }) {
   const next = checklist.find((item) => item.state !== "done");
   if (!next && !onAsk) return null;
-  const step = next && checklistSteps[next.step];
+  const step = next && checklistStep(next.step, sourceType);
   return (
     <div data-slot="setup-next" className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {next && (

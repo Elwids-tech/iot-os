@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdapterConnection, OpcuaEndpoint, OpcuaTestResult } from "@iot-os/api-client";
 import { Alert, AlertDescription, AlertTitle } from "@iot-os/ui/components/alert";
@@ -38,12 +38,31 @@ const NEW = "new";
  * the server offers with the strongest chosen, the server certificate to review, the
  * platform certificate to trust on the server, then a test and the address space.
  */
-export function OpcuaConnection({ org, canEdit }: { org: string; canEdit: boolean }) {
+export function OpcuaConnection({
+  org,
+  canEdit,
+  value,
+  onChange,
+  children,
+}: {
+  org: string;
+  canEdit: boolean;
+  /** The connection a data source uses; the first one when left out. */
+  value?: string | null;
+  onChange?: (uuid: string | null) => void;
+  /** What follows once the connection works; the address tree by default. */
+  children?: (connection: AdapterConnection) => ReactNode;
+}) {
   const client = useQueryClient();
   const connections = useQuery({ queryKey: ["adapter-connections", org], queryFn: () => api.adapterConnections(org) });
-  const [chosen, setChosen] = useState<string>(NEW);
+  const [own, setOwn] = useState<string>(NEW);
+  const chosen = value ?? own;
+  const setChosen = (uuid: string) => {
+    setOwn(uuid);
+    onChange?.(uuid === NEW ? null : uuid);
+  };
   useEffect(() => {
-    if (chosen === NEW && connections.data?.length) setChosen(connections.data[0].uuid);
+    if (!value && own === NEW && connections.data?.length) setChosen(connections.data[0].uuid);
   }, [connections.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const connection = connections.data?.find((c) => c.uuid === chosen) ?? null;
   const refresh = (next?: AdapterConnection) => {
@@ -88,7 +107,7 @@ export function OpcuaConnection({ org, canEdit }: { org: string; canEdit: boolea
         <>
           <SecurityPanel org={org} connection={connection} canEdit={canEdit} onChange={refresh} />
           <TestPanel org={org} connection={connection} canEdit={canEdit} onChange={refresh} />
-          {connection.state === "connected" && <AddressTree org={org} connection={connection.uuid} />}
+          {connection.state === "connected" && (children ? children(connection) : <AddressTree org={org} connection={connection.uuid} />)}
         </>
       )}
     </div>

@@ -15,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /** OPC UA connections and browsing (spec 038 PR 3, contracts/api.md). */
@@ -288,12 +287,6 @@ final class ConnectionTest extends TestCase
     {
         config(['adapters.enabled' => false]);
         $this->getJson($this->prefix)->assertNotFound();
-    }
-
-    public function test_an_opc_ua_data_source_waits_for_point_maps(): void
-    {
-        $this->postJson('/api/v1/organizations/'.$this->organization->uuid.'/device-adapters', ['request_uuid' => (string) Str::uuid(), 'name' => 'BMS', 'artifact_uuid' => (string) Str::uuid(), 'source' => ['type' => 'opcua'], 'code' => '', 'fixtures' => []])
-            ->assertUnprocessable();
     }
 
     public function test_private_ranges_are_staff_only_and_never_reach_what_is_never_reachable(): void

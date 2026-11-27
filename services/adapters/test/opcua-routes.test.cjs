@@ -92,6 +92,27 @@ describe("the manager's OPC UA routes", live(), () => {
     assert.equal(changed.server_certificate.fingerprint, sim.serverFingerprint());
   });
 
+  test("finds similar equipment and checks a point map", async () => {
+    const equipment = { node_id: "s=L03-VAV-2", namespace_uri: NAMESPACE, path: ["Example Campus", "Example Tower", "L03", "L03-Z2", "L03-VAV-2"].map((name) => ({ namespace_uri: NAMESPACE, name })) };
+    const points = [{ key: "zone_temperature", name: "zone_temperature" }, { key: "temperature_setpoint", name: "temperature_setpoint" }];
+    const found = await routes.handle("/opcua/similar", { ...body(), equipment, points, by: "type" });
+    assertConforms("opcua-similar.v1", found);
+    assert.ok(found.matches.length > 1);
+    assert.ok(found.matches.some((m) => m.address.node_id === "s=L03-VAV-2"));
+    const reading = (key, unit = "°C") => ({ key, name: key, data_type: "number", unit, report: { sample_ms: 10000, deadband: { kind: "none", value: 0 } }, address: { relative_path: [{ namespace_uri: NAMESPACE, name: key }] } });
+    const map = { version: 1, protocol: "opcua", rhythm_seconds: 300, readings: [reading("zone_temperature"), reading("temperature_setpoint")], equipment: found.matches.slice(0, 3).map(({ source_id, display_name, address }) => ({ source_id, display_name, address })) };
+    const checked = await routes.handle("/opcua/check", { ...body(), point_map: map });
+    assertConforms("opcua-check.v1", checked);
+    assert.deepEqual(checked.problems, []);
+    assert.equal(checked.valid, true);
+    assert.deepEqual(checked.totals, { devices: 3, readings: 2, points: 6, rows_per_day: 6 * 288 });
+    assert.equal(typeof checked.equipment[0].readings[0].value, "number");
+    const broken = await routes.handle("/opcua/check", { ...body(), point_map: { ...map, readings: [reading("zone_temperature", null), reading("no_such_point")] } });
+    assert.equal(broken.valid, false);
+    assert.ok(broken.problems.some((p) => p.key === "zone_temperature" && /unit/.test(p.problem)));
+    assert.ok(broken.problems.some((p) => p.key === "no_such_point" && /not found/i.test(p.problem)));
+  });
+
   test("refuses a private range that reaches what is never reachable", async () => {
     await assert.rejects(routes.handle("/opcua/test", body({}, {}, { private_ranges: ["127.0.0.0/8"] })), /never reachable/);
   });

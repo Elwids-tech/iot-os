@@ -32,7 +32,7 @@ test("the checker reports undeclared keys, missing keys, wrong types and the wro
 
 test("every fixture and valid case conforms, and every invalid case is refused", () => {
   for (const stem of ["decoder-input.v1", "decoder-output.v1", "source-settings.v1", "webhook-routes.v1", "receiver-report.v1", "runtime-event.v1", "fetch-result.v1",
-    "opcua-request.v1", "opcua-failure.v1", "opcua-endpoints.v1", "opcua-test.v1", "opcua-browse.v1", "opcua-read.v1", "opcua-search.v1"]) {
+    "opcua-request.v1", "opcua-failure.v1", "opcua-endpoints.v1", "opcua-test.v1", "opcua-browse.v1", "opcua-read.v1", "opcua-search.v1", "opcua-similar.v1", "opcua-check.v1"]) {
     const { fixture, cases } = contract(stem);
     assert.deepEqual(check(stem, fixture), [], `${stem} fixture`);
     for (const c of cases) {

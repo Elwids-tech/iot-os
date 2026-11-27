@@ -16449,6 +16449,272 @@
         "summary": "Search the address space by name"
       }
     },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/nodes/similar": {
+      "post": {
+        "operationId": "pointMap.similar",
+        "summary": "Find equipment like one mapped",
+        "tags": [
+          "PointMap"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "equipment": {
+                    "type": "object",
+                    "properties": {
+                      "node": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 4200
+                      },
+                      "path": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "namespace_uri": {
+                              "type": "string",
+                              "maxLength": 512
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 512
+                            }
+                          },
+                          "required": [
+                            "namespace_uri",
+                            "name"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 32
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 512
+                        },
+                        "pattern": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 512
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  },
+                  "by": {
+                    "type": "string",
+                    "enum": [
+                      "type",
+                      "names",
+                      "pattern"
+                    ]
+                  },
+                  "root": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4200
+                  }
+                },
+                "required": [
+                  "equipment",
+                  "points",
+                  "by"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The matches; `truncated` when the scan stopped at 20,000 nodes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "matches",
+                        "truncated"
+                      ],
+                      "properties": {
+                        "matches": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "source_id",
+                              "display_name",
+                              "address",
+                              "missing"
+                            ],
+                            "properties": {
+                              "source_id": {
+                                "type": "string"
+                              },
+                              "display_name": {
+                                "type": "string"
+                              },
+                              "address": {
+                                "type": "object",
+                                "required": [
+                                  "node_id",
+                                  "namespace_uri",
+                                  "path"
+                                ],
+                                "properties": {
+                                  "node_id": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "namespace_uri": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "path": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "namespace_uri",
+                                        "name"
+                                      ],
+                                      "properties": {
+                                        "namespace_uri": {
+                                          "type": [
+                                            "string",
+                                            "null"
+                                          ]
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "missing": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "description": "By the server's declared type, by matching point names, or by a tag pattern for a flat list (where `{equipment}` stands for the tag prefix). Each match lists the readings it lacks (spec 038 FR-022)."
+      }
+    },
     "/v1/organizations/{organization}/adapter-connections/{connection}/pause": {
       "post": {
         "operationId": "adapterConnection.pause",
@@ -16501,6 +16767,240 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/point-map/suggest": {
+      "post": {
+        "operationId": "pointMap.suggest",
+        "summary": "Suggest readings for ticked points",
+        "tags": [
+          "PointMap"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "node": {
+                          "type": "string",
+                          "maxLength": 4200
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 512
+                        }
+                      },
+                      "required": [
+                        "node",
+                        "name"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "points"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The suggested readings, in the point map's reading shape without an address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "readings",
+                        "refused"
+                      ],
+                      "properties": {
+                        "readings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "name",
+                              "data_type",
+                              "unit",
+                              "report"
+                            ],
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "data_type": {
+                                "type": "string",
+                                "enum": [
+                                  "number",
+                                  "boolean",
+                                  "state",
+                                  "text"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "range": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                }
+                              },
+                              "report": {
+                                "type": "object",
+                                "required": [
+                                  "sample_ms",
+                                  "deadband"
+                                ],
+                                "properties": {
+                                  "sample_ms": {
+                                    "type": "integer"
+                                  },
+                                  "deadband": {
+                                    "type": "object",
+                                    "required": [
+                                      "kind",
+                                      "value"
+                                    ],
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "none",
+                                          "absolute",
+                                          "percent"
+                                        ]
+                                      },
+                                      "value": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "refused": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "node",
+                              "name",
+                              "reason"
+                            ],
+                            "properties": {
+                              "node": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "description": "Reads each point and suggests a reading: a key and name from its name, its unit, data type and range, and the reporting defaults (FR-023, FR-031). Points the platform cannot store are listed under `refused` with the reason."
       }
     },
     "/v1/organizations/{organization}/adapter-connections/{connection}/resume": {
@@ -22072,6 +22572,163 @@
         "x-audience": "organization",
         "x-organization-scoped": true,
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/point-map/device-type": {
+      "post": {
+        "operationId": "pointMap.deviceType",
+        "summary": "Make a device type from a point map's readings",
+        "tags": [
+          "PointMap"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "readings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*$",
+                          "maxLength": 255
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "data_type": {
+                          "type": "string",
+                          "enum": [
+                            "number",
+                            "boolean",
+                            "state",
+                            "text"
+                          ]
+                        },
+                        "unit": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 32
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "name",
+                        "data_type"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "name",
+                  "readings"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The published profile revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "artifact_uuid",
+                        "profile_uuid",
+                        "name",
+                        "revision"
+                      ],
+                      "properties": {
+                        "artifact_uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "profile_uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 20,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Creates a device profile with one parameter per reading and publishes it, so the data source can use it at once (FR-023). Needs DeviceProfile.create and DeviceProfile.publish."
       }
     },
     "/v1/organizations/{organization}/device-adapters/{adapter}": {

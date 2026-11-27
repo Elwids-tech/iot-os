@@ -71,7 +71,10 @@ final class AdapterController
                 $v = $this->service->fields($r->all());
                 $artifact = $this->service->artifact($organization->id, $v['artifact_uuid']);
                 $definition = ['name' => $v['name'], 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash];
-                abort_unless($existing->revisions()->where('revision', 1)->value('content_hash') === hash('sha256', app(CanonicalJson::class)->encode($definition)), 409, 'This adapter setup request was already used.');
+                $first = $existing->revisions()->where('revision', 1)->first();
+                // An OPC UA revision also carries its connection's settings (spec 038).
+                $stored = $first ? array_diff_key($first->definition, ['connection' => true]) : null;
+                abort_unless($stored !== null && app(CanonicalJson::class)->encode($stored) === app(CanonicalJson::class)->encode($definition), 409, 'This adapter setup request was already used.');
 
                 return $existing;
             }

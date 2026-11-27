@@ -48,8 +48,8 @@ export type AdapterSource =
   | { type: "vendor"; url?: string | null; topics: string[] }
   | { type: "webhook"; auth: WebhookAuth }
   | ({ type: "poll" } & PollSettings)
-  /** OPC UA (spec 038): read through a saved connection; point maps arrive in a later release. */
-  | { type: "opcua"; connection_uuid?: string | null };
+  /** OPC UA (spec 038): read through a saved connection with a point map. */
+  | { type: "opcua"; connection_uuid: string | null; point_map: PointMap | null };
 export type AdapterFixture = {
   /** Optional for sources without topics (webhooks without a path, polled records). */
   topic?: string;
@@ -497,3 +497,60 @@ export type OpcuaFailure = { message: string; reason: OpcuaFailureReason; fix: s
 export function opcuaAddress(node: { node_id: string; namespace_uri: string }): string {
   return `nsu=${node.namespace_uri};${node.node_id}`;
 }
+
+// Point maps (spec 038, contracts/pointmaps/v1) -------------------------------------------
+
+export type PointMapSegment = { namespace_uri: string; name: string };
+export type PointMapDeadband = { kind: "none" | "absolute" | "percent"; value: number };
+export type PointMapReading = {
+  key: string;
+  name: string;
+  data_type: "number" | "boolean" | "state" | "text";
+  unit?: string | null;
+  scale?: number;
+  offset?: number;
+  range?: [number, number];
+  report: { sample_ms: number; deadband: PointMapDeadband };
+  /** Relative to the equipment: a path of names, or a tag pattern for a flat list. */
+  address: { relative_path: (PointMapSegment | { namespace_uri?: string; pattern: string })[] };
+};
+export type PointMapEquipment = {
+  source_id: string;
+  display_name: string;
+  address: { node_id?: string; namespace_uri: string; path: PointMapSegment[] };
+  missing?: string[];
+  overrides?: Record<string, { node_id: string; namespace_uri: string; path?: PointMapSegment[] }>;
+};
+export type PointMap = {
+  version: 1;
+  protocol: "opcua";
+  rhythm_seconds: number;
+  readings: PointMapReading[];
+  equipment: PointMapEquipment[];
+};
+export type SuggestedReading = Omit<PointMapReading, "address">;
+export type SimilarEquipment = {
+  source_id: string;
+  display_name: string;
+  address: { node_id: string | null; namespace_uri: string | null; path: { namespace_uri: string | null; name: string }[] };
+  missing: string[];
+};
+export type PointMapCheckRow = {
+  key: string;
+  value: OpcuaPoint["value"];
+  unit: string | null;
+  data_type: string | null;
+  quality: OpcuaPoint["quality"] | null;
+  status: string | null;
+  reason: string | null;
+  source_time: string | null;
+  problem: string | null;
+};
+/** The review check stored as a revision's test_result for an OPC UA source. */
+export type PointMapCheck = {
+  valid: boolean;
+  equipment: { source_id: string; display_name: string; readings: PointMapCheckRow[] }[];
+  problems: { source_id: string | null; key: string | null; at?: string; problem: string }[];
+  totals: { devices: number; readings: number; points: number; rows_per_day: number };
+  limit: { max: number; used: number; adding: number; over: number };
+};
