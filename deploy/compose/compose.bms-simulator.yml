@@ -1,0 +1,27 @@
+# The simulated building of spec 038 (tooling/simulators/bms_server.py), development
+# only. Adapters in the stack reach it at opc.tcp://bms-simulator:4840; desktop OPC UA
+# clients at opc.tcp://localhost:4840. The control port and its page are on
+# http://localhost:4841 only. Sign-in values and certificates are kept in
+# .local/devices (bms-simulator.json and bms-simulator/), never committed.
+services:
+  bms-simulator:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/bms-simulator/Dockerfile
+    hostname: bms-simulator
+    command:
+      - --host=bms-simulator
+      - --control-host=0.0.0.0
+      - --secrets=/devices/bms-simulator.json
+      - --certificates=/devices/bms-simulator
+      - --size=${BMS_SIMULATOR_SIZE:-standard}
+      - --style=${BMS_SIMULATOR_STYLE:-structured}
+      - --speed=${BMS_SIMULATOR_SPEED:-1}
+    ports:
+      - "127.0.0.1:4840:4840"
+      - "127.0.0.1:4841:4841"
+    volumes:
+      - ../../.local/devices:/devices
+    restart: unless-stopped
+    networks:
+      - internal

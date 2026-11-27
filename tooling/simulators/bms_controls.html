@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example Tower controls</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #14161a; --muted: #5d6470; --line: #dfe2e7;
+    --on: #b42318; --on-bg: #fde8e6; --warn: #8a5300; --warn-bg: #fff2d6; --ok: #11683c; --ok-bg: #e2f5ea;
+    --accent: #1f4fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --panel: #181b21; --ink: #eef0f3; --muted: #9aa2ae; --line: #2a2f38;
+      --on: #ff8a7a; --on-bg: #3a1714; --warn: #ffc864; --warn-bg: #33270f; --ok: #6fdc9e; --ok-bg: #0f2b1c;
+      --accent: #8fb0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .badge { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .link { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .link.online .dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .link.restarting .dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1.25fr; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .panel + .panel { margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  td.value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.key { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; word-break: break-all; padding-right: 10px; }
+  .status { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 6px; background: var(--on-bg); color: var(--on); }
+  .status.uncertain { background: var(--warn-bg); color: var(--warn); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input { width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .row { display: flex; gap: 8px; align-items: end; }
+  .row > div { flex: 1; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; white-space: nowrap; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .scenarios { display: grid; gap: 8px; }
+  .scenario { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); }
+  .scenario.on { border-color: var(--on); background: var(--on-bg); }
+  .scenario b { display: block; }
+  .scenario small { display: block; color: var(--muted); font-size: 12.5px; }
+  .scenario.on small { color: var(--on); }
+  .scenario input { grid-column: 1 / -1; padding: 6px 9px; font-size: 13px; }
+  .scenario button[aria-pressed="true"] { border-color: var(--on); color: var(--on); }
+  .message { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+  .message.bad { color: var(--on); }
+  .message.good { color: var(--ok); }
+  .note { margin-top: 18px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Example Tower</h1>
+    <span class="badge" id="size">simulated</span>
+    <span class="badge" id="clock">–</span>
+    <span class="link" id="link"><i class="dot"></i><span id="link-text">Connecting</span></span>
+  </header>
+  <div class="grid">
+    <div>
+      <section class="panel" aria-labelledby="watch-title">
+        <h2 id="watch-title">Watched points</h2>
+        <table><tbody id="watch"></tbody></table>
+        <label for="watch-keys">Points to watch, separated by commas</label>
+        <input id="watch-keys" spellcheck="false" autocomplete="off">
+      </section>
+      <section class="panel" aria-labelledby="write-title">
+        <h2 id="write-title">Write a command as the operator</h2>
+        <form id="write">
+          <label for="point">Point</label>
+          <input id="point" value="L03-VAV-2.temperature_setpoint" spellcheck="false" autocomplete="off" required>
+          <div class="row">
+            <div><label for="value">Value (a number, true or false, or a state such as Off)</label><input id="value" value="21" required></div>
+            <button class="primary" type="submit">Write</button>
+          </div>
+          <p class="message" id="write-message" role="status"></p>
+        </form>
+      </section>
+    </div>
+    <section class="panel" aria-labelledby="scenarios-title">
+      <h2 id="scenarios-title">Scenarios</h2>
+      <div class="scenarios" id="scenarios"></div>
+      <p class="message" id="scenario-message" role="status"></p>
+      <p class="note">A passing run against this simulator is not verification against a real building's server.</p>
+    </section>
+  </div>
+</main>
+<script>
+  // Served by the control port, or opened as a file with ?port=4841.
+  const params = new URLSearchParams(location.search)
+  const base = location.protocol.startsWith('http') ? '' : `http://127.0.0.1:${params.get('port') || '4841'}`
+  const defaults = ['L03-VAV-2.zone_temperature', 'L03-VAV-2.effective_setpoint', 'L03-VAV-2.damper_position',
+    'L03-AHU-1.operating_state', 'L10-CHP-1.supply_temperature', 'B1-MM-1.power']
+  const $ = (id) => document.getElementById(id)
+  let watched = defaults
+  try { watched = JSON.parse(localStorage.getItem('bms-watch')) || defaults } catch { /* private window */ }
+  $('watch-keys').value = watched.join(', ')
+
+  async function call(path, body) {
+    const response = await fetch(base + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
+    return { ok: response.ok, body: await response.json() }
+  }
+
+  function format(entry) {
+    const value = entry.value
+    if (typeof value === 'number') return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${entry.unit ? ' ' + entry.unit : ''}`
+    return String(value)
+  }
+
+  async function refresh() {
+    try {
+      const state = await call('/state')
+      $('size').textContent = `${state.body.size}, ${state.body.style}`
+      $('clock').textContent = new Date(state.body.simulated_time).toLocaleString()
+      $('link').className = 'link ' + (state.body.serving ? 'online' : 'restarting')
+      $('link-text').textContent = state.body.serving ? state.body.endpoint : 'Server restarting'
+      const values = await call('/values?points=' + encodeURIComponent(watched.join(',')))
+      const rows = values.ok ? Object.entries(values.body.values) : []
+      $('watch').replaceChildren(...rows.map(([key, entry]) => {
+        const row = document.createElement('tr')
+        const name = document.createElement('td'); name.className = 'key'; name.textContent = key
+        const cell = document.createElement('td'); cell.className = 'value'; cell.textContent = format(entry)
+        if (entry.status !== 'Good') {
+          const status = document.createElement('span')
+          status.className = 'status' + (entry.status.startsWith('Uncertain') ? ' uncertain' : '')
+          status.textContent = entry.status
+          cell.append(status)
+        }
+        row.append(name, cell)
+        return row
+      }))
+      if (!values.ok) $('watch').innerHTML = `<tr><td class="key">${values.body.error}</td></tr>`
+    } catch {
+      $('link').className = 'link'
+      $('link-text').textContent = 'No simulator on the control port'
+    }
+  }
+
+  async function loadScenarios() {
+    const { body } = await call('/scenarios')
+    $('scenarios').replaceChildren(...body.scenarios.map((s) => {
+      const card = document.createElement('div')
+      card.className = 'scenario' + (s.on ? ' on' : '')
+      const text = document.createElement('div')
+      text.innerHTML = '<b></b><small></small>'
+      text.querySelector('b').textContent = s.title
+      text.querySelector('small').textContent = s.effect + (s.on && s.in_force !== true ? ` (${s.in_force})` : '')
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.textContent = s.momentary ? 'Run' : s.on ? 'Switch off' : 'Switch on'
+      button.setAttribute('aria-pressed', String(s.on))
+      card.append(text, button)
+      let target
+      if (s.target) {
+        target = document.createElement('input')
+        target.placeholder = `${s.target}${s.default !== null ? ', ' + s.default : ''}`
+        target.setAttribute('aria-label', `${s.title}: ${s.target}`)
+        card.append(target)
+      }
+      button.addEventListener('click', async () => {
+        const wanted = s.momentary || !s.on
+        const raw = target && target.value.trim()
+        const result = await call(`/scenarios/${s.name}`, { on: wanted, target: raw ? (isNaN(Number(raw)) ? raw : Number(raw)) : null })
+        $('scenario-message').className = 'message ' + (result.ok ? 'good' : 'bad')
+        $('scenario-message').textContent = result.ok ? `${s.title} ${wanted ? (s.momentary ? 'ran' : 'on') : 'off'}${result.body.target && result.body.target !== true ? ': ' + result.body.target : ''}.` : result.body.error
+        loadScenarios()
+        refresh()
+      })
+      return card
+    }))
+  }
+
+  $('watch-keys').addEventListener('change', () => {
+    watched = $('watch-keys').value.split(',').map((k) => k.trim()).filter(Boolean)
+    try { localStorage.setItem('bms-watch', JSON.stringify(watched)) } catch { /* private window */ }
+    refresh()
+  })
+
+  $('write').addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const raw = $('value').value.trim()
+    const value = raw === 'true' ? true : raw === 'false' ? false : raw !== '' && !isNaN(Number(raw)) ? Number(raw) : raw
+    const result = await call('/write', { point: $('point').value.trim(), value })
+    $('write-message').className = 'message ' + (result.ok ? 'good' : 'bad')
+    $('write-message').textContent = result.ok ? `Written: ${result.body.point} = ${result.body.value}` : `Refused: ${result.body.status || result.body.error}`
+    refresh()
+  })
+
+  loadScenarios()
+  refresh()
+  setInterval(refresh, 2000)
+</script>
+</body>
+</html>

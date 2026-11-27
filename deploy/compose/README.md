@@ -11,6 +11,7 @@ ports and rebuilding one service are in [local setup](../../docs/dev/local-setup
 | `compose.monitoring.yml` | Prometheus, Alertmanager, Grafana, Loki, Alloy, exporters | `python3 tooling/monitoring/local.py up` ([monitoring](../../docs/ops/monitoring.md#local-monitoring)) |
 | `compose.adapters.yml` | adapter-manager, adapter-worker, webhook-receiver, tenant runtime image | Manually, with a private env file ([adapters](../../docs/features/adapters.md#running-locally)) |
 | `compose.webhook-verification.yml` | A local webhook sink for `tooling/verify-webhooks.mjs` | Verification only |
+| `compose.bms-simulator.yml` | The simulated building of spec 038, an OPC UA server on 4840 with its controls on 4841 | With the stack, when working on the OPC UA connector ([simulators](../../docs/dev/simulators-and-fixtures.md#building-management-simulator-opc-ua)) |
 | `compose.devices-test.yml` | The disposable environment used by `tooling/test-devices.mjs` | `./taskw devices:test` |
 
 Images are pinned in `.env.example`; named volumes keep data when services stop.
