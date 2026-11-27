@@ -39,6 +39,7 @@ from asyncua.crypto.permission_rules import USER_TYPES, PermissionRuleset, User,
 from asyncua.crypto.truststore import TrustStore
 from asyncua.crypto.validator import CertificateValidator, CertificateValidatorOptions
 from asyncua.server.internal_session import InternalSession
+from asyncua.server.monitored_item_service import MonitoredItemService
 from asyncua.server.user_managers import UserManager
 from cryptography.x509.oid import ExtendedKeyUsageOID
 
@@ -118,6 +119,27 @@ async def _slow_browse(self, params):
 
 
 InternalSession.browse = _slow_browse
+
+
+# asyncua drops a status change on an item with a deadband (a bad value's None cannot be
+# subtracted, and an unchanged value counts as inside the band). OPC UA Part 4 reports
+# status changes whatever the deadband, so the simulator does too.
+def _deadband_exceeded(self, values, flt) -> bool:
+    current, old = values.get_current_datavalue(), values.get_old_datavalue()
+    if flt.DeadbandType == ua.DeadbandType.None_ or old is None or current is None:
+        return True
+    if current.StatusCode != old.StatusCode:
+        return True
+    now = current.Value.Value if current.Value is not None else None
+    before = old.Value.Value if old.Value is not None else None
+    if isinstance(now, bool) or not isinstance(now, (int, float)) or not isinstance(before, (int, float)):
+        return True
+    if flt.DeadbandType == ua.DeadbandType.Absolute:
+        return abs(now - before) > flt.DeadbandValue
+    return True  # asyncua has no percent deadband: every change is reported
+
+
+MonitoredItemService._is_deadband_exceeded = _deadband_exceeded
 
 
 class Credentials:

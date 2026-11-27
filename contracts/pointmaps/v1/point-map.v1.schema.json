@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/pointmaps/v1/point-map.v1.schema.json",
+  "title": "Point map v1",
+  "description": "For one device type: which point on a server feeds each reading, and which equipment it applies to (spec 038, specs/038-opc-ua-connector/contracts/point-map.md, ADR-052). The shared part is protocol-neutral; only `address` depends on `protocol`, and `opcua` is the only protocol defined so far. Producer: Laravel, when a data source's point map is saved. Consumers: the adapter manager's review check and the tenant runtime's connector (services/adapters/lib/opcua). Not expressible here, checked by point-map.v1.rules.json: reading keys and equipment source ids are unique, and overrides and missing name readings of the map.",
+  "type": "object",
+  "properties": {
+    "version": {"const": 1},
+    "protocol": {"enum": ["opcua"]},
+    "rhythm_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 3600,
+      "description": "How often every point is read and reported with the server's time, so a steady device still reports."
+    },
+    "readings": {"type": "array", "minItems": 1, "maxItems": 500, "items": {"$ref": "#/$defs/reading"}},
+    "equipment": {"type": "array", "minItems": 1, "maxItems": 10000, "items": {"$ref": "#/$defs/equipment"}}
+  },
+  "required": ["version", "protocol", "rhythm_seconds", "readings", "equipment"],
+  "additionalProperties": false,
+  "$defs": {
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*$",
+      "description": "A profile parameter key."
+    },
+    "namespace_uri": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:\\S+$",
+      "description": "A namespace URI. Never a namespace index, which can change when a server restarts."
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 4096,
+      "pattern": "^(i=[0-9]+|s=.+|g=[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|b=[A-Za-z0-9+/=]+)$",
+      "description": "A node id without its namespace index (`s=L03-VAV-2`, `i=2258`); the namespace travels as a URI beside it."
+    },
+    "name_segment": {
+      "type": "object",
+      "properties": {
+        "namespace_uri": {"$ref": "#/$defs/namespace_uri"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 512}
+      },
+      "required": ["namespace_uri", "name"],
+      "additionalProperties": false
+    },
+    "pattern_segment": {
+      "type": "object",
+      "description": "For a flat list of tags: the tag name, where {equipment} stands for the equipment's tag prefix.",
+      "properties": {
+        "namespace_uri": {"$ref": "#/$defs/namespace_uri"},
+        "pattern": {"type": "string", "minLength": 12, "maxLength": 512, "pattern": "\\{equipment\\}"}
+      },
+      "required": ["pattern"],
+      "additionalProperties": false
+    },
+    "path": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/name_segment"}},
+    "node_address": {
+      "type": "object",
+      "properties": {
+        "node_id": {"$ref": "#/$defs/node_id"},
+        "namespace_uri": {"$ref": "#/$defs/namespace_uri"},
+        "path": {"$ref": "#/$defs/path"}
+      },
+      "required": ["node_id", "namespace_uri"],
+      "additionalProperties": false
+    },
+    "deadband": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["none", "absolute", "percent"]},
+        "value": {"type": "number", "minimum": 0}
+      },
+      "required": ["kind", "value"],
+      "additionalProperties": false
+    },
+    "reading": {
+      "type": "object",
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "data_type": {"enum": ["number", "boolean", "state", "text"]},
+        "unit": {"type": ["string", "null"], "maxLength": 32},
+        "scale": {"type": "number"},
+        "offset": {"type": "number"},
+        "range": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The point's range (OPC UA EURange), which a percent deadband is a share of."
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "sample_ms": {"type": "integer", "minimum": 1000, "maximum": 86400000},
+            "deadband": {"$ref": "#/$defs/deadband"}
+          },
+          "required": ["sample_ms", "deadband"],
+          "additionalProperties": false
+        },
+        "address": {
+          "type": "object",
+          "properties": {
+            "relative_path": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {"anyOf": [{"$ref": "#/$defs/name_segment"}, {"$ref": "#/$defs/pattern_segment"}]},
+              "description": "From the equipment to the point, by names; or one pattern segment for a flat list of tags."
+            }
+          },
+          "required": ["relative_path"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["key", "name", "data_type", "unit", "report", "address"],
+      "additionalProperties": false,
+      "if": {"properties": {"report": {"properties": {"deadband": {"properties": {"kind": {"const": "percent"}}}}}}},
+      "then": {"required": ["range"]}
+    },
+    "equipment": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "\\S",
+          "description": "The equipment's path of names; becomes the publisher's sourceDeviceId."
+        },
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "address": {
+          "type": "object",
+          "properties": {
+            "node_id": {"$ref": "#/$defs/node_id"},
+            "namespace_uri": {"$ref": "#/$defs/namespace_uri"},
+            "path": {"$ref": "#/$defs/path"}
+          },
+          "required": ["namespace_uri", "path"],
+          "additionalProperties": false,
+          "description": "Where the equipment is: its node id as a hint and its path of names. For a flat list, the path is the list's folder plus the equipment's tag prefix, and there is no node id."
+        },
+        "overrides": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/key"},
+          "additionalProperties": {"$ref": "#/$defs/node_address"},
+          "description": "A different point for a reading on this equipment."
+        },
+        "missing": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/key"},
+          "uniqueItems": true,
+          "description": "Readings this equipment does not have."
+        }
+      },
+      "required": ["source_id", "display_name", "address"],
+      "additionalProperties": false
+    }
+  }
+}

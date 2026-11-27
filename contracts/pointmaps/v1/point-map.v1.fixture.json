@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "protocol": "opcua",
+  "rhythm_seconds": 300,
+  "readings": [
+    {
+      "key": "zone_temperature",
+      "name": "Zone temperature",
+      "data_type": "number",
+      "unit": "°C",
+      "scale": 1,
+      "offset": 0,
+      "range": [
+        10,
+        35
+      ],
+      "report": {
+        "sample_ms": 10000,
+        "deadband": {
+          "kind": "percent",
+          "value": 0.5
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "zone_temperature"
+          }
+        ]
+      }
+    },
+    {
+      "key": "zone_co2",
+      "name": "Zone carbon dioxide",
+      "data_type": "number",
+      "unit": "ppm",
+      "range": [
+        300,
+        2000
+      ],
+      "report": {
+        "sample_ms": 30000,
+        "deadband": {
+          "kind": "absolute",
+          "value": 20
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "zone_co2"
+          }
+        ]
+      }
+    },
+    {
+      "key": "temperature_setpoint",
+      "name": "Temperature setpoint",
+      "data_type": "number",
+      "unit": "°C",
+      "report": {
+        "sample_ms": 10000,
+        "deadband": {
+          "kind": "none",
+          "value": 0
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "temperature_setpoint"
+          }
+        ]
+      }
+    },
+    {
+      "key": "damper_position",
+      "name": "Damper position",
+      "data_type": "number",
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "report": {
+        "sample_ms": 10000,
+        "deadband": {
+          "kind": "absolute",
+          "value": 1
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "damper_position"
+          }
+        ]
+      }
+    },
+    {
+      "key": "occupancy",
+      "name": "Occupancy",
+      "data_type": "boolean",
+      "unit": null,
+      "report": {
+        "sample_ms": 10000,
+        "deadband": {
+          "kind": "none",
+          "value": 0
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "occupancy"
+          }
+        ]
+      }
+    },
+    {
+      "key": "operating_state",
+      "name": "Operating state",
+      "data_type": "state",
+      "unit": null,
+      "report": {
+        "sample_ms": 10000,
+        "deadband": {
+          "kind": "none",
+          "value": 0
+        }
+      },
+      "address": {
+        "relative_path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "operating_state"
+          }
+        ]
+      }
+    }
+  ],
+  "equipment": [
+    {
+      "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+      "display_name": "Level 3 East zone box",
+      "address": {
+        "node_id": "s=L03-VAV-2",
+        "namespace_uri": "urn:example:bms:example-tower",
+        "path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Campus"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Tower"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-Z2"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-VAV-2"
+          }
+        ]
+      }
+    },
+    {
+      "source_id": "Example Campus/Example Tower/L03/L03-Z7/L03-VAV-7",
+      "display_name": "Level 3 core zone box",
+      "address": {
+        "node_id": "s=L03-VAV-7",
+        "namespace_uri": "urn:example:bms:example-tower",
+        "path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Campus"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Tower"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-Z7"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-VAV-7"
+          }
+        ]
+      },
+      "missing": [
+        "zone_co2"
+      ],
+      "overrides": {
+        "temperature_setpoint": {
+          "node_id": "s=L03-VAV-7.effective_setpoint",
+          "namespace_uri": "urn:example:bms:example-tower"
+        }
+      }
+    }
+  ]
+}

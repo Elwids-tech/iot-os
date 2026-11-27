@@ -35,6 +35,16 @@ before building on them.
   at 10 s sampling. The runtime is limited to 512 MiB and 1 CPU (`manager.cjs`). If it
   does not fit with a third to spare, tenants with an OPC UA connection get a larger
   limit, set by the manager when the first connection is deployed.
+- **Measured (PR 2, 2026-11-27)**: the connector library collecting 5,000 points (4,992
+  monitored; 25 point maps, one per equipment type) from the simulator at `--size
+  large`, at 10 s sampling, inside the tenant runtime image limited to 512 MiB and 1 CPU
+  (`services/adapters/integration/opcua-memory.cjs`). Resident memory settled at
+  102 MiB (peak 102.4 MiB, flat over 5 minutes; heap 31 to 39 MiB) and CPU at 0.7% of
+  one core, delivering about 3,100 results a minute. A running tenant runtime holds
+  179 MiB before any OPC UA work (Node-RED and one adapter). Adding the whole measured
+  process to it overstates the cost (both share one Node process) and still gives
+  about 281 MiB, 45% under the limit. **Decision**: the runtime limit stays at 512 MiB
+  and 1 CPU; organizations with a connection need no larger one.
 
 ## R3. No decoder: the source emits decoder-output results
 
