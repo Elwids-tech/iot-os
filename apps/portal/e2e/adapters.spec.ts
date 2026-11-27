@@ -1674,7 +1674,7 @@ test("a point map is picked from one equipment, applied to similar ones, given a
 
   await page.getByRole("tab", { name: /Review/ }).click();
   await page.getByRole("button", { name: "Check the point map" }).click();
-  await expect(page.getByText("Passed")).toBeVisible();
+  await expect(page.getByText("Passed", { exact: true })).toBeVisible();
   await expect(page.getByText("5 of this organization's 10,000")).toBeVisible();
   await expect(page.getByRole("table", { name: "Current values of L03-VAV-2" })).toContainText("20 °C");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
