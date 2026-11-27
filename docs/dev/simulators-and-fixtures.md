@@ -270,42 +270,114 @@ unittest tests beside them, run with the other simulator tests by
 
 [`bms_server.py`](../../tooling/simulators/bms_server.py) serves Example Tower, an
 invented office tower, as an OPC UA server, for the OPC UA connector of
-[spec 038](../../specs/038-opc-ua-connector/spec.md). The building is defined once, in
-[`bms/buildings/example-tower.yaml`](../../tooling/simulators/bms/buildings/example-tower.yaml),
-and explained floor by floor in the
-[building plan](../../specs/038-opc-ua-connector/building.md). It runs its own simple
-physics and each piece of equipment's control loop
-([`bms/physics.py`](../../tooling/simulators/bms/physics.py),
-[`bms/controls.py`](../../tooling/simulators/bms/controls.py)), so values follow a
-seeded day and a written setpoint moves the zone.
+[spec 038](../../specs/038-opc-ua-connector/spec.md). **A passing run against it is not
+verification against a real building's server**: real servers name, type and secure
+their points in their own ways.
+
+### The building
+
+The building is defined once, in
+[`bms/buildings/example-tower.yaml`](../../tooling/simulators/bms/buildings/example-tower.yaml)
+(checked against the schema beside it), and explained floor by floor in the
+[building plan](../../specs/038-opc-ua-connector/building.md): levels, zones with their
+outlines, every equipment item with its position, footprint and what feeds it, and the
+point library. A 3D model and the expected entity hierarchy are drawn from the same
+file; `--export-model` prints it as JSON. Keys never change: `L03` is a level,
+`L03-Z2` a zone, `L03-VAV-2` a zone box and `L03-VAV-2.zone_temperature` a point.
+
+The building runs itself: a seeded day of weather and people, zone heat balances,
+plant that stages with load and electricity that adds up through the meter tree
+([`bms/physics.py`](../../tooling/simulators/bms/physics.py)). Every piece of
+equipment has its own control loop
+([`bms/controls.py`](../../tooling/simulators/bms/controls.py)), so a written setpoint
+moves the zone and a plant switched off stops. The same seed gives the same day.
+
+### Running it
+
+On its own, in the simulators' virtual environment:
 
 ```sh
 .local/devices/python/bin/python tooling/simulators/bms_server.py --size standard --speed 60
 ```
 
+With the stack, add the overlay to the usual compose command; adapters reach it at
+`opc.tcp://bms-simulator:4840`:
+
+```sh
+docker compose --env-file .env -f deploy/compose/compose.dev.yml -f deploy/compose/compose.app.yml \
+  -f deploy/compose/compose.bms-simulator.yml up -d --build bms-simulator
+```
+
+`BMS_SIMULATOR_SIZE`, `BMS_SIMULATOR_STYLE` and `BMS_SIMULATOR_SPEED` set its size,
+naming style and speed in the stack.
+
 | Option | Values | Default |
 | --- | --- | --- |
+| `--style` | `structured` (site, building, level and zone folders, each equipment item a typed object), `flat` (one folder of vendor-style tags such as `ET_L03_VAV_2.ZN-T`) | `structured` |
 | `--size` | `standard` (levels 2 and 3, the plant floor, the roof and the main meter: 706 points), `tower` (2,466), `large` (6,602) | `standard` |
-| `--speed` | simulated seconds a second | `1` |
-| `--seed`, `--season` | the day it runs; `summer`, `winter` or `mild` | `7`, `summer` |
 | `--writes` | `off` makes every point read only | `on` |
+| `--season`, `--seed`, `--speed` | the day it runs, and simulated seconds a second | `summer`, `7`, `1` |
+| `--security` | any of `none`, `basic256sha256` | both |
+| `--auth` | any of `anonymous`, `username`, `certificate` | all |
+| `--strict-trust` | refuse client certificates until they are in the trusted folder | off |
+| `--node-ids` | `stable` (string ids, the point keys), `renumber` (new numeric ids at each start; paths stay) | `stable` |
+| `--host`, `--port`, `--control-host`, `--control-port` | where it listens; keep the control port on loopback | `127.0.0.1`, `4840`, `127.0.0.1`, `4841` |
 | `--export-model` | print the building as JSON and stop | |
-| `--host`, `--port`, `--control-port` | | `127.0.0.1`, `4840`, `4841` |
 
-Browse `opc.tcp://localhost:4840/` with any OPC UA client: Example Campus, Example
-Tower, then a level, a zone and its equipment. Anonymous sessions read only. Writing a
-command point (a setpoint, a mode or a request) needs the `operator` sign-in, whose
-password is generated into `.local/devices/bms-simulator.json` at first start; a value
-outside the point's limits is refused with `BadOutOfRange`, the wrong type with
-`BadTypeMismatch`, and a sensor, status, alarm or total with `BadNotWritable`. The
-control port, on loopback only, answers `GET /state` and `POST /write`
-(`{"point": "L03-VAV-2.temperature_setpoint", "value": 21}`), which writes as the
-operator. The endpoint is unencrypted and offers anonymous and name-and-password
-sign-in only.
+Desktop clients use `opc.tcp://localhost:4840`. Points carry their display name,
+description, source time and status; numbers are `AnalogItemType` with `EURange` and
+`EngineeringUnits`, on/off values and named states carry their labels.
+
+### Sign-in and writing
+
+At first start the simulator writes its test sign-in values to
+`.local/devices/bms-simulator.json` and its certificates to
+`.local/devices/bms-simulator/`: the server certificate, the operator's client
+certificate and key, and the `trusted` and `rejected` folders. Nothing there is
+committed.
+
+Anonymous sessions read only. Writing a command point (a setpoint, a mode or a
+request) needs the `operator`: by name and password, or with the operator certificate.
+Any other client certificate reads. A value outside the point's limits is refused with
+`BadOutOfRange`, the wrong type with `BadTypeMismatch`, a sensor, status, alarm or
+total with `BadNotWritable`, and a session that may not write with
+`BadUserAccessDenied`. With `--strict-trust`, a client certificate the server has not
+seen lands in `rejected/`; move it to `trusted/` and connect again.
+
+### Scenarios and the controls page
+
+The control port serves a controls page at `http://localhost:4841/`
+([`bms_controls.html`](../../tooling/simulators/bms_controls.html)): watched points
+with their status, a switch for each scenario with an optional target, and a form
+that writes a command as the operator. The same port answers `GET /state`,
+`GET /values?points=…`, `GET /scenarios`, `POST /scenarios/{name}`
+(`{"on": true, "target": "L03-VAV-2"}`) and `POST /write`
+(`{"point": "L03-VAV-2.temperature_setpoint", "value": 21}`).
+
+| Scenario | Effect | Target (default) |
+| --- | --- | --- |
+| `damper_stuck` | A zone's damper holds its position; the zone drifts off setpoint | zone box (`L03-VAV-2`) |
+| `filter_alarm` | An air handling unit's filter pressure rises until its alarm is on | air handling unit (`L03-AHU-1`) |
+| `chiller_trip` | A chiller faults; chilled water warms; the next chiller stages on | chiller (the running one) |
+| `controller_offline` | A controller's points turn `BadNoCommunication`, holding their last value | equipment (`L03-VAV-2`) |
+| `sensor_failure` | One point turns `BadSensorFailure` | point (`L03-VAV-2.zone_temperature`) |
+| `uncertain_value` | One point reports `UncertainLastUsableValue` | point (`L03-VAV-3.zone_temperature`) |
+| `server_restart` | The server stops for a time, then starts again | seconds (30) |
+| `certificate_changed` | The server restarts with a new certificate | |
+| `clock_wrong` | Source times run ahead (or, negative, behind) | seconds (600) |
+| `meter_replaced` | A meter's totals start again from zero | meter (`L03-EM-1`) |
+| `session_limit` | The server accepts one session only | |
+| `slow_browse` | Browse answers wait | seconds (3) |
+| `hand_mode` | An item is in hand at its panel; writes are accepted and ignored | equipment (`L03-AHU-1`) |
+| `power_outage` | The mains fail; the generator takes the load; the supply runs on battery until then | |
+| `water_leak` | A leak detector turns on and the water flow rises | level (`L03`) |
+| `car_park_co` | Carbon monoxide rises on a car park level; its fans speed up | car park level (`B1`, tower) |
+| `lift_fault` | A lift goes out of service | lift (`G-LIFT-1`, tower) |
+| `fire_alarm` | A level's fire alarm turns on; its air handling unit stops; stairs pressurise | level (`L03`) |
 
 `asyncua` (LGPL-3.0-or-later) and `PyYAML` (MIT) are in the requirements for this
-simulator only; nothing in a release uses them. Its tests run with the other simulator
-tests. A passing simulator run says nothing about a real building's server.
+simulator only; nothing in a release uses them. Its tests (`test_bms_*.py`) run with
+the other simulator tests.
 
 ## Seeders
 

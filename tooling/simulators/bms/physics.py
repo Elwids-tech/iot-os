@@ -48,6 +48,7 @@ CHILLER_KW = 900.0
 BOILER_KW = 400.0
 PV_KWP = 30.0
 IT_LOAD_KW = 28.0
+UPS_BATTERY_KWH = 20.0
 
 
 class Physics(ABC):
@@ -80,6 +81,14 @@ class SimpleBuilding(Physics):
         self.qualities: dict[str, str] = {}
         self.hand: set[str] = set()
         self.mains_available = True
+        # What the named scenarios (bms/scenarios.py) set; all empty in a well building.
+        self.stuck: set[str] = set()  # zone boxes whose damper holds its position
+        self.clogging: set[str] = set()  # air handling units whose filter loads up
+        self.leaks: set[str] = set()  # levels with a water leak
+        self.fumes: set[str] = set()  # car park levels where carbon monoxide rises
+        self.out_of_service: set[str] = set()  # lifts
+        self.fires: set[str] = set()  # levels with a fire alarm
+        self.frozen: dict[str, object] = {}  # points holding their last value
         self._pending = 0.0
         self._rng = random.Random(seed)
         self._last_day = self.now.date()
@@ -98,6 +107,7 @@ class SimpleBuilding(Physics):
     def read(self) -> dict:
         out = {}
         for key, value in self.values.items():
+            value = self.frozen.get(key, value)
             if isinstance(value, float):
                 value = round(value, 3 if self.b.points[key].kind == 'total' else 2)
             out[key] = value
@@ -107,11 +117,14 @@ class SimpleBuilding(Physics):
         return self.qualities.get(point, 'Good')
 
     def apply(self, point: str, value) -> None:
-        """Store an accepted command; the equipment's loop acts on it at the next step.
-        Equipment in hand mode keeps the value and ignores it."""
+        """Store an accepted command. The controllers look at it at once, without any
+        simulated time passing (an effective setpoint changes straight away); the
+        building then responds step by step. Equipment in hand mode keeps the value
+        and ignores it."""
         if point not in self.b.points or not self.b.points[point].writable:
             raise KeyError(point)
         self.values[point] = value
+        self._tick(0.0)
 
     # Set-up ------------------------------------------------------------------------
 
@@ -145,6 +158,7 @@ class SimpleBuilding(Physics):
         self.generator_loop = c.GeneratorLoop()
         self.lift_levels = [k for k in b.levels if k != 'RF']
         self.lifts = of('lift')
+        self.leak_points = [k for k, p in b.points.items() if p.short.endswith('leak_detector') and p.equipment.split('-')[1] == 'SEN']
         self._power_paths()
 
     def _power_paths(self) -> None:
@@ -216,6 +230,7 @@ class SimpleBuilding(Physics):
         self.boiler_supply = {x.key: 30.0 for x in self.boilers}
         self.loads = {'cooling': 0.0, 'heating': 0.0}
         self.server_t = 23.0  # return air, which the room cooling units control
+        self.ups_charge = 100.0
         self.blind_pos = {x.key: 0.0 for x in self.blinds}
         self.peak = {}
         self.tx_winding = {}
@@ -377,6 +392,14 @@ class SimpleBuilding(Physics):
             weights = [self.box_air[x.key] for x in boxes]
             flow = sum(weights)
             return_co2 = (sum(self.zone_co2[x.zone] * f for x, f in zip(boxes, weights)) / flow) if flow > 1 else 430.0
+            if a.level in self.fires:
+                # The fire alarm stops the floor's air handling unit.
+                self.ahu_running[a.key] = self.ahu_cooling[a.key] = self._purge[a.key] = False
+                self._set(a.key, 'operating_state', 'Shut down')
+                self._set(a.key, 'supply_fan_status', False)
+                self._set(a.key, 'return_fan_status', False)
+                self._set(a.key, 'outdoor_air_damper', 0.0)
+                continue
             if a.key in self.hand:
                 self._state(a, 'Hand')
                 continue
@@ -435,11 +458,14 @@ class SimpleBuilding(Physics):
                     flow = minimum + out.cooling * (maximum - minimum)
                 else:
                     flow = 0.0
+                if x.key in self.stuck:
+                    flow = self.box_air[x.key] if air else 0.0  # the damper holds where it stuck
                 self.box_air[x.key] = flow
                 self.box_reheat[x.key] = out.heating * 100
                 self._set(x.key, 'effective_setpoint', out.effective_setpoint)
                 self._set(x.key, 'operating_state', out.state)
-                self._set(x.key, 'damper_position', flow / maximum * 100 if air else self._get(x.key, 'damper_position', 0.0))
+                stuck_at = self._get(x.key, 'damper_position', 0.0)
+                self._set(x.key, 'damper_position', stuck_at if x.key in self.stuck or not air else flow / maximum * 100)
                 self._set(x.key, 'zone_temperature_alarm', occupied and abs(self.zone_t[zone.key] - out.effective_setpoint) > 3.0)
             flow = self.box_air[x.key]
             supply = self.ahu_sat.get(ahu, 18.0)
@@ -560,6 +586,8 @@ class SimpleBuilding(Physics):
             fan_kw = design * 1.2 / 1000 * (speed / 100) ** 3 * 1.5 if running else 0.0
             if running:
                 self.ahu_filter[a.key] += 0.02 * self._hours(dt) * 24
+            if a.key in self.clogging:
+                self.ahu_filter[a.key] += 1.0 * dt  # pascals a second until its alarm
             self._set(a.key, 'supply_air_temperature', sat + self._noise(f'{a.key}.sat', 0.05))
             self._set(a.key, 'return_air_temperature', ret + self._noise(f'{a.key}.rat', 0.05))
             self._set(a.key, 'mixed_air_temperature', mixed)
@@ -636,17 +664,26 @@ class SimpleBuilding(Physics):
                 self._add(x.key, 'run_hours', self._hours(dt))
             self.electric[x.key] = output / 3.5 + (1.2 if on else 0.0)
         self.server_t += (it_kw - removed) * 1000 / 3_000_000 * dt
+        # The supply runs on battery while there is no power: mains failed and the
+        # generator not yet running.
+        powered = self.mains_available or self.generator_loop.state == 'Running'
         for ups in self.b.equipment_of_type('uninterruptible_supply'):
+            if powered:
+                self.ups_charge = min(100.0, self.ups_charge + 0.02 * dt)
+            else:
+                self.ups_charge = max(0.0, self.ups_charge - it_kw / UPS_BATTERY_KWH * 100 * self._hours(dt))
             self._set(ups.key, 'output_power', it_kw)
             self._set(ups.key, 'load', it_kw / 80.0 * 100)
-            self._set(ups.key, 'battery_charge', 100.0)
-            self._set(ups.key, 'battery_run_time', clamp(900 / it_kw, 0, 240))
-            self._set(ups.key, 'input_voltage', 230 + self._noise(f'{ups.key}.vin', 1.5))
+            self._set(ups.key, 'battery_charge', self.ups_charge)
+            self._set(ups.key, 'battery_run_time', clamp(UPS_BATTERY_KWH * self.ups_charge / 100 / it_kw * 60, 0, 240))
+            self._set(ups.key, 'input_voltage', 230 + self._noise(f'{ups.key}.vin', 1.5) if powered else 0.0)
             self._set(ups.key, 'output_voltage', 230 + self._noise(f'{ups.key}.vout', 0.3))
             self._set(ups.key, 'battery_temperature', 24 + self._noise(f'{ups.key}.bt', 0.5, 1800))
-            self._set(ups.key, 'operating_state', 'Online')
+            self._set(ups.key, 'operating_state', 'Online' if powered else 'On battery')
+            self._set(ups.key, 'on_battery_alarm', not powered)
+            self._set(ups.key, 'low_battery_alarm', self.ups_charge < 20)
             self._add(ups.key, 'energy', it_kw * self._hours(dt))
-            self.electric[ups.key] = it_kw / 0.95
+            self.electric[ups.key] = it_kw / 0.95 if powered else 0.0
 
     # Outdoor air and plant -------------------------------------------------------------
 
@@ -875,6 +912,8 @@ class SimpleBuilding(Physics):
             for n in range(1, len(v.sensors) + 1):
                 spot = 0.6 + 0.8 * unit(self.seed, 'co-spot', v.key, n)
                 raw = 2 + 28 * traffic * spot + 1.5 * (1 + smooth(self.seed, (v.key, n), self.now.timestamp(), 600))
+                if v.level in self.fumes:
+                    raw += 70 * spot  # an engine left running
                 reading = raw * (1 - 0.5 * mean_speed / 100)
                 readings.append(reading)
                 self._set(v.key, f'co_{n}', reading)
@@ -910,18 +949,27 @@ class SimpleBuilding(Physics):
                 self._add(f.key, 'run_hours', self._hours(dt))
             self.electric[f.key] = 4.0 * (speed / 100) ** 3
         for f in self.b.equipment_of_type('stair_pressurisation_fan'):
-            self._set(f.key, 'status', False)
-            self._set(f.key, 'stair_pressure', 0.0)
-            self.electric[f.key] = 0.0
+            on = bool(self.fires)  # any fire alarm pressurises the stairs
+            self._set(f.key, 'status', on)
+            self._set(f.key, 'stair_pressure', 45 + self._noise(f'{f.key}.p', 3) if on else 0.0)
+            self.electric[f.key] = 5.5 if on else 0.0
 
         # Lifts: trips follow the building's people.
         occupancy = sum(self.zone_people.values()) / max(sum(z.area * PEOPLE_PER_M2.get(z.use, 0.05) for z in self.b.zones.values()), 1)
         for lift in self.lifts:
             s = self.lift_state[lift.key]
             moving = False
-            if s['door'] > 0:
+            mode = 'Out of service' if lift.key in self.out_of_service else 'Fire' if self.fires else 'Normal'
+            if mode == 'Out of service':
+                s['target'], s['door'] = None, 0.0
+            elif mode == 'Fire' and s['target'] is None and round(s['at']) != self.lift_levels.index('G'):
+                s['target'], s['door'] = float(self.lift_levels.index('G')), 0.0  # home to the ground landing
+            parked = mode == 'Fire' and s['target'] is None and round(s['at']) == self.lift_levels.index('G')
+            if parked:
+                s['door'] = 10.0  # parked at the ground landing with its doors open
+            elif s['door'] > 0:
                 s['door'] = max(0.0, s['door'] - dt)
-            elif s['target'] is None:
+            elif s['target'] is None and mode == 'Normal':
                 if self._rng.random() < (0.1 + 1.5 * occupancy) / 60 * dt:  # trips a minute, busier with people
                     choice = self._rng.randrange(len(self.lift_levels))
                     if choice != round(s['at']):
@@ -940,7 +988,8 @@ class SimpleBuilding(Physics):
             self._set(lift.key, 'load', s['load'])
             self._set(lift.key, 'direction', direction)
             self._set(lift.key, 'door', 'Open' if s['door'] > 0 else 'Closed')
-            self._set(lift.key, 'mode', 'Normal')
+            self._set(lift.key, 'mode', mode)
+            self._set(lift.key, 'fault', lift.key in self.out_of_service)
             if moving:
                 self._add(lift.key, 'run_hours', self._hours(dt))
             self.electric[lift.key] = 12.0 if moving else 0.6
@@ -991,6 +1040,7 @@ class SimpleBuilding(Physics):
 
         # Water: use follows the people; the tank refills through the main meter.
         use = sum(self.zone_people.values()) * 0.12 + 15 * self.day.occupancy('kitchen', 'kitchen', self.now)
+        use += 40.0 * len(self.leaks)  # litres a minute running away
         shop_use = {}
         for wm in self.b.equipment_of_type('water_meter'):
             if wm.zone:
@@ -1057,6 +1107,8 @@ class SimpleBuilding(Physics):
             self.electric[heater.key] = (18.0 if self.dhw_heating else 0.0) + (0.4 if pump else 0.0)
 
         for fire in self.b.equipment_of_type('fire_systems'):
+            for level in ('B2', 'B1', 'G', 'L01', 'L02', 'L03', 'L04', 'L05', 'L06', 'L07', 'L08', 'L09', 'L10', 'RF'):
+                self._set(fire.key, f'fire_alarm_{level.lower()}', level in self.fires)
             alarms = [self._get(fire.key, f'fire_alarm_{k.lower()}') for k in ('B2', 'B1', 'G', 'L01', 'L02', 'L03', 'L04', 'L05', 'L06', 'L07', 'L08', 'L09', 'L10', 'RF')]
             self._set(fire.key, 'sprinkler_tank_level', 99.0 + self._noise(f'{fire.key}.tank', 0.3, 3600))
             self._set(fire.key, 'any_fire_alarm', any(alarms))
@@ -1141,6 +1193,8 @@ class SimpleBuilding(Physics):
     def _sensors(self, w) -> None:
         def sensors(type_name):
             return self.b.equipment_of_type(type_name)
+        for key in self.leak_points:
+            self.values[key] = self.b.points[key].equipment.split('-')[0] in self.leaks
         for s in sensors('office_floor_sensors'):
             ahu_on = self.ahu_running.get(f'{s.level}-AHU-1', False)
             self._set(s.key, 'plant_room_temperature', 24 + 0.15 * (w.temperature - 20) + (1.5 if ahu_on else 0) + self._noise(f'{s.key}.t', 0.2))

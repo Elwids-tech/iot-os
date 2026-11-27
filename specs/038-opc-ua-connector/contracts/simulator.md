@@ -59,10 +59,15 @@ Test sign-in values are written to `.local/devices/bms-simulator.json` at first 
 
 ## Scenarios
 
-Switched with `POST /scenarios/{name}` (`{"on": true, "target": "…"}`) on the control
-port, or from `bms_controls.html`. The control port also answers `GET /state`
-(scenarios in force, simulated time) and `POST /write` (`{"point": "L03-VAV-2.temperature_setpoint", "value": 23}`),
-which writes as the operator would, for tests and for trying controls by hand.
+Switched with `POST /scenarios/{name}` (`{"on": true, "target": "…"}`; `"on": false`
+switches one off) on the control port, or from `bms_controls.html`, which the control
+port serves at `/`. The control port also answers `GET /state` (scenarios in force,
+simulated time), `GET /scenarios` (each scenario, its target and default),
+`GET /values?points=…` (values and their status) and `POST /write`
+(`{"point": "L03-VAV-2.temperature_setpoint", "value": 23}`), which writes as the
+operator would, for tests and for trying controls by hand. A scenario's target is a
+key (equipment, point or level) or a number of seconds; `meter_replaced`,
+`server_restart` and `certificate_changed` happen once when switched on.
 
 | Name | Effect |
 | --- | --- |

@@ -74,15 +74,15 @@ plan.
 
 ### Pull request 1b: faults, naming styles, security and the stack
 
-- [ ] T007 [P] [US1] Create tooling/simulators/bms/scenarios.py: the eighteen scenarios of the simulator contract, each switchable at run time with an optional target
-- [ ] T008 [P] [US1] Create tooling/simulators/bms/naming.py: the `flat` style (one folder of tags such as `ET_L03_VAV_2.ZN-T`) beside the structured style, over the same model
-- [ ] T110 [US1] Extend tooling/simulators/bms_server.py with `--style --security --auth --strict-trust --node-ids`, certificates and test sign-in values (including `operator`) generated into `.local/devices/` at first start, and `POST /scenarios/{name}` on the control port
-- [ ] T010 [P] [US1] Create tooling/simulators/bms_controls.html: scenario switches and a small form that writes a command through the control port, in the style of tooling/simulators/fire_watch_controls.html
-- [ ] T111 [P] [US1] Create tooling/simulators/test_bms_scenarios.py: every scenario's effect; both styles expose the same points
-- [ ] T012 [US1] Create tooling/simulators/test_bms_server.py: one browse and read through an `asyncua` client for each security and sign-in choice, `--strict-trust` refusing an unknown client, and `--node-ids renumber` changing numeric ids while paths stay
-- [ ] T013 [US1] Create deploy/compose/compose.bms-simulator.yml (service `bms-simulator`, internal network, port 4840 also on `127.0.0.1`, control port on `127.0.0.1` only) and a small image definition deploy/docker/bms-simulator/Dockerfile on `python:3.12-slim`
-- [ ] T014 [P] [US1] Document the simulator in docs/dev/simulators-and-fixtures.md (the building and its model file, options, commands, scenarios, controls page, the overlay, and that a passing simulator run is not verification against a real building) and add it to the list in tooling/README.md
-- [ ] T015 [US1] Run all of quickstart A in the stack and record the result in the pull request
+- [x] T007 [P] [US1] Create tooling/simulators/bms/scenarios.py: the eighteen scenarios of the simulator contract, each switchable at run time with an optional target (`meter_replaced`, `server_restart` and `certificate_changed` happen once; the others stay on until switched off)
+- [x] T008 [P] [US1] Create tooling/simulators/bms/naming.py: the `flat` style (one folder of tags such as `ET_L03_VAV_2.ZN-T`) beside the structured style, over the same model (tags come from a table of vendor abbreviations: `zone_temperature` is `ZN-T`)
+- [x] T110 [US1] Extend tooling/simulators/bms_server.py with `--style --security --auth --strict-trust --node-ids`, certificates and test sign-in values (including `operator`) generated into `.local/devices/` at first start, and `POST /scenarios/{name}` on the control port (plus `--control-host` for the container; the operator's client certificate is generated beside the server's, and a refused client certificate lands in `rejected/`)
+- [x] T010 [P] [US1] Create tooling/simulators/bms_controls.html: scenario switches and a small form that writes a command through the control port, in the style of tooling/simulators/fire_watch_controls.html (served by the control port at `/`; also `GET /values` and `GET /scenarios` for it)
+- [x] T111 [P] [US1] Create tooling/simulators/test_bms_scenarios.py: every scenario's effect; both styles expose the same points
+- [x] T012 [US1] Create tooling/simulators/test_bms_server.py: one browse and read through an `asyncua` client for each security and sign-in choice, `--strict-trust` refusing an unknown client, and `--node-ids renumber` changing numeric ids while paths stay
+- [x] T013 [US1] Create deploy/compose/compose.bms-simulator.yml (service `bms-simulator`, internal network, port 4840 also on `127.0.0.1`, control port on `127.0.0.1` only) and a small image definition deploy/docker/bms-simulator/Dockerfile on `python:3.12-slim` (the image installs the simulator requirements; size, style and speed come from `BMS_SIMULATOR_*`)
+- [x] T014 [P] [US1] Document the simulator in docs/dev/simulators-and-fixtures.md (the building and its model file, options, commands, scenarios, controls page, the overlay, and that a passing simulator run is not verification against a real building) and add it to the list in tooling/README.md
+- [x] T015 [US1] Run all of quickstart A in the stack and record the result in the pull request (all nine steps pass in the stack; recorded in the pull request)
 
 **Checkpoint**: any standard OPC UA client can browse the tower, see a zone go offline,
 and move a zone's temperature by writing its setpoint.

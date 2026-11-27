@@ -1431,3 +1431,8 @@ The portal is a progressive web app (spec 033,
 - **`VariableAttributes.Value` takes a `Variant`, not a `DataValue`.** Given a
   `DataValue`, asyncua stores a variable of type DataValue and refuses every later
   write of a number as the wrong type.
+- **A `.` in a browse path splits it.** In OPC UA's relative-path text a `.` is a
+  path step, so `get_child('2:ET_L03_VAV_2.ZN-T')` finds nothing. Pass a
+  `ua.QualifiedName` for a name with a dot in it, such as a flat-style tag.
+- **asyncua's `TrustStore` refuses to load an empty folder**, and its X509 token check
+  hands the user manager the certificate as DER bytes, not as an object.
