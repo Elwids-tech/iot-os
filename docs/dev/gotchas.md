@@ -21,6 +21,11 @@ Things that have cost time before. Add to this list when something surprises you
   columns. When a migration renames one (spec 009: `sites` → `legacy_sites`,
   `integration_applications.site_uuids` → `entity_uuids`), list the old table
   under `may_change` for that release and fix the deployment's `checks.json`.
+- **A person's token does not open the portal API.** People reach `/api/v1` by Sanctum
+  session; the `User` model's `HasApiTokens` is Passport's, for agents on `/mcp` only
+  (spec 004). `$user->createToken()` needs a Passport personal access client and gives
+  a token the portal API answers `401`. Scripts sign in by session instead, as
+  `tooling/lib/portal-session.mjs` does.
 - **Users have no UUID.** The `users` table has no `uuid` column. Every API
   endpoint identifies users by integer id (`acknowledged_by`, `recipient_ids`,
   `created_by`, alert `assignee`, admin and organization member routes), so new

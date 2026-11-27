@@ -1,7 +1,9 @@
 <?php
 // Local-only fixture for the independently packaged Node SDK. No hardware actions.
 declare(strict_types=1);
+use App\Domain\Administration\Services\OrganizationDefaultRoles;
 use App\Domain\Shared\Models\{Organization, User};
+use App\Domain\Authorization\Enums\OrganizationRoleName;
 use App\Domain\Devices\Models\Device;
 use App\Domain\Automation\Models\{Alert, Workflow, Deployment};
 use App\Domain\Integrations\Models\IntegrationApplication;
@@ -12,8 +14,17 @@ $app = require '/var/www/html/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 if (!$app->environment('local', 'testing')) { throw new RuntimeException('Local verification only.'); }
 $actor = User::where('is_super_admin', true)->firstOrFail();
-$token = $actor->createToken('temporary-sdk-verification', ['*'], now()->addMinutes(5));
 $org = Organization::create(['name' => 'Temporary SDK check', 'slug' => 'sdk-check-'.Str::uuid()]);
+// People reach the portal API by session (Sanctum), not bearer tokens, so the HTTP client
+// signs in as a temporary organization administrator with a random password.
+$password = Str::random(40);
+$admin = User::create(['name' => 'Temporary SDK admin', 'email' => 'sdk-check-'.Str::uuid().'@example.test', 'password' => $password, 'email_verified_at' => now()]);
+$admin->organizations()->attach($org->id);
+$roles = app(OrganizationDefaultRoles::class)->ensure($org);
+$registrar = app(Spatie\Permission\PermissionRegistrar::class);
+$registrar->setPermissionsTeamId($org->id);
+$admin->syncRoles([$roles[OrganizationRoleName::ORGANIZATION_ADMIN->value]]);
+$registrar->setPermissionsTeamId(null);
 $foreign = Organization::create(['name' => 'Temporary SDK isolation check', 'slug' => 'sdk-foreign-'.Str::uuid()]);
 try {
     $devices = [];
@@ -31,7 +42,7 @@ try {
         DB::table('device_runtime.observations')->insert([...$row, 'event_uuid' => (string) Str::uuid(), 'observed_at' => $at]);
         $telemetry = ['parameter' => $parameter, 'configuration' => $configuration, 'from' => $at->copy()->subMinute()->toIso8601String(), 'to' => $at->copy()->addMinute()->toIso8601String()];
     }
-    $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'SDK fixture boundary', 'workflow' => ['nodes' => [], 'edges' => []], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
+    $workflow = Workflow::create(['organization_id' => $org->id, 'name' => 'SDK fixture boundary', 'workflow' => ['schema_version' => 'automation-workflow.v1', 'nodes' => [], 'edges' => []], 'definition' => [], 'definition_hash' => str_repeat('a', 64), 'updated_by' => $actor->id]);
     $deployment = Deployment::create(['automation_workflow_id' => $workflow->id, 'created_by' => $actor->id, 'created_at' => now(), 'generation' => 1, 'draft_revision' => 1, 'target' => 'active', 'status' => 'applied', 'definition_hash' => str_repeat('a', 64), 'definition' => ['binding' => ['device_uuid' => $devices[0]->uuid]]]);
     if ($telemetry !== null) {
         $latitude = (string) Str::uuid(); $longitude = (string) Str::uuid();
@@ -50,7 +61,9 @@ try {
             }
             $event = ['schema_version' => 'telemetry.committed.v1', 'event_id' => $eventID, 'telemetry_id' => $eventID, 'sequence' => '', 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'readings' => $readings];
             // Already published fixture rows never enter the live broker or rules pipeline.
-            DB::table('device_runtime.telemetry_outbox')->insert(['telemetry_uuid' => $eventID, 'organization_uuid' => $org->uuid, 'event' => json_encode($event, JSON_THROW_ON_ERROR), 'created_at' => $at, 'published_at' => now()]);
+            $sequence = DB::table('device_runtime.telemetry_outbox')->insertGetId(['telemetry_uuid' => $eventID, 'organization_uuid' => $org->uuid, 'event' => json_encode($event, JSON_THROW_ON_ERROR), 'created_at' => $at, 'published_at' => now()], 'sequence');
+            // The runtime reads committed events from telemetry_events, with their readings from observations (ADR-042).
+            DB::table('device_runtime.telemetry_events')->insert(['sequence' => $sequence, 'telemetry_uuid' => $eventID, 'organization_uuid' => $org->uuid, 'device_uuid' => $devices[0]->uuid, 'configuration_uuid' => $configuration, 'generation' => 1, 'received_at' => $at]);
         }
         if (getenv('IOT_VERIFY_DASHBOARD') === '1') {
             $workflow->update(['applied_deployment_uuid' => $locationVersion->uuid, 'deployment_status' => 'applied']);
@@ -67,7 +80,7 @@ try {
     }
     $alert = Alert::create(['organization_id' => $org->id, 'automation_workflow_id' => $workflow->id, 'automation_deployment_id' => $deployment->id, 'episode' => 1, 'activated_at' => now()]);
     @unlink('/tmp/iot-sdk-release');
-    file_put_contents('/tmp/iot-sdk-fixture.json', json_encode(['organization' => $org->uuid, 'foreign' => $foreign->uuid, 'devices' => array_map(fn ($d) => $d->uuid, $devices), 'alert' => $alert->uuid, 'workflow' => $workflow->uuid, 'adminToken' => $token->plainTextToken, 'telemetry' => $telemetry], JSON_THROW_ON_ERROR));
+    file_put_contents('/tmp/iot-sdk-fixture.json', json_encode(['organization' => $org->uuid, 'foreign' => $foreign->uuid, 'devices' => array_map(fn ($d) => $d->uuid, $devices), 'alert' => $alert->uuid, 'workflow' => $workflow->uuid, 'admin' => ['email' => $admin->email, 'password' => $password], 'telemetry' => $telemetry], JSON_THROW_ON_ERROR));
     chmod('/tmp/iot-sdk-fixture.json', 0600);
     echo "SDK fixture ready for isolated HTTP client.\n";
     $until = microtime(true) + 180;
@@ -89,13 +102,20 @@ try {
     Deployment::whereIn('automation_workflow_id', $workflows)->delete();
     Workflow::where('organization_id', $org->id)->delete();
     if (getenv('IOT_VERIFY_TELEMETRY') === '1') {
+        DB::table('device_runtime.telemetry_events')->where('organization_uuid', $org->uuid)->delete();
         DB::table('device_runtime.telemetry_outbox')->where('organization_uuid', $org->uuid)->delete();
         DB::table('device_runtime.latest')->where('organization_uuid', $org->uuid)->delete();
         DB::table('device_runtime.observations')->where('organization_uuid', $org->uuid)->delete();
     }
     Device::where('organization_id', $org->id)->delete();
     DB::table('activity_log')->where('organization_id', $org->id)->delete();
-    $token->accessToken->delete();
+    $registrar->setPermissionsTeamId($org->id);
+    $admin->syncRoles([]);
+    $registrar->setPermissionsTeamId(null);
+    DB::table('activity_log')->where('causer_type', $admin->getMorphClass())->where('causer_id', $admin->id)->delete();
+    $admin->organizations()->detach();
+    $admin->delete();
+    foreach ($roles as $role) { $role->delete(); }
     DB::table('integration_events')->where('organization_id', $org->id)->delete();
     DB::table('integration_streams')->where('organization_id', $org->id)->delete();
     $org->forceDelete(); $foreign->forceDelete();

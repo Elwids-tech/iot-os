@@ -2,6 +2,7 @@
 import {createRequire} from 'node:module'
 import {readFile} from 'node:fs/promises'
 import assert from 'node:assert/strict'
+import {portalSession,signInBrowser} from './lib/portal-session.mjs'
 const require=createRequire(new URL('../apps/portal/package.json',import.meta.url))
 const {chromium,expect}=require('@playwright/test')
 const fixture=JSON.parse(await readFile('/tmp/iot-sdk-fixture.json','utf8'))
@@ -11,13 +12,13 @@ const context=await browser.newContext({viewport:{width:1440,height:1000}})
 const page=await context.newPage()
 page.setDefaultTimeout(10000)
 const errors=[];page.on('pageerror',error=>errors.push(error.message))
-await page.route(origin+'/api/**',async route=>route.continue({headers:{...route.request().headers(),Authorization:'Bearer '+fixture.adminToken}}))
+await signInBrowser(context,origin,fixture.admin)
 async function confirm(name){await page.getByRole('alertdialog').getByRole('button',{name,exact:true}).click()}
 try{
  await page.goto('http://localhost:5173/organizations/'+fixture.organization+'/integrations')
- await page.getByRole('button',{name:'Create application',exact:true}).click()
+ await page.getByRole('button',{name:'New application',exact:true}).click()
  await page.getByLabel('Application name').fill('Temporary UI verification')
- for(const name of ['Device details','Telemetry and location','Alerts','Alert event feed'])await page.getByRole('checkbox',{name,exact:true}).check()
+ for(const name of ['Device details','Telemetry and location','Alerts','Alert and geofence event feed'])await page.getByRole('checkbox',{name,exact:true}).check()
  await page.getByRole('combobox',{name:'Add a device'}).click()
  await page.getByRole('option',{name:'SDK fixture one · one'}).click()
  await page.getByRole('button',{name:'Save application',exact:true}).click()
@@ -31,7 +32,7 @@ try{
  await page.getByRole('button',{name:'Configure / rotate key'}).click();await confirm('Configure webhook')
  await expect(page.getByLabel('Webhook signing secret value')).toBeVisible()
  await page.getByRole('button',{name:"I've stored it"}).click()
- const acknowledged=await fetch(origin+'/api/v1/organizations/'+fixture.organization+'/alerts/'+fixture.alert+'/acknowledge',{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+fixture.adminToken},body:'{}'})
+ const acknowledged=await (await portalSession(origin,fixture.admin))('POST',origin+'/api/v1/organizations/'+fixture.organization+'/alerts/'+fixture.alert+'/acknowledge',{})
  assert.equal(acknowledged.status,200)
  await expect(page.getByText(/^delivered$/i)).toBeVisible({timeout:45000})
  await page.getByText('Attempt history',{exact:true}).click()
