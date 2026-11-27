@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-request.v1.schema.json",
+  "title": "OPC UA manager request",
+  "description": "What Laravel sends to each of the adapter manager's OPC UA routes (spec 038, specs/038-opc-ua-connector/contracts/manager-api.md): the connection, its secrets, the organization's private ranges and the platform's own ranges, plus what the route needs (parent and cursor for /opcua/browse, points for /opcua/read, root and text for /opcua/search). Producer: Connections in apps/api. Consumer: services/adapters/lib/opcua/routes.cjs.",
+  "type": "object",
+  "properties": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "uuid": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "endpoint_url": {
+          "type": "string",
+          "pattern": "^opc\\.tcp://",
+          "maxLength": 512
+        },
+        "security_policy": {
+          "enum": [
+            "None",
+            "Basic256Sha256",
+            "Aes128_Sha256_RsaOaep",
+            "Aes256_Sha256_RsaPss"
+          ]
+        },
+        "security_mode": {
+          "enum": [
+            "None",
+            "Sign",
+            "SignAndEncrypt"
+          ]
+        },
+        "identity": {
+          "enum": [
+            "anonymous",
+            "username",
+            "certificate"
+          ]
+        },
+        "server_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "uuid",
+        "endpoint_url",
+        "security_policy",
+        "security_mode",
+        "identity",
+        "server_fingerprint"
+      ],
+      "additionalProperties": false
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "$comment": "secret"
+        },
+        "password": {
+          "type": "string",
+          "$comment": "secret"
+        },
+        "user_certificate": {
+          "type": "string",
+          "$comment": "secret"
+        },
+        "user_private_key": {
+          "type": "string",
+          "$comment": "secret"
+        },
+        "client_private_key": {
+          "type": "string",
+          "$comment": "secret"
+        },
+        "client_certificate": {
+          "type": "string",
+          "maxLength": 16384
+        }
+      },
+      "additionalProperties": false
+    },
+    "private_ranges": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "maxItems": 64
+    },
+    "platform_ranges": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "maxItems": 64
+    },
+    "parent": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/node"
+        }
+      ]
+    },
+    "cursor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4096
+    },
+    "points": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "root": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/node"
+        }
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    }
+  },
+  "required": [
+    "connection",
+    "secrets",
+    "private_ranges"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 4096,
+          "pattern": "^(i|s|g|b)="
+        },
+        "namespace_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "node_id",
+        "namespace_uri"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

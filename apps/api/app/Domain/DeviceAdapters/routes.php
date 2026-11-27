@@ -1,15 +1,33 @@
 <?php
 
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
+use App\Domain\DeviceAdapters\Http\AdapterConnectionController;
 use App\Domain\DeviceAdapters\Http\AdapterController;
 use App\Domain\DeviceAdapters\Http\PollingController;
 use App\Domain\DeviceAdapters\Http\WebhookController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'adapter', 'candidate', 'credential', 'proposal', 'secret'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
+Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'adapter', 'candidate', 'credential', 'proposal', 'secret', 'connection'])->middleware(['auth:sanctum', ResolveOrganizationContext::class])->group(function (): void {
     Route::get('device-adapters', [AdapterController::class, 'index']);
     Route::get('device-adapter-profiles', [AdapterController::class, 'profiles']);
     Route::post('device-adapters', [AdapterController::class, 'store']);
+    // Spec 038: OPC UA connections and browsing (contracts/api.md).
+    Route::get('adapter-connections', [AdapterConnectionController::class, 'index']);
+    Route::post('adapter-connections', [AdapterConnectionController::class, 'store'])->middleware('throttle:20,1');
+    Route::prefix('adapter-connections/{connection}')->group(function (): void {
+        Route::get('', [AdapterConnectionController::class, 'show']);
+        Route::put('', [AdapterConnectionController::class, 'update']);
+        Route::delete('', [AdapterConnectionController::class, 'destroy']);
+        Route::post('endpoints', [AdapterConnectionController::class, 'endpoints'])->middleware('throttle:opcua-browse');
+        Route::post('server-certificate/accept', [AdapterConnectionController::class, 'acceptCertificate']);
+        Route::get('client-certificate', [AdapterConnectionController::class, 'clientCertificate']);
+        Route::post('test', [AdapterConnectionController::class, 'test'])->middleware('throttle:opcua-browse');
+        Route::post('pause', [AdapterConnectionController::class, 'pause']);
+        Route::post('resume', [AdapterConnectionController::class, 'resume']);
+        Route::get('nodes', [AdapterConnectionController::class, 'nodes'])->middleware('throttle:opcua-browse');
+        Route::post('nodes/read', [AdapterConnectionController::class, 'read'])->middleware('throttle:opcua-browse');
+        Route::post('nodes/search', [AdapterConnectionController::class, 'search'])->middleware('throttle:opcua-browse');
+    });
     Route::prefix('device-adapters/{adapter}')->group(function (): void {
         Route::get('', [AdapterController::class, 'show']);
         Route::put('', [AdapterController::class, 'update']);

@@ -12,6 +12,7 @@ import { DeleteOrganizationDialog } from "../components/DeleteOrganizationDialog
 import { countLabel } from "../components/DirectoryStates"
 import { InviteUserDialog } from "../components/InviteUserDialog"
 import { OrganizationDialog } from "../components/OrganizationDialog"
+import { PrivateRangesDialog } from "../components/PrivateRangesDialog"
 import { useDirectoryTable } from "../components/ResourceDirectory"
 import { useOrganizationOptions } from "../hooks/use-directory"
 import { apiClient } from "../lib/api-client"
@@ -27,6 +28,7 @@ export function OrganizationsPage() {
   const [inviting, setInviting] = useState<Organization | null>(null)
   const [deleting, setDeleting] = useState<Organization | null>(null)
   const [moving, setMoving] = useState<Organization | null>(null)
+  const [ranges, setRanges] = useState<Organization | null>(null)
   const organizations = useOrganizationOptions()
   const columns = useMemo<DataColumn<Organization>[]>(
     () => [
@@ -113,6 +115,7 @@ export function OrganizationsPage() {
             <DropdownMenuItem asChild>
               <Link to={`/organizations/${encodeURIComponent(organization.uuid)}/streams`}>Telemetry streams</Link>
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRanges(organization)}>Private network ranges</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link to={`/roles?organization=${encodeURIComponent(organization.uuid)}`}>Roles</Link>
@@ -150,6 +153,7 @@ export function OrganizationsPage() {
       />
       <DeleteOrganizationDialog organization={deleting} onClose={() => setDeleting(null)} onDeleted={reload} />
       <ChangeBillingAccountDialog organization={moving} onClose={() => setMoving(null)} onMoved={reload} />
+      <PrivateRangesDialog organization={ranges} onClose={() => setRanges(null)} />
     </CollectionPage>
   )
 }

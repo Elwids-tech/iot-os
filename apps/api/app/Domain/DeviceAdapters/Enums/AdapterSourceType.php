@@ -11,6 +11,7 @@ enum AdapterSourceType: string
     case Vendor = 'vendor';
     case Webhook = 'webhook';
     case Poll = 'poll';
+    case Opcua = 'opcua';
 
     /** Sources that subscribe to MQTT topic filters the person chooses. */
     public function hasTopics(): bool
@@ -25,6 +26,7 @@ enum AdapterSourceType: string
             self::Vendor => 'Vendor MQTT broker',
             self::Webhook => 'HTTP webhook',
             self::Poll => 'HTTP polling',
+            self::Opcua => 'OPC UA server',
         };
     }
 }

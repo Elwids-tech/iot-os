@@ -21,6 +21,7 @@ const labels: Record<AdapterSourceType, string> = {
   vendor: "Vendor MQTT broker",
   webhook: "HTTP webhook",
   poll: "HTTP polling",
+  opcua: "OPC UA server",
 };
 export const sourceLabel = (type: AdapterSourceType | undefined) =>
   (type && labels[type]) || "Unknown source";
@@ -53,6 +54,7 @@ export function defaultSource(type: AdapterSourceType): AdapterSource {
   if (type === "platform") return { type, topics: [] };
   if (type === "vendor") return { type, url: "", topics: [] };
   if (type === "webhook") return { type, auth: defaultAuth("hmac") };
+  if (type === "opcua") return { type, connection_uuid: null };
   return { type, ...structuredClone(defaultPoll) };
 }
 
@@ -127,6 +129,7 @@ export function sourceForSave(source: AdapterSource, topics: string[]): AdapterS
     return { type: "vendor", url: clean(source.url), topics };
   if (source.type === "webhook")
     return { type: "webhook", auth: authForSave(source.auth) };
+  if (source.type === "opcua") return { type: "opcua", connection_uuid: source.connection_uuid ?? null };
   return pollForSave(source);
 }
 

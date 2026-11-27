@@ -94,6 +94,7 @@ import {
   FetchNow,
   PollSource,
 } from "./sources/PollSource";
+import { OpcuaConnection } from "./sources/OpcuaConnection";
 import { WebhookAuthentication, WebhookSecrets } from "./sources/WebhookSource";
 import {
   appendFixture,
@@ -682,6 +683,21 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
               disabled={!canEdit}
               webhookAvailable={webhookAvailable}
             />
+          ) : draft.source.type === "opcua" ? (
+            <div className="flex flex-col gap-4">
+              <SourceChoice
+                type="opcua"
+                onChange={canEdit ? () => setChoosing(true) : undefined}
+              />
+              <Alert>
+                <AlertDescription>
+                  Connect to the server and look through what it offers here.
+                  Choosing which points to store, and saving this data source,
+                  arrive with point maps in the next release.
+                </AlertDescription>
+              </Alert>
+              <OpcuaConnection org={org} canEdit={canEdit} />
+            </div>
           ) : (
             <div className="flex flex-col gap-4">
               <SourceChoice
@@ -1294,6 +1310,7 @@ function sourceSummary(adapter: DeviceAdapter) {
     return `${source.url || "Vendor MQTT broker"}. Topics: ${source.topics.join(", ")}`;
   if (source.type === "webhook")
     return `HTTP webhook, ${authLabels[source.auth.mode].toLowerCase()}, at ${adapter.webhook?.ingest_url ?? "its ingest URL"}.`;
+  if (source.type === "opcua") return "An OPC UA server.";
   const minutes = Math.round(source.interval_seconds / 60);
   return `Polls ${source.request.method} ${source.request.url} every ${minutes} min, up to ${source.page.max_pages} pages a run.`;
 }

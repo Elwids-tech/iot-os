@@ -1,0 +1,117 @@
+[
+  {
+    "description": "a point that was not found",
+    "valid": true,
+    "data": {
+      "points": [
+        {
+          "node_id": "s=L03-VAV-2.nothing",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "storable": false,
+          "not_storable": "The point was not found"
+        }
+      ]
+    }
+  },
+  {
+    "description": "an unknown quality",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/points/0/quality"
+    },
+    "data": {
+      "points": [
+        {
+          "node_id": "s=L03-VAV-2.zone_temperature",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "value": 22.04,
+          "data_type": "number",
+          "unit": "°C",
+          "range": [
+            10,
+            35
+          ],
+          "states": null,
+          "status": "Good",
+          "quality": "fair",
+          "reason": null,
+          "source_time": "2026-11-27T15:07:46.000Z",
+          "storable": true,
+          "not_storable": null
+        },
+        {
+          "node_id": "s=L03-VAV-2.operating_state",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "value": 1,
+          "data_type": "state",
+          "unit": null,
+          "range": null,
+          "states": [
+            "Cooling",
+            "Heating",
+            "Deadband",
+            "Unoccupied",
+            "Hand"
+          ],
+          "status": "Good",
+          "quality": "good",
+          "reason": null,
+          "source_time": "2026-11-27T14:31:01.000Z",
+          "storable": true,
+          "not_storable": null
+        }
+      ]
+    }
+  },
+  {
+    "description": "a point without whether it is stored",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/points/0"
+    },
+    "data": {
+      "points": [
+        {
+          "node_id": "s=L03-VAV-2.zone_temperature",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "value": 22.04,
+          "data_type": "number",
+          "unit": "°C",
+          "range": [
+            10,
+            35
+          ],
+          "states": null,
+          "status": "Good",
+          "quality": "good",
+          "reason": null,
+          "source_time": "2026-11-27T15:07:46.000Z",
+          "not_storable": null
+        },
+        {
+          "node_id": "s=L03-VAV-2.operating_state",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "value": 1,
+          "data_type": "state",
+          "unit": null,
+          "range": null,
+          "states": [
+            "Cooling",
+            "Heating",
+            "Deadband",
+            "Unoccupied",
+            "Hand"
+          ],
+          "status": "Good",
+          "quality": "good",
+          "reason": null,
+          "source_time": "2026-11-27T14:31:01.000Z",
+          "storable": true,
+          "not_storable": null
+        }
+      ]
+    }
+  }
+]

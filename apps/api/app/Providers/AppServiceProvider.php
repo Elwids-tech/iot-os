@@ -92,6 +92,9 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Support tickets (spec 015) email the team and the people on a ticket.
+        // Spec 038: browsing an OPC UA server, per connection (contracts/api.md).
+        RateLimiter::for('opcua-browse', static fn (Request $request) => Limit::perMinute((int) config('adapters.opcua.browse_per_minute'))
+            ->by('opcua-browse-organization:'.implode(':', array_map(static fn ($bound) => is_object($bound) ? $bound->getRouteKey() : (string) $bound, [$request->route('organization'), $request->route('connection')]))));
         RateLimiter::for('support-tickets', static fn (Request $request) => Limit::perHour(10)->by('support-tickets-user:'.$request->user()?->getAuthIdentifier()));
         RateLimiter::for('support-messages', static fn (Request $request) => Limit::perHour(60)->by('support-messages-user:'.$request->user()?->getAuthIdentifier()));
 

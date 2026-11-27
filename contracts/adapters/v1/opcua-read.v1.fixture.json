@@ -1,0 +1,43 @@
+{
+  "points": [
+    {
+      "node_id": "s=L03-VAV-2.zone_temperature",
+      "namespace_uri": "urn:example:bms:example-tower",
+      "value": 22.04,
+      "data_type": "number",
+      "unit": "°C",
+      "range": [
+        10,
+        35
+      ],
+      "states": null,
+      "status": "Good",
+      "quality": "good",
+      "reason": null,
+      "source_time": "2026-11-27T15:07:46.000Z",
+      "storable": true,
+      "not_storable": null
+    },
+    {
+      "node_id": "s=L03-VAV-2.operating_state",
+      "namespace_uri": "urn:example:bms:example-tower",
+      "value": 1,
+      "data_type": "state",
+      "unit": null,
+      "range": null,
+      "states": [
+        "Cooling",
+        "Heating",
+        "Deadband",
+        "Unoccupied",
+        "Hand"
+      ],
+      "status": "Good",
+      "quality": "good",
+      "reason": null,
+      "source_time": "2026-11-27T14:31:01.000Z",
+      "storable": true,
+      "not_storable": null
+    }
+  ]
+}

@@ -112,6 +112,21 @@ const domains = {
     stopped: { tone: "critical", label: "Stopped" },
     not_deployed: { tone: "muted", label: "Not deployed" },
   },
+  /** OPC UA connections (spec 038). */
+  opcua_connection: {
+    draft: { tone: "muted", label: "Not tested" },
+    awaiting_trust: { tone: "info", label: "Certificate to review" },
+    connected: { tone: "good", label: "Connected" },
+    unreachable: { tone: "warning", label: "Not reachable" },
+    stopped: { tone: "critical", label: "Stopped" },
+    paused: { tone: "muted", label: "Paused" },
+  },
+  /** An OPC UA value's quality as the server reported it. */
+  opcua_quality: {
+    good: { tone: "good", label: "Good" },
+    uncertain: { tone: "warning", label: "Uncertain" },
+    bad: { tone: "critical", label: "Bad" },
+  },
   /** Adapter setup checklist steps. */
   checklist: {
     done: { tone: "good", label: "Done" },

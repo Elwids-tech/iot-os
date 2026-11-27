@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import type { AdapterSourceType } from "@iot-os/api-client";
-import { CloudIcon, LogInIcon, RadioTowerIcon, TimerIcon } from "lucide-react";
+import { Building2Icon, CloudIcon, LogInIcon, RadioTowerIcon, TimerIcon } from "lucide-react";
 import { Button } from "@iot-os/ui/components/button";
 import { ChoiceCard } from "@iot-os/ui/components/choice-card";
 import { Panel } from "@iot-os/ui/components/panel";
 import { RadioGroup } from "@iot-os/ui/components/radio-group";
 
-/** The four ways data reaches an adapter, in the order people meet them. */
+/** The ways data reaches an adapter, in the order people meet them. */
 const sources: Record<AdapterSourceType, { title: string; description: string; icon: ReactNode }> = {
   platform: {
     title: "Devices publish to our broker",
@@ -28,8 +28,14 @@ const sources: Record<AdapterSourceType, { title: string; description: string; i
     description: "We call the vendor’s REST API on a schedule. You need its address and an API key.",
     icon: <TimerIcon />,
   },
+  opcua: {
+    title: "OPC UA server",
+    description:
+      "We connect to a building or plant system’s OPC UA server. You need its address, how it signs people in, and someone who can trust a certificate on the server.",
+    icon: <Building2Icon />,
+  },
 };
-const order: AdapterSourceType[] = ["platform", "vendor", "webhook", "poll"];
+const order: AdapterSourceType[] = ["platform", "vendor", "webhook", "poll", "opcua"];
 const webhookOff =
   "This deployment does not accept webhooks yet: an operator has to configure a public ingest address first.";
 

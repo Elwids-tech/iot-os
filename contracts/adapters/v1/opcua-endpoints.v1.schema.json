@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-endpoints.v1.schema.json",
+  "title": "OPC UA endpoints",
+  "description": "What /opcua/endpoints answers: the security choices a server offers, strongest first, refused ones last with why, the sign-in methods of each and the server's certificate. Producer: services/adapters/lib/opcua/routes.cjs. Consumer: Connections in apps/api.",
+  "type": "object",
+  "properties": {
+    "endpoints": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "mode": {
+            "enum": [
+              "None",
+              "Sign",
+              "SignAndEncrypt"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "strength": {
+            "type": "integer"
+          },
+          "refused": {
+            "enum": [
+              null,
+              "unsafe",
+              "unsupported"
+            ]
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "endpoint_url": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sign_in": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "anonymous",
+                "username",
+                "certificate",
+                "issued"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "server_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "server_certificate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/certificate"
+              }
+            ]
+          }
+        },
+        "required": [
+          "policy",
+          "mode",
+          "label",
+          "strength",
+          "refused",
+          "warning",
+          "endpoint_url",
+          "sign_in",
+          "server_fingerprint",
+          "server_certificate"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "endpoints"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "certificate": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "valid_from": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "valid_to": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "application_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "der": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+=*$",
+          "maxLength": 16384
+        }
+      },
+      "required": [
+        "subject",
+        "fingerprint",
+        "valid_from",
+        "valid_to",
+        "application_uri",
+        "der"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import type { CompiledDeviceProfileDefinition, Device } from "./index";
-export type AdapterSourceType = "platform" | "vendor" | "webhook" | "poll";
+export type AdapterSourceType = "platform" | "vendor" | "webhook" | "poll" | "opcua";
 /** How a webhook delivery proves it comes from the customer's vendor account. */
 export type WebhookAuth =
   | {
@@ -47,7 +47,9 @@ export type AdapterSource =
   | { type: "platform"; topics: string[] }
   | { type: "vendor"; url?: string | null; topics: string[] }
   | { type: "webhook"; auth: WebhookAuth }
-  | ({ type: "poll" } & PollSettings);
+  | ({ type: "poll" } & PollSettings)
+  /** OPC UA (spec 038): read through a saved connection; point maps arrive in a later release. */
+  | { type: "opcua"; connection_uuid?: string | null };
 export type AdapterFixture = {
   /** Optional for sources without topics (webhooks without a path, polled records). */
   topic?: string;
@@ -363,3 +365,135 @@ export type AdapterOperation = {
   diagnostic?: string | null;
   revision_uuid?: string;
 };
+
+// OPC UA connections (spec 038, contracts/api.md) -------------------------------------
+
+export type OpcuaFailureReason =
+  | "unreachable"
+  | "address_not_allowed"
+  | "no_shared_security"
+  | "server_certificate_changed"
+  | "client_certificate_untrusted"
+  | "sign_in_refused"
+  | "server_busy"
+  | "clock_difference"
+  | "timeout";
+export type OpcuaSecurityPolicy = "None" | "Basic256Sha256" | "Aes128_Sha256_RsaOaep" | "Aes256_Sha256_RsaPss";
+export type OpcuaSecurityMode = "None" | "Sign" | "SignAndEncrypt";
+export type OpcuaIdentity = "anonymous" | "username" | "certificate";
+export type OpcuaCertificate = {
+  subject: string;
+  /** SHA-256 of the DER, lower-case hex. */
+  fingerprint: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  application_uri: string | null;
+  accepted_by?: number;
+  accepted_at?: string;
+};
+export type AdapterConnectionState = "draft" | "awaiting_trust" | "connected" | "unreachable" | "stopped" | "paused";
+export type AdapterConnection = {
+  uuid: string;
+  name: string;
+  protocol: "opcua";
+  endpoint_url: string;
+  runs_at: "platform" | "agent";
+  security_policy: OpcuaSecurityPolicy;
+  security_mode: OpcuaSecurityMode;
+  security_label: string;
+  unencrypted_confirmed_by: number | null;
+  identity: OpcuaIdentity;
+  username: string | null;
+  has_password: boolean;
+  has_user_certificate: boolean;
+  client_certificate: { fingerprint: string | null; expires_at: string | null };
+  server_certificate: OpcuaCertificate | null;
+  pending_server_certificate: OpcuaCertificate | null;
+  state: AdapterConnectionState;
+  status: {
+    since?: string;
+    reason?: OpcuaFailureReason | null;
+    message?: string | null;
+    fix?: string | null;
+    checked_at?: string;
+    limits?: Record<string, number> | null;
+    clock_difference_ms?: number | null;
+    security?: { policy: string; mode: string; label: string; warning: string | null } | null;
+    problems?: { at: string; reason: OpcuaFailureReason }[];
+  } | null;
+  refused_points: unknown[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+/** Secrets are write-only: leave one out to keep the stored value. */
+export type AdapterConnectionInput = {
+  name?: string;
+  endpoint_url?: string;
+  security_policy?: OpcuaSecurityPolicy;
+  security_mode?: OpcuaSecurityMode;
+  unencrypted_confirmed?: boolean;
+  identity?: OpcuaIdentity;
+  username?: string;
+  password?: string;
+  user_certificate?: string;
+  user_private_key?: string;
+};
+export type OpcuaEndpoint = {
+  policy: OpcuaSecurityPolicy | string;
+  mode: OpcuaSecurityMode | string;
+  label: string;
+  strength?: number;
+  /** Why the platform will not use this endpoint, when it will not. */
+  refused?: string | null;
+  warning?: string | null;
+  endpoint_url?: string;
+  sign_in?: OpcuaIdentity[];
+  server_fingerprint?: string | null;
+  server_certificate: OpcuaCertificate | null;
+};
+export type OpcuaTestResult = {
+  connected: boolean;
+  reason?: OpcuaFailureReason;
+  message?: string;
+  fix?: string | null;
+  limits?: Record<string, number> | null;
+  clock_difference_ms?: number | null;
+  security?: { policy: string; mode: string; label: string; warning: string | null } | null;
+  connection: AdapterConnection;
+};
+export type OpcuaNode = {
+  node_id: string;
+  namespace_uri: string;
+  name: string;
+  display_name: string;
+  kind: "folder" | "object" | "point";
+  type?: string | null;
+  has_children: boolean;
+  data_type?: string | null;
+  unit?: string | null;
+  writable?: boolean;
+};
+export type OpcuaPoint = {
+  node_id: string;
+  namespace_uri: string;
+  value: number | boolean | string | null | (number | boolean | string | null)[];
+  data_type?: string | null;
+  unit?: string | null;
+  range?: [number, number] | null;
+  states?: Record<string, string> | null;
+  status: string;
+  quality: "good" | "uncertain" | "bad";
+  reason?: string | null;
+  source_time?: string | null;
+  storable?: boolean;
+  not_storable?: string | null;
+};
+export type OpcuaSearchMatch = OpcuaNode & { path: { namespace_uri: string; name: string }[] };
+export type OpcuaSearchResult = { matches: OpcuaSearchMatch[]; visited: number; truncated: boolean };
+/** The body of a 422 when the server could not be reached. */
+export type OpcuaFailure = { message: string; reason: OpcuaFailureReason; fix: string | null };
+
+/** A node in expanded notation, as the API names nodes: nsu=<namespace URI>;<node id>. */
+export function opcuaAddress(node: { node_id: string; namespace_uri: string }): string {
+  return `nsu=${node.namespace_uri};${node.node_id}`;
+}

@@ -11,6 +11,7 @@ use App\Domain\Administration\Http\Controllers\PlatformInvitationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationDeletionController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationPermissionController;
+use App\Domain\Administration\Http\Controllers\PlatformOrganizationPrivateRangesController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationRoleController;
 use App\Domain\Administration\Http\Controllers\PlatformOrganizationStreamController;
 use App\Domain\Administration\Http\Controllers\PlatformRoleController;
@@ -75,6 +76,14 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->whereUuid('organization')
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('organizations.integration-streams.index');
+            Route::get('organizations/{organization}/adapter-private-ranges', [PlatformOrganizationPrivateRangesController::class, 'show'])
+                ->whereUuid('organization')
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.adapter-private-ranges.show');
+            Route::put('organizations/{organization}/adapter-private-ranges', [PlatformOrganizationPrivateRangesController::class, 'update'])
+                ->whereUuid('organization')
+                ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
+                ->name('organizations.adapter-private-ranges.update');
             Route::delete('invitations/{invitation}', [PlatformInvitationController::class, 'destroy'])
                 ->middleware('can:'.PlatformAdministrationPermission::MANAGE_ORGANIZATIONS->value)
                 ->name('invitations.destroy');
