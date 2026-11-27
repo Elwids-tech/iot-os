@@ -305,8 +305,11 @@ test("an empty organization starts from a preset, builds a branch and moves it a
   await create(page, "New entity", "Site", "Riverside plant")
   await create(page, "Add inside", "Building", "North hall")
   await create(page, "Add inside", null, "Floor 3")
-  await expect(page.locator("header").getByText("RiversidePlant/NorthHall/Floor3", { exact: true })).toBeVisible()
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Riverside plant")
+  // The header names the path name; the breadcrumb leads back up through the ancestors.
+  await expect(page.locator("header").getByText("Floor3", { exact: true })).toBeVisible()
+  const trail = page.getByRole("navigation", { name: "breadcrumb" })
+  await expect(trail.getByRole("link", { name: "Riverside plant" })).toBeVisible()
+  await expect(trail.getByRole("link", { name: "North hall" })).toBeVisible()
 
   // The tree opens a level at a time and answers the arrow keys.
   await page.goto(`/organizations/${org}/hierarchy`)
@@ -333,7 +336,7 @@ test("an empty organization starts from a preset, builds a branch and moves it a
   await expect(dialog.getByText("Floor 3 and 1 entity below it get new paths.")).toBeVisible()
   await expect(dialog.getByText("1 device changes site.")).toBeVisible()
   await dialog.getByRole("button", { name: "Move", exact: true }).click()
-  await expect(page.locator("header").getByText("RiversidePlant/SouthHall/Floor3", { exact: true })).toBeVisible()
+  await expect(trail.getByRole("link", { name: "South hall" })).toBeVisible()
   expect(state.moved?.parent).toBe(state.entities.find((row) => row.name === "South hall")!.uuid)
   expect(errors).toEqual([])
 })
