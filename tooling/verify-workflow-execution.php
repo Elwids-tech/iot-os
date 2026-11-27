@@ -30,13 +30,15 @@ $check = static function (bool $condition, string $message): void {
     if (! $condition) { throw new RuntimeException($message); }
 };
 $actor = User::where('is_super_admin', true)->firstOrFail();
-$access = $actor->createToken('temporary-workflow-execution-check');
 $org = Organization::create(['name' => 'Temporary workflow execution check', 'slug' => 'workflow-check-'.Str::uuid()]);
 $eventIds = [];
 $recipient = null;
-$call = static function (string $method, string $url, array $body = [], int $status = 200) use ($app, $access, $check): array {
+// The portal API signs people in by session (Sanctum's web guard); a createToken()
+// token is Passport, for /mcp only. In-process, act as the person on the web guard.
+$call = static function (string $method, string $url, array $body = [], int $status = 200) use ($app, $actor, $check): array {
     Auth::forgetGuards();
-    $request = Request::create($url, $method, [], [], [], ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$access->plainTextToken], json_encode($body, JSON_THROW_ON_ERROR));
+    Auth::guard('web')->setUser($actor);
+    $request = Request::create($url, $method, [], [], [], ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'], json_encode($body, JSON_THROW_ON_ERROR));
     $kernel = $app->make(Kernel::class);
     $response = $kernel->handle($request);
     $kernel->terminate($request, $response);
@@ -74,8 +76,8 @@ try {
     $configurationUuid = (string) Str::uuid();
     $definition = ['schema_version' => 'device-configuration.v1', 'organization_uuid' => $org->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $configurationUuid, 'profile_artifact_uuid' => $artifact->uuid, 'profile_hash' => hash('sha256', $canonical), 'profile_canonical_json' => $canonical, 'mappings' => array_map(fn ($p) => ['parameter_uuid' => $p['uuid'], 'metric' => $p['key'], 'datatype' => 'Double'], $parameters)];
     DeviceConfiguration::create(['uuid' => $configurationUuid, 'device_id' => $device->id, 'device_profile_artifact_id' => $artifact->id, 'revision' => 1, 'definition' => $definition, 'definition_hash' => hash('sha256', json_encode($definition)), 'created_at' => now()]);
-    $device->update(['applied_configuration_uuid' => $configurationUuid]);
-    DB::table('device_runtime.devices')->insert(['device_uuid' => $device->uuid, 'organization_uuid' => $org->uuid, 'generation' => 1, 'definition' => json_encode($definition, JSON_THROW_ON_ERROR)]);
+    $device->update(['applied_configuration_uuid' => $configurationUuid, 'applied_generation' => 1]);
+    DB::table('device_runtime.devices')->insert(['device_uuid' => $device->uuid, 'organization_uuid' => $org->uuid, 'generation' => 1, 'applied_generation' => 1, 'definition' => json_encode($definition, JSON_THROW_ON_ERROR)]);
     $binding = [...$binding, 'organization_uuid' => $org->uuid, 'device_uuid' => $device->uuid, 'configuration_uuid' => $configurationUuid];
     $graph['nodes'][0]['config']['binding'] = $binding;
     $graph['nodes'][2]['config']['outside_for_seconds'] = 0;
@@ -116,7 +118,7 @@ try {
     if (getenv('WORKFLOW_VERIFY_UI') === '1') {
         $actor->organizations()->syncWithoutDetaching([$org->id]);
         @unlink('/tmp/iot-alert-verify-release');
-        file_put_contents('/tmp/iot-alert-verify.json', json_encode(['org' => $org->uuid, 'alert' => $alert['uuid'], 'workflow' => $alert['workflow_uuid'], 'token' => $access->plainTextToken], JSON_THROW_ON_ERROR));
+        file_put_contents('/tmp/iot-alert-verify.json', json_encode(['org' => $org->uuid, 'alert' => $alert['uuid'], 'workflow' => $alert['workflow_uuid']], JSON_THROW_ON_ERROR));
         chmod('/tmp/iot-alert-verify.json', 0600);
         echo "UI fixture ready; waiting for local browser verification.\n";
         $until = microtime(true) + 180;
@@ -125,7 +127,9 @@ try {
     $call('POST', $alertUrl.'/acknowledge');
     $check($call('GET', $alertUrl)['data']['condition'] === 'active', 'Acknowledgement changed the condition.');
     $emit(-114);
-    $wait(fn () => $call('GET', $url.'/transitions')['meta']['total'] === 2, 'Inside clear was not delivered.');
+    // Back inside also records the geofence's own "entered" transition next to "cleared".
+    $wait(fn () => in_array('cleared', array_column($call('GET', $url.'/transitions')['data'], 'type'), true), 'Inside clear was not delivered.');
+    $transitions = $call('GET', $url.'/transitions')['meta']['total'];
     $check(! $call('GET', $url.'/execution')['data']['state']['active'], 'Inside state did not clear.');
     $wait(function () use ($call, $alertUrl): bool {
         $deliveries = $call('GET', $alertUrl.'/deliveries')['data'];
@@ -137,13 +141,13 @@ try {
     $disable = ['operation_uuid' => (string) Str::uuid(), 'draft_revision' => 1, 'expected_generation' => 1, 'target_state' => 'inactive'];
     $call('POST', $url.'/deployments', $disable, 202);
     $wait(fn () => $call('GET', $url)['data']['deployment_status'] === 'inactive', 'Disable was not acknowledged.');
-    $check($call('GET', $url.'/transitions')['meta']['total'] === 2, 'Disable invented a clear transition.');
+    $check($call('GET', $url.'/transitions')['meta']['total'] === $transitions, 'Disable invented a clear transition.');
     echo "PASS real activation acknowledgement, retry, committed outbox → broker → durable evaluation → API transitions, execution reads and disable\n";
     echo "PASS one alert episode, independent acknowledgement, separate queued activation/recovery emails and expected Mailpit messages\n";
 } finally {
     // Only UUIDs belonging to the temporary organization are removed. Keep the
     // global stream checkpoint: it must never be reset for a verification run.
-    DB::transaction(function () use ($org, $eventIds, $access, $recipient): void {
+    DB::transaction(function () use ($org, $eventIds, $recipient): void {
         $workflows = DB::table('automation_workflows')->where('organization_id', $org->id)->pluck('id');
         $deployments = Deployment::whereIn('automation_workflow_id', $workflows)->pluck('id');
         $operations = Deployment::whereIn('id', $deployments)->pluck('uuid');
@@ -155,6 +159,7 @@ try {
         DB::table('automation_alert_delivery_attempts')->whereIn('automation_alert_delivery_id', $deliveries)->delete();
         DB::table('automation_alert_deliveries')->whereIn('id', $deliveries)->delete();
         DB::table('automation_alert_comments')->whereIn('automation_alert_id', $alerts)->delete();
+        DB::table('automation_alert_devices')->whereIn('automation_alert_id', $alerts)->delete();
         DB::table('automation_alerts')->whereIn('id', $alerts)->delete();
         $runtimeEvents = DB::table('device_runtime.outbox')->whereRaw("event->'payload'->>'organization_uuid' = ?", [$org->uuid])->pluck('uuid');
         DB::table('device_inbox')->whereIn('uuid', $runtimeEvents)->delete();
@@ -182,7 +187,6 @@ try {
             DB::table('users')->where('id', $recipient->id)->delete();
         }
         DB::table('organizations')->where('id', $org->id)->delete();
-        $access->accessToken->delete();
     });
     @unlink('/tmp/iot-alert-verify.json');
     @unlink('/tmp/iot-alert-verify-release');
