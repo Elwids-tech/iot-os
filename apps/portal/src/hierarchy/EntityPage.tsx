@@ -88,7 +88,7 @@ export default function EntityRecord() {
       <EntityTemplate
         title={entity.name}
         icon={<NetworkIcon />}
-        code={entity.path}
+        code={entity.path_name}
         back={{ to: hierarchyPath(org), label: "Hierarchy" }}
         actions={
           capabilities.manage && (
@@ -129,9 +129,7 @@ export default function EntityRecord() {
             <Badge variant="outline">{entity.type.name}</Badge>
             {entity.archived_at && <StatusMark tone="muted">Archived</StatusMark>}
             {entity.outside_rules.length > 0 && <StatusMark tone="warning">Outside the rules</StatusMark>}
-            <span className="text-muted-foreground">
-              {entity.effective_timezone.replaceAll("_", " ")} · {utcOffset(entity.effective_timezone)}
-            </span>
+            <span className="text-muted-foreground">{zoneLabel(entity.effective_timezone)}</span>
           </>
         }
         tabs={
@@ -145,7 +143,7 @@ export default function EntityRecord() {
         }
         notices={
           <>
-            <Trail org={org} entity={entity} />
+            {entity.ancestors.length > 0 && <Trail org={org} entity={entity} />}
             {entity.outside_rules.length > 0 && (
               <Alert>
                 <AlertTitle>Outside the current rules</AlertTitle>
@@ -221,7 +219,12 @@ export default function EntityRecord() {
   )
 }
 
-/** Hierarchy / North / EastgateSS / Feeder12 */
+/** "Europe/Berlin · UTC+01:00"; UTC once, not "UTC · UTC±00:00". */
+function zoneLabel(zone: string) {
+  return zone === "UTC" || zone === "Etc/UTC" ? "UTC" : `${zone.replaceAll("_", " ")} · ${utcOffset(zone)}`
+}
+
+/** Hierarchy / North / Eastgate SS / Feeder 12, for an entity below the top level (the back link covers the rest). */
 function Trail({ org, entity }: { org: string; entity: Entity }) {
   return (
     <Breadcrumb>

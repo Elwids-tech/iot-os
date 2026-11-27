@@ -307,7 +307,7 @@ function Row<T>({
                     <ChevronRightIcon className={cn("transition-transform", open && "rotate-90")} />
                   </Button>
                 ) : (
-                  <span aria-hidden="true" className="w-8 shrink-0" />
+                  <span aria-hidden="true" className="w-7 shrink-0" />
                 )}
                 <span className="min-w-0 flex-1">{column.cell(row)}</span>
               </span>
