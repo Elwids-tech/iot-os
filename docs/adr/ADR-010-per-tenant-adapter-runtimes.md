@@ -45,7 +45,8 @@ Every tenant gets its own adapter runtime pair, created and managed by
   platform broker, as group `adapters-<organization uuid>` and edge node
   `adapter-<adapter uuid>`. From there it follows the normal Sparkplug path
   ([ADR-005](ADR-005-sparkplug-b-boundary.md)).
-- **Laravel owns** adapters, immutable revisions, fixtures, credentials,
+- **Laravel owns** adapters, revisions (immutable once deployed; the draft is edited
+  in place until then, [ADR-055](ADR-055-one-adapter-draft-until-deployed.md)), fixtures, credentials,
   deployments and discovery review
   ([`Domain/DeviceAdapters`](../../apps/api/app/Domain/DeviceAdapters)). It calls
   the manager's private HTTP API with `IOT_ADAPTER_MANAGER_TOKEN` from the

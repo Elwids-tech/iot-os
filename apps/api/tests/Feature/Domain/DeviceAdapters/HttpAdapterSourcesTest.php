@@ -10,6 +10,7 @@ use App\Domain\Assistant\Tools\OnboardingTools;
 use App\Domain\DeviceAdapters\Models\AdapterDelivery;
 use App\Domain\DeviceAdapters\Models\AdapterOperation;
 use App\Domain\DeviceAdapters\Models\AdapterProposal;
+use App\Domain\DeviceAdapters\Models\AdapterRevision;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\PollRun;
 use App\Domain\DeviceAdapters\Models\WebhookSecret;
@@ -243,12 +244,44 @@ final class HttpAdapterSourcesTest extends TestCase
 
         // Rows already stored as an object read and test as a list in their original order.
         DB::table('device_adapters')->where('id', $adapter->id)->update(['fixtures' => json_encode([1 => $record(1), 2 => $record(2), 0 => $empty])]);
-        $revision = DB::table('device_adapter_revisions')->where('device_adapter_id', $adapter->id)->where('revision', $saved['draft_revision']);
+        $revision = DB::table('device_adapter_revisions')->where('device_adapter_id', $adapter->id)->where('revision', $saved['revision']['revision']);
         $revision->update(['definition' => json_encode([...json_decode($revision->value('definition'), true), 'fixtures' => [1 => $record(1), 2 => $record(2), 0 => $empty]])]);
         $this->assertEquals([$empty, $record(1), $record(2)], $adapter->fresh()->fixtures);
         $this->assertEquals([$empty, $record(1), $record(2)], $this->getJson($this->prefix.'/device-adapters/'.$a['uuid'])->assertOk()->json('data.fixtures'));
         $this->postJson($this->prefix.'/device-adapters/'.$a['uuid'].'/test', ['draft_revision' => $saved['draft_revision']])->assertOk();
         $this->assertEquals([$empty, $record(1), $record(2)], $this->calls('/test')[0]['body']['fixtures']);
+    }
+
+    public function test_saves_edit_one_draft_until_a_deployment_uses_it(): void
+    {
+        $a = $this->poll();
+        $url = $this->prefix.'/device-adapters/'.$a['uuid'];
+        $save = fn (int $token, string $code) => $this->putJson($url, ['name' => 'Trackers', 'artifact_uuid' => $this->artifact, 'code' => $code, 'source' => $this->pollSource(), 'fixtures' => $a['fixtures'], 'draft_revision' => $token]);
+        $this->postJson($url.'/test', ['draft_revision' => 1])->assertOk();
+
+        // The same content keeps the draft and its test result.
+        $same = $save(1, $this->code())->assertOk()->json('data');
+        $this->assertSame([2, 1], [$same['draft_revision'], $same['revision']['revision']]);
+        $this->assertNotNull($same['revision']['tested_at']);
+        // A change edits the same draft, which must be tested again; a stale page is refused.
+        $edited = $save(2, $this->code()."\n// edited")->assertOk()->json('data');
+        $this->assertSame([3, 1, $a['revision']['uuid']], [$edited['draft_revision'], $edited['revision']['revision'], $edited['revision']['uuid']]);
+        $this->assertNull($edited['revision']['tested_at']);
+        $save(2, $this->code())->assertConflict();
+        $this->assertSame(1, AdapterRevision::count());
+
+        // Once a deployment uses the draft it stays as deployed, and the next save opens revision 2.
+        $this->postJson($url.'/test', ['draft_revision' => 3])->assertOk();
+        $this->postJson($url.'/deploy', ['request_uuid' => (string) Str::uuid(), 'draft_revision' => 3])->assertAccepted();
+        app(AdapterService::class)->deploy(AdapterOperation::firstOrFail());
+        $deployed = AdapterRevision::firstOrFail();
+        $next = $save(3, $this->code())->assertOk()->json('data');
+        $this->assertSame([4, 2], [$next['draft_revision'], $next['revision']['revision']]);
+        $this->assertNull($next['revision']['tested_at']);
+        $this->assertSame($deployed->content_hash, $deployed->fresh()->content_hash);
+        $this->assertNotNull($deployed->fresh()->tested_at);
+        $save(4, $this->code()."\n// again")->assertOk();
+        $this->assertSame(2, AdapterRevision::count());
     }
 
     public function test_first_deploy_starts_the_cursor_and_runs_reset_and_resume_it(): void

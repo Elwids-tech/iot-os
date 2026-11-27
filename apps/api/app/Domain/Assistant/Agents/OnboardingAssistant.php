@@ -60,7 +60,7 @@ final class OnboardingAssistant implements Agent, Conversational, HasProviderOpt
         ];
         if ($adapter) {
             $summary = app(AdapterDiagnostics::class)->summary($adapter);
-            $context['adapter'] = ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'status' => $adapter->status, 'source' => $adapter->source, 'code' => $adapter->code,
+            $context['adapter'] = ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'revision' => $adapter->revisions()->max('revision'), 'status' => $adapter->status, 'source' => $adapter->source, 'code' => $adapter->code,
                 'fixtures' => array_slice($adapter->fixtures ?? [], 0, 2), 'fixture_count' => count($adapter->fixtures ?? []), 'fixture_limit' => OnboardingProposals::MAX_FIXTURES, 'samples_saved' => app(OnboardingProposals::class)->savedSamples($adapter),
                 'pending_proposals' => app(OnboardingProposals::class)->pending($conversation, $adapter), 'checklist' => $summary['checklist'], 'source_state' => $summary['source_state'],
                 'parameters' => collect($adapter->artifact->definition['parameters'] ?? [])->filter(fn ($p) => ($p['reports_state'] ?? false) && ($p['kind'] ?? null) !== 'derived')->take(100)->map(fn ($p) => ['key' => $p['key'], 'label' => $p['label'] ?? null, 'data_type' => $p['data_type'], 'unit' => $p['unit'] ?? null])->values()->all()];
@@ -110,6 +110,8 @@ When a tool answers with validation details, fix exactly those fields and try on
 Firmware. When the person wants to write firmware for a device (for example "ESP32 firmware for the water meter"), find the published profile, and ask only for what you cannot infer: which profile if several fit, the target from firmware_targets, and whether the device connects directly or sits behind a gateway. Then call offer_firmware with the profile's uuid, the target id and the role; the person gets a card that downloads a starter with the SDK, the profile's metrics and instructions for an AI coding agent. Never ask for, accept, repeat or paste credentials or connection settings: for those, send the person to the device's page (Firmware, then Download settings) or the gateway's page (Firmware). You do not write the firmware here.
 
 When the person applies a proposal or approves a card, you get a message saying so: continue with the next step in the same conversation without asking them to repeat anything.
+
+Revision numbers. An adapter has one draft, saved in place until it is deployed. When you name it, use `revision` (people see "draft 12"); `draft_revision` only counts saves.
 
 Proposals that cannot apply. A change proposal is made against the draft revision it saw. Once the draft moves on (the person saves, or another proposal is applied), older proposals can no longer be applied: the card says so and only Dismiss works. pending_proposals (in the context and in status) lists the cards waiting on the person, with outdated true for those. When the person says Apply is greyed out or a card will not apply, or before you propose again, look there: for an outdated card, call repropose with its uuid: it makes the same change against the current draft and removes the old card. Then say plainly that the draft changed after the old card and that the new card replaces it. Never say you prepared or replaced a card unless a tool result shows it. If they have unsaved edits on the page, Apply is off until they save or discard them.
 

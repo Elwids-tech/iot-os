@@ -103,10 +103,10 @@ final class AdapterService
                 abort_unless($adapter->organization_id === $organization->id, 404);
                 abort_unless($adapter->draft_revision === $expected, 409, 'The adapter changed. Refresh before saving.');
                 abort_if($adapter->status === 'pending', 409, 'Wait for the current deployment.');
-                $revision = $adapter->draft_revision + 1;
+                $draft = $this->current($adapter);
             } else {
                 $adapter = new DeviceAdapter(['uuid' => $v['request_uuid'] ?? (string) Str::uuid(), 'organization_id' => $organization->id, 'created_by' => $actor]);
-                $revision = 1;
+                $draft = null;
             }
             // Active installations keep their configured profile revision. The adapter may move
             // to another revision of the same profile that keeps every reading it publishes, so
@@ -138,18 +138,36 @@ final class AdapterService
             if ($v['source']['type'] === 'webhook' && ! $adapter->ingest_id) {
                 $adapter->ingest_id = Str::random(32);
             }
-            $adapter->fill(['name' => $v['name'], 'device_profile_artifact_id' => $artifact->id, 'draft_revision' => $revision, 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'secrets' => $secrets])->save();
+            // draft_revision counts saves, so a stale page or proposal is refused. The revision
+            // row is the draft: it is edited in place until a deployment uses it, and only then
+            // does the next save open a new numbered revision (ADR-055).
+            $adapter->fill(['name' => $v['name'], 'device_profile_artifact_id' => $artifact->id, 'draft_revision' => ($adapter->draft_revision ?? 0) + 1, 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'secrets' => $secrets])->save();
             $definition = ['name' => $v['name'], 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash];
-            AdapterRevision::create(['device_adapter_id' => $adapter->id, 'revision' => $revision, 'content_hash' => hash('sha256', app(CanonicalJson::class)->encode($definition)), 'definition' => $definition, 'secret_snapshot' => $secrets, 'created_by' => $actor]);
-            DeviceAudit::record('device.adapter.draft.saved', $organization->id, $actor, $adapter->uuid, ['draft_revision' => $revision]);
+            $hash = hash('sha256', app(CanonicalJson::class)->encode($definition));
+            if ($draft && ! $this->deployed($adapter, $draft)) {
+                // The same content keeps its test result; anything else must be tested again.
+                $draft->update(['content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $secrets,
+                    ...($draft->content_hash === $hash ? [] : ['test_result' => null, 'tested_at' => null])]);
+            } else {
+                $draft = AdapterRevision::create(['device_adapter_id' => $adapter->id, 'revision' => ($draft?->revision ?? 0) + 1, 'content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $secrets, 'created_by' => $actor]);
+            }
+            DeviceAudit::record('device.adapter.draft.saved', $organization->id, $actor, $adapter->uuid, ['draft_revision' => $adapter->draft_revision, 'revision' => $draft->revision]);
 
             return $adapter->fresh();
         });
     }
 
+    /** The newest revision: the draft, or the deployed revision when nothing was saved since. */
     public function current(DeviceAdapter $adapter): AdapterRevision
     {
-        return $adapter->revisions()->where('revision', $adapter->draft_revision)->firstOrFail();
+        return $adapter->revisions()->orderByDesc('revision')->firstOrFail();
+    }
+
+    /** A revision a deployment has used (or is using) stays as it was deployed. */
+    public function deployed(DeviceAdapter $adapter, AdapterRevision $revision): bool
+    {
+        return in_array($revision->uuid, [$adapter->applied_revision_uuid, $adapter->desired_revision_uuid], true)
+            || AdapterOperation::where('revision_uuid', $revision->uuid)->exists();
     }
 
     public function tenant(Organization $organization): AdapterTenant
@@ -175,10 +193,11 @@ final class AdapterService
     {
         abort_unless($adapter->draft_revision === $expected, 409, 'Save and test the latest draft.');
         $revision = $this->current($adapter);
+        $hash = $revision->content_hash;
         $result = app(AdapterManager::class)->request('/test', ['code' => $revision->definition['code'], 'fixtures' => FixtureList::normalize($revision->definition['fixtures'] ?? []), 'profile' => $adapter->artifact->definition]);
-        DB::transaction(function () use ($adapter, $revision, $result) {
+        DB::transaction(function () use ($adapter, $revision, $result, $expected, $hash) {
             $locked = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
-            abort_unless($locked->draft_revision === $revision->revision, 409, 'The draft changed while tests ran.');
+            abort_unless($locked->draft_revision === $expected && $revision->fresh()->content_hash === $hash, 409, 'The draft changed while tests ran.');
             $revision->update(['test_result' => $result, 'tested_at' => now()]);
         });
 

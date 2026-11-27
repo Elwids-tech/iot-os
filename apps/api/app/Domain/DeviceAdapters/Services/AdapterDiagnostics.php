@@ -105,7 +105,7 @@ final class AdapterDiagnostics
     public function checklist(DeviceAdapter $adapter, ?array $webhook = null, ?array $polling = null): array
     {
         $type = $adapter->source['type'] ?? 'platform';
-        $current = $adapter->revisions()->where('revision', $adapter->draft_revision)->first();
+        $current = $adapter->revisions()->orderByDesc('revision')->first();
         $test = $current?->test_result;
         $saved = $adapter->secrets ?? [];
         $connect = match ($type) {

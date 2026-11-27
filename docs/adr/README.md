@@ -25,7 +25,7 @@ the code as evidence.
 | [ADR-007](ADR-007-monorepo-and-shadcn-ui.md) | Cross-language monorepo with a shared shadcn UI foundation | Accepted |
 | [ADR-008](ADR-008-laravel-sanctum-authentication.md) | Sanctum session cookies for the React apps, tokens for machine clients | Accepted; amended by ADR-018 |
 | [ADR-009](ADR-009-mosquitto-default-broker.md) | Mosquitto is the default MQTT broker | Superseded by ADR-019 |
-| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted; amended by ADR-022 (ADR-024 proposed) |
+| [ADR-010](ADR-010-per-tenant-adapter-runtimes.md) | One Mosquitto ingress and Node-RED runtime per tenant, decoders in QuickJS | Accepted; amended by ADR-022 (ADR-024, ADR-055 proposed) |
 | [ADR-011](ADR-011-dag-automation-in-go.md) | Automation runs as a typed DAG (v2) in the Go runtime; workflow v1 is legacy | Accepted |
 | [ADR-012](ADR-012-design-system-and-charts.md) | One design-system kit on shadcn/Radix with templates and guardrails; ECharts for charts | Accepted |
 | [ADR-013](ADR-013-integer-user-ids.md) | Users are identified by integer id in API contracts | Accepted |
@@ -68,6 +68,7 @@ the code as evidence.
 | [ADR-051](ADR-051-sustained-condition-holds-through-unknown.md) | `sustained.v1` restarts its clock only on a known false or the branch side not taken; unknown evidence holds the clock and never completes it; a branch with no input passes the reason on | Proposed |
 | [ADR-052](ADR-052-server-connections-and-point-maps.md) | Typed protocols use shared server connections and point-map revisions with no decoder; OPC UA first; quality and a reporting rhythm cross to the runtime as metric properties | Proposed |
 | [ADR-054](ADR-054-organization-hierarchy.md) | Each organization has one tree of typed entities with rules and presets; sites become its top-level Site entities behind a deprecated compatibility view; devices carry a derived place and site; grant scopes follow any entity's branch; moves re-make the place in the target; the hierarchy holds nothing about protocols and other features change it only through its own operations | Accepted (spec 009 PR 2 built sites as entities) |
+| [ADR-055](ADR-055-one-adapter-draft-until-deployed.md) | An adapter has one draft, edited in place until a deployment uses it; deployed revisions are frozen; `draft_revision` stays the save counter; amends ADR-010 | Proposed |
 
 ## Template
 

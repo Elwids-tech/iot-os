@@ -200,6 +200,10 @@ adapter's ⋯ menu once it is live, or the header **Assistant** on any adapter p
    documentation. Assistant changes are proposals you apply to the draft; the
    assistant cannot deploy.
 5. Test the exact revision. Only a revision that passed its test can be deployed.
+   An adapter has one draft: saving edits it in place, and a change to its content
+   clears its test result. Once a deployment uses the draft it is kept exactly as
+   deployed, and the next save opens the next revision
+   ([ADR-055](../adr/ADR-055-one-adapter-draft-until-deployed.md)).
 6. **Deploy**. Applied status changes when the tenant runtime acknowledges the
    revision. Broker and publisher connectivity are reported separately. Pause and
    rollback to a previously tested revision are available.
