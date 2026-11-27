@@ -1,0 +1,125 @@
+[
+  {
+    "description": "a server offering nothing",
+    "valid": true,
+    "data": {
+      "endpoints": []
+    }
+  },
+  {
+    "description": "an unknown mode",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/endpoints/0/mode"
+    },
+    "data": {
+      "endpoints": [
+        {
+          "policy": "Basic256Sha256",
+          "mode": "Encrypt",
+          "label": "Encrypted (Basic256Sha256)",
+          "strength": 32,
+          "refused": null,
+          "warning": null,
+          "endpoint_url": "opc.tcp://bms.example.com:4840/",
+          "sign_in": [
+            "anonymous",
+            "certificate",
+            "username"
+          ],
+          "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+          "server_certificate": {
+            "subject": "CN=Example Tower BMS simulator",
+            "fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+            "valid_from": "2026-11-27T13:05:42.000Z",
+            "valid_to": "2027-11-27T13:05:42.000Z",
+            "application_uri": "urn:example:bms:example-tower",
+            "der": "MIIEUzCCAzugAwIBAgIUDGUuw09tmt6TD4D066xb1MO30N0wDQYJKoZIhvcNAQELBQAwTjEmMCQGA1UEAwwddXJuOmV4YW1wbGU6Ym1zOmV4YW1wbGUtdG93ZXIxJDAiBgNVBAMMG0V4YW1wbGUgVG93ZXIgQk1TIHNpbXVsYXRvcjAeFw0yNjExMjcxMzA1NDJaFw0yNzExMjcxMzA1NDJaME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3IwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2OG6w/8zV++4JAM+9jk6aTTV5BXKCGo+syPp+/m05615g+LGmD/L05fh1/JttqzfZ9++6oCvsjyjSquBx7gTm2WKjV3l9JkLyZMSFPlRY//lMN6fU1l3T34AwLQ/pi38eCBs6fpEtd/tTe6IFH6qMKg0/qlxeCIaGbTa50pmxf/+r+EPOLLIJk2bD1hhVRI/fpcyW6Zf793CQ5+QTrWTeaUShx3Iez0wNKorV4T7UwCRpMSZMCQzP0yb5yj8UrDB03Q4gv2cAPkcutfsoWEq/PB63zhVfdiT73PxOYbtaisRwTH1Ck7FnOZIB4Y0G7Hm9YQu36e9bU6miWTZ3sxxBAgMBAAGjggEnMIIBIzAdBgNVHQ4EFgQUxhT1omlILqX+WJO9uWvFuwNWrwYwgYsGA1UdIwSBgzCBgIAUxhT1omlILqX+WJO9uWvFuwNWrwahUqRQME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3KCFAxlLsNPbZrekw+A9OusW9TDt9DdMDcGA1UdEQQwMC6GHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2Vygg1ibXMtc2ltdWxhdG9yMA8GA1UdEwQIMAYBAf8CAQAwCwYDVR0PBAQDAgL0MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjANBgkqhkiG9w0BAQsFAAOCAQEASCar+8nNYAolSkb33bssYb+IwDTBWuAMHDjd0nGbgnUMUEqPY/lKZPJuiFjkI6b1c4Y/gduVxkwqrmmn4aJBNfknnQn2I5AwGoCXONRSRs3BGSkarhx/Np8bfAJR2UwHlSLjUSMrFGNVA1WjuAXv6kNbQfr7Wp7y9Dlun8bvddu5F0t5bLegpgBeq71C28Z071ohLtiKiZt2j2VsgyW2fYiCNTc2aCb0u78goCmFDgac1qPqitJntE1VLIejU8qqHKWklqrGWmbkNWvrHM2Mrtpetng1c/pI9DVY7/f4qMgGc+MWfipDgpqVOxwdDL6i8Z5LnzBekk7yDEUiHk28Hw=="
+          }
+        },
+        {
+          "policy": "None",
+          "mode": "None",
+          "label": "Not encrypted",
+          "strength": 0,
+          "refused": null,
+          "warning": "Values and sign-in travel unencrypted",
+          "endpoint_url": "opc.tcp://bms.example.com:4840/",
+          "sign_in": [
+            "anonymous",
+            "certificate",
+            "username"
+          ],
+          "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+          "server_certificate": {
+            "subject": "CN=Example Tower BMS simulator",
+            "fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+            "valid_from": "2026-11-27T13:05:42.000Z",
+            "valid_to": "2027-11-27T13:05:42.000Z",
+            "application_uri": "urn:example:bms:example-tower",
+            "der": "MIIEUzCCAzugAwIBAgIUDGUuw09tmt6TD4D066xb1MO30N0wDQYJKoZIhvcNAQELBQAwTjEmMCQGA1UEAwwddXJuOmV4YW1wbGU6Ym1zOmV4YW1wbGUtdG93ZXIxJDAiBgNVBAMMG0V4YW1wbGUgVG93ZXIgQk1TIHNpbXVsYXRvcjAeFw0yNjExMjcxMzA1NDJaFw0yNzExMjcxMzA1NDJaME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3IwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2OG6w/8zV++4JAM+9jk6aTTV5BXKCGo+syPp+/m05615g+LGmD/L05fh1/JttqzfZ9++6oCvsjyjSquBx7gTm2WKjV3l9JkLyZMSFPlRY//lMN6fU1l3T34AwLQ/pi38eCBs6fpEtd/tTe6IFH6qMKg0/qlxeCIaGbTa50pmxf/+r+EPOLLIJk2bD1hhVRI/fpcyW6Zf793CQ5+QTrWTeaUShx3Iez0wNKorV4T7UwCRpMSZMCQzP0yb5yj8UrDB03Q4gv2cAPkcutfsoWEq/PB63zhVfdiT73PxOYbtaisRwTH1Ck7FnOZIB4Y0G7Hm9YQu36e9bU6miWTZ3sxxBAgMBAAGjggEnMIIBIzAdBgNVHQ4EFgQUxhT1omlILqX+WJO9uWvFuwNWrwYwgYsGA1UdIwSBgzCBgIAUxhT1omlILqX+WJO9uWvFuwNWrwahUqRQME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3KCFAxlLsNPbZrekw+A9OusW9TDt9DdMDcGA1UdEQQwMC6GHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2Vygg1ibXMtc2ltdWxhdG9yMA8GA1UdEwQIMAYBAf8CAQAwCwYDVR0PBAQDAgL0MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjANBgkqhkiG9w0BAQsFAAOCAQEASCar+8nNYAolSkb33bssYb+IwDTBWuAMHDjd0nGbgnUMUEqPY/lKZPJuiFjkI6b1c4Y/gduVxkwqrmmn4aJBNfknnQn2I5AwGoCXONRSRs3BGSkarhx/Np8bfAJR2UwHlSLjUSMrFGNVA1WjuAXv6kNbQfr7Wp7y9Dlun8bvddu5F0t5bLegpgBeq71C28Z071ohLtiKiZt2j2VsgyW2fYiCNTc2aCb0u78goCmFDgac1qPqitJntE1VLIejU8qqHKWklqrGWmbkNWvrHM2Mrtpetng1c/pI9DVY7/f4qMgGc+MWfipDgpqVOxwdDL6i8Z5LnzBekk7yDEUiHk28Hw=="
+          }
+        }
+      ]
+    }
+  },
+  {
+    "description": "a short fingerprint",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/endpoints/0/server_fingerprint"
+    },
+    "data": {
+      "endpoints": [
+        {
+          "policy": "Basic256Sha256",
+          "mode": "SignAndEncrypt",
+          "label": "Encrypted (Basic256Sha256)",
+          "strength": 32,
+          "refused": null,
+          "warning": null,
+          "endpoint_url": "opc.tcp://bms.example.com:4840/",
+          "sign_in": [
+            "anonymous",
+            "certificate",
+            "username"
+          ],
+          "server_fingerprint": "abc",
+          "server_certificate": {
+            "subject": "CN=Example Tower BMS simulator",
+            "fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+            "valid_from": "2026-11-27T13:05:42.000Z",
+            "valid_to": "2027-11-27T13:05:42.000Z",
+            "application_uri": "urn:example:bms:example-tower",
+            "der": "MIIEUzCCAzugAwIBAgIUDGUuw09tmt6TD4D066xb1MO30N0wDQYJKoZIhvcNAQELBQAwTjEmMCQGA1UEAwwddXJuOmV4YW1wbGU6Ym1zOmV4YW1wbGUtdG93ZXIxJDAiBgNVBAMMG0V4YW1wbGUgVG93ZXIgQk1TIHNpbXVsYXRvcjAeFw0yNjExMjcxMzA1NDJaFw0yNzExMjcxMzA1NDJaME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3IwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2OG6w/8zV++4JAM+9jk6aTTV5BXKCGo+syPp+/m05615g+LGmD/L05fh1/JttqzfZ9++6oCvsjyjSquBx7gTm2WKjV3l9JkLyZMSFPlRY//lMN6fU1l3T34AwLQ/pi38eCBs6fpEtd/tTe6IFH6qMKg0/qlxeCIaGbTa50pmxf/+r+EPOLLIJk2bD1hhVRI/fpcyW6Zf793CQ5+QTrWTeaUShx3Iez0wNKorV4T7UwCRpMSZMCQzP0yb5yj8UrDB03Q4gv2cAPkcutfsoWEq/PB63zhVfdiT73PxOYbtaisRwTH1Ck7FnOZIB4Y0G7Hm9YQu36e9bU6miWTZ3sxxBAgMBAAGjggEnMIIBIzAdBgNVHQ4EFgQUxhT1omlILqX+WJO9uWvFuwNWrwYwgYsGA1UdIwSBgzCBgIAUxhT1omlILqX+WJO9uWvFuwNWrwahUqRQME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3KCFAxlLsNPbZrekw+A9OusW9TDt9DdMDcGA1UdEQQwMC6GHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2Vygg1ibXMtc2ltdWxhdG9yMA8GA1UdEwQIMAYBAf8CAQAwCwYDVR0PBAQDAgL0MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjANBgkqhkiG9w0BAQsFAAOCAQEASCar+8nNYAolSkb33bssYb+IwDTBWuAMHDjd0nGbgnUMUEqPY/lKZPJuiFjkI6b1c4Y/gduVxkwqrmmn4aJBNfknnQn2I5AwGoCXONRSRs3BGSkarhx/Np8bfAJR2UwHlSLjUSMrFGNVA1WjuAXv6kNbQfr7Wp7y9Dlun8bvddu5F0t5bLegpgBeq71C28Z071ohLtiKiZt2j2VsgyW2fYiCNTc2aCb0u78goCmFDgac1qPqitJntE1VLIejU8qqHKWklqrGWmbkNWvrHM2Mrtpetng1c/pI9DVY7/f4qMgGc+MWfipDgpqVOxwdDL6i8Z5LnzBekk7yDEUiHk28Hw=="
+          }
+        },
+        {
+          "policy": "None",
+          "mode": "None",
+          "label": "Not encrypted",
+          "strength": 0,
+          "refused": null,
+          "warning": "Values and sign-in travel unencrypted",
+          "endpoint_url": "opc.tcp://bms.example.com:4840/",
+          "sign_in": [
+            "anonymous",
+            "certificate",
+            "username"
+          ],
+          "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+          "server_certificate": {
+            "subject": "CN=Example Tower BMS simulator",
+            "fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72",
+            "valid_from": "2026-11-27T13:05:42.000Z",
+            "valid_to": "2027-11-27T13:05:42.000Z",
+            "application_uri": "urn:example:bms:example-tower",
+            "der": "MIIEUzCCAzugAwIBAgIUDGUuw09tmt6TD4D066xb1MO30N0wDQYJKoZIhvcNAQELBQAwTjEmMCQGA1UEAwwddXJuOmV4YW1wbGU6Ym1zOmV4YW1wbGUtdG93ZXIxJDAiBgNVBAMMG0V4YW1wbGUgVG93ZXIgQk1TIHNpbXVsYXRvcjAeFw0yNjExMjcxMzA1NDJaFw0yNzExMjcxMzA1NDJaME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3IwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2OG6w/8zV++4JAM+9jk6aTTV5BXKCGo+syPp+/m05615g+LGmD/L05fh1/JttqzfZ9++6oCvsjyjSquBx7gTm2WKjV3l9JkLyZMSFPlRY//lMN6fU1l3T34AwLQ/pi38eCBs6fpEtd/tTe6IFH6qMKg0/qlxeCIaGbTa50pmxf/+r+EPOLLIJk2bD1hhVRI/fpcyW6Zf793CQ5+QTrWTeaUShx3Iez0wNKorV4T7UwCRpMSZMCQzP0yb5yj8UrDB03Q4gv2cAPkcutfsoWEq/PB63zhVfdiT73PxOYbtaisRwTH1Ck7FnOZIB4Y0G7Hm9YQu36e9bU6miWTZ3sxxBAgMBAAGjggEnMIIBIzAdBgNVHQ4EFgQUxhT1omlILqX+WJO9uWvFuwNWrwYwgYsGA1UdIwSBgzCBgIAUxhT1omlILqX+WJO9uWvFuwNWrwahUqRQME4xJjAkBgNVBAMMHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2VyMSQwIgYDVQQDDBtFeGFtcGxlIFRvd2VyIEJNUyBzaW11bGF0b3KCFAxlLsNPbZrekw+A9OusW9TDt9DdMDcGA1UdEQQwMC6GHXVybjpleGFtcGxlOmJtczpleGFtcGxlLXRvd2Vygg1ibXMtc2ltdWxhdG9yMA8GA1UdEwQIMAYBAf8CAQAwCwYDVR0PBAQDAgL0MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjANBgkqhkiG9w0BAQsFAAOCAQEASCar+8nNYAolSkb33bssYb+IwDTBWuAMHDjd0nGbgnUMUEqPY/lKZPJuiFjkI6b1c4Y/gduVxkwqrmmn4aJBNfknnQn2I5AwGoCXONRSRs3BGSkarhx/Np8bfAJR2UwHlSLjUSMrFGNVA1WjuAXv6kNbQfr7Wp7y9Dlun8bvddu5F0t5bLegpgBeq71C28Z071ohLtiKiZt2j2VsgyW2fYiCNTc2aCb0u78goCmFDgac1qPqitJntE1VLIejU8qqHKWklqrGWmbkNWvrHM2Mrtpetng1c/pI9DVY7/f4qMgGc+MWfipDgpqVOxwdDL6i8Z5LnzBekk7yDEUiHk28Hw=="
+          }
+        }
+      ]
+    }
+  }
+]

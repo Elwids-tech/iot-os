@@ -1462,3 +1462,12 @@ The portal is a progressive web app (spec 033,
 - **A user certificate's key goes in as key operations**, not a PEM: node-opcua-crypto
   wraps Node's key object as `{ hidden: KeyObject }` for `keyOperationsFromPrivateKey`.
 
+- **A connection failure is an answer, not an error.** The manager's `/opcua/*` routes
+  answer HTTP 200 with `{ reason, message, fix }` when a server cannot be reached, so
+  the API can pass the reason on as a 422 (or, for `test`, record it on the connection).
+  Only bad requests are manager errors.
+- **A named rate limiter must say what it counts by.** `contract:export` reads the key's
+  prefix (before the first `:`) and refuses one without `ip`, `user`, `email`,
+  `organization` or `application` in it. The `opcua-browse` limiter keys
+  `opcua-browse-organization:<org>:<connection>`. Throttling runs before route-model
+  binding, so a limiter sees route parameters as strings as often as models.

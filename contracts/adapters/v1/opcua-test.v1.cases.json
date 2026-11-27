@@ -1,0 +1,73 @@
+[
+  {
+    "description": "a server announcing no limits",
+    "valid": true,
+    "data": {
+      "connected": true,
+      "limits": {
+        "MaxNodesPerRead": null,
+        "MaxNodesPerBrowse": null,
+        "MaxNodesPerTranslateBrowsePathsToNodeIds": null,
+        "MaxMonitoredItemsPerCall": null
+      },
+      "clock_difference_ms": -41,
+      "security": {
+        "policy": "None",
+        "mode": "None",
+        "label": "Not encrypted",
+        "warning": "Values and sign-in travel unencrypted",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      }
+    }
+  },
+  {
+    "description": "not connected",
+    "valid": false,
+    "error": {
+      "keyword": "const",
+      "instance_location": "/connected"
+    },
+    "data": {
+      "connected": false,
+      "limits": {
+        "MaxNodesPerRead": 10000,
+        "MaxNodesPerBrowse": 10000,
+        "MaxNodesPerTranslateBrowsePathsToNodeIds": 10000,
+        "MaxMonitoredItemsPerCall": 10000
+      },
+      "clock_difference_ms": -41,
+      "security": {
+        "policy": "None",
+        "mode": "None",
+        "label": "Not encrypted",
+        "warning": "Values and sign-in travel unencrypted",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      }
+    }
+  },
+  {
+    "description": "a limit of zero",
+    "valid": false,
+    "error": {
+      "keyword": "minimum",
+      "instance_location": "/limits/MaxNodesPerRead"
+    },
+    "data": {
+      "connected": true,
+      "limits": {
+        "MaxNodesPerRead": 0,
+        "MaxNodesPerBrowse": 10000,
+        "MaxNodesPerTranslateBrowsePathsToNodeIds": 10000,
+        "MaxMonitoredItemsPerCall": 10000
+      },
+      "clock_difference_ms": -41,
+      "security": {
+        "policy": "None",
+        "mode": "None",
+        "label": "Not encrypted",
+        "warning": "Values and sign-in travel unencrypted",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      }
+    }
+  }
+]

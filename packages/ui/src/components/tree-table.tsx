@@ -53,6 +53,11 @@ export type TreeTableProps<T> = {
   empty?: React.ReactNode
   /** Menu or buttons at the end of each row. */
   rowActions?: (row: T) => React.ReactNode
+  /**
+   * Why a row is shown muted, e.g. a point that cannot be stored; null for a normal row.
+   * The reason becomes the row's description for screen readers and its tooltip.
+   */
+  rowMuted?: (row: T) => string | null
   className?: string
 }
 
@@ -256,6 +261,7 @@ function Row<T>({
   const branch = tree.hasChildren(row)
   const open = branch && tree.expanded.has(key)
   const selected = tree.selected === key
+  const muted = tree.rowMuted?.(row) ?? null
   return (
     <>
       <tr
@@ -266,6 +272,9 @@ function Row<T>({
         aria-expanded={branch ? open : undefined}
         aria-selected={tree.onSelect ? selected : undefined}
         tabIndex={tabbable ? 0 : -1}
+        title={muted ?? undefined}
+        aria-description={muted ?? undefined}
+        data-muted={muted ? "" : undefined}
         onFocus={(event) => {
           if (event.target === event.currentTarget) tree.setFocused(key)
         }}
@@ -278,6 +287,7 @@ function Row<T>({
           "border-b outline-none last:border-0 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           tree.onSelect && "cursor-pointer",
           selected && "bg-muted",
+          muted && "text-muted-foreground",
         )}
       >
         {tree.columns.map((column, index) => (

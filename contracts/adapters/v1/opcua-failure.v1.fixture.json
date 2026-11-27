@@ -1,0 +1,5 @@
+{
+  "reason": "sign_in_refused",
+  "message": "Sign-in was refused",
+  "fix": "Check the user name and password, or the certificate the server expects for this user"
+}

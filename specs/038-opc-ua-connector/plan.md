@@ -161,7 +161,7 @@ the "own edge runtime" ADR-023 leaves open) is written and accepted before PR 7.
   limits), `PointMaps` (validate against the contract, suggest keys and units, review
   check, expected rows a day), `ConnectionStatus` (from runtime events), and later
   `Agents` and `HierarchyProposals`.
-- `Http/ConnectionController`, `PointMapController`; batch activation on
+- `Http/AdapterConnectionController`, `PointMapController`; batch activation on
   `AdapterController` (R14). Routes in [contracts/api.md](contracts/api.md).
 - `AdapterService::fields` accepts the `opcua` source (a connection and a point map,
   no code, no fixtures); the deploy gate for it is the review check (R11).

@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "node_id": "s=L03-VAV-2",
+      "namespace_uri": "urn:example:bms:example-tower",
+      "name": "L03-VAV-2",
+      "display_name": "L03-VAV-2",
+      "kind": "object",
+      "type": "Zone box with reheat",
+      "has_children": true
+    },
+    {
+      "node_id": "s=L03-LTG-2",
+      "namespace_uri": "urn:example:bms:example-tower",
+      "name": "L03-LTG-2",
+      "display_name": "L03-LTG-2",
+      "kind": "object",
+      "type": "Lighting zone",
+      "has_children": true
+    },
+    {
+      "node_id": "s=L03-BLD-2",
+      "namespace_uri": "urn:example:bms:example-tower",
+      "name": "L03-BLD-2",
+      "display_name": "L03-BLD-2",
+      "kind": "object",
+      "type": "Blind group",
+      "has_children": true
+    }
+  ],
+  "cursor": null
+}

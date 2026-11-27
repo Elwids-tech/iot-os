@@ -529,8 +529,8 @@ test("first-time onboarding saves, tests, reviews and protects an unsaved decode
 }) => {
   const { errors, requests } = await setup(page);
   await page.goto(base + "/new");
-  // One question first: the four sources, and nothing else to fill in yet.
-  await expect(page.getByRole("radio")).toHaveCount(4);
+  // One question first: the five sources, and nothing else to fill in yet.
+  await expect(page.getByRole("radio")).toHaveCount(5);
   await expect(page.getByLabel("Adapter name", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page
@@ -1430,5 +1430,130 @@ test("Activity shows poll runs and the cursor, resets it within 30 days and resu
   await expect
     .poll(() => requests.some((r) => r.path.endsWith("/resume")))
     .toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("an OPC UA server connects, has its certificate reviewed, and is browsed with live values", async ({ page }) => {
+  const { errors } = await setup(page);
+  const conn = "50000000-0000-4000-8000-000000000001";
+  const fingerprint = "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72";
+  const ns = "urn:example:bms:example-tower";
+  const certificate = { subject: "CN=Example Tower BMS simulator", fingerprint, valid_from: minutes(60), valid_to: "2030-01-01T00:00:00Z", application_uri: ns };
+  let connection: any = null;
+  let tests = 0;
+  const sent: { path: string; body: any }[] = [];
+  await page.route("**/api/v1/organizations/*/adapter-connections**", async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname.replace(/^.*adapter-connections/, "");
+    const method = route.request().method();
+    const body = method === "GET" ? null : route.request().postDataJSON();
+    sent.push({ path, body });
+    const data = (value: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (path === "" && method === "GET") return data(connection ? [connection] : []);
+    if (path === "" && method === "POST") {
+      connection = {
+        uuid: conn, name: body.name, protocol: "opcua", endpoint_url: body.endpoint_url, runs_at: "platform",
+        security_policy: body.security_policy, security_mode: body.security_mode, security_label: "Encrypted (Basic256Sha256)",
+        unencrypted_confirmed_by: null, identity: body.identity, username: body.username ?? null, has_password: Boolean(body.password),
+        has_user_certificate: false, client_certificate: { fingerprint: "ab".repeat(32), expires_at: "2031-11-27T00:00:00Z" },
+        server_certificate: null, pending_server_certificate: null, state: "draft", status: null, refused_points: [], created_at: minutes(0), updated_at: minutes(0),
+      };
+      return data(connection, 201);
+    }
+    if (path === `/${conn}/endpoints`) {
+      connection = { ...connection, pending_server_certificate: certificate, state: "awaiting_trust" };
+      return data({
+        connection,
+        endpoints: [
+          { policy: "Basic256Sha256", mode: "SignAndEncrypt", label: "Encrypted (Basic256Sha256)", strength: 32, refused: null, warning: null, server_certificate: certificate },
+          { policy: "Basic256Sha256", mode: "Sign", label: "Signed (Basic256Sha256)", strength: 22, refused: null, warning: null, server_certificate: certificate },
+          { policy: "None", mode: "None", label: "Not encrypted", strength: 0, refused: null, warning: "Values and sign-in travel unencrypted", server_certificate: certificate },
+          { policy: "Basic128Rsa15", mode: "SignAndEncrypt", label: "Basic128Rsa15", strength: 0, refused: "This policy is broken; the platform never uses it.", warning: null, server_certificate: certificate },
+        ],
+      });
+    }
+    if (path === `/${conn}/server-certificate/accept`) {
+      connection = { ...connection, server_certificate: certificate, pending_server_certificate: null, state: "draft" };
+      return data(connection);
+    }
+    if (path === `/${conn}/test`) {
+      tests += 1;
+      if (tests === 1) {
+        connection = { ...connection, state: "unreachable", status: { reason: "client_certificate_untrusted", message: "The server refused the platform's certificate.", fix: "Move the platform's certificate to the server's trusted list, then test again.", checked_at: minutes(0) } };
+        return data({ connected: false, reason: "client_certificate_untrusted", message: connection.status.message, fix: connection.status.fix, connection });
+      }
+      connection = { ...connection, state: "connected", status: { reason: null, checked_at: minutes(0), clock_difference_ms: -41, limits: { MaxNodesPerRead: 10000 }, security: { policy: "Basic256Sha256", mode: "SignAndEncrypt", label: "Encrypted (Basic256Sha256)", warning: null } } };
+      return data({ connected: true, limits: { MaxNodesPerRead: 10000 }, clock_difference_ms: -41, connection });
+    }
+    if (path === `/${conn}/nodes`) {
+      const parent = url.searchParams.get("parent");
+      if (!parent) return data({ items: [{ node_id: "s=L03-VAV-2", namespace_uri: ns, name: "L03-VAV-2", display_name: "L03-VAV-2", kind: "object", type: "Zone box with reheat", has_children: true }], cursor: null });
+      return data({
+        items: [
+          { node_id: "s=L03-VAV-2.zone_temperature", namespace_uri: ns, name: "zone_temperature", display_name: "Zone temperature", kind: "point", type: null, has_children: false },
+          { node_id: "s=L03-VAV-2.schedule", namespace_uri: ns, name: "schedule", display_name: "Schedule", kind: "point", type: null, has_children: false },
+        ],
+        cursor: null,
+      });
+    }
+    if (path === `/${conn}/nodes/read`)
+      return data({
+        points: [
+          { node_id: "s=L03-VAV-2.zone_temperature", namespace_uri: ns, value: 22.5, data_type: "number", unit: "°C", status: "Good", quality: "good", source_time: minutes(0), storable: true, not_storable: null },
+          { node_id: "s=L03-VAV-2.schedule", namespace_uri: ns, value: null, data_type: null, unit: null, status: "Good", quality: "good", source_time: minutes(0), storable: false, not_storable: "A structure cannot be stored as a reading" },
+        ],
+      });
+    if (path === `/${conn}/nodes/search`)
+      return data({ matches: [{ node_id: "s=L03-VAV-2", namespace_uri: ns, name: "L03-VAV-2", display_name: "L03-VAV-2", kind: "object", type: "Zone box with reheat", has_children: true, path: [{ namespace_uri: ns, name: "Example Tower" }, { namespace_uri: ns, name: "L03-VAV-2" }] }], visited: 40, truncated: false });
+    return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "Not mocked" }) });
+  });
+
+  await page.goto(base + "/new");
+  await page.getByRole("radio", { name: /OPC UA server/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByText("arrive with point maps")).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill("Example Tower BMS");
+  await page.getByLabel("Server address").fill("opc.tcp://bms.example.com:4840");
+  await page.getByRole("combobox", { name: "Sign-in" }).click();
+  await page.getByRole("option", { name: "User name and password" }).click();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByText("Enter the user name. Enter the password.")).toBeVisible();
+  await page.getByLabel("User name").fill("operator");
+  await page.getByLabel("Password").fill("test-only-password");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByText("Certificate", { exact: false }).first()).toBeVisible();
+  expect(sent.find((r) => r.path === "" && r.body)?.body).toMatchObject({ security_policy: "Basic256Sha256", security_mode: "SignAndEncrypt", identity: "username", username: "operator" });
+
+  // The server's offer: the strongest is chosen, the broken one is refused, unencrypted asks first.
+  await page.getByRole("button", { name: "Ask the server" }).click();
+  await expect(page.getByRole("radio", { name: /Encrypted \(Basic256Sha256\)/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: /Basic128Rsa15/ })).toBeDisabled();
+  await page.getByRole("radio", { name: /Not encrypted/ }).click();
+  await expect(page.getByRole("button", { name: "Use Not encrypted" })).toBeDisabled();
+  await page.getByRole("radio", { name: /Encrypted \(Basic256Sha256\)/ }).click();
+  await expect(page.getByRole("button", { name: /^Use / })).toHaveCount(0);
+
+  await expect(page.getByText("Review the server’s certificate")).toBeVisible();
+  await expect(page.getByText(fingerprint).first()).toBeVisible();
+  await page.getByRole("button", { name: "Trust this certificate" }).click();
+  expect(sent.find((r) => r.path.endsWith("/accept"))?.body).toEqual({ fingerprint });
+  await expect(page.getByRole("button", { name: "Trust this certificate" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Download (.der)" })).toHaveAttribute("href", /client-certificate\?format=der/);
+
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(page.getByText("The server does not trust the platform yet")).toBeVisible();
+  await expect(page.getByText("Move the platform's certificate to the server's trusted list")).toBeVisible();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(page.getByText("The server does not trust the platform yet")).toHaveCount(0);
+
+  const tree = page.getByRole("treegrid", { name: "Address space" });
+  await expect(tree.getByText("L03-VAV-2")).toBeVisible();
+  await tree.getByRole("button", { name: "Show what is in L03-VAV-2" }).click();
+  await expect(tree.getByText("22.5 °C")).toBeVisible();
+  await expect(tree.getByRole("row", { name: /Schedule/ })).toHaveAttribute("data-muted", "");
+  await page.getByLabel("Find a node by name").fill("VAV-2");
+  await page.getByRole("button", { name: "Find" }).click();
+  await expect(page.getByText("Example Tower / L03-VAV-2")).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(errors).toEqual([]);
 });

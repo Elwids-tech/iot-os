@@ -1,0 +1,1039 @@
+[
+  {
+    "description": "a browse request for the Objects folder",
+    "valid": true,
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "parent": null,
+      "cursor": null
+    }
+  },
+  {
+    "description": "a read of two points",
+    "valid": true,
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "points": [
+        {
+          "node_id": "s=L03-VAV-2.zone_temperature",
+          "namespace_uri": "urn:example:bms:example-tower"
+        },
+        {
+          "node_id": "i=2258",
+          "namespace_uri": "http://opcfoundation.org/UA/"
+        }
+      ]
+    }
+  },
+  {
+    "description": "an endpoint that is not opc.tcp",
+    "valid": false,
+    "error": {
+      "keyword": "pattern",
+      "instance_location": "/connection/endpoint_url"
+    },
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "https://bms.example.com",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "parent": {
+        "node_id": "s=L03-Z2",
+        "namespace_uri": "urn:example:bms:example-tower"
+      },
+      "cursor": null
+    }
+  },
+  {
+    "description": "an unknown sign-in",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/connection/identity"
+    },
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "kerberos",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "parent": {
+        "node_id": "s=L03-Z2",
+        "namespace_uri": "urn:example:bms:example-tower"
+      },
+      "cursor": null
+    }
+  },
+  {
+    "description": "a node id with its namespace index",
+    "valid": false,
+    "error": {
+      "keyword": "oneOf",
+      "instance_location": "/parent"
+    },
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "parent": {
+        "node_id": "ns=2;s=L03-Z2",
+        "namespace_uri": "urn:example:bms:example-tower"
+      },
+      "cursor": null
+    }
+  },
+  {
+    "description": "more than 200 points",
+    "valid": false,
+    "error": {
+      "keyword": "maxItems",
+      "instance_location": "/points"
+    },
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "private_ranges": [
+        "10.20.0.0/16"
+      ],
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "points": [
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        },
+        {
+          "node_id": "i=1",
+          "namespace_uri": null
+        }
+      ]
+    }
+  },
+  {
+    "description": "no private ranges",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": ""
+    },
+    "data": {
+      "connection": {
+        "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+        "endpoint_url": "opc.tcp://bms.example.com:4840/",
+        "security_policy": "Basic256Sha256",
+        "security_mode": "SignAndEncrypt",
+        "identity": "username",
+        "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+      },
+      "secrets": {
+        "username": "placeholder-operator",
+        "password": "placeholder-password",
+        "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+        "client_private_key": "placeholder-private-key"
+      },
+      "platform_ranges": [
+        "172.18.0.0/16"
+      ],
+      "parent": {
+        "node_id": "s=L03-Z2",
+        "namespace_uri": "urn:example:bms:example-tower"
+      },
+      "cursor": null
+    }
+  }
+]

@@ -97,3 +97,29 @@ export const Empty: StoryObj = {
     />
   ),
 }
+
+type Point = { key: string; name: string; value: string; reason: string | null }
+const points: Point[] = [
+  { key: "temp", name: "Zone temperature", value: "22.5 °C", reason: null },
+  { key: "setpoint", name: "Setpoint", value: "21.0 °C", reason: null },
+  { key: "schedule", name: "Schedule", value: "Structure", reason: "A structure cannot be stored as a reading" },
+]
+
+/** A muted row carries its reason as a tooltip and an accessible description. */
+export const MutedRows: StoryObj = {
+  render: () => (
+    <TreeTable<Point>
+      label="Points"
+      columns={[
+        { id: "name", header: "Name", cell: (point) => point.name },
+        { id: "value", header: "Value", align: "end", cell: (point) => point.value },
+        { id: "reason", header: "", phoneHidden: true, cell: (point) => point.reason && <span className="text-meta">{point.reason}</span> },
+      ]}
+      rowKey={(point) => point.key}
+      rowLabel={(point) => point.name}
+      hasChildren={() => false}
+      rowMuted={(point) => point.reason}
+      useLevel={() => ({ rows: points, hasMore: false, onLoadMore: () => {} })}
+    />
+  ),
+}

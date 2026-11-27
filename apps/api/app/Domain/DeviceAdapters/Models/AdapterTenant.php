@@ -14,6 +14,6 @@ final class AdapterTenant extends DeviceModel
 
     protected function casts(): array
     {
-        return ['runtime_token' => 'encrypted', 'ingress_admin_password' => 'encrypted', 'listen_port' => 'integer'];
+        return ['runtime_token' => 'encrypted', 'ingress_admin_password' => 'encrypted', 'listen_port' => 'integer', 'private_ranges' => 'array'];
     }
 }

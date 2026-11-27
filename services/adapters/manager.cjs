@@ -13,6 +13,7 @@ const { brokerUrl, secureLookup } = require("./lib/broker.cjs");
 const { flowNodes, replaceFlow } = require("./lib/flow.cjs");
 const poll = require("./lib/poll.cjs");
 const { hashToken } = require("./lib/webhook.cjs");
+const { Routes: OpcuaRoutes } = require("./lib/opcua/routes.cjs");
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const stateRoot = process.env.IOT_ADAPTER_STATE_DIR || "/state";
 const hostStateRoot = process.env.IOT_ADAPTER_HOST_STATE_DIR || stateRoot;
@@ -831,6 +832,8 @@ async function handle(route, body) {
   if (route === "/remove") return remove(body);
   throw Error("Unknown manager operation");
 }
+// Spec 038: testing and browsing OPC UA servers before anything is deployed.
+const opcua = new OpcuaRoutes({ pkiRoot: path.join(stateRoot, "opcua-pki"), allowPrivate });
 const server = http.createServer(async (req, res) => {
   if (req.url === "/health" && req.method === "GET") {
     res.writeHead(token ? 200 : 503, { "Content-Type": "application/json" });
@@ -859,7 +862,11 @@ const server = http.createServer(async (req, res) => {
     const body = JSON.parse(data);
     const key = body.tenant?.uuid;
     let result;
-    if (key) {
+    if (req.url.startsWith("/opcua/")) {
+      // Per connection, not per tenant: browsing must not wait behind a deployment.
+      result = await opcua.handle(req.url, body);
+      ensure(result !== undefined, "Unknown OPC UA route");
+    } else if (key) {
       id(key);
       const previous = locks.get(key) || Promise.resolve();
       const job = previous.catch(() => {}).then(() => handle(req.url, body));

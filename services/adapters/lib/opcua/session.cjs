@@ -244,7 +244,7 @@ async function open(settings) {
     try {
       await trustPinned(store.manager, chosen.server_certificate, options.serverFingerprint);
     } catch (error) {
-      throw classify(error, "certificate");
+      throw Object.assign(classify(error, "certificate"), { presented: chosen.server_certificate });
     }
     Object.assign(clientOptions, {
       certificateFile: store.certificateFile,
@@ -255,7 +255,7 @@ async function open(settings) {
     });
   } else {
     if (options.serverFingerprint && chosen.server_fingerprint && chosen.server_fingerprint !== options.serverFingerprint)
-      throw new ConnectionFailed("server_certificate_changed");
+      throw Object.assign(new ConnectionFailed("server_certificate_changed"), { presented: chosen.server_certificate });
     if (options.pki) {
       const store = await pkiFolder(options.pki.root, options.pki.connection, options.pki);
       Object.assign(clientOptions, {

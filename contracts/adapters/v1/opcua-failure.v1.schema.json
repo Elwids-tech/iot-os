@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-failure.v1.schema.json",
+  "title": "OPC UA connection failure",
+  "description": "What an adapter manager OPC UA route answers (HTTP 200) when the connection cannot be made: one of the nine reasons of specs/038-opc-ua-connector/contracts/api.md with its message and fix, and for a changed server certificate the one now presented. Producer: services/adapters/lib/opcua/routes.cjs. Consumer: Connections in apps/api, which answers it as a 422.",
+  "type": "object",
+  "properties": {
+    "reason": {
+      "enum": [
+        "unreachable",
+        "address_not_allowed",
+        "no_shared_security",
+        "server_certificate_changed",
+        "client_certificate_untrusted",
+        "sign_in_refused",
+        "server_busy",
+        "clock_difference",
+        "timeout"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "fix": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "server_certificate": {
+      "$ref": "#/$defs/certificate"
+    }
+  },
+  "required": [
+    "reason",
+    "message",
+    "fix"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "certificate": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "valid_from": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "valid_to": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "application_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "der": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+=*$",
+          "maxLength": 16384
+        }
+      },
+      "required": [
+        "subject",
+        "fingerprint",
+        "valid_from",
+        "valid_to",
+        "application_uri",
+        "der"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

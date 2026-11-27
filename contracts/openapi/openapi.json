@@ -8209,6 +8209,170 @@
         "x-schema-status": "pending"
       }
     },
+    "/v1/admin/organizations/{organization}/adapter-private-ranges": {
+      "get": {
+        "operationId": "v1.admin.organizations.adapter-private-ranges.show",
+        "tags": [
+          "PlatformOrganizationPrivateRanges"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ranges in CIDR notation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "private_ranges"
+                      ],
+                      "properties": {
+                        "private_ranges": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "summary": "The private ranges an organization's connections may reach"
+      },
+      "put": {
+        "operationId": "v1.admin.organizations.adapter-private-ranges.update",
+        "tags": [
+          "PlatformOrganizationPrivateRanges"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "private_ranges": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "maxItems": 64
+                  }
+                },
+                "required": [
+                  "private_ranges"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The ranges saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "private_ranges"
+                      ],
+                      "properties": {
+                        "private_ranges": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "platform-admin",
+        "x-platform-permission": "PlatformAdministration.manage-organizations",
+        "summary": "Set the private ranges an organization's connections may reach",
+        "description": "Ranges that include loopback, link-local, the metadata address or the platform's own networks are refused."
+      }
+    },
     "/v1/admin/organizations/{organization}/billing-account": {
       "put": {
         "operationId": "v1.admin.organizations.billing-account.update",
@@ -8622,7 +8786,7 @@
     },
     "/v1/admin/organizations/{organization}/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_152",
+        "operationId": "domain.devices.retention.show_154",
         "tags": [
           "Retention"
         ],
@@ -8671,7 +8835,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_153",
+        "operationId": "domain.devices.retention.update_155",
         "tags": [
           "Retention"
         ],
@@ -9334,7 +9498,7 @@
     },
     "/v1/admin/settings/telemetry-retention": {
       "get": {
-        "operationId": "domain.devices.retention.show_150",
+        "operationId": "domain.devices.retention.show_152",
         "tags": [
           "Retention"
         ],
@@ -9366,7 +9530,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.devices.retention.update_151",
+        "operationId": "domain.devices.retention.update_153",
         "tags": [
           "Retention"
         ],
@@ -15385,6 +15549,1221 @@
         ],
         "x-audience": "account",
         "description": "Turns one organization's pushes on or off for the person. 404 unless they are a\nmember who can view devices there."
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections": {
+      "get": {
+        "operationId": "adapterConnection.index",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The connections by name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AdapterConnection"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "summary": "List the organization's OPC UA connections"
+      },
+      "post": {
+        "operationId": "adapterConnection.store",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 20,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "summary": "Save an OPC UA connection",
+        "description": "Creates the platform's certificate for the connection. Refused when a connection already reaches the server the same way or the organization's limit is reached."
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}": {
+      "get": {
+        "operationId": "adapterConnection.show",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      },
+      "put": {
+        "operationId": "adapterConnection.update",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "description": "Secrets left out are kept. Changing the address forgets the accepted server certificate."
+      },
+      "delete": {
+        "operationId": "adapterConnection.destroy",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/client-certificate": {
+      "get": {
+        "operationId": "adapterConnection.clientCertificate",
+        "summary": "Download the platform's certificate for this connection",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pem",
+                "der"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The certificate, DER by default or PEM with `format=pem`.",
+            "content": {
+              "application/pkix-cert": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/x-pem-file": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/endpoints": {
+      "post": {
+        "operationId": "adapterConnection.endpoints",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the server offers, and the connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "endpoints",
+                        "connection"
+                      ],
+                      "properties": {
+                        "endpoints": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "policy",
+                              "mode",
+                              "label"
+                            ],
+                            "properties": {
+                              "policy": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "strength": {
+                                "type": "integer"
+                              },
+                              "refused": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "warning": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "endpoint_url": {
+                                "type": "string"
+                              },
+                              "sign_in": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "server_fingerprint": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "server_certificate": {
+                                "oneOf": [
+                                  {
+                                    "$ref": "#/components/schemas/OpcuaCertificate"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "connection": {
+                          "$ref": "#/components/schemas/AdapterConnection"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "summary": "Ask the server what it offers",
+        "description": "Lists the server's endpoints with their security and certificate. A certificate that is not the accepted one waits for review in `pending_server_certificate`."
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/nodes": {
+      "get": {
+        "operationId": "adapterConnection.nodes",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "parent",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 4200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of children.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "cursor"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/OpcuaNode"
+                          }
+                        },
+                        "cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "summary": "Browse one level of the server's address space",
+        "description": "Children of `parent` (nsu=<uri>;<id>), or of the Objects folder when it is left out, a page at a time."
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/nodes/read": {
+      "post": {
+        "operationId": "adapterConnection.read",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 4200
+                    },
+                    "minItems": 1,
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "nodes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Each node's value, unit and quality.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "points"
+                      ],
+                      "properties": {
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/OpcuaPoint"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "summary": "Read the current values of up to 200 nodes"
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/nodes/search": {
+      "post": {
+        "operationId": "adapterConnection.search",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "root": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4200
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matches with their paths; `truncated` when the search stopped early.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "matches",
+                        "visited",
+                        "truncated"
+                      ],
+                      "properties": {
+                        "matches": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "visited": {
+                          "type": "integer"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/OpcuaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "summary": "Search the address space by name"
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/pause": {
+      "post": {
+        "operationId": "adapterConnection.pause",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/resume": {
+      "post": {
+        "operationId": "adapterConnection.resume",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/server-certificate/accept": {
+      "post": {
+        "operationId": "adapterConnection.acceptCertificate",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fingerprint": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "fingerprint"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AdapterConnection"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "summary": "Trust the server certificate waiting for review"
+      }
+    },
+    "/v1/organizations/{organization}/adapter-connections/{connection}/test": {
+      "post": {
+        "operationId": "adapterConnection.test",
+        "tags": [
+          "AdapterConnection"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "connection",
+            "in": "path",
+            "required": true,
+            "description": "The connection UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The result and the connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "connected",
+                        "connection"
+                      ],
+                      "properties": {
+                        "connected": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "limits": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "clock_difference_ms": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "security": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "connection": {
+                          "$ref": "#/components/schemas/AdapterConnection"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 60,
+            "per": "minute",
+            "key": "organization",
+            "name": "opcua-browse"
+          }
+        ],
+        "summary": "Test the connection",
+        "description": "Opens a session and records the result on the connection. A failure answers 200 with `connected` false, `reason` and `fix`."
       }
     },
     "/v1/organizations/{organization}/administration": {
@@ -39566,7 +40945,7 @@
     },
     "/v1/organizations/{organization}/workflows/dag/settings": {
       "get": {
-        "operationId": "domain.automation.dag.settings_197",
+        "operationId": "domain.automation.dag.settings_199",
         "tags": [
           "Dag"
         ],
@@ -39641,7 +41020,7 @@
         "x-schema-status": "pending"
       },
       "put": {
-        "operationId": "domain.automation.dag.settings_198",
+        "operationId": "domain.automation.dag.settings_200",
         "tags": [
           "Dag"
         ],
@@ -41048,7 +42427,7 @@
         "x-schema-status": "pending"
       },
       "post": {
-        "operationId": "domain.automation.scenario.save_213",
+        "operationId": "domain.automation.scenario.save_215",
         "tags": [
           "Scenario"
         ],
@@ -41164,7 +42543,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/scenarios/{scenario}": {
       "put": {
-        "operationId": "domain.automation.scenario.save_214",
+        "operationId": "domain.automation.scenario.save_216",
         "tags": [
           "Scenario"
         ],
@@ -41960,7 +43339,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_204",
+        "operationId": "domain.automation.dag.timeline_206",
         "tags": [
           "Dag"
         ],
@@ -42031,7 +43410,7 @@
     },
     "/v1/organizations/{organization}/workflows/{workflow}/timeline/{evaluation}": {
       "get": {
-        "operationId": "domain.automation.dag.timeline_205",
+        "operationId": "domain.automation.dag.timeline_207",
         "tags": [
           "Dag"
         ],
@@ -42905,6 +44284,16 @@
       }
     },
     "responses": {
+      "AdapterConnection": {
+        "description": "The connection.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AdapterConnectionResult"
+            }
+          }
+        }
+      },
       "AddressNameInvalid": {
         "description": "The name is missing, or is not 3 to 40 letters, numbers and single hyphens that start and end with a letter or number (`name_invalid`).",
         "content": {
@@ -43072,6 +44461,26 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/ErrorMessage"
+            }
+          }
+        }
+      },
+      "OpcuaUnprocessable": {
+        "description": "The input failed validation, or the server could not be reached (`reason` and `fix`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OpcuaFailure"
+                },
+                {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              ]
             }
           }
         }
@@ -43434,6 +44843,203 @@
           },
           "opaque": {
             "type": "boolean"
+          }
+        }
+      },
+      "AdapterConnection": {
+        "type": "object",
+        "description": "A saved way to reach one OPC UA server (spec 038, US2). Secrets are never returned: `has_password` and `has_user_certificate` say whether one is stored.",
+        "required": [
+          "uuid",
+          "name",
+          "protocol",
+          "endpoint_url",
+          "runs_at",
+          "security_policy",
+          "security_mode",
+          "security_label",
+          "unencrypted_confirmed_by",
+          "identity",
+          "username",
+          "has_password",
+          "has_user_certificate",
+          "client_certificate",
+          "server_certificate",
+          "pending_server_certificate",
+          "state",
+          "status",
+          "refused_points",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "opcua"
+            ]
+          },
+          "endpoint_url": {
+            "type": "string",
+            "description": "An opc.tcp:// address."
+          },
+          "runs_at": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "agent"
+            ]
+          },
+          "security_policy": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Basic256Sha256",
+              "Aes128_Sha256_RsaOaep",
+              "Aes256_Sha256_RsaPss"
+            ]
+          },
+          "security_mode": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Sign",
+              "SignAndEncrypt"
+            ]
+          },
+          "security_label": {
+            "type": "string",
+            "description": "For example \"Encrypted (Basic256Sha256)\" or \"Not encrypted\"."
+          },
+          "unencrypted_confirmed_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The user_id who confirmed an unencrypted connection."
+          },
+          "identity": {
+            "type": "string",
+            "enum": [
+              "anonymous",
+              "username",
+              "certificate"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "has_user_certificate": {
+            "type": "boolean"
+          },
+          "client_certificate": {
+            "type": "object",
+            "description": "The platform's certificate for this connection; download it to add to the server's trusted list.",
+            "required": [
+              "fingerprint",
+              "expires_at"
+            ],
+            "properties": {
+              "fingerprint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "expires_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          "server_certificate": {
+            "description": "The accepted server certificate.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpcuaCertificate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_server_certificate": {
+            "description": "A certificate the server presented that waits for review.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpcuaCertificate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "awaiting_trust",
+              "connected",
+              "unreachable",
+              "stopped",
+              "paused"
+            ]
+          },
+          "status": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The last test or session's result, with `reason`, `message`, `fix`, `limits` and the last ten `problems`.",
+            "additionalProperties": {}
+          },
+          "refused_points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AdapterConnectionResult": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdapterConnection"
           }
         }
       },
@@ -49720,6 +51326,199 @@
             ]
           }
         }
+      },
+      "OpcuaCertificate": {
+        "type": "object",
+        "description": "A certificate as shown for review; the DER itself is never returned here.",
+        "required": [
+          "subject",
+          "fingerprint"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "SHA-256 of the DER, lower-case hex."
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "application_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accepted_by": {
+            "type": "integer",
+            "description": "The user_id who accepted it (ADR-013), on an accepted certificate."
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OpcuaFailure": {
+        "type": "object",
+        "description": "The server could not be reached or refused the connection; `reason` names why and `fix` what to do.",
+        "required": [
+          "message",
+          "reason",
+          "fix"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "unreachable",
+              "address_not_allowed",
+              "no_shared_security",
+              "server_certificate_changed",
+              "client_certificate_untrusted",
+              "sign_in_refused",
+              "server_busy",
+              "clock_difference",
+              "timeout"
+            ]
+          },
+          "fix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OpcuaNode": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "namespace_uri",
+          "name",
+          "display_name",
+          "kind",
+          "has_children"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "description": "The identifier part, for example `s=L03-VAV-2`; with the namespace URI it names the node as nsu=<uri>;<node_id>."
+          },
+          "namespace_uri": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "object",
+              "point"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_children": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": {}
+      },
+      "OpcuaPoint": {
+        "type": "object",
+        "description": "One variable's current value as the server reported it.",
+        "required": [
+          "node_id",
+          "namespace_uri",
+          "value",
+          "status",
+          "quality"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "namespace_uri": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "As the server reported it; an array for an array variable.",
+            "items": {
+              "type": [
+                "number",
+                "boolean",
+                "string",
+                "null"
+              ]
+            }
+          },
+          "data_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "good",
+              "uncertain",
+              "bad"
+            ]
+          },
+          "storable": {
+            "type": "boolean"
+          },
+          "not_storable": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": {}
       },
       "OrganizationDeletionEntryResource": {
         "type": "object",

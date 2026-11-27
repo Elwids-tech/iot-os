@@ -1,0 +1,465 @@
+# OPC UA connections and browsing (spec 038, specs/038-opc-ua-connector/contracts/api.md).
+# Secrets are write-only; nodes are named in expanded notation with a namespace URI.
+# Format: ../meta/supplement.schema.json.
+components:
+  schemas:
+    OpcuaCertificate:
+      type: object
+      description: A certificate as shown for review; the DER itself is never returned here.
+      required: [subject, fingerprint]
+      properties:
+        subject:
+          type: string
+        fingerprint:
+          type: string
+          description: SHA-256 of the DER, lower-case hex.
+        valid_from:
+          type: [string, 'null']
+          format: date-time
+        valid_to:
+          type: [string, 'null']
+          format: date-time
+        application_uri:
+          type: [string, 'null']
+        accepted_by:
+          type: integer
+          description: The user_id who accepted it (ADR-013), on an accepted certificate.
+        accepted_at:
+          type: string
+          format: date-time
+    AdapterConnection:
+      type: object
+      description: >-
+        A saved way to reach one OPC UA server (spec 038, US2). Secrets are never returned:
+        `has_password` and `has_user_certificate` say whether one is stored.
+      required: [uuid, name, protocol, endpoint_url, runs_at, security_policy, security_mode, security_label, unencrypted_confirmed_by, identity, username, has_password, has_user_certificate, client_certificate, server_certificate, pending_server_certificate, state, status, refused_points, created_at, updated_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        protocol:
+          type: string
+          enum: [opcua]
+        endpoint_url:
+          type: string
+          description: An opc.tcp:// address.
+        runs_at:
+          type: string
+          enum: [platform, agent]
+        security_policy:
+          type: string
+          enum: [None, Basic256Sha256, Aes128_Sha256_RsaOaep, Aes256_Sha256_RsaPss]
+        security_mode:
+          type: string
+          enum: [None, Sign, SignAndEncrypt]
+        security_label:
+          type: string
+          description: For example "Encrypted (Basic256Sha256)" or "Not encrypted".
+        unencrypted_confirmed_by:
+          type: [integer, 'null']
+          description: The user_id who confirmed an unencrypted connection.
+        identity:
+          type: string
+          enum: [anonymous, username, certificate]
+        username:
+          type: [string, 'null']
+        has_password:
+          type: boolean
+        has_user_certificate:
+          type: boolean
+        client_certificate:
+          type: object
+          description: The platform's certificate for this connection; download it to add to the server's trusted list.
+          required: [fingerprint, expires_at]
+          properties:
+            fingerprint:
+              type: [string, 'null']
+            expires_at:
+              type: [string, 'null']
+              format: date-time
+        server_certificate:
+          description: The accepted server certificate.
+          oneOf:
+            - $ref: '#/components/schemas/OpcuaCertificate'
+            - type: 'null'
+        pending_server_certificate:
+          description: A certificate the server presented that waits for review.
+          oneOf:
+            - $ref: '#/components/schemas/OpcuaCertificate'
+            - type: 'null'
+        state:
+          type: string
+          enum: [draft, awaiting_trust, connected, unreachable, stopped, paused]
+        status:
+          type: [object, 'null']
+          description: The last test or session's result, with `reason`, `message`, `fix`, `limits` and the last ten `problems`.
+          additionalProperties: {}
+        refused_points:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        created_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+    AdapterConnectionResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AdapterConnection'
+    OpcuaNode:
+      type: object
+      required: [node_id, namespace_uri, name, display_name, kind, has_children]
+      properties:
+        node_id:
+          type: string
+          description: The identifier part, for example `s=L03-VAV-2`; with the namespace URI it names the node as nsu=<uri>;<node_id>.
+        namespace_uri:
+          type: string
+        name:
+          type: string
+        display_name:
+          type: string
+        kind:
+          type: string
+          enum: [folder, object, point]
+        type:
+          type: [string, 'null']
+        has_children:
+          type: boolean
+      additionalProperties: {}
+    OpcuaPoint:
+      type: object
+      description: One variable's current value as the server reported it.
+      required: [node_id, namespace_uri, value, status, quality]
+      properties:
+        node_id:
+          type: string
+        namespace_uri:
+          type: string
+        value:
+          type: [number, boolean, string, array, 'null']
+          description: As the server reported it; an array for an array variable.
+          items:
+            type: [number, boolean, string, 'null']
+        data_type:
+          type: [string, 'null']
+        unit:
+          type: [string, 'null']
+        status:
+          type: string
+        quality:
+          type: string
+          enum: [good, uncertain, bad]
+        storable:
+          type: boolean
+        not_storable:
+          type: [string, 'null']
+      additionalProperties: {}
+    OpcuaFailure:
+      type: object
+      description: The server could not be reached or refused the connection; `reason` names why and `fix` what to do.
+      required: [message, reason, fix]
+      properties:
+        message:
+          type: string
+        reason:
+          type: string
+          enum: [unreachable, address_not_allowed, no_shared_security, server_certificate_changed, client_certificate_untrusted, sign_in_refused, server_busy, clock_difference, timeout]
+        fix:
+          type: [string, 'null']
+  responses:
+    OpcuaUnprocessable:
+      description: The input failed validation, or the server could not be reached (`reason` and `fix`).
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/OpcuaFailure'
+              - $ref: '#/components/schemas/ValidationError'
+              - $ref: '#/components/schemas/ErrorMessage'
+    AdapterConnection:
+      description: The connection.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdapterConnectionResult'
+operations:
+  GET /v1/organizations/{organization}/adapter-connections:
+    summary: List the organization's OPC UA connections
+    responses:
+      '200':
+        description: The connections by name.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AdapterConnection'
+  POST /v1/organizations/{organization}/adapter-connections:
+    summary: Save an OPC UA connection
+    description: Creates the platform's certificate for the connection. Refused when a connection already reaches the server the same way or the organization's limit is reached.
+    responses:
+      '201':
+        $ref: '#/components/responses/AdapterConnection'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  GET /v1/organizations/{organization}/adapter-connections/{connection}:
+    responses:
+      '200':
+        $ref: '#/components/responses/AdapterConnection'
+  PUT /v1/organizations/{organization}/adapter-connections/{connection}:
+    description: Secrets left out are kept. Changing the address forgets the accepted server certificate.
+    responses:
+      '200':
+        $ref: '#/components/responses/AdapterConnection'
+      '422':
+        $ref: '#/components/responses/Unprocessable'
+  DELETE /v1/organizations/{organization}/adapter-connections/{connection}:
+    responses:
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/endpoints:
+    summary: Ask the server what it offers
+    description: Lists the server's endpoints with their security and certificate. A certificate that is not the accepted one waits for review in `pending_server_certificate`.
+    responses:
+      '200':
+        description: What the server offers, and the connection.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [endpoints, connection]
+                  properties:
+                    endpoints:
+                      type: array
+                      items:
+                        type: object
+                        required: [policy, mode, label]
+                        properties:
+                          policy:
+                            type: string
+                          mode:
+                            type: string
+                          label:
+                            type: string
+                          strength:
+                            type: integer
+                          refused:
+                            type: [string, 'null']
+                          warning:
+                            type: [string, 'null']
+                          endpoint_url:
+                            type: string
+                          sign_in:
+                            type: array
+                            items:
+                              type: string
+                          server_fingerprint:
+                            type: [string, 'null']
+                          server_certificate:
+                            oneOf:
+                              - $ref: '#/components/schemas/OpcuaCertificate'
+                              - type: 'null'
+                    connection:
+                      $ref: '#/components/schemas/AdapterConnection'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/server-certificate/accept:
+    summary: Trust the server certificate waiting for review
+    responses:
+      '200':
+        $ref: '#/components/responses/AdapterConnection'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  GET /v1/organizations/{organization}/adapter-connections/{connection}/client-certificate:
+    summary: Download the platform's certificate for this connection
+    responses:
+      '200':
+        description: The certificate, DER by default or PEM with `format=pem`.
+        content:
+          application/pkix-cert:
+            schema:
+              type: string
+              format: binary
+          application/x-pem-file:
+            schema:
+              type: string
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/test:
+    summary: Test the connection
+    description: Opens a session and records the result on the connection. A failure answers 200 with `connected` false, `reason` and `fix`.
+    responses:
+      '200':
+        description: The result and the connection.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [connected, connection]
+                  properties:
+                    connected:
+                      type: boolean
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    fix:
+                      type: [string, 'null']
+                    limits:
+                      type: [object, 'null']
+                      additionalProperties: {}
+                    clock_difference_ms:
+                      type: [integer, 'null']
+                    security:
+                      type: [object, 'null']
+                      additionalProperties: {}
+                    connection:
+                      $ref: '#/components/schemas/AdapterConnection'
+      '409':
+        $ref: '#/components/responses/Conflict'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/pause:
+    responses:
+      '200':
+        $ref: '#/components/responses/AdapterConnection'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/resume:
+    responses:
+      '200':
+        $ref: '#/components/responses/AdapterConnection'
+  GET /v1/organizations/{organization}/adapter-connections/{connection}/nodes:
+    summary: Browse one level of the server's address space
+    description: Children of `parent` (nsu=<uri>;<id>), or of the Objects folder when it is left out, a page at a time.
+    responses:
+      '200':
+        description: One page of children.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [items, cursor]
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OpcuaNode'
+                    cursor:
+                      type: [string, 'null']
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/nodes/read:
+    summary: Read the current values of up to 200 nodes
+    responses:
+      '200':
+        description: Each node's value, unit and quality.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [points]
+                  properties:
+                    points:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OpcuaPoint'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  POST /v1/organizations/{organization}/adapter-connections/{connection}/nodes/search:
+    summary: Search the address space by name
+    responses:
+      '200':
+        description: Matches with their paths; `truncated` when the search stopped early.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [matches, visited, truncated]
+                  properties:
+                    matches:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: {}
+                    visited:
+                      type: integer
+                    truncated:
+                      type: boolean
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/OpcuaUnprocessable'
+  GET /v1/admin/organizations/{organization}/adapter-private-ranges:
+    summary: The private ranges an organization's connections may reach
+    responses:
+      '200':
+        description: The ranges in CIDR notation.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [private_ranges]
+                  properties:
+                    private_ranges:
+                      type: array
+                      items:
+                        type: string
+  PUT /v1/admin/organizations/{organization}/adapter-private-ranges:
+    summary: Set the private ranges an organization's connections may reach
+    description: Ranges that include loopback, link-local, the metadata address or the platform's own networks are refused.
+    responses:
+      '200':
+        description: The ranges saved.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [private_ranges]
+                  properties:
+                    private_ranges:
+                      type: array
+                      items:
+                        type: string
+      '422':
+        $ref: '#/components/responses/Unprocessable'

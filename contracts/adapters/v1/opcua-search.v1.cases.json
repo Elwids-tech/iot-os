@@ -1,0 +1,89 @@
+[
+  {
+    "description": "nothing found",
+    "valid": true,
+    "data": {
+      "matches": [],
+      "visited": 20000,
+      "truncated": true
+    }
+  },
+  {
+    "description": "a scan past its limit",
+    "valid": false,
+    "error": {
+      "keyword": "maximum",
+      "instance_location": "/visited"
+    },
+    "data": {
+      "matches": [
+        {
+          "node_id": "s=L02-VAV-2",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "name": "L02-VAV-2",
+          "display_name": "L02-VAV-2",
+          "kind": "object",
+          "type": "Zone box with reheat",
+          "has_children": true,
+          "path": [
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "Example Campus"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "Example Tower"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L02"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L02-Z2"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L02-VAV-2"
+            }
+          ],
+          "source_id": "Example Campus/Example Tower/L02/L02-Z2/L02-VAV-2"
+        },
+        {
+          "node_id": "s=L03-VAV-2",
+          "namespace_uri": "urn:example:bms:example-tower",
+          "name": "L03-VAV-2",
+          "display_name": "L03-VAV-2",
+          "kind": "object",
+          "type": "Zone box with reheat",
+          "has_children": true,
+          "path": [
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "Example Campus"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "Example Tower"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L03"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L03-Z2"
+            },
+            {
+              "namespace_uri": "urn:example:bms:example-tower",
+              "name": "L03-VAV-2"
+            }
+          ],
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2"
+        }
+      ],
+      "visited": 20001,
+      "truncated": false
+    }
+  }
+]

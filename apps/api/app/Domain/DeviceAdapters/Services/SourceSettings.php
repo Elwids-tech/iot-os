@@ -28,6 +28,9 @@ final class SourceSettings
             AdapterSourceType::Platform, AdapterSourceType::Vendor => $this->mqtt($source, $type),
             AdapterSourceType::Webhook => $this->webhook($source),
             AdapterSourceType::Poll => $this->poll($source),
+            // Spec 038: an OPC UA data source reads through a saved connection with a point
+            // map, which a later change adds; until then only the connection exists.
+            AdapterSourceType::Opcua => abort(422, 'OPC UA data sources are set up from a connection, which is not available for data sources yet.'),
         };
     }
 

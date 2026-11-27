@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-test.v1.schema.json",
+  "title": "OPC UA connection test",
+  "description": "What /opcua/test answers when the connection is made and signed in: the server's announced limits, the clock difference (server minus platform, milliseconds) and the security in use. A failure is opcua-failure.v1. Producer: services/adapters/lib/opcua/routes.cjs. Consumer: Connections in apps/api.",
+  "type": "object",
+  "properties": {
+    "connected": {
+      "const": true
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "MaxNodesPerRead": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "MaxNodesPerBrowse": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "MaxNodesPerTranslateBrowsePathsToNodeIds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "MaxMonitoredItemsPerCall": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      },
+      "required": [
+        "MaxNodesPerRead",
+        "MaxNodesPerBrowse",
+        "MaxNodesPerTranslateBrowsePathsToNodeIds",
+        "MaxMonitoredItemsPerCall"
+      ],
+      "additionalProperties": false
+    },
+    "clock_difference_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "warning": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "server_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "policy",
+        "mode",
+        "label",
+        "warning",
+        "server_fingerprint"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "connected",
+    "limits",
+    "clock_difference_ms",
+    "security"
+  ],
+  "additionalProperties": false
+}

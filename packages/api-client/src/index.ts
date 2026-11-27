@@ -3023,6 +3023,34 @@ export class ApiClient {
   adapterPollRuns(org: string, id: string) { return this.request<{data: import("./adapters").PollRun[]; polling: import("./adapters").AdapterPolling | null}>(this.adapterPath(org,id,"/poll-runs")) }
   resetAdapterCursor(org: string, id: string, input: {request_uuid: string; start_at: string}) { return this.data<import("./adapters").AdapterOperation>(this.adapterPath(org,id,"/cursor"), "POST", input) }
   resumeAdapterPolling(org: string, id: string, input: {request_uuid: string}) { return this.data<import("./adapters").AdapterOperation>(this.adapterPath(org,id,"/resume"), "POST", input) }
+  // OPC UA connections (spec 038).
+  private connectionPath(org: string, id?: string, suffix = "") {
+    return `/api/v1/organizations/${encodeURIComponent(org)}/adapter-connections${id ? "/" + encodeURIComponent(id) : ""}${suffix}`
+  }
+  adapterConnections(org: string) { return this.data<import("./adapters").AdapterConnection[]>(this.connectionPath(org)) }
+  adapterConnection(org: string, id: string) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org, id)) }
+  createAdapterConnection(org: string, input: import("./adapters").AdapterConnectionInput) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org), "POST", input) }
+  saveAdapterConnection(org: string, id: string, input: import("./adapters").AdapterConnectionInput) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org, id), "PUT", input) }
+  async deleteAdapterConnection(org: string, id: string) { await this.request(this.connectionPath(org, id), { method: "DELETE" }) }
+  adapterConnectionEndpoints(org: string, id: string) { return this.data<{endpoints: import("./adapters").OpcuaEndpoint[]; connection: import("./adapters").AdapterConnection}>(this.connectionPath(org, id, "/endpoints"), "POST", {}) }
+  acceptServerCertificate(org: string, id: string, fingerprint: string) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org, id, "/server-certificate/accept"), "POST", {fingerprint}) }
+  /** Where the platform's certificate for the connection downloads (session cookie). */
+  adapterConnectionCertificateUrl(org: string, id: string, format: "der" | "pem" = "der") { return `${this.baseUrl}${this.connectionPath(org, id, `/client-certificate?format=${format}`)}` }
+  testOpcuaConnection(org: string, id: string) { return this.data<import("./adapters").OpcuaTestResult>(this.connectionPath(org, id, "/test"), "POST", {}) }
+  pauseAdapterConnection(org: string, id: string) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org, id, "/pause"), "POST", {}) }
+  resumeAdapterConnection(org: string, id: string) { return this.data<import("./adapters").AdapterConnection>(this.connectionPath(org, id, "/resume"), "POST", {}) }
+  /** One page of a node's children; the Objects folder when `parent` is left out. */
+  opcuaNodes(org: string, id: string, parent?: string | null, cursor?: string | null, signal?: AbortSignal) {
+    const query = new URLSearchParams()
+    if (parent) query.set("parent", parent)
+    if (cursor) query.set("cursor", cursor)
+    const q = query.toString()
+    return this.data<{items: import("./adapters").OpcuaNode[]; cursor: string | null}>(this.connectionPath(org, id, `/nodes${q ? `?${q}` : ""}`), "GET", undefined, signal)
+  }
+  readOpcuaNodes(org: string, id: string, nodes: string[]) { return this.data<{points: import("./adapters").OpcuaPoint[]}>(this.connectionPath(org, id, "/nodes/read"), "POST", {nodes}) }
+  searchOpcuaNodes(org: string, id: string, text: string, root?: string | null) { return this.data<import("./adapters").OpcuaSearchResult>(this.connectionPath(org, id, "/nodes/search"), "POST", {text, ...(root ? {root} : {})}) }
+  adminAdapterPrivateRanges(organization: string) { return this.data<{private_ranges: string[]}>(`/api/v1/admin/organizations/${encodeURIComponent(organization)}/adapter-private-ranges`) }
+  saveAdminAdapterPrivateRanges(organization: string, private_ranges: string[]) { return this.data<{private_ranges: string[]}>(`/api/v1/admin/organizations/${encodeURIComponent(organization)}/adapter-private-ranges`, "PUT", {private_ranges}) }
   adapterProposals(org: string,id: string) { return this.data<import("./adapters").AdapterProposal[]>(this.adapterPath(org,id,"/proposals")) }
   decideAdapterProposal(org: string,id: string,proposal: string,action: "apply" | "reject",content_hash: string) { return this.data<import("./adapters").DeviceAdapter | {status: string}>(this.adapterPath(org,id,`/proposals/${encodeURIComponent(proposal)}/decision`), "POST", {action,content_hash}) }
   // The device onboarding assistant (spec 020) replaced the adapter assistant.

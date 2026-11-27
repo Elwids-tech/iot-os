@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-read.v1.schema.json",
+  "title": "OPC UA point details",
+  "description": "What /opcua/read answers for up to 200 points: value, data type, unit, range, state labels, status and quality with its reason, source time, and whether the point can be stored or why not. A point that was not found carries only its address and why it cannot be stored. Producer: services/adapters/lib/opcua/browse.cjs. Consumer: Connections in apps/api.",
+  "type": "object",
+  "properties": {
+    "points": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 4096,
+            "pattern": "^(i|s|g|b)="
+          },
+          "namespace_uri": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 512
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean",
+              "string",
+              "null"
+            ]
+          },
+          "data_type": {
+            "enum": [
+              "number",
+              "boolean",
+              "state",
+              "text",
+              null
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "range": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            ]
+          },
+          "states": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "quality": {
+            "enum": [
+              "good",
+              "uncertain",
+              "bad"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "storable": {
+            "type": "boolean"
+          },
+          "not_storable": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "node_id",
+          "namespace_uri",
+          "storable",
+          "not_storable"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "points"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "connection": {
+    "uuid": "5f2b8c1e-3c1a-4d8e-9a7b-2c4d6e8f0a1b",
+    "endpoint_url": "opc.tcp://bms.example.com:4840/",
+    "security_policy": "Basic256Sha256",
+    "security_mode": "SignAndEncrypt",
+    "identity": "username",
+    "server_fingerprint": "8598fc68c9a75d9c4cad944c72a9a04759108a886edc8f5deee52b40406bdd72"
+  },
+  "secrets": {
+    "username": "placeholder-operator",
+    "password": "placeholder-password",
+    "client_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
+    "client_private_key": "placeholder-private-key"
+  },
+  "private_ranges": [
+    "10.20.0.0/16"
+  ],
+  "platform_ranges": [
+    "172.18.0.0/16"
+  ],
+  "parent": {
+    "node_id": "s=L03-Z2",
+    "namespace_uri": "urn:example:bms:example-tower"
+  },
+  "cursor": null
+}
