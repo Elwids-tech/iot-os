@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/bms-building.v1.json",
+  "title": "Simulated building model (spec 038)",
+  "description": "The one definition of a simulated building: levels, zones, equipment with positions and sizes, the point library and the sizes the simulator can run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "site", "building", "levels", "plans", "sizes", "library"],
+  "properties": {
+    "schema_version": {"const": "bms-building.v1"},
+    "site": {"$ref": "#/$defs/named"},
+    "building": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "namespace", "timezone", "size", "grid", "core"],
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "name": {"$ref": "#/$defs/name"},
+        "namespace": {"type": "string", "pattern": "^urn:example:"},
+        "timezone": {"type": "string", "minLength": 1},
+        "size": {"$ref": "#/$defs/pair"},
+        "grid": {"type": "number", "exclusiveMinimum": 0},
+        "core": {"$ref": "#/$defs/outline"}
+      }
+    },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "name", "floor_z", "height", "plan"],
+        "properties": {
+          "key": {"$ref": "#/$defs/levelKey"},
+          "name": {"$ref": "#/$defs/name"},
+          "floor_z": {"type": "number"},
+          "height": {"type": "number", "exclusiveMinimum": 0},
+          "plan": {"$ref": "#/$defs/key"},
+          "zones": {"type": "array", "items": {"$ref": "#/$defs/zoneOverride"}},
+          "rooms": {"type": "array", "items": {"$ref": "#/$defs/room"}},
+          "equipment": {"type": "array", "items": {"$ref": "#/$defs/equipment"}}
+        }
+      }
+    },
+    "plans": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["equipment"],
+        "properties": {
+          "zones": {"type": "array", "items": {"$ref": "#/$defs/zone"}},
+          "rooms": {"type": "array", "items": {"$ref": "#/$defs/room"}},
+          "equipment": {"type": "array", "items": {"$ref": "#/$defs/equipment"}}
+        }
+      }
+    },
+    "sizes": {
+      "type": "object",
+      "required": ["standard", "tower", "large"],
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["levels"],
+        "properties": {
+          "levels": {
+            "oneOf": [
+              {"const": "all"},
+              {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/levelKey"}}
+            ]
+          },
+          "equipment": {"type": "array", "items": {"$ref": "#/$defs/equipmentKey"}},
+          "add_office_levels": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "plan", "first_floor_z", "height"],
+            "properties": {
+              "from": {"type": "integer", "minimum": 1},
+              "to": {"type": "integer", "minimum": 1},
+              "plan": {"$ref": "#/$defs/key"},
+              "first_floor_z": {"type": "number"},
+              "height": {"type": "number", "exclusiveMinimum": 0}
+            }
+          },
+          "move": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["floor_z"],
+              "properties": {"floor_z": {"type": "number"}}
+            }
+          }
+        }
+      }
+    },
+    "library": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "points"],
+        "properties": {
+          "name": {"$ref": "#/$defs/name"},
+          "kind": {"$ref": "#/$defs/kind"},
+          "footprint": {"$ref": "#/$defs/triple"},
+          "points": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/point"}},
+          "per_sensor": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/point"}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "key": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$"},
+    "levelKey": {"type": "string", "pattern": "^(B[0-9]|G|L[0-9]{2}|RF)$"},
+    "kind": {"type": "string", "pattern": "^[A-Z]{2,5}$"},
+    "equipmentKey": {"type": "string", "pattern": "^((B[0-9]|G|L[0-9]{2}|RF)-)?[A-Z]{2,5}-[0-9]{1,2}$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "named": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name"],
+      "properties": {"key": {"$ref": "#/$defs/key"}, "name": {"$ref": "#/$defs/name"}}
+    },
+    "pair": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    "triple": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "outline": {"type": "array", "items": {"$ref": "#/$defs/pair"}, "minItems": 3},
+    "feeds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "power": {"$ref": "#/$defs/refs"},
+        "air": {"$ref": "#/$defs/refs"},
+        "water": {"$ref": "#/$defs/refs"},
+        "chilled_water": {"$ref": "#/$defs/refs"},
+        "condenser_water": {"$ref": "#/$defs/refs"},
+        "heating_water": {"$ref": "#/$defs/refs"}
+      }
+    },
+    "refs": {
+      "oneOf": [
+        {"$ref": "#/$defs/equipmentKey"},
+        {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/equipmentKey"}}
+      ]
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "kind", "use", "outline"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^Z[0-9]{1,2}$"},
+        "name": {"$ref": "#/$defs/name"},
+        "kind": {"enum": ["perimeter", "interior", "core"]},
+        "use": {"$ref": "#/$defs/key"},
+        "facade": {"enum": ["north", "east", "south", "west"]},
+        "outline": {"$ref": "#/$defs/outline"},
+        "fed_by": {"$ref": "#/$defs/feeds"}
+      }
+    },
+    "zoneOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "outline"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^Z[0-9]{1,2}$"},
+        "outline": {"$ref": "#/$defs/outline"}
+      }
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "outline"],
+      "properties": {
+        "key": {"$ref": "#/$defs/key"},
+        "name": {"$ref": "#/$defs/name"},
+        "outline": {"$ref": "#/$defs/outline"}
+      }
+    },
+    "equipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "type", "at"],
+      "properties": {
+        "key": {"$ref": "#/$defs/equipmentKey"},
+        "type": {"$ref": "#/$defs/key"},
+        "name": {"$ref": "#/$defs/name"},
+        "group": {"$ref": "#/$defs/key"},
+        "zone": {"type": "string", "pattern": "^Z[0-9]{1,2}$"},
+        "room": {"$ref": "#/$defs/key"},
+        "at": {"$ref": "#/$defs/triple"},
+        "facing": {"type": "number", "minimum": 0, "exclusiveMaximum": 360},
+        "footprint": {"$ref": "#/$defs/triple"},
+        "area": {"type": "number", "exclusiveMinimum": 0},
+        "sensor": {"$ref": "#/$defs/triple"},
+        "sensors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/triple"}},
+        "fed_by": {"$ref": "#/$defs/feeds"}
+      }
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "kind", "type"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_{}]{0,47}$"},
+        "name": {"$ref": "#/$defs/name"},
+        "description": {"type": "string", "maxLength": 500},
+        "kind": {"enum": ["sensor", "actuator", "status", "alarm", "total", "command"]},
+        "type": {"enum": ["number", "boolean", "state", "text"]},
+        "unit": {"type": "string", "minLength": 1},
+        "range": {"$ref": "#/$defs/pair"},
+        "states": {"type": "array", "minItems": 2, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "command": {"enum": ["setpoint", "mode", "request"]},
+        "limits": {"$ref": "#/$defs/pair"},
+        "default": {"type": ["number", "boolean", "string"]},
+        "brick": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9_]*$"},
+        "at": {"enum": ["wall", "ceiling"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "state"}}}, "then": {"required": ["states"]}},
+        {"if": {"properties": {"kind": {"const": "command"}}}, "then": {"required": ["command", "default"]}, "else": {"not": {"anyOf": [{"required": ["command"]}, {"required": ["limits"]}, {"required": ["default"]}]}}},
+        {"if": {"properties": {"kind": {"const": "command"}, "type": {"const": "number"}}}, "then": {"required": ["limits"]}}
+      ]
+    }
+  }
+}

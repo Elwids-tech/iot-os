@@ -1,0 +1,887 @@
+# Example Tower: the one definition of the simulated building (spec 038).
+#
+# The simulator, a 3D model and the expected entity hierarchy are all built from this
+# file, so nothing else keeps its own copy. The plan in
+# specs/038-opc-ua-connector/building.md explains it floor by floor; the totals there
+# are checked against this file by tooling/simulators/test_bms_model.py.
+#
+# Coordinates are metres from the south-west corner of the building at ground level:
+# x runs east, y runs north, z runs up. An equipment position `at: [x, y, z]` is the
+# centre of its footprint, with z measured from its level's floor. Facing is a compass
+# bearing in degrees (0 north, 90 east). Example Tower is invented.
+#
+# Plans describe a floor once. Inside a plan, keys are relative (`AHU-1` on level L03
+# is `L03-AHU-1`); a reference that starts with a level key (`L10-OAU-1`) is absolute.
+schema_version: bms-building.v1
+
+site: {key: EC, name: Example Campus}
+
+building:
+  key: ET
+  name: Example Tower
+  namespace: urn:example:bms:example-tower
+  timezone: UTC
+  size: [48, 30]
+  grid: 6
+  core: [[15, 9], [33, 9], [33, 21], [15, 21]]
+
+levels:
+  - {key: B2, name: Basement 2, floor_z: -7.2, height: 3.6, plan: basement-2}
+  - {key: B1, name: Basement 1, floor_z: -3.6, height: 3.6, plan: basement-1}
+  - {key: G, name: Ground, floor_z: 0.0, height: 6.0, plan: ground}
+  - {key: L01, name: Level 1, floor_z: 6.0, height: 5.0, plan: level-1}
+  - key: L02
+    name: Level 2
+    floor_z: 11.0
+    height: 4.0
+    plan: office
+    # The server room takes the north half of the interior east zone on this floor.
+    zones:
+      - {key: Z6, outline: [[33, 6], [42, 6], [42, 15], [33, 15]]}
+    rooms:
+      - {key: SR, name: Server room, outline: [[33, 15], [42, 15], [42, 24], [33, 24]]}
+    equipment:
+      - {key: CRAC-1, type: room_cooling_unit, group: server_room, at: [35.0, 22.5, 0], facing: 180, fed_by: {power: EM-3}}
+      - {key: CRAC-2, type: room_cooling_unit, group: server_room, at: [40.0, 22.5, 0], facing: 180, fed_by: {power: EM-3}}
+      - {key: UPS-1, type: uninterruptible_supply, group: server_room, at: [34.2, 16.6, 0], facing: 90, fed_by: {power: EM-3}}
+      - {key: EM-3, type: electricity_sub_meter, name: Server room sub-meter, group: server_room, at: [41.4, 16.6, 0], facing: 270, fed_by: {power: B1-EM-5}}
+      - {key: SEN-2, type: server_room_sensors, name: Server room sensors, group: server_room, at: [37.5, 19.5, 1.5]}
+  - {key: L03, name: Level 3, floor_z: 15.0, height: 4.0, plan: office}
+  - {key: L04, name: Level 4, floor_z: 19.0, height: 4.0, plan: office}
+  - {key: L05, name: Level 5, floor_z: 23.0, height: 4.0, plan: office}
+  - {key: L06, name: Level 6, floor_z: 27.0, height: 4.0, plan: office}
+  - {key: L07, name: Level 7, floor_z: 31.0, height: 4.0, plan: office}
+  - {key: L08, name: Level 8, floor_z: 35.0, height: 4.0, plan: office}
+  - {key: L09, name: Level 9, floor_z: 39.0, height: 4.0, plan: office}
+  - {key: L10, name: Level 10, floor_z: 43.0, height: 5.0, plan: plant-floor}
+  - {key: RF, name: Roof, floor_z: 48.0, height: 1.2, plan: roof}
+
+plans:
+  office:
+    zones:
+      - {key: Z1, name: North, kind: perimeter, use: open_office, facade: north, outline: [[0, 24], [48, 24], [48, 30], [0, 30]], fed_by: {power: EM-1}}
+      - {key: Z2, name: East, kind: perimeter, use: meeting_rooms, facade: east, outline: [[42, 6], [48, 6], [48, 24], [42, 24]], fed_by: {power: EM-1}}
+      - {key: Z3, name: South, kind: perimeter, use: open_office, facade: south, outline: [[0, 0], [48, 0], [48, 6], [0, 6]], fed_by: {power: EM-1}}
+      - {key: Z4, name: West, kind: perimeter, use: private_offices, facade: west, outline: [[0, 6], [6, 6], [6, 24], [0, 24]], fed_by: {power: EM-1}}
+      - {key: Z5, name: Interior west, kind: interior, use: open_office, outline: [[6, 6], [15, 6], [15, 24], [6, 24]], fed_by: {power: EM-1}}
+      - {key: Z6, name: Interior east, kind: interior, use: open_office, outline: [[33, 6], [42, 6], [42, 24], [33, 24]], fed_by: {power: EM-1}}
+      - {key: Z7, name: Core and lobby, kind: core, use: circulation, outline: [[15, 6], [33, 6], [33, 24], [15, 24]], fed_by: {power: EM-1}}
+    equipment:
+      - {key: AHU-1, type: air_handling_unit, at: [18.0, 12.0, 0], facing: 90, fed_by: {power: EM-2, air: [L10-OAU-1, L10-OAU-2], chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: VAV-1, type: zone_box_reheat, zone: Z1, at: [24.0, 27.0, 3.4], sensor: [24.0, 24.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-2, type: zone_box_reheat, zone: Z2, at: [45.0, 15.0, 3.4], sensor: [42.0, 15.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-3, type: zone_box_reheat, zone: Z3, at: [24.0, 3.0, 3.4], sensor: [24.0, 6.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-4, type: zone_box_reheat, zone: Z4, at: [3.0, 15.0, 3.4], sensor: [6.0, 15.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-5, type: zone_box_cooling, zone: Z5, at: [10.5, 15.0, 3.4], sensor: [15.0, 15.0, 1.5], fed_by: {air: AHU-1}}
+      - {key: VAV-6, type: zone_box_cooling, zone: Z6, at: [37.5, 15.0, 3.4], sensor: [33.0, 15.0, 1.5], fed_by: {air: AHU-1}}
+      - {key: VAV-7, type: zone_box_core, zone: Z7, at: [24.0, 7.5, 3.4], sensor: [24.0, 9.0, 1.5], fed_by: {air: AHU-1}}
+      - {key: LTG-1, type: lighting_zone, zone: Z1, at: [24.0, 27.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-2, type: lighting_zone, zone: Z2, at: [45.0, 15.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-3, type: lighting_zone, zone: Z3, at: [24.0, 3.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-4, type: lighting_zone, zone: Z4, at: [3.0, 15.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-5, type: lighting_zone, zone: Z5, at: [10.5, 15.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-6, type: lighting_zone, zone: Z6, at: [37.5, 15.0, 3.9], fed_by: {power: EM-1}}
+      - {key: LTG-7, type: lighting_zone, zone: Z7, at: [24.0, 7.5, 3.9], fed_by: {power: EM-1}}
+      - {key: BLD-1, type: blind_group, zone: Z1, at: [24.0, 29.9, 2.0], facing: 0}
+      - {key: BLD-2, type: blind_group, zone: Z2, at: [47.9, 15.0, 2.0], facing: 90}
+      - {key: BLD-3, type: blind_group, zone: Z3, at: [24.0, 0.1, 2.0], facing: 180}
+      - {key: BLD-4, type: blind_group, zone: Z4, at: [0.1, 15.0, 2.0], facing: 270}
+      - {key: EM-1, type: electricity_sub_meter, name: Light and power sub-meter, at: [31.6, 19.5, 0], facing: 270, fed_by: {power: B1-EM-5}}
+      - {key: EM-2, type: electricity_sub_meter, name: Mechanical sub-meter, at: [31.6, 18.4, 0], facing: 270, fed_by: {power: B1-EM-6}}
+      - {key: SEN-1, type: office_floor_sensors, name: Floor sensors, at: [27.0, 18.0, 0.1]}
+
+  level-1:
+    zones:
+      - {key: Z1, name: Conference room A, kind: perimeter, use: conference, facade: north, outline: [[0, 24], [24, 24], [24, 30], [0, 30]], fed_by: {power: EM-1}}
+      - {key: Z2, name: Conference room B, kind: perimeter, use: conference, facade: north, outline: [[24, 24], [48, 24], [48, 30], [24, 30]], fed_by: {power: EM-1}}
+      - {key: Z3, name: Conference room C, kind: perimeter, use: conference, facade: east, outline: [[42, 6], [48, 6], [48, 24], [42, 24]], fed_by: {power: EM-1}}
+      - {key: Z4, name: Conference room D, kind: perimeter, use: conference, facade: west, outline: [[0, 6], [6, 6], [6, 24], [0, 24]], fed_by: {power: EM-1}}
+      - {key: Z5, name: Pre-function hall, kind: interior, use: hall, outline: [[6, 6], [42, 6], [42, 24], [6, 24]], fed_by: {power: EM-2}}
+      - {key: Z6, name: Café, kind: perimeter, use: cafe, facade: south, outline: [[0, 0], [30, 0], [30, 6], [0, 6]], fed_by: {power: EM-2}}
+      - {key: Z7, name: Kitchen, kind: perimeter, use: kitchen, facade: south, outline: [[30, 0], [48, 0], [48, 6], [30, 6]], fed_by: {power: EM-2}}
+    equipment:
+      - {key: AHU-1, type: air_handling_unit, name: Conference air handling unit, at: [18.0, 12.0, 0], facing: 90, fed_by: {power: EM-1, air: [L10-OAU-1, L10-OAU-2], chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: AHU-2, type: air_handling_unit, name: Café and hall air handling unit, at: [30.0, 12.0, 0], facing: 270, fed_by: {power: EM-2, air: [L10-OAU-1, L10-OAU-2], chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: VAV-1, type: zone_box_reheat, zone: Z1, at: [12.0, 27.0, 4.4], sensor: [12.0, 24.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-2, type: zone_box_reheat, zone: Z2, at: [36.0, 27.0, 4.4], sensor: [36.0, 24.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-3, type: zone_box_reheat, zone: Z3, at: [45.0, 15.0, 4.4], sensor: [42.0, 15.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-4, type: zone_box_reheat, zone: Z4, at: [3.0, 15.0, 4.4], sensor: [6.0, 15.0, 1.5], fed_by: {air: AHU-1, heating_water: L10-HP-1}}
+      - {key: VAV-5, type: zone_box_cooling, zone: Z5, at: [10.5, 15.0, 4.4], sensor: [15.0, 15.0, 1.5], fed_by: {air: AHU-2}}
+      - {key: VAV-6, type: zone_box_cooling, zone: Z6, at: [15.0, 3.0, 4.4], sensor: [15.0, 6.0, 1.5], fed_by: {air: AHU-2}}
+      - {key: KEF-1, type: kitchen_exhaust_fan, zone: Z7, at: [39.0, 3.0, 3.8], fed_by: {power: EM-2}}
+      - {key: LTG-1, type: lighting_zone, zone: Z1, at: [12.0, 27.0, 4.9], fed_by: {power: EM-1}}
+      - {key: LTG-2, type: lighting_zone, zone: Z2, at: [36.0, 27.0, 4.9], fed_by: {power: EM-1}}
+      - {key: LTG-3, type: lighting_zone, zone: Z3, at: [45.0, 15.0, 4.9], fed_by: {power: EM-1}}
+      - {key: LTG-4, type: lighting_zone, zone: Z4, at: [3.0, 15.0, 4.9], fed_by: {power: EM-1}}
+      - {key: LTG-5, type: lighting_zone, zone: Z5, at: [10.5, 15.0, 4.9], fed_by: {power: EM-2}}
+      - {key: LTG-6, type: lighting_zone, zone: Z6, at: [15.0, 3.0, 4.9], fed_by: {power: EM-2}}
+      - {key: LTG-7, type: lighting_zone, zone: Z7, at: [39.0, 3.0, 4.9], fed_by: {power: EM-2}}
+      - {key: EM-1, type: electricity_sub_meter, name: Conference sub-meter, at: [31.6, 19.5, 0], facing: 270, fed_by: {power: B1-EM-4}}
+      - {key: EM-2, type: electricity_sub_meter, name: Café and kitchen sub-meter, at: [31.6, 18.4, 0], facing: 270, fed_by: {power: B1-EM-4}}
+      - {key: SEN-1, type: level_1_sensors, name: Kitchen sensors, zone: Z7, at: [44.0, 5.9, 1.5]}
+
+  ground:
+    zones:
+      - {key: Z1, name: Main lobby, kind: interior, use: lobby, outline: [[12, 0], [36, 0], [36, 21], [12, 21]], fed_by: {power: B1-EM-4}}
+      - {key: Z2, name: Security and control room, kind: perimeter, use: control_room, facade: east, outline: [[36, 21], [48, 21], [48, 30], [36, 30]], fed_by: {power: B1-EM-4}}
+      - {key: Z3, name: Loading dock and back of house, kind: perimeter, use: back_of_house, facade: north, outline: [[0, 21], [36, 21], [36, 30], [0, 30]], fed_by: {power: B1-EM-4}}
+      - {key: Z4, name: Shop A, kind: perimeter, use: shop, facade: west, outline: [[0, 0], [12, 0], [12, 21], [0, 21]], fed_by: {power: EM-1}}
+      - {key: Z5, name: Shop B, kind: perimeter, use: shop, facade: east, outline: [[36, 0], [48, 0], [48, 21], [36, 21]], fed_by: {power: EM-2}}
+    equipment:
+      - {key: AHU-1, type: air_handling_unit, at: [18.0, 12.0, 0], facing: 90, fed_by: {power: B1-EM-4, air: [L10-OAU-1, L10-OAU-2], chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: VAV-1, type: zone_box_cooling, zone: Z1, at: [24.0, 4.0, 5.4], sensor: [24.0, 9.0, 1.5], fed_by: {air: AHU-1}}
+      - {key: VAV-2, type: zone_box_cooling, zone: Z2, at: [42.0, 25.5, 5.4], sensor: [36.0, 25.5, 1.5], fed_by: {air: AHU-1}}
+      - {key: VAV-3, type: zone_box_cooling, zone: Z3, at: [18.0, 25.5, 5.4], sensor: [18.0, 21.0, 1.5], fed_by: {air: AHU-1}}
+      - {key: FCU-1, type: fan_coil_unit, zone: Z4, at: [6.0, 10.5, 5.6], sensor: [12.0, 10.5, 1.5], fed_by: {power: EM-1, chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: FCU-2, type: fan_coil_unit, zone: Z5, at: [42.0, 10.5, 5.6], sensor: [36.0, 10.5, 1.5], fed_by: {power: EM-2, chilled_water: L10-CHP-1, heating_water: L10-HP-1}}
+      - {key: LTG-1, type: lighting_zone, zone: Z1, at: [24.0, 4.0, 5.9], fed_by: {power: B1-EM-4}}
+      - {key: LTG-2, type: lighting_zone, zone: Z2, at: [42.0, 25.5, 5.9], fed_by: {power: B1-EM-4}}
+      - {key: LTG-3, type: lighting_zone, zone: Z3, at: [18.0, 25.5, 5.9], fed_by: {power: B1-EM-4}}
+      - {key: LTG-4, type: lighting_zone, zone: Z4, at: [6.0, 10.5, 5.9], fed_by: {power: EM-1}}
+      - {key: LTG-5, type: lighting_zone, zone: Z5, at: [42.0, 10.5, 5.9], fed_by: {power: EM-2}}
+      - {key: EM-1, type: electricity_sub_meter, name: Shop A electricity meter, zone: Z4, at: [11.6, 19.0, 0], facing: 90, fed_by: {power: B1-EM-5}}
+      - {key: EM-2, type: electricity_sub_meter, name: Shop B electricity meter, zone: Z5, at: [36.4, 19.0, 0], facing: 270, fed_by: {power: B1-EM-5}}
+      - {key: WM-1, type: water_meter, name: Shop A water meter, zone: Z4, at: [11.6, 17.5, 0.3], fed_by: {water: B1-WM-1}}
+      - {key: WM-2, type: water_meter, name: Shop B water meter, zone: Z5, at: [36.4, 17.5, 0.3], fed_by: {water: B1-WM-1}}
+      - {key: SEN-1, type: ground_sensors, name: Dock sensors, zone: Z3, at: [4.0, 29.5, 0.05]}
+      # The lifts serve every level from the core; they are listed here, at the ground
+      # landing, and counted as the whole-building group.
+      - {key: LIFT-1, type: lift, name: Passenger lift 1, group: lifts, at: [16.5, 19.5, 0], facing: 180, fed_by: {power: B1-EM-2}}
+      - {key: LIFT-2, type: lift, name: Passenger lift 2, group: lifts, at: [19.0, 19.5, 0], facing: 180, fed_by: {power: B1-EM-2}}
+      - {key: LIFT-3, type: lift, name: Passenger lift 3, group: lifts, at: [29.0, 19.5, 0], facing: 180, fed_by: {power: B1-EM-2}}
+      - {key: LIFT-4, type: lift, name: Passenger lift 4, group: lifts, at: [31.5, 19.5, 0], facing: 180, fed_by: {power: B1-EM-2}}
+      - {key: LIFT-5, type: lift, name: Goods lift, group: lifts, at: [24.0, 19.6, 0], facing: 180, fed_by: {power: B1-EM-2}}
+
+  basement-1:
+    rooms:
+      - {key: SW, name: Switchroom, outline: [[0, 18], [12, 18], [12, 30], [0, 30]]}
+      - {key: GR, name: Generator room, outline: [[12, 18], [24, 18], [24, 30], [12, 30]]}
+      - {key: WR, name: Water room, outline: [[0, 0], [12, 0], [12, 12], [0, 12]]}
+      - {key: FR, name: Fire pump room, outline: [[12, 0], [24, 0], [24, 12], [12, 12]]}
+      - {key: CP, name: Car park, outline: [[24, 0], [48, 0], [48, 30], [24, 30]]}
+    equipment:
+      - {key: MM-1, type: main_electricity_meter, name: Main electricity meter, room: SW, at: [1.6, 29.4, 0], facing: 180}
+      - {key: TX-1, type: transformer, room: SW, at: [3.5, 22.0, 0], facing: 90, fed_by: {power: MM-1}}
+      - {key: TX-2, type: transformer, room: SW, at: [8.5, 22.0, 0], facing: 90, fed_by: {power: MM-1}}
+      - {key: ATS-1, type: transfer_switch, room: SW, at: [11.4, 26.0, 0], facing: 270, fed_by: {power: [MM-1, GEN-1]}}
+      - {key: EM-1, type: electricity_sub_meter, name: Plant feeder meter, room: SW, at: [3.2, 29.6, 0], facing: 180, fed_by: {power: TX-1}}
+      - {key: EM-2, type: electricity_sub_meter, name: Lifts feeder meter, room: SW, at: [4.4, 29.6, 0], facing: 180, fed_by: {power: TX-1}}
+      - {key: EM-3, type: electricity_sub_meter, name: Car park and chargers feeder meter, room: SW, at: [5.6, 29.6, 0], facing: 180, fed_by: {power: TX-1}}
+      - {key: EM-4, type: electricity_sub_meter, name: Podium feeder meter, room: SW, at: [6.8, 29.6, 0], facing: 180, fed_by: {power: TX-2}}
+      - {key: EM-5, type: electricity_sub_meter, name: Tenants feeder meter, room: SW, at: [8.0, 29.6, 0], facing: 180, fed_by: {power: TX-2}}
+      - {key: EM-6, type: electricity_sub_meter, name: Common services feeder meter, room: SW, at: [9.2, 29.6, 0], facing: 180, fed_by: {power: TX-2}}
+      - {key: GEN-1, type: generator, room: GR, at: [18.0, 24.0, 0], facing: 90}
+      - {key: TNK-1, type: tank, name: Water storage tank, room: WR, at: [4.0, 6.0, 0], fed_by: {water: WM-1}}
+      - {key: BP-1, type: pump, name: Booster pump 1, room: WR, at: [9.0, 3.0, 0], facing: 0, fed_by: {power: EM-6, water: TNK-1}}
+      - {key: BP-2, type: pump, name: Booster pump 2, room: WR, at: [9.0, 6.0, 0], facing: 0, fed_by: {power: EM-6, water: TNK-1}}
+      - {key: WM-1, type: water_meter, name: Main water meter, room: WR, at: [1.2, 11.2, 0.3]}
+      - {key: DHW-1, type: hot_water_heater, room: WR, at: [9.0, 10.0, 0], fed_by: {power: EM-6, water: BP-1}}
+      - {key: FIRE-1, type: fire_systems, name: Fire systems, room: FR, at: [18.0, 11.6, 0], facing: 180, fed_by: {power: EM-6}}
+      - key: CPV-1
+        type: car_park_ventilation
+        room: CP
+        at: [24.6, 15.0, 1.5]
+        facing: 90
+        sensors: [[30.0, 6.0, 1.5], [42.0, 6.0, 1.5], [30.0, 24.0, 1.5], [42.0, 24.0, 1.5]]
+      - {key: CPF-1, type: car_park_fan, room: CP, at: [26.0, 28.0, 2.2], facing: 0, fed_by: {power: EM-3, air: CPV-1}}
+      - {key: CPF-2, type: car_park_fan, room: CP, at: [46.0, 2.0, 2.2], facing: 90, fed_by: {power: EM-3, air: CPV-1}}
+      - {key: LTG-1, type: lighting_zone, name: Car park lighting, room: CP, area: 720, at: [36.0, 15.0, 3.5], fed_by: {power: EM-3}}
+      - {key: LTG-2, type: lighting_zone, name: Plant corridor lighting, area: 216, at: [12.0, 15.0, 3.5], fed_by: {power: EM-6}}
+      - {key: EVC-1, type: vehicle_charger, room: CP, at: [47.8, 8.0, 0], facing: 270, fed_by: {power: EM-3}}
+      - {key: EVC-2, type: vehicle_charger, room: CP, at: [47.8, 12.0, 0], facing: 270, fed_by: {power: EM-3}}
+      - {key: EVC-3, type: vehicle_charger, room: CP, at: [47.8, 16.0, 0], facing: 270, fed_by: {power: EM-3}}
+      - {key: EVC-4, type: vehicle_charger, room: CP, at: [47.8, 20.0, 0], facing: 270, fed_by: {power: EM-3}}
+      - {key: SEN-1, type: basement_1_sensors, name: Room sensors, at: [12.0, 15.0, 2.0]}
+
+  basement-2:
+    rooms:
+      - {key: CP, name: Car park, outline: [[0, 0], [48, 0], [48, 30], [0, 30]]}
+    equipment:
+      - key: CPV-1
+        type: car_park_ventilation
+        room: CP
+        at: [14.6, 15.0, 1.5]
+        facing: 90
+        sensors: [[6.0, 6.0, 1.5], [24.0, 6.0, 1.5], [42.0, 6.0, 1.5], [6.0, 24.0, 1.5], [24.0, 24.0, 1.5], [42.0, 24.0, 1.5]]
+      - {key: CPF-1, type: car_park_fan, room: CP, at: [2.0, 2.0, 2.2], facing: 270, fed_by: {power: B1-EM-3, air: CPV-1}}
+      - {key: CPF-2, type: car_park_fan, room: CP, at: [46.0, 2.0, 2.2], facing: 90, fed_by: {power: B1-EM-3, air: CPV-1}}
+      - {key: CPF-3, type: car_park_fan, room: CP, at: [2.0, 28.0, 2.2], facing: 270, fed_by: {power: B1-EM-3, air: CPV-1}}
+      - {key: CPF-4, type: car_park_fan, room: CP, at: [46.0, 28.0, 2.2], facing: 90, fed_by: {power: B1-EM-3, air: CPV-1}}
+      - {key: LTG-1, type: lighting_zone, name: Car park lighting west, room: CP, area: 432, at: [7.5, 15.0, 3.5], fed_by: {power: B1-EM-3}}
+      - {key: LTG-2, type: lighting_zone, name: Car park lighting centre, room: CP, area: 432, at: [24.0, 3.0, 3.5], fed_by: {power: B1-EM-3}}
+      - {key: LTG-3, type: lighting_zone, name: Car park lighting east, room: CP, area: 432, at: [40.5, 15.0, 3.5], fed_by: {power: B1-EM-3}}
+      - {key: SMP-1, type: sump_pump, room: CP, at: [1.0, 15.0, 0], fed_by: {power: B1-EM-3}}
+      - {key: SMP-2, type: sump_pump, room: CP, at: [24.0, 21.5, 0], fed_by: {power: B1-EM-3}}
+      - {key: TNK-1, type: tank, name: Rainwater tank, room: CP, at: [44.0, 26.0, 0]}
+      - {key: SEN-1, type: basement_2_sensors, name: Lift pit sensors, at: [24.0, 20.0, 0.05]}
+
+  plant-floor:
+    rooms:
+      - {key: CHH, name: Chiller hall, outline: [[0, 0], [30, 0], [30, 18], [0, 18]]}
+      - {key: BR, name: Boiler room, outline: [[30, 0], [48, 0], [48, 18], [30, 18]]}
+      - {key: OA, name: Outdoor air plant, outline: [[0, 21], [48, 21], [48, 30], [0, 30]]}
+    equipment:
+      - {key: CH-1, type: chiller, room: CHH, at: [6.0, 4.0, 0], facing: 90, fed_by: {power: EM-1, chilled_water: PCHWP-1, condenser_water: CWP-1}}
+      - {key: CH-2, type: chiller, room: CHH, at: [6.0, 9.0, 0], facing: 90, fed_by: {power: EM-1, chilled_water: PCHWP-2, condenser_water: CWP-2}}
+      - {key: CH-3, type: chiller, room: CHH, at: [6.0, 14.0, 0], facing: 90, fed_by: {power: EM-1, chilled_water: PCHWP-3, condenser_water: CWP-3}}
+      - {key: PCHWP-1, type: pump, name: Primary chilled water pump 1, room: CHH, at: [12.5, 4.0, 0], facing: 270, fed_by: {power: EM-1}}
+      - {key: PCHWP-2, type: pump, name: Primary chilled water pump 2, room: CHH, at: [12.5, 9.0, 0], facing: 270, fed_by: {power: EM-1}}
+      - {key: PCHWP-3, type: pump, name: Primary chilled water pump 3, room: CHH, at: [12.5, 14.0, 0], facing: 270, fed_by: {power: EM-1}}
+      - {key: CWP-1, type: pump, name: Condenser water pump 1, room: CHH, at: [16.5, 4.0, 0], facing: 270, fed_by: {power: EM-1, condenser_water: RF-CT-1}}
+      - {key: CWP-2, type: pump, name: Condenser water pump 2, room: CHH, at: [16.5, 9.0, 0], facing: 270, fed_by: {power: EM-1, condenser_water: RF-CT-2}}
+      - {key: CWP-3, type: pump, name: Condenser water pump 3, room: CHH, at: [16.5, 14.0, 0], facing: 270, fed_by: {power: EM-1, condenser_water: RF-CT-3}}
+      - {key: SCHWP-1, type: variable_pump, name: Secondary chilled water pump 1, room: CHH, at: [22.0, 6.0, 0], facing: 270, fed_by: {power: EM-1, chilled_water: CHP-1}}
+      - {key: SCHWP-2, type: variable_pump, name: Secondary chilled water pump 2, room: CHH, at: [22.0, 12.0, 0], facing: 270, fed_by: {power: EM-1, chilled_water: CHP-1}}
+      - {key: CHP-1, type: chilled_water_plant, name: Chilled water plant controller, room: CHH, at: [27.0, 16.8, 0], facing: 0}
+      - {key: BLR-1, type: boiler, room: BR, at: [35.0, 5.0, 0], facing: 90, fed_by: {power: EM-1, heating_water: HWP-1}}
+      - {key: BLR-2, type: boiler, room: BR, at: [35.0, 11.0, 0], facing: 90, fed_by: {power: EM-1, heating_water: HWP-2}}
+      - {key: HWP-1, type: pump, name: Heating water pump 1, room: BR, at: [41.0, 5.0, 0], facing: 270, fed_by: {power: EM-1}}
+      - {key: HWP-2, type: pump, name: Heating water pump 2, room: BR, at: [41.0, 11.0, 0], facing: 270, fed_by: {power: EM-1}}
+      - {key: HP-1, type: heating_plant, name: Heating plant controller, room: BR, at: [46.0, 16.8, 0], facing: 0}
+      - {key: OAU-1, type: outdoor_air_unit, room: OA, at: [12.0, 25.5, 0], facing: 0, fed_by: {power: EM-1, chilled_water: CHP-1, heating_water: HP-1}}
+      - {key: OAU-2, type: outdoor_air_unit, room: OA, at: [36.0, 25.5, 0], facing: 0, fed_by: {power: EM-1, chilled_water: CHP-1, heating_water: HP-1}}
+      - {key: EM-1, type: electricity_sub_meter, name: Plant floor sub-meter, at: [24.0, 19.6, 0], facing: 180, fed_by: {power: B1-EM-1}}
+      - {key: LTG-1, type: lighting_zone, name: Plant floor lighting, area: 1224, at: [24.0, 9.0, 4.9], fed_by: {power: EM-1}}
+      - {key: SEN-1, type: plant_floor_sensors, name: Plant room sensors, at: [24.0, 19.0, 2.0]}
+
+  roof:
+    equipment:
+      - {key: CT-1, type: cooling_tower, at: [8.0, 25.0, 0], facing: 0, fed_by: {power: L10-EM-1}}
+      - {key: CT-2, type: cooling_tower, at: [16.0, 25.0, 0], facing: 0, fed_by: {power: L10-EM-1}}
+      - {key: CT-3, type: cooling_tower, at: [24.0, 25.0, 0], facing: 0, fed_by: {power: L10-EM-1}}
+      - {key: PV-1, type: solar_inverter, name: Solar inverter 1, at: [38.0, 5.0, 0], facing: 180, fed_by: {power: B1-MM-1}}
+      - {key: PV-2, type: solar_inverter, name: Solar inverter 2, at: [38.0, 11.0, 0], facing: 180, fed_by: {power: B1-MM-1}}
+      - {key: WX-1, type: weather_station, at: [46.0, 28.0, 0]}
+      - {key: EF-1, type: exhaust_fan, name: Toilet exhaust fan 1, at: [20.0, 11.0, 0], fed_by: {power: L10-EM-1}}
+      - {key: EF-2, type: exhaust_fan, name: Toilet exhaust fan 2, at: [28.0, 11.0, 0], fed_by: {power: L10-EM-1}}
+      - {key: SPF-1, type: stair_pressurisation_fan, at: [16.5, 19.0, 0], fed_by: {power: L10-EM-1}}
+      - {key: SPF-2, type: stair_pressurisation_fan, at: [31.5, 19.0, 0], fed_by: {power: L10-EM-1}}
+      - {key: LTG-1, type: lighting_zone, name: Façade lighting, area: 600, at: [24.0, 0.0, 0.6], facing: 180, fed_by: {power: L10-EM-1}}
+      - {key: SEN-1, type: roof_sensors, name: Lift machine room sensors, at: [24.0, 19.0, 1.0]}
+
+# Which levels and equipment each --size option runs. `large` adds office floors above
+# the plant floor, as a tall tower adds a second rise above a mid-height plant floor.
+sizes:
+  standard:
+    levels: [L02, L03, L10, RF]
+    equipment: [B1-MM-1]
+  tower:
+    levels: all
+  large:
+    levels: all
+    add_office_levels: {from: 11, to: 32, plan: office, first_floor_z: 48.0, height: 4.0}
+    move: {RF: {floor_z: 136.0}}
+
+# Each equipment type's points. A type's `kind` is the key segment its equipment
+# uses (`L03-AHU-1`); pumps take theirs from their role (PCHWP, CWP, HWP, BP).
+# A point's kind: sensor, actuator, status, alarm, total, command.
+# type: number, boolean, state (one of `states`), text. A command has `command:`
+# setpoint, mode or request; a number command accepts `limits`, a state command its
+# states. `default` is a command's value when the simulator starts. `at: wall` marks a
+# point read by the zone's wall sensor, `at: ceiling` one read by its ceiling sensor.
+library:
+  air_handling_unit:
+    name: Air handling unit
+    kind: AHU
+    footprint: [4.0, 2.0, 2.2]
+    points:
+      - {key: supply_air_temperature, name: Supply air temperature, kind: sensor, type: number, unit: °C, range: [5, 40], brick: Supply_Air_Temperature_Sensor}
+      - {key: return_air_temperature, name: Return air temperature, kind: sensor, type: number, unit: °C, range: [10, 40], brick: Return_Air_Temperature_Sensor}
+      - {key: mixed_air_temperature, name: Mixed air temperature, kind: sensor, type: number, unit: °C, range: [-20, 45], brick: Mixed_Air_Temperature_Sensor}
+      - {key: return_air_co2, name: Return air carbon dioxide, kind: sensor, type: number, unit: ppm, range: [0, 2000], brick: Return_Air_CO2_Sensor}
+      - {key: duct_static_pressure, name: Duct static pressure, kind: sensor, type: number, unit: Pa, range: [0, 1000], brick: Supply_Air_Static_Pressure_Sensor}
+      - {key: filter_pressure_drop, name: Filter pressure drop, kind: sensor, type: number, unit: Pa, range: [0, 500], brick: Filter_Differential_Pressure_Sensor}
+      - {key: supply_airflow, name: Supply airflow, kind: sensor, type: number, unit: L/s, range: [0, 30000], brick: Supply_Air_Flow_Sensor}
+      - {key: supply_fan_speed, name: Supply fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: return_fan_speed, name: Return fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: cooling_valve, name: Cooling valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: heating_valve, name: Heating valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: outdoor_air_damper, name: Outdoor air damper position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Damper_Position_Sensor}
+      - {key: supply_fan_status, name: Supply fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: return_fan_status, name: Return fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Occupied', 'Unoccupied', 'Warm-up', 'Night purge', 'Hand', 'Shut down']}
+      - {key: supply_fan_fault, name: Supply fan fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: return_fan_fault, name: Return fan fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: filter_alarm, name: Filter alarm, kind: alarm, type: boolean, brick: Filter_Status}
+      - {key: frost_alarm, name: Frost alarm, kind: alarm, type: boolean, brick: Alarm}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: fan_energy, name: Fan energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+      - {key: supply_air_temperature_setpoint, name: Supply air temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [10, 18], default: 13, brick: Supply_Air_Temperature_Setpoint}
+      - {key: duct_static_pressure_setpoint, name: Duct static pressure setpoint, kind: command, command: setpoint, type: number, unit: Pa, limits: [100, 500], default: 250, brick: Supply_Air_Static_Pressure_Setpoint}
+      - {key: minimum_outdoor_air, name: Minimum outdoor air, kind: command, command: setpoint, type: number, unit: '%', limits: [10, 100], default: 30, brick: Min_Outside_Air_Flow_Setpoint_Limit}
+      - {key: schedule_override, name: Schedule override, kind: command, command: request, type: boolean, default: false, brick: Override_Command}
+
+  zone_box_reheat:
+    name: Zone box with reheat
+    kind: VAV
+    footprint: [1.2, 0.8, 0.4]
+    points:
+      - {key: zone_temperature, name: Zone temperature, kind: sensor, type: number, unit: °C, range: [10, 35], at: wall, brick: Zone_Air_Temperature_Sensor}
+      - {key: zone_co2, name: Zone carbon dioxide, kind: sensor, type: number, unit: ppm, range: [300, 2000], at: wall, brick: CO2_Level_Sensor}
+      - {key: occupancy, name: Occupancy, kind: sensor, type: boolean, at: ceiling, brick: Occupancy_Sensor}
+      - {key: airflow, name: Airflow, kind: sensor, type: number, unit: L/s, range: [0, 2000], brick: Supply_Air_Flow_Sensor}
+      - {key: discharge_air_temperature, name: Discharge air temperature, kind: sensor, type: number, unit: °C, range: [5, 45], brick: Discharge_Air_Temperature_Sensor}
+      - {key: damper_position, name: Damper position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Damper_Position_Sensor}
+      - {key: reheat_valve, name: Reheat valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [10, 35], brick: Effective_Air_Temperature_Setpoint}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Cooling', 'Heating', 'Deadband', 'Unoccupied', 'Hand']}
+      - {key: communication_alarm, name: Communication alarm, kind: alarm, type: boolean, brick: Communication_Loss_Alarm}
+      - {key: zone_temperature_alarm, name: Zone temperature alarm, kind: alarm, type: boolean, brick: Temperature_Alarm}
+      - {key: temperature_setpoint, name: Temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [18, 28], default: 22.5, brick: Zone_Air_Temperature_Setpoint}
+      - {key: occupancy_override, name: Occupancy override, kind: command, command: request, type: boolean, default: false, brick: Occupancy_Command}
+      - {key: minimum_airflow, name: Minimum airflow, kind: command, command: setpoint, type: number, unit: '%', limits: [0, 60], default: 20, brick: Min_Air_Flow_Setpoint_Limit}
+
+  zone_box_cooling:
+    name: Zone box, cooling only
+    kind: VAV
+    footprint: [1.2, 0.8, 0.4]
+    points:
+      - {key: zone_temperature, name: Zone temperature, kind: sensor, type: number, unit: °C, range: [10, 35], at: wall, brick: Zone_Air_Temperature_Sensor}
+      - {key: zone_co2, name: Zone carbon dioxide, kind: sensor, type: number, unit: ppm, range: [300, 2000], at: wall, brick: CO2_Level_Sensor}
+      - {key: occupancy, name: Occupancy, kind: sensor, type: boolean, at: ceiling, brick: Occupancy_Sensor}
+      - {key: airflow, name: Airflow, kind: sensor, type: number, unit: L/s, range: [0, 2000], brick: Supply_Air_Flow_Sensor}
+      - {key: damper_position, name: Damper position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Damper_Position_Sensor}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [10, 35], brick: Effective_Air_Temperature_Setpoint}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Cooling', 'Heating', 'Deadband', 'Unoccupied', 'Hand']}
+      - {key: communication_alarm, name: Communication alarm, kind: alarm, type: boolean, brick: Communication_Loss_Alarm}
+      - {key: zone_temperature_alarm, name: Zone temperature alarm, kind: alarm, type: boolean, brick: Temperature_Alarm}
+      - {key: temperature_setpoint, name: Temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [18, 28], default: 22.5, brick: Zone_Air_Temperature_Setpoint}
+      - {key: occupancy_override, name: Occupancy override, kind: command, command: request, type: boolean, default: false, brick: Occupancy_Command}
+      - {key: minimum_airflow, name: Minimum airflow, kind: command, command: setpoint, type: number, unit: '%', limits: [0, 60], default: 20, brick: Min_Air_Flow_Setpoint_Limit}
+
+  zone_box_core:
+    name: Zone box, core
+    kind: VAV
+    footprint: [1.2, 0.8, 0.4]
+    points:
+      - {key: zone_temperature, name: Zone temperature, kind: sensor, type: number, unit: °C, range: [10, 35], at: wall, brick: Zone_Air_Temperature_Sensor}
+      - {key: occupancy, name: Occupancy, kind: sensor, type: boolean, at: ceiling, brick: Occupancy_Sensor}
+      - {key: airflow, name: Airflow, kind: sensor, type: number, unit: L/s, range: [0, 2000], brick: Supply_Air_Flow_Sensor}
+      - {key: damper_position, name: Damper position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Damper_Position_Sensor}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [10, 35], brick: Effective_Air_Temperature_Setpoint}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Cooling', 'Heating', 'Deadband', 'Unoccupied', 'Hand']}
+      - {key: communication_alarm, name: Communication alarm, kind: alarm, type: boolean, brick: Communication_Loss_Alarm}
+      - {key: zone_temperature_alarm, name: Zone temperature alarm, kind: alarm, type: boolean, brick: Temperature_Alarm}
+      - {key: temperature_setpoint, name: Temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [18, 28], default: 22.5, brick: Zone_Air_Temperature_Setpoint}
+      - {key: occupancy_override, name: Occupancy override, kind: command, command: request, type: boolean, default: false, brick: Occupancy_Command}
+
+  fan_coil_unit:
+    name: Fan coil unit
+    kind: FCU
+    footprint: [1.2, 0.6, 0.3]
+    points:
+      - {key: room_temperature, name: Room temperature, kind: sensor, type: number, unit: °C, range: [10, 35], at: wall, brick: Zone_Air_Temperature_Sensor}
+      - {key: fan_speed, name: Fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: valve_position, name: Valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [10, 35], brick: Effective_Air_Temperature_Setpoint}
+      - {key: fan_status, name: Fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Cooling', 'Heating', 'Fan only', 'Hand']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: condensate_alarm, name: Condensate alarm, kind: alarm, type: boolean, brick: Alarm}
+      - {key: temperature_setpoint, name: Temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [18, 28], default: 22.0, brick: Zone_Air_Temperature_Setpoint}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'Cool', 'Heat', 'Fan only'], default: 'Auto', brick: Mode_Command}
+
+  room_cooling_unit:
+    name: Room cooling unit
+    kind: CRAC
+    footprint: [1.0, 0.9, 2.0]
+    points:
+      - {key: return_air_temperature, name: Return air temperature, kind: sensor, type: number, unit: °C, range: [10, 45], brick: Return_Air_Temperature_Sensor}
+      - {key: supply_air_temperature, name: Supply air temperature, kind: sensor, type: number, unit: °C, range: [5, 40], brick: Supply_Air_Temperature_Sensor}
+      - {key: return_air_humidity, name: Return air humidity, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Return_Air_Humidity_Sensor}
+      - {key: fan_speed, name: Fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: cooling_output, name: Cooling output, kind: actuator, type: number, unit: kW, range: [0, 60], brick: Thermal_Power_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Cooling', 'Standby', 'Hand']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: high_temperature_alarm, name: High temperature alarm, kind: alarm, type: boolean, brick: High_Temperature_Alarm}
+      - {key: leak_alarm, name: Leak alarm, kind: alarm, type: boolean, brick: Leak_Alarm}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: enable, name: Enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: temperature_setpoint, name: Temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [18, 27], default: 22.0, brick: Return_Air_Temperature_Setpoint}
+      - {key: humidity_setpoint, name: Humidity setpoint, kind: command, command: setpoint, type: number, unit: '%', limits: [30, 60], default: 45, brick: Humidity_Setpoint}
+
+  outdoor_air_unit:
+    name: Outdoor air unit
+    kind: OAU
+    footprint: [6.0, 2.4, 2.6]
+    points:
+      - {key: intake_air_temperature, name: Intake air temperature, kind: sensor, type: number, unit: °C, range: [-20, 50], brick: Outside_Air_Temperature_Sensor}
+      - {key: supply_air_temperature, name: Supply air temperature, kind: sensor, type: number, unit: °C, range: [-20, 45], brick: Supply_Air_Temperature_Sensor}
+      - {key: supply_air_humidity, name: Supply air humidity, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Supply_Air_Humidity_Sensor}
+      - {key: airflow, name: Airflow, kind: sensor, type: number, unit: L/s, range: [0, 15000], brick: Supply_Air_Flow_Sensor}
+      - {key: filter_pressure_drop, name: Filter pressure drop, kind: sensor, type: number, unit: Pa, range: [0, 500], brick: Filter_Differential_Pressure_Sensor}
+      - {key: fan_speed, name: Fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: cooling_valve, name: Cooling valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: heating_valve, name: Heating valve position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Valve_Position_Sensor}
+      - {key: fan_status, name: Fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Running', 'Hand']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: filter_alarm, name: Filter alarm, kind: alarm, type: boolean, brick: Filter_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+      - {key: supply_air_temperature_setpoint, name: Supply air temperature setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [14, 22], default: 18, brick: Supply_Air_Temperature_Setpoint}
+      - {key: airflow_setpoint, name: Airflow setpoint, kind: command, command: setpoint, type: number, unit: L/s, limits: [1000, 12000], default: 6000, brick: Supply_Air_Flow_Setpoint}
+
+  lighting_zone:
+    name: Lighting zone
+    kind: LTG
+    points:
+      - {key: light_level, name: Light level reached, kind: sensor, type: number, unit: lx, range: [0, 5000], brick: Illuminance_Sensor}
+      - {key: daylight_level, name: Daylight level, kind: sensor, type: number, unit: lx, range: [0, 20000], brick: Illuminance_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 30], brick: Electric_Power_Sensor}
+      - {key: lights_on, name: On or off, kind: status, type: boolean, brick: Luminance_Status}
+      - {key: level, name: Level, kind: command, command: setpoint, type: number, unit: '%', limits: [0, 100], default: 80, brick: Luminance_Command}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'On', 'Off'], default: 'Auto', brick: Mode_Command}
+
+  blind_group:
+    name: Blind group
+    kind: BLD
+    points:
+      - {key: position, name: Position, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Position_Sensor}
+      - {key: position_setpoint, name: Position setpoint, kind: command, command: setpoint, type: number, unit: '%', limits: [0, 100], default: 0, brick: Position_Command}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Manual'], default: 'Auto', brick: Mode_Command}
+
+  chiller:
+    name: Chiller
+    kind: CH
+    footprint: [5.0, 2.0, 2.4]
+    points:
+      - {key: chilled_water_supply_temperature, name: Chilled water supply temperature, kind: sensor, type: number, unit: °C, range: [0, 25], brick: Chilled_Water_Supply_Temperature_Sensor}
+      - {key: chilled_water_return_temperature, name: Chilled water return temperature, kind: sensor, type: number, unit: °C, range: [0, 25], brick: Chilled_Water_Return_Temperature_Sensor}
+      - {key: condenser_water_entering_temperature, name: Condenser water entering temperature, kind: sensor, type: number, unit: °C, range: [0, 45], brick: Entering_Condenser_Water_Temperature_Sensor}
+      - {key: condenser_water_leaving_temperature, name: Condenser water leaving temperature, kind: sensor, type: number, unit: °C, range: [0, 45], brick: Leaving_Condenser_Water_Temperature_Sensor}
+      - {key: load, name: Load, kind: sensor, type: number, unit: '%', range: [0, 110], brick: Load_Percent_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 400], brick: Electric_Power_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Starting', 'Running', 'Fault', 'Hand']}
+      - {key: alarm_code, name: Alarm code, kind: status, type: text}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [4, 14], brick: Chilled_Water_Supply_Temperature_Setpoint}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: starts, name: Starts, kind: total, type: number}
+      - {key: enable, name: Enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: chilled_water_setpoint, name: Chilled water setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [5, 12], default: 6.5, brick: Chilled_Water_Supply_Temperature_Setpoint}
+      - {key: demand_limit, name: Demand limit, kind: command, command: setpoint, type: number, unit: '%', limits: [30, 100], default: 100, brick: Demand_Limit_Setpoint}
+
+  chilled_water_plant:
+    name: Chilled water plant
+    kind: CHP
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: plant_load, name: Plant load, kind: sensor, type: number, unit: kW, range: [0, 4000], brick: Thermal_Power_Sensor}
+      - {key: flow, name: Chilled water flow, kind: sensor, type: number, unit: L/s, range: [0, 300], brick: Chilled_Water_Flow_Sensor}
+      - {key: supply_temperature, name: Common supply temperature, kind: sensor, type: number, unit: °C, range: [0, 25], brick: Chilled_Water_Supply_Temperature_Sensor}
+      - {key: return_temperature, name: Common return temperature, kind: sensor, type: number, unit: °C, range: [0, 25], brick: Chilled_Water_Return_Temperature_Sensor}
+      - {key: differential_pressure, name: Building pressure difference, kind: sensor, type: number, unit: kPa, range: [0, 300], brick: Chilled_Water_Differential_Pressure_Sensor}
+      - {key: chillers_running, name: Chillers running, kind: status, type: number, range: [0, 3]}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Running', 'Hand']}
+      - {key: cooling_energy, name: Cooling energy, kind: total, type: number, unit: kWh, brick: Thermal_Energy_Sensor}
+      - {key: plant_enable, name: Plant enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: chilled_water_setpoint, name: Chilled water setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [5, 12], default: 6.5, brick: Chilled_Water_Supply_Temperature_Setpoint}
+      - {key: lead_chiller, name: Lead chiller, kind: command, command: mode, type: state, states: ['Chiller 1', 'Chiller 2', 'Chiller 3'], default: 'Chiller 1'}
+      - {key: staging_mode, name: Staging mode, kind: command, command: mode, type: state, states: ['Auto', 'Manual'], default: 'Auto', brick: Mode_Command}
+
+  pump:
+    name: Pump
+    footprint: [1.2, 0.6, 0.9]
+    points:
+      - {key: differential_pressure, name: Pressure difference, kind: sensor, type: number, unit: kPa, range: [0, 600], brick: Differential_Pressure_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 60], brick: Electric_Power_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+
+  variable_pump:
+    name: Variable pump
+    footprint: [1.2, 0.6, 0.9]
+    points:
+      - {key: differential_pressure, name: Pressure difference, kind: sensor, type: number, unit: kPa, range: [0, 600], brick: Differential_Pressure_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 60], brick: Electric_Power_Sensor}
+      - {key: speed, name: Speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+      - {key: pressure_setpoint, name: Pressure setpoint, kind: command, command: setpoint, type: number, unit: kPa, limits: [50, 300], default: 150, brick: Differential_Pressure_Setpoint}
+
+  cooling_tower:
+    name: Cooling tower
+    kind: CT
+    footprint: [4.0, 4.0, 4.5]
+    points:
+      - {key: basin_temperature, name: Basin temperature, kind: sensor, type: number, unit: °C, range: [0, 45], brick: Water_Temperature_Sensor}
+      - {key: leaving_water_temperature, name: Leaving water temperature, kind: sensor, type: number, unit: °C, range: [0, 45], brick: Leaving_Water_Temperature_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 40], brick: Electric_Power_Sensor}
+      - {key: fan_speed, name: Fan speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: fan_status, name: Fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: vibration_alarm, name: Vibration alarm, kind: alarm, type: boolean, brick: Alarm}
+      - {key: low_basin_level_alarm, name: Low basin level alarm, kind: alarm, type: boolean, brick: Low_Level_Alarm}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+
+  boiler:
+    name: Boiler
+    kind: BLR
+    footprint: [2.4, 1.4, 2.0]
+    points:
+      - {key: supply_temperature, name: Supply temperature, kind: sensor, type: number, unit: °C, range: [10, 95], brick: Hot_Water_Supply_Temperature_Sensor}
+      - {key: return_temperature, name: Return temperature, kind: sensor, type: number, unit: °C, range: [10, 95], brick: Hot_Water_Return_Temperature_Sensor}
+      - {key: firing_rate, name: Firing rate, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Load_Percent_Sensor}
+      - {key: flue_gas_temperature, name: Flue gas temperature, kind: sensor, type: number, unit: °C, range: [10, 250], brick: Exhaust_Air_Temperature_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Standby', 'Firing', 'Fault', 'Hand']}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [40, 90], brick: Hot_Water_Supply_Temperature_Setpoint}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: enable, name: Enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: supply_setpoint, name: Supply setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [50, 85], default: 70, brick: Hot_Water_Supply_Temperature_Setpoint}
+
+  heating_plant:
+    name: Heating plant
+    kind: HP
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: supply_temperature, name: Common supply temperature, kind: sensor, type: number, unit: °C, range: [10, 95], brick: Hot_Water_Supply_Temperature_Sensor}
+      - {key: return_temperature, name: Common return temperature, kind: sensor, type: number, unit: °C, range: [10, 95], brick: Hot_Water_Return_Temperature_Sensor}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Running', 'Hand']}
+      - {key: heat_energy, name: Heat energy, kind: total, type: number, unit: kWh, brick: Thermal_Energy_Sensor}
+      - {key: plant_enable, name: Plant enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: heating_water_setpoint, name: Heating water setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [50, 85], default: 70, brick: Hot_Water_Supply_Temperature_Setpoint}
+
+  hot_water_heater:
+    name: Hot water heater
+    kind: DHW
+    footprint: [1.2, 1.2, 2.2]
+    points:
+      - {key: tank_temperature, name: Tank temperature, kind: sensor, type: number, unit: °C, range: [10, 90], brick: Domestic_Hot_Water_Temperature_Sensor}
+      - {key: return_temperature, name: Return temperature, kind: sensor, type: number, unit: °C, range: [10, 90], brick: Return_Water_Temperature_Sensor}
+      - {key: effective_setpoint, name: Effective setpoint, kind: status, type: number, unit: °C, range: [40, 80], brick: Domestic_Hot_Water_Temperature_Setpoint}
+      - {key: pump_status, name: Circulation pump status, kind: status, type: boolean, brick: Pump_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: low_temperature_alarm, name: Low temperature alarm, kind: alarm, type: boolean, brick: Low_Temperature_Alarm}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: setpoint, name: Setpoint, kind: command, command: setpoint, type: number, unit: °C, limits: [55, 70], default: 60, brick: Domestic_Hot_Water_Temperature_Setpoint}
+
+  car_park_ventilation:
+    name: Car park ventilation
+    kind: CPV
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: highest_co, name: Highest carbon monoxide, kind: sensor, type: number, unit: ppm, range: [0, 300], brick: CO_Level_Sensor}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Normal', 'Boost', 'Alarm', 'Hand']}
+      - {key: co_setpoint, name: Carbon monoxide setpoint, kind: command, command: setpoint, type: number, unit: ppm, limits: [10, 50], default: 25, brick: CO_Level_Setpoint}
+    # Repeated for each of the equipment's `sensors`, n counting from 1.
+    per_sensor:
+      - {key: 'co_{n}', name: 'Carbon monoxide {n}', kind: sensor, type: number, unit: ppm, range: [0, 300], brick: CO_Level_Sensor}
+      - {key: 'co_{n}_alarm', name: 'Carbon monoxide {n} high alarm', kind: alarm, type: boolean, brick: High_CO_Alarm}
+
+  car_park_fan:
+    name: Car park fan
+    kind: CPF
+    footprint: [1.2, 1.2, 1.2]
+    points:
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 30], brick: Electric_Power_Sensor}
+      - {key: speed, name: Speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+
+  exhaust_fan:
+    name: Exhaust fan
+    kind: EF
+    footprint: [1.2, 1.2, 1.2]
+    points:
+      - {key: status, name: Status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+
+  kitchen_exhaust_fan:
+    name: Kitchen exhaust fan
+    kind: KEF
+    footprint: [1.2, 1.2, 1.2]
+    points:
+      - {key: speed, name: Speed, kind: actuator, type: number, unit: '%', range: [0, 100], brick: Speed_Status}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: mode, name: Mode, kind: command, command: mode, type: state, states: ['Auto', 'Off', 'On'], default: 'Auto', brick: Mode_Command}
+
+  stair_pressurisation_fan:
+    name: Stair pressurisation fan
+    kind: SPF
+    footprint: [1.2, 1.2, 1.2]
+    points:
+      - {key: stair_pressure, name: Stair pressure, kind: sensor, type: number, unit: Pa, range: [0, 100], brick: Static_Pressure_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+
+  main_electricity_meter:
+    name: Main electricity meter
+    kind: MM
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [-500, 4000], brick: Electric_Power_Sensor}
+      - {key: reactive_power, name: Reactive power, kind: sensor, type: number, unit: kvar, range: [-500, 2000], brick: Reactive_Power_Sensor}
+      - {key: voltage_l1, name: Voltage L1, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: voltage_l2, name: Voltage L2, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: voltage_l3, name: Voltage L3, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: current_l1, name: Current L1, kind: sensor, type: number, unit: A, range: [0, 6000], brick: Current_Sensor}
+      - {key: current_l2, name: Current L2, kind: sensor, type: number, unit: A, range: [0, 6000], brick: Current_Sensor}
+      - {key: current_l3, name: Current L3, kind: sensor, type: number, unit: A, range: [0, 6000], brick: Current_Sensor}
+      - {key: power_factor, name: Power factor, kind: sensor, type: number, range: [0, 1], brick: Power_Factor_Sensor}
+      - {key: frequency, name: Frequency, kind: sensor, type: number, unit: Hz, range: [45, 55], brick: Frequency_Sensor}
+      - {key: energy_imported, name: Energy imported, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: energy_exported, name: Energy exported, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+
+  electricity_sub_meter:
+    name: Electricity sub-meter
+    kind: EM
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 2000], brick: Electric_Power_Sensor}
+      - {key: voltage, name: Voltage, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: current_l1, name: Current L1, kind: sensor, type: number, unit: A, range: [0, 3000], brick: Current_Sensor}
+      - {key: current_l2, name: Current L2, kind: sensor, type: number, unit: A, range: [0, 3000], brick: Current_Sensor}
+      - {key: current_l3, name: Current L3, kind: sensor, type: number, unit: A, range: [0, 3000], brick: Current_Sensor}
+      - {key: power_factor, name: Power factor, kind: sensor, type: number, range: [0, 1], brick: Power_Factor_Sensor}
+      - {key: peak_demand, name: Peak demand today, kind: sensor, type: number, unit: kW, range: [0, 2000], brick: Peak_Power_Demand_Sensor}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+
+  transformer:
+    name: Transformer
+    kind: TX
+    footprint: [2.2, 1.6, 2.2]
+    points:
+      - {key: load, name: Load, kind: sensor, type: number, unit: '%', range: [0, 120], brick: Load_Percent_Sensor}
+      - {key: winding_temperature, name: Winding temperature, kind: sensor, type: number, unit: °C, range: [0, 180], brick: Temperature_Sensor}
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 2000], brick: Electric_Power_Sensor}
+      - {key: cooling_fan_status, name: Cooling fan status, kind: status, type: boolean, brick: Fan_Status}
+      - {key: over_temperature_alarm, name: Over-temperature alarm, kind: alarm, type: boolean, brick: High_Temperature_Alarm}
+
+  transfer_switch:
+    name: Transfer switch
+    kind: ATS
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: source, name: Source, kind: status, type: state, states: ['Mains', 'Generator']}
+      - {key: mains_available, name: Mains available, kind: status, type: boolean}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+
+  generator:
+    name: Generator
+    kind: GEN
+    footprint: [5.0, 2.0, 2.4]
+    points:
+      - {key: fuel_level, name: Fuel level, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Level_Sensor}
+      - {key: battery_voltage, name: Battery voltage, kind: sensor, type: number, unit: V, range: [0, 30], brick: Battery_Voltage_Sensor}
+      - {key: output_power, name: Output power, kind: sensor, type: number, unit: kW, range: [0, 1500], brick: Electric_Power_Sensor}
+      - {key: voltage, name: Voltage, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: frequency, name: Frequency, kind: sensor, type: number, unit: Hz, range: [0, 55], brick: Frequency_Sensor}
+      - {key: engine_temperature, name: Engine temperature, kind: sensor, type: number, unit: °C, range: [0, 120], brick: Temperature_Sensor}
+      - {key: oil_pressure, name: Oil pressure, kind: sensor, type: number, unit: kPa, range: [0, 700], brick: Pressure_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Starting', 'Running', 'Cooling down', 'Fault']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: low_fuel_alarm, name: Low fuel alarm, kind: alarm, type: boolean, brick: Low_Level_Alarm}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: test_run_request, name: Test run request, kind: command, command: request, type: boolean, default: false, brick: Start_Stop_Command}
+
+  uninterruptible_supply:
+    name: Uninterruptible supply
+    kind: UPS
+    footprint: [1.2, 0.9, 2.0]
+    points:
+      - {key: load, name: Load, kind: sensor, type: number, unit: '%', range: [0, 120], brick: Load_Percent_Sensor}
+      - {key: battery_charge, name: Battery charge, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Battery_Energy_Level_Sensor}
+      - {key: battery_run_time, name: Battery run time, kind: sensor, type: number, unit: min, range: [0, 240]}
+      - {key: input_voltage, name: Input voltage, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: output_voltage, name: Output voltage, kind: sensor, type: number, unit: V, range: [0, 300], brick: Voltage_Sensor}
+      - {key: output_power, name: Output power, kind: sensor, type: number, unit: kW, range: [0, 120], brick: Electric_Power_Sensor}
+      - {key: battery_temperature, name: Battery temperature, kind: sensor, type: number, unit: °C, range: [0, 60], brick: Battery_Temperature_Sensor}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Online', 'On battery', 'Bypass']}
+      - {key: on_battery_alarm, name: On battery alarm, kind: alarm, type: boolean, brick: Alarm}
+      - {key: low_battery_alarm, name: Low battery alarm, kind: alarm, type: boolean, brick: Low_Battery_Alarm}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+
+  solar_inverter:
+    name: Solar inverter
+    kind: PV
+    footprint: [12.0, 2.0, 1.2]
+    points:
+      - {key: output_power, name: Output power, kind: sensor, type: number, unit: kW, range: [0, 60], brick: PV_Generation_System_Power_Sensor}
+      - {key: panel_voltage, name: Panel voltage, kind: sensor, type: number, unit: V, range: [0, 1000], brick: Voltage_Sensor}
+      - {key: panel_current, name: Panel current, kind: sensor, type: number, unit: A, range: [0, 150], brick: Current_Sensor}
+      - {key: temperature, name: Temperature, kind: sensor, type: number, unit: °C, range: [-20, 90], brick: Temperature_Sensor}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Off', 'Producing', 'Limited', 'Fault']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: output_limit, name: Output limit, kind: command, command: setpoint, type: number, unit: '%', limits: [0, 100], default: 100, brick: Limit}
+
+  vehicle_charger:
+    name: Vehicle charger
+    kind: EVC
+    footprint: [0.4, 0.3, 1.5]
+    points:
+      - {key: power, name: Power, kind: sensor, type: number, unit: kW, range: [0, 25], brick: Electric_Power_Sensor}
+      - {key: operating_state, name: Operating state, kind: status, type: state, states: ['Available', 'Charging', 'Disabled', 'Fault']}
+      - {key: energy, name: Energy, kind: total, type: number, unit: kWh, brick: Electric_Energy_Sensor}
+      - {key: sessions, name: Sessions, kind: total, type: number}
+      - {key: enable, name: Enable, kind: command, command: request, type: boolean, default: true, brick: Enable_Command}
+      - {key: current_limit, name: Current limit, kind: command, command: setpoint, type: number, unit: A, limits: [6, 32], default: 16, brick: Current_Limit}
+
+  water_meter:
+    name: Water meter
+    kind: WM
+    footprint: [0.4, 0.3, 0.3]
+    points:
+      - {key: flow, name: Flow, kind: sensor, type: number, unit: L/min, range: [0, 1000], brick: Water_Flow_Sensor}
+      - {key: leak_alarm, name: Leak alarm, kind: alarm, type: boolean, brick: Leak_Alarm}
+      - {key: volume, name: Volume, kind: total, type: number, unit: m³, brick: Water_Usage_Sensor}
+
+  tank:
+    name: Tank
+    kind: TNK
+    footprint: [4.0, 4.0, 3.0]
+    points:
+      - {key: level, name: Level, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Level_Sensor}
+      - {key: low_level_alarm, name: Low level alarm, kind: alarm, type: boolean, brick: Low_Level_Alarm}
+      - {key: high_level_alarm, name: High level alarm, kind: alarm, type: boolean, brick: High_Level_Alarm}
+
+  sump_pump:
+    name: Sump pump
+    kind: SMP
+    footprint: [0.6, 0.6, 0.8]
+    points:
+      - {key: pit_level, name: Pit level, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Level_Sensor}
+      - {key: status, name: Status, kind: status, type: boolean, brick: Run_Status}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: high_level_alarm, name: High level alarm, kind: alarm, type: boolean, brick: High_Level_Alarm}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+
+  fire_systems:
+    name: Fire systems
+    kind: FIRE
+    footprint: [0.8, 0.4, 2.0]
+    points:
+      - {key: sprinkler_tank_level, name: Sprinkler tank level, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Level_Sensor}
+      - {key: system_normal, name: System normal, kind: status, type: boolean}
+      - {key: fire_alarm_b2, name: Fire alarm Basement 2, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_b1, name: Fire alarm Basement 1, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_g, name: Fire alarm Ground, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l01, name: Fire alarm Level 1, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l02, name: Fire alarm Level 2, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l03, name: Fire alarm Level 3, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l04, name: Fire alarm Level 4, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l05, name: Fire alarm Level 5, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l06, name: Fire alarm Level 6, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l07, name: Fire alarm Level 7, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l08, name: Fire alarm Level 8, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l09, name: Fire alarm Level 9, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_l10, name: Fire alarm Level 10, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: fire_alarm_rf, name: Fire alarm Roof, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: any_fire_alarm, name: Any fire alarm, kind: alarm, type: boolean, brick: Fire_Alarm}
+      - {key: panel_fault, name: Panel fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: sprinkler_flow, name: Sprinkler flow, kind: alarm, type: boolean, brick: Water_Flow_Alarm}
+      - {key: fire_pump_1_status, name: Fire pump 1 status, kind: status, type: boolean, brick: Pump_Status}
+      - {key: fire_pump_1_fault, name: Fire pump 1 fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: fire_pump_2_status, name: Fire pump 2 status, kind: status, type: boolean, brick: Pump_Status}
+      - {key: fire_pump_2_fault, name: Fire pump 2 fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: fire_pump_3_status, name: Fire pump 3 status, kind: status, type: boolean, brick: Pump_Status}
+      - {key: fire_pump_3_fault, name: Fire pump 3 fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: tank_low_alarm, name: Sprinkler tank low alarm, kind: alarm, type: boolean, brick: Low_Level_Alarm}
+
+  lift:
+    name: Lift
+    kind: LIFT
+    footprint: [2.0, 1.8, 2.4]
+    points:
+      - {key: current_level, name: Current level, kind: sensor, type: text}
+      - {key: load, name: Load, kind: sensor, type: number, unit: kg, range: [0, 2500], brick: Load_Sensor}
+      - {key: direction, name: Direction, kind: status, type: state, states: ['Stopped', 'Up', 'Down']}
+      - {key: door, name: Door, kind: status, type: state, states: ['Closed', 'Open']}
+      - {key: mode, name: Mode, kind: status, type: state, states: ['Normal', 'Independent', 'Fire', 'Out of service']}
+      - {key: fault, name: Fault, kind: alarm, type: boolean, brick: Fault_Status}
+      - {key: trips, name: Trips, kind: total, type: number}
+      - {key: run_hours, name: Run hours, kind: total, type: number, unit: h, brick: Run_Time_Sensor}
+
+  weather_station:
+    name: Weather station
+    kind: WX
+    footprint: [0.3, 0.3, 3.0]
+    points:
+      - {key: outdoor_temperature, name: Outdoor temperature, kind: sensor, type: number, unit: °C, range: [-30, 50], brick: Outside_Air_Temperature_Sensor}
+      - {key: outdoor_humidity, name: Outdoor humidity, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Outside_Air_Humidity_Sensor}
+      - {key: wind_speed, name: Wind speed, kind: sensor, type: number, unit: m/s, range: [0, 60], brick: Wind_Speed_Sensor}
+      - {key: wind_direction, name: Wind direction, kind: sensor, type: number, unit: °, range: [0, 360], brick: Wind_Direction_Sensor}
+      - {key: sunlight, name: Sunlight, kind: sensor, type: number, unit: W/m², range: [0, 1400], brick: Solar_Radiance_Sensor}
+      - {key: rain, name: Rain, kind: sensor, type: number, unit: mm/h, range: [0, 200], brick: Rain_Sensor}
+
+  # Loose sensors on a level are grouped into one sensors device for that level.
+  office_floor_sensors:
+    name: Floor sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: leak_detector, name: Leak detector, kind: alarm, type: boolean, brick: Leak_Alarm}
+      - {key: plant_room_temperature, name: Plant room temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+
+  server_room_sensors:
+    name: Server room sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: room_temperature, name: Room temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+      - {key: room_humidity, name: Room humidity, kind: sensor, type: number, unit: '%', range: [0, 100], brick: Relative_Humidity_Sensor}
+      - {key: leak_detector, name: Leak detector, kind: alarm, type: boolean, brick: Leak_Alarm}
+
+  level_1_sensors:
+    name: Kitchen sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: kitchen_temperature, name: Kitchen temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+      - {key: gas_leak_alarm, name: Gas leak alarm, kind: alarm, type: boolean, brick: Leak_Alarm}
+
+  ground_sensors:
+    name: Dock sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: leak_detector, name: Leak detector, kind: alarm, type: boolean, brick: Leak_Alarm}
+
+  basement_1_sensors:
+    name: Room sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: switchroom_temperature, name: Switchroom temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+      - {key: generator_room_temperature, name: Generator room temperature, kind: sensor, type: number, unit: °C, range: [0, 60], brick: Air_Temperature_Sensor}
+      - {key: water_room_temperature, name: Water room temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+
+  basement_2_sensors:
+    name: Lift pit sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: leak_detector, name: Leak detector, kind: alarm, type: boolean, brick: Leak_Alarm}
+
+  plant_floor_sensors:
+    name: Plant room sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: plant_room_temperature, name: Plant room temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}
+      - {key: refrigerant_leak_alarm, name: Refrigerant leak alarm, kind: alarm, type: boolean, brick: Refrigerant_Leak_Alarm}
+
+  roof_sensors:
+    name: Lift machine room sensors
+    kind: SEN
+    footprint: [0.1, 0.03, 0.1]
+    points:
+      - {key: lift_machine_room_temperature, name: Lift machine room temperature, kind: sensor, type: number, unit: °C, range: [0, 50], brick: Air_Temperature_Sensor}

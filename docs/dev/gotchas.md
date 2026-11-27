@@ -1415,3 +1415,19 @@ The portal is a progressive web app (spec 033,
   installed package's types pull in newer libraries, so `findLast`, `toSorted` and other
   ES2023 array methods pass `pnpm --filter @iot-os/portal lint` and `build` locally and
   then fail `tsc -b` in the Docker build (TS2550). Keep to ES2022 methods.
+
+## Building simulator (OPC UA)
+
+- **YAML reads a bare `On` or `Off` as true or false.** PyYAML follows YAML 1.1, so a
+  state list such as `[Auto, Off, On]` in a model file loads as `["Auto", false, true]`.
+  Quote state labels and string defaults; the building schema catches the rest.
+- **asyncua passes a certificate even for an anonymous session.** Its user manager gets
+  the secure channel's certificate with every token, so "no certificate" does not mean
+  anonymous. Decide by the token: with only anonymous and name-and-password tokens
+  allowed, a session without a user name is anonymous.
+- **asyncua's default permission ruleset lets anonymous sessions do nothing**, not even
+  browse. A server that should be readable anonymously needs its own ruleset, and the
+  per-point write rules belong in the write path, not in the ruleset.
+- **`VariableAttributes.Value` takes a `Variant`, not a `DataValue`.** Given a
+  `DataValue`, asyncua stores a variable of type DataValue and refuses every later
+  write of a number as the wrong type.

@@ -2,3 +2,7 @@ paho-mqtt==2.1.0
 protobuf==6.33.6
 
 jsonschema==4.26.0
+
+# The building management simulator (spec 038): development only, never shipped.
+asyncua==2.1.0
+PyYAML==6.0.3
