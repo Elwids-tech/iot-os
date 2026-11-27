@@ -19,7 +19,7 @@ Passing tests and typechecks do not update what Docker serves.
 | Contracts | `.local/devices/python/bin/python tooling/verify-devices-contracts.py` | Schemas, fixtures, cases and catalogues ([contract checker](#contract-checker)) |
 | Contract checker tests | `python3 -m unittest discover -s tooling/contracts -p 'test_*.py'` | Needs `jsonschema==4.26.0` |
 | Release tooling | `python3 -m unittest discover -s tooling/release -p 'test_*.py'` | Needs PyYAML |
-| Adapters | `npm test --prefix services/adapters` | Decoder sandbox and flow generation |
+| Adapters | `npm test --prefix services/adapters` | Decoder sandbox, flow generation, and the OPC UA connector against the simulated building: set `IOT_BMS_SIMULATOR_PYTHON` to a Python with `tooling/simulators/requirements.txt` (the live OPC UA tests skip without one, and fail instead when `IOT_BMS_SIMULATOR_REQUIRED` is set, as in CI) |
 | Documentation links | `python3 tooling/docs/check_links.py` | Relative links and #anchors resolve (GitHub slug rules) and every doc is reachable from `docs/README.md`; tests in `tooling/docs/` |
 
 [CI](../../.github/workflows/ci.yml) runs on every pull request and on pushes to

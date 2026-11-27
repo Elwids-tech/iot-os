@@ -548,6 +548,22 @@ class Checker:
         )
         self.check_sdk_fixtures()
         self.check_firmware_fixtures()
+        self.check_point_map_rules()
+
+    # Point maps (spec 038): the rules a schema cannot state, with the same cases the
+    # connector library (services/adapters/lib/opcua/point-map.cjs) is tested against.
+    def check_point_map_rules(self):
+        path = self.contracts_root / "pointmaps/v1/point-map.v1.rules.json"
+        cases = self.report.read_json(path)
+        if cases is None:
+            return
+        fixture = self.report.read_json(self.contracts_root / "pointmaps/v1/point-map.v1.fixture.json")
+        if fixture is not None and point_map_problems(fixture):
+            self.report.fail(path, f"the point map fixture breaks a rule: {point_map_problems(fixture)}")
+        for index, case in enumerate(cases):
+            found = point_map_problems(case["data"])
+            if found != case["problems"]:
+                self.report.fail(path, f"case {index} ({case['description']}): expected {case['problems']}, found {found}")
 
     # Firmware starters (spec 027): the profile fixtures CI builds starters from, and the
     # golden generator outputs that GoldenOutputTest compares, each listed in cases.json.
@@ -654,6 +670,36 @@ class Checker:
         if repository:
             self.check_repository()
         return self.report
+
+
+def point_map_problems(point_map):
+    """The point map rules no schema states (contracts/pointmaps/v1, point-map.md)."""
+    problems = []
+    readings = point_map.get("readings", [])
+    keys = set()
+    for index, reading in enumerate(readings):
+        if reading["key"] in keys:
+            problems.append({"rule": "duplicate_reading_key", "at": f"/readings/{index}/key"})
+        keys.add(reading["key"])
+    patterned = [any("pattern" in segment for segment in r["address"]["relative_path"]) for r in readings]
+    if any(patterned) and not all(patterned):
+        index = next(i for i, p in enumerate(patterned) if p != patterned[0])
+        problems.append({"rule": "mixed_addressing", "at": f"/readings/{index}/address/relative_path"})
+    sources = set()
+    for index, equipment in enumerate(point_map.get("equipment", [])):
+        if equipment["source_id"] in sources:
+            problems.append({"rule": "duplicate_source_id", "at": f"/equipment/{index}/source_id"})
+        sources.add(equipment["source_id"])
+        missing = equipment.get("missing", [])
+        for key in equipment.get("overrides", {}):
+            if key not in keys:
+                problems.append({"rule": "unknown_reading", "at": f"/equipment/{index}/overrides/{key}"})
+            elif key in missing:
+                problems.append({"rule": "overridden_and_missing", "at": f"/equipment/{index}/overrides/{key}"})
+        for position, key in enumerate(missing):
+            if key not in keys:
+                problems.append({"rule": "unknown_reading", "at": f"/equipment/{index}/missing/{position}"})
+    return problems
 
 
 def case_shape_problem(case):

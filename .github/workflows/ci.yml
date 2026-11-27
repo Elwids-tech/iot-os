@@ -294,9 +294,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: services/adapters/package-lock.json
+      # The OPC UA connector's tests run against the simulated building (spec 038).
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tooling/simulators/requirements.txt
+      - run: python -m pip install -r tooling/simulators/requirements.txt
       - run: npm ci --prefix services/adapters --ignore-scripts
       # The live Mosquitto and Node-RED protocol test stays in the release workflow.
       - run: npm test --prefix services/adapters
+        env:
+          IOT_BMS_SIMULATOR_PYTHON: python
+          IOT_BMS_SIMULATOR_REQUIRED: '1'
 
   sdk:
     name: Embedded SDK (${{ matrix.compiler }})

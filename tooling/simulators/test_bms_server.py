@@ -362,6 +362,32 @@ class ControlPortTest(ServerTest):
         self.assertIn('<title>Example Tower controls</title>', page)
 
 
+class DeadbandTest(unittest.TestCase):
+    """asyncua's deadband check, as the simulator corrects it (OPC UA Part 4)."""
+
+    def passes(self, before, now, kind=ua.DeadbandType.Absolute, band=1.0):
+        class Values:
+            def get_current_datavalue(self):
+                return now
+
+            def get_old_datavalue(self):
+                return before
+
+        return bms_server._deadband_exceeded(None, Values(), ua.DataChangeFilter(DeadbandType=kind, DeadbandValue=band))
+
+    def test_a_status_change_is_reported_whatever_the_deadband(self):
+        good = ua.DataValue(ua.Variant(22.0, ua.VariantType.Double))
+        bad = ua.DataValue(ua.Variant(None, ua.VariantType.Null), StatusCode=ua.StatusCode(ua.StatusCodes.BadNoCommunication))
+        back = ua.DataValue(ua.Variant(22.0, ua.VariantType.Double))
+        self.assertTrue(self.passes(good, bad))
+        self.assertTrue(self.passes(bad, back))
+
+    def test_a_value_inside_the_band_is_not(self):
+        self.assertFalse(self.passes(ua.DataValue(ua.Variant(22.0)), ua.DataValue(ua.Variant(22.5))))
+        self.assertTrue(self.passes(ua.DataValue(ua.Variant(22.0)), ua.DataValue(ua.Variant(23.5))))
+        self.assertTrue(self.passes(ua.DataValue(ua.Variant(22.0)), ua.DataValue(ua.Variant(22.1)), kind=ua.DeadbandType.None_))
+
+
 class CommandLineTest(unittest.TestCase):
     def test_export_model_prints_the_building_and_stops(self):
         result = subprocess.run([sys.executable, str(HERE / 'bms_server.py'), '--export-model', '--size', 'tower'],

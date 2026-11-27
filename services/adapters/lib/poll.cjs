@@ -2,7 +2,8 @@ const http = require("node:http");
 const https = require("node:https");
 const net = require("node:net");
 const zlib = require("node:zlib");
-const { publicAddress, secureLookup } = require("./broker.cjs");
+const { secureLookup } = require("./broker.cjs");
+const { publicAddress } = require("./opcua/address.cjs");
 
 // HTTP polling source (spec 020, FR-030 to FR-040): the request is built from
 // settings only, fetched through a client that connects only to checked public

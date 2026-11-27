@@ -1436,3 +1436,29 @@ The portal is a progressive web app (spec 033,
   `ua.QualifiedName` for a name with a dot in it, such as a flat-style tag.
 - **asyncua's `TrustStore` refuses to load an empty folder**, and its X509 token check
   hands the user manager the certificate as DER bytes, not as an object.
+- **asyncua answers every reference at once and has no browse paging.** Its
+  `BrowseNext` is a stub, so the connector library pages a server's oversized answers
+  itself (`lib/opcua/browse.cjs`, 200 a page behind a local cursor).
+- **asyncua dropped status changes on items with a deadband.** A bad value is a
+  `Variant` holding `None`, which its deadband check cannot subtract, and a status change
+  at the same value counted as inside the band. The simulator replaces the check so a
+  status change is always reported, as OPC UA Part 4 requires.
+
+## OPC UA client (node-opcua)
+
+- **A client with no certificate manager writes to the home folder.** node-opcua makes
+  a default client certificate under `~/Library/Preferences/node-opcua-default-nodejs`
+  (or `~/.config` on Linux) for discovery and unencrypted sessions too. The connector
+  library gives every client a store under the runtime's data folder or a temporary one.
+- **`ObjectIds` is not exported by `node-opcua-client`** (`VariableIds` is). Compare
+  standard nodes by number, as `lib/opcua/nodes.cjs` does for `FolderType` (61).
+- **node-opcua cannot dial a bracketed IPv6 literal** (`opc.tcp://[::1]:4840` fails
+  with `ENOTFOUND [::1]`), and `localhost` often resolves to `::1` first. The library
+  dials the checked IPv4 address, or the name when there is only IPv6.
+- **A subscription's keep-alive must fit inside the session timeout.** Publishing
+  interval times keep-alive count beyond the session timeout makes node-opcua warn and
+  sessions lapse; the library keeps keep-alives near 30 s and asks for a 10-minute
+  session.
+- **A user certificate's key goes in as key operations**, not a PEM: node-opcua-crypto
+  wraps Node's key object as `{ hidden: KeyObject }` for `keyOperationsFromPrivateKey`.
+

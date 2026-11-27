@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "mqtt": "^5.15.0",
+    "node-opcua-certificate-manager": "2.187.26",
+    "node-opcua-client": "2.187.26",
+    "node-opcua-crypto": "6.2.5",
     "protobufjs": "^7.5.4",
     "quickjs-emscripten": "^0.31.0"
   },
