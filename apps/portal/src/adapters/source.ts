@@ -54,7 +54,7 @@ export function defaultSource(type: AdapterSourceType): AdapterSource {
   if (type === "platform") return { type, topics: [] };
   if (type === "vendor") return { type, url: "", topics: [] };
   if (type === "webhook") return { type, auth: defaultAuth("hmac") };
-  if (type === "opcua") return { type, connection_uuid: null };
+  if (type === "opcua") return { type, connection_uuid: null, point_map: null };
   return { type, ...structuredClone(defaultPoll) };
 }
 
@@ -129,7 +129,7 @@ export function sourceForSave(source: AdapterSource, topics: string[]): AdapterS
     return { type: "vendor", url: clean(source.url), topics };
   if (source.type === "webhook")
     return { type: "webhook", auth: authForSave(source.auth) };
-  if (source.type === "opcua") return { type: "opcua", connection_uuid: source.connection_uuid ?? null };
+  if (source.type === "opcua") return { type: "opcua", connection_uuid: source.connection_uuid ?? null, point_map: source.point_map };
   return pollForSave(source);
 }
 
@@ -229,6 +229,15 @@ export const checklistSteps: Record<ChecklistStep, { label: string; tab: string 
   deploy: { label: "Test and deploy", tab: "deploy" },
   activate: { label: "Activate devices", tab: "devices" },
 };
+
+/** An OPC UA source chooses readings and is reviewed in place of samples and a decoder (spec 038). */
+const opcuaSteps: Partial<Record<ChecklistStep, { label: string; tab: string }>> = {
+  connect: { label: "Connect to the server", tab: "source" },
+  samples: { label: "Choose readings", tab: "source" },
+  decoder: { label: "Review", tab: "decoder" },
+};
+export const checklistStep = (step: ChecklistStep, type?: AdapterSourceType) =>
+  (type === "opcua" && opcuaSteps[step]) || checklistSteps[step];
 
 /** "2026-10-27T09:12" in the browser's zone, for datetime-local inputs. */
 export function localInput(at: number) {

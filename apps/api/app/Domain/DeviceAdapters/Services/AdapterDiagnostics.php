@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceAdapters\Services;
 
+use App\Domain\DeviceAdapters\Models\AdapterConnection;
 use App\Domain\DeviceAdapters\Models\AdapterDelivery;
 use App\Domain\DeviceAdapters\Models\DeviceAdapter;
 use App\Domain\DeviceAdapters\Models\DeviceInstallation;
@@ -114,6 +115,9 @@ final class AdapterDiagnostics
             'vendor' => filled($adapter->source['url'] ?? null) ? ['done', $adapter->source['url']] : ['todo', null],
             default => ['done', 'Devices publish to the tenant broker'],
         };
+        if ($type === 'opcua') {
+            return $this->opcuaChecklist($adapter, $current?->test_result, $current?->uuid);
+        }
         $samples = AdapterDelivery::where('device_adapter_id', $adapter->id)->whereIn('kind', ['sample', 'failed'])->exists() || $adapter->candidates()->exists();
         $fixtures = count($adapter->fixtures ?? []);
         $decoderTested = $test && collect($test['results'] ?? [])->contains(fn ($r) => isset($r['output']));
@@ -128,6 +132,35 @@ final class AdapterDiagnostics
             ['step' => 'decoder', 'state' => $test && ! ($test['valid'] ?? false) ? 'attention' : ($decoderTested ? 'done' : 'todo'), 'detail' => $test && ! ($test['valid'] ?? false) ? 'The last test failed' : null],
             ['step' => 'deploy', 'state' => $deployed ? 'done' : ($adapter->status === 'pending' ? 'waiting' : ($adapter->status === 'failed' ? 'attention' : 'todo')), 'detail' => $deployed ? 'Revision '.$current->revision.' running' : ($adapter->status === 'failed' ? $adapter->diagnostic : null)],
             ['step' => 'activate', 'state' => $activated > 0 ? 'done' : ($waiting > 0 ? 'waiting' : 'todo'), 'detail' => $activated > 0 ? $activated.' '.str('device')->plural($activated).' active' : ($waiting > 0 ? $waiting.' discovered '.str('source')->plural($waiting).' waiting' : null)],
+        ];
+    }
+
+    /**
+     * An OPC UA source (spec 038): its connection, the readings chosen in the point map,
+     * and the review check in place of samples and a decoder.
+     *
+     * @return list<array{step: string, state: string, detail: ?string}>
+     */
+    private function opcuaChecklist(DeviceAdapter $adapter, ?array $test, ?string $current): array
+    {
+        $connection = $adapter->adapter_connection_id ? AdapterConnection::find($adapter->adapter_connection_id) : null;
+        $map = $adapter->source['point_map'] ?? ['readings' => [], 'equipment' => []];
+        $readings = count($map['readings'] ?? []);
+        $devices = count($map['equipment'] ?? []);
+        $deployed = $adapter->applied_revision_uuid && $adapter->applied_revision_uuid === $current && $adapter->status === 'running';
+        $activated = DeviceInstallation::whereIn('device_adapter_candidate_id', $adapter->candidates()->select('id'))->whereNull('ended_at')->count();
+        $waiting = $adapter->candidates()->where('status', 'discovered')->count();
+        $problems = count($test['problems'] ?? []);
+
+        return [
+            ['step' => 'type', 'state' => 'done', 'detail' => $adapter->artifact->profile->name],
+            ['step' => 'connect', 'state' => match ($connection?->state) {
+                'connected' => 'done', 'unreachable', 'stopped' => 'attention', null, 'draft' => 'todo', default => 'waiting',
+            }, 'detail' => $connection ? $connection->name : null],
+            ['step' => 'samples', 'state' => $readings > 0 && $devices > 0 ? 'done' : 'todo', 'detail' => $readings > 0 ? "{$readings} ".str('reading')->plural($readings)." from {$devices} ".str('device')->plural($devices) : null],
+            ['step' => 'decoder', 'state' => $test === null ? 'todo' : (($test['valid'] ?? false) ? 'done' : 'attention'), 'detail' => $test === null ? null : (($test['valid'] ?? false) ? 'Review passed' : "{$problems} ".str('problem')->plural($problems).' to fix')],
+            ['step' => 'deploy', 'state' => $deployed ? 'done' : ($adapter->status === 'pending' ? 'waiting' : ($adapter->status === 'failed' ? 'attention' : 'todo')), 'detail' => $deployed ? 'Running' : 'Collecting arrives in the next release'],
+            ['step' => 'activate', 'state' => $activated > 0 ? 'done' : ($waiting > 0 ? 'waiting' : 'todo'), 'detail' => $activated > 0 ? $activated.' '.str('device')->plural($activated).' active' : null],
         ];
     }
 

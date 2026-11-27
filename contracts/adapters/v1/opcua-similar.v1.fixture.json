@@ -1,0 +1,69 @@
+{
+  "matches": [
+    {
+      "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+      "display_name": "L03-VAV-2",
+      "address": {
+        "node_id": "s=L03-VAV-2",
+        "namespace_uri": "urn:example:bms:example-tower",
+        "path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Campus"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Tower"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-Z2"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-VAV-2"
+          }
+        ]
+      },
+      "missing": []
+    },
+    {
+      "source_id": "Example Campus/Example Tower/L03/L03-Z7/L03-VAV-7",
+      "display_name": "L03-VAV-7",
+      "address": {
+        "node_id": "s=L03-VAV-7",
+        "namespace_uri": "urn:example:bms:example-tower",
+        "path": [
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Campus"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "Example Tower"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-Z7"
+          },
+          {
+            "namespace_uri": "urn:example:bms:example-tower",
+            "name": "L03-VAV-7"
+          }
+        ]
+      },
+      "missing": [
+        "zone_co2"
+      ]
+    }
+  ],
+  "truncated": false
+}

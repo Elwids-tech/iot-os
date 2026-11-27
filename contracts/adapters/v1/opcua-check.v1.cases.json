@@ -1,0 +1,276 @@
+[
+  {
+    "description": "bad quality is shown, not a problem",
+    "valid": true,
+    "data": {
+      "valid": true,
+      "equipment": [
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+          "display_name": "Level 3 East zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": 22.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.0,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        },
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z7/L03-VAV-7",
+          "display_name": "Level 3 core zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": null,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "bad",
+              "status": "BadNoCommunication",
+              "reason": "No communication with the device",
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        }
+      ],
+      "problems": [],
+      "totals": {
+        "devices": 2,
+        "readings": 2,
+        "points": 4,
+        "rows_per_day": 1152
+      }
+    }
+  },
+  {
+    "description": "a point not found and a rule the map breaks",
+    "valid": true,
+    "data": {
+      "valid": false,
+      "equipment": [
+        {
+          "source_id": "A/B",
+          "display_name": "B",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": null,
+              "unit": "°C",
+              "data_type": null,
+              "quality": null,
+              "status": "BadNoCommunication",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": "Not found on this equipment"
+            }
+          ]
+        }
+      ],
+      "problems": [
+        {
+          "source_id": "A/B",
+          "key": "zone_temperature",
+          "problem": "Not found on this equipment"
+        },
+        {
+          "source_id": null,
+          "key": null,
+          "at": "/readings/1/key",
+          "problem": "Two readings have the same key"
+        }
+      ],
+      "totals": {
+        "devices": 1,
+        "readings": 1,
+        "points": 1,
+        "rows_per_day": 288
+      }
+    }
+  },
+  {
+    "description": "a problem without words",
+    "valid": false,
+    "error": {
+      "keyword": "minLength",
+      "instance_location": "/problems/0/problem"
+    },
+    "data": {
+      "valid": false,
+      "equipment": [
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+          "display_name": "Level 3 East zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": 22.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.0,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        },
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z7/L03-VAV-7",
+          "display_name": "Level 3 core zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": null,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "bad",
+              "status": "BadNoCommunication",
+              "reason": "No communication with the device",
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        }
+      ],
+      "problems": [
+        {
+          "source_id": null,
+          "key": null,
+          "problem": ""
+        }
+      ],
+      "totals": {
+        "devices": 2,
+        "readings": 2,
+        "points": 4,
+        "rows_per_day": 1152
+      }
+    }
+  },
+  {
+    "description": "totals without rows a day",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/totals"
+    },
+    "data": {
+      "valid": true,
+      "equipment": [
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+          "display_name": "Level 3 East zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": 22.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.0,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        },
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z7/L03-VAV-7",
+          "display_name": "Level 3 core zone box",
+          "readings": [
+            {
+              "key": "zone_temperature",
+              "value": null,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "bad",
+              "status": "BadNoCommunication",
+              "reason": "No communication with the device",
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            },
+            {
+              "key": "temperature_setpoint",
+              "value": 21.5,
+              "unit": "°C",
+              "data_type": "number",
+              "quality": "good",
+              "status": "Good",
+              "reason": null,
+              "source_time": "2026-11-27T13:05:42.000Z",
+              "problem": null
+            }
+          ]
+        }
+      ],
+      "problems": [],
+      "totals": {
+        "devices": 2,
+        "readings": 2,
+        "points": 4
+      }
+    }
+  }
+]

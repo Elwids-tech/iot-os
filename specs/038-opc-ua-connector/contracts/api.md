@@ -35,14 +35,18 @@ Failure reasons (`reason`): `unreachable`, `address_not_allowed`, `no_shared_sec
 
 ## Point maps on a data source
 
-A device adapter with `source.type: "opcua"` carries `adapter_connection_uuid` and
-`point_map` ([contract](point-map.md)) in `POST`/`PUT device-adapters`.
+A device adapter's source is `{type: "opcua", connection_uuid, point_map}`
+([contract](point-map.md)) in `POST`/`PUT device-adapters`, with an empty `code` and no
+`fixtures`. The map is part of the draft and of each revision's content hash; each
+revision also keeps the connection's settings and, encrypted, its secrets. Point map
+errors are field errors under `source.point_map`, naming the reading or equipment.
 
 | Method and path | Purpose |
 | --- | --- |
-| `POST device-adapters/{adapter}/point-map/suggest` | From ticked points: suggested keys, names, units and data types |
+| `POST adapter-connections/{connection}/point-map/suggest` | From ticked points (before any data source exists): suggested keys, names, units, data types and ranges with the reporting defaults; points the platform cannot store are listed under `refused` |
+| `POST device-adapters/point-map/device-type` | A new device type with exactly the map's readings, published at once (needs DeviceProfile.create and publish) |
 | `POST device-adapters/{adapter}/test` | For this source type runs the review check: per equipment and reading a value, status and problem; totals of devices, readings, points and expected rows a day; limit result |
-| `POST device-adapters/{adapter}/deploy` | Unchanged; refused unless the exact revision passed its check |
+| `POST device-adapters/{adapter}/deploy` | Unchanged; refused unless the exact revision passed its check (and, until PR 5, refused for this source type) |
 | `POST device-adapters/{adapter}/candidates/activate` | Batch: up to 200 candidate UUIDs; answers `202` with an operation, then a result per source |
 
 ## Agents (PR 7)

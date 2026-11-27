@@ -3,6 +3,7 @@
 use App\Domain\Authorization\Http\Middleware\ResolveOrganizationContext;
 use App\Domain\DeviceAdapters\Http\AdapterConnectionController;
 use App\Domain\DeviceAdapters\Http\AdapterController;
+use App\Domain\DeviceAdapters\Http\PointMapController;
 use App\Domain\DeviceAdapters\Http\PollingController;
 use App\Domain\DeviceAdapters\Http\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -27,7 +28,10 @@ Route::prefix('v1/organizations/{organization}')->whereUuid(['organization', 'ad
         Route::get('nodes', [AdapterConnectionController::class, 'nodes'])->middleware('throttle:opcua-browse');
         Route::post('nodes/read', [AdapterConnectionController::class, 'read'])->middleware('throttle:opcua-browse');
         Route::post('nodes/search', [AdapterConnectionController::class, 'search'])->middleware('throttle:opcua-browse');
+        Route::post('nodes/similar', [PointMapController::class, 'similar'])->middleware('throttle:opcua-browse');
+        Route::post('point-map/suggest', [PointMapController::class, 'suggest'])->middleware('throttle:opcua-browse');
     });
+    Route::post('device-adapters/point-map/device-type', [PointMapController::class, 'deviceType'])->middleware('throttle:20,1');
     Route::prefix('device-adapters/{adapter}')->group(function (): void {
         Route::get('', [AdapterController::class, 'show']);
         Route::put('', [AdapterController::class, 'update']);

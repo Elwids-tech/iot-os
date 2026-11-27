@@ -1,0 +1,106 @@
+[
+  {
+    "description": "nothing similar",
+    "valid": true,
+    "data": {
+      "matches": [],
+      "truncated": false
+    }
+  },
+  {
+    "description": "a flat tag prefix has no node id",
+    "valid": true,
+    "data": {
+      "matches": [
+        {
+          "source_id": "Tags/ET_L03_VAV_2",
+          "display_name": "ET_L03_VAV_2",
+          "address": {
+            "node_id": null,
+            "namespace_uri": "urn:example:bms:example-tower",
+            "path": [
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "Tags"
+              },
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "ET_L03_VAV_2"
+              }
+            ]
+          },
+          "missing": []
+        }
+      ],
+      "truncated": false
+    }
+  },
+  {
+    "description": "a match without what it lacks",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/matches/0"
+    },
+    "data": {
+      "matches": [
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+          "display_name": "L03-VAV-2",
+          "address": {
+            "node_id": "s=L03-VAV-2",
+            "namespace_uri": "urn:example:bms:example-tower",
+            "path": [
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "Example Campus"
+              },
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "Example Tower"
+              },
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "L03"
+              },
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "L03-Z2"
+              },
+              {
+                "namespace_uri": "urn:example:bms:example-tower",
+                "name": "L03-VAV-2"
+              }
+            ]
+          }
+        }
+      ],
+      "truncated": false
+    }
+  },
+  {
+    "description": "a path that is not a list of names",
+    "valid": false,
+    "error": {
+      "keyword": "type",
+      "instance_location": "/matches/0/address/path/0"
+    },
+    "data": {
+      "matches": [
+        {
+          "source_id": "Example Campus/Example Tower/L03/L03-Z2/L03-VAV-2",
+          "display_name": "L03-VAV-2",
+          "address": {
+            "node_id": "s=L03-VAV-2",
+            "namespace_uri": "urn:example:bms:example-tower",
+            "path": [
+              "L03"
+            ]
+          },
+          "missing": []
+        }
+      ],
+      "truncated": false
+    }
+  }
+]

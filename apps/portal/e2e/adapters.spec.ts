@@ -164,6 +164,22 @@ const deliveries = [
   },
 ];
 
+/** The review check of a point map: one current value per reading of each equipment. */
+function opcuaCheck(map: any) {
+  const points = map.equipment.reduce((n: number, e: any) => n + map.readings.length - (e.missing ?? []).length, 0);
+  return {
+    valid: true,
+    equipment: map.equipment.map((e: any) => ({
+      source_id: e.source_id,
+      display_name: e.display_name,
+      readings: map.readings.map((r: any, i: number) => ({ key: r.key, value: r.data_type === "boolean" ? true : 20 + i, unit: r.unit ?? null, data_type: r.data_type, quality: "good", status: "Good", reason: null, source_time: new Date().toISOString(), problem: null })),
+    })),
+    problems: [],
+    totals: { devices: map.equipment.length, readings: map.readings.length, points, rows_per_day: points * 288 },
+    limit: { max: 10000, used: 0, adding: points, over: 0 },
+  };
+}
+
 async function setup(
   page: Page,
   retained = false,
@@ -452,13 +468,15 @@ async function setup(
       return data({ uuid: "operation", status: "queued", action: "deploy" }, 202);
     }
     if (path.endsWith("/test")) {
+      // An OPC UA source is tested by its review check (spec 038).
+      const result = adapter.source.type === "opcua" ? opcuaCheck(adapter.source.point_map) : sampleResult;
       adapter.revision = {
         ...adapter.revision,
         tested_at: new Date().toISOString(),
-        test_result: sampleResult,
+        test_result: result,
       };
       adapter.revisions = [adapter.revision];
-      return data(sampleResult);
+      return data(result);
     }
     if (path.endsWith("/connection-test")) return data({ connected: true });
     if (path.endsWith("/deploy")) {
@@ -1511,7 +1529,6 @@ test("an OPC UA server connects, has its certificate reviewed, and is browsed wi
   await page.goto(base + "/new");
   await page.getByRole("radio", { name: /OPC UA server/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByText("arrive with point maps")).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Example Tower BMS");
   await page.getByLabel("Server address").fill("opc.tcp://bms.example.com:4840");
   await page.getByRole("combobox", { name: "Sign-in" }).click();
@@ -1554,6 +1571,112 @@ test("an OPC UA server connects, has its certificate reviewed, and is browsed wi
   await page.getByLabel("Find a node by name").fill("VAV-2");
   await page.getByRole("button", { name: "Find" }).click();
   await expect(page.getByText("Example Tower / L03-VAV-2")).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("a point map is picked from one equipment, applied to similar ones, given a device type and reviewed", async ({ page }) => {
+  const { errors, requests } = await setup(page);
+  const conn = "50000000-0000-4000-8000-000000000002";
+  const ns = "urn:example:bms:example-tower";
+  const zoneType = "60000000-0000-4000-8000-000000000001";
+  let created = false;
+  const connection = {
+    uuid: conn, name: "Example Tower BMS", protocol: "opcua", endpoint_url: "opc.tcp://bms.example.com:4840", runs_at: "platform",
+    security_policy: "Basic256Sha256", security_mode: "SignAndEncrypt", security_label: "Encrypted (Basic256Sha256)", unencrypted_confirmed_by: null,
+    identity: "anonymous", username: null, has_password: false, has_user_certificate: false, client_certificate: { fingerprint: "ab".repeat(32), expires_at: "2031-11-27T00:00:00Z" },
+    server_certificate: { subject: "CN=Example Tower BMS simulator", fingerprint: "cd".repeat(32), valid_from: null, valid_to: "2030-01-01T00:00:00Z", application_uri: ns },
+    pending_server_certificate: null, state: "connected", status: { reason: null, checked_at: minutes(1) }, refused_points: [], created_at: minutes(60), updated_at: minutes(1),
+  };
+  const point = (id: string, name: string, display: string) => ({ node_id: `s=L03-VAV-2.${id}`, namespace_uri: ns, name, display_name: display, kind: "point", type: null, has_children: false });
+  const sent: Record<string, any> = {};
+  await page.route("**/api/v1/organizations/*/device-adapter-profiles", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: created ? [{ uuid: zoneType, name: "Zone controller", revision: 1, definition: { parameters: [
+      { uuid: "p1", key: "zone_temperature", data_type: "number", unit: "°C", reports_state: true, kind: "measurement" },
+      { uuid: "p2", key: "temperature_setpoint", data_type: "number", unit: "°C", reports_state: true, kind: "measurement" },
+    ] } }] : [] }) }),
+  );
+  await page.route("**/api/v1/organizations/*/device-adapters/point-map/device-type", async (route) => {
+    sent.deviceType = route.request().postDataJSON();
+    created = true;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { artifact_uuid: zoneType, profile_uuid: "70000000-0000-4000-8000-000000000001", name: "Zone controller", revision: 1 } }) });
+  });
+  await page.route("**/api/v1/organizations/*/adapter-connections**", async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname.replace(/^.*adapter-connections/, "");
+    const data = (value: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: value }) });
+    if (path === "") return data([connection]);
+    if (path === `/${conn}/nodes`) {
+      const parent = url.searchParams.get("parent");
+      if (!parent) return data({ items: [{ node_id: "s=L03-VAV-2", namespace_uri: ns, name: "L03-VAV-2", display_name: "L03-VAV-2", kind: "object", type: "Zone box with reheat", has_children: true }], cursor: null });
+      return data({ items: [point("zone_temperature", "zone_temperature", "Zone temperature"), point("temperature_setpoint", "temperature_setpoint", "Temperature setpoint"), point("schedule", "schedule", "Schedule")], cursor: null });
+    }
+    if (path === `/${conn}/nodes/read`) {
+      const nodes: string[] = route.request().postDataJSON().nodes;
+      return data({ points: nodes.map((n) => {
+        const node_id = n.split(";").slice(1).join(";");
+        const schedule = node_id.endsWith("schedule");
+        return { node_id, namespace_uri: ns, value: schedule ? null : 21.5, data_type: schedule ? null : "number", unit: schedule ? null : "°C", status: "Good", quality: "good", source_time: minutes(0), storable: !schedule, not_storable: schedule ? "A structure cannot be stored as a reading" : null };
+      }) });
+    }
+    if (path === `/${conn}/point-map/suggest`) {
+      sent.suggest = route.request().postDataJSON();
+      return data({ readings: sent.suggest.points.map((p: any) => ({ key: p.name, name: p.display_name, data_type: "number", unit: "°C", range: [10, 35], report: { sample_ms: 10000, deadband: { kind: "percent", value: 0.5 } } })), refused: [] });
+    }
+    if (path === `/${conn}/nodes/similar`) {
+      sent.similar = route.request().postDataJSON();
+      const box = (level: string, n: number, missing: string[] = []) => ({ source_id: `Example Tower/${level}/${level}-VAV-${n}`, display_name: `${level}-VAV-${n}`, address: { node_id: `s=${level}-VAV-${n}`, namespace_uri: ns, path: [{ namespace_uri: ns, name: "Example Tower" }, { namespace_uri: ns, name: level }, { namespace_uri: ns, name: `${level}-VAV-${n}` }] }, missing });
+      return data({ matches: [box("L03", 1), box("L02", 1), box("L02", 2, ["temperature_setpoint"])], truncated: false });
+    }
+    return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "Not mocked" }) });
+  });
+
+  await page.goto(base + "/new");
+  await page.getByRole("radio", { name: /OPC UA server/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const tree = page.getByRole("treegrid", { name: "Address space" });
+  await tree.getByRole("button", { name: "Map this" }).click();
+  await expect(page.getByText("A structure cannot be stored as a reading")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Schedule" })).toBeDisabled();
+  await page.getByRole("checkbox", { name: "Zone temperature" }).click();
+  await page.getByRole("checkbox", { name: "Temperature setpoint" }).click();
+  await page.getByRole("button", { name: "Use 2 points" }).click();
+  expect(sent.suggest.points.map((p: any) => p.node)).toEqual([`nsu=${ns};s=L03-VAV-2.zone_temperature`, `nsu=${ns};s=L03-VAV-2.temperature_setpoint`]);
+
+  const readings = page.getByRole("table", { name: "Readings" });
+  await expect(readings.getByLabel("Key of reading 1")).toHaveValue("zone_temperature");
+  await readings.getByLabel("Name of reading 2").fill("Setpoint");
+  await page.getByRole("button", { name: "Find similar" }).click();
+  await expect(page.getByText("3 found, 3 new.")).toBeVisible();
+  expect(sent.similar).toMatchObject({ by: "type", equipment: { node: `nsu=${ns};s=L03-VAV-2` }, points: [{ key: "zone_temperature", name: "zone_temperature" }, { key: "temperature_setpoint", name: "temperature_setpoint" }] });
+  const equipment = page.getByRole("table", { name: "Equipment" });
+  await expect(equipment.getByRole("row")).toHaveCount(5);
+  await expect(equipment.getByRole("row", { name: /L02-VAV-2/ })).toContainText("Setpoint");
+  await equipment.getByRole("button", { name: "Remove L02-VAV-1" }).click();
+  await expect(equipment.getByRole("row")).toHaveCount(4);
+
+  await page.getByLabel("New device type").fill("Zone controller");
+  await page.getByRole("button", { name: "Create and publish" }).click();
+  await expect(page.getByRole("combobox", { name: "Device type" })).toContainText("Zone controller · revision 1");
+  expect(sent.deviceType.readings.map((r: any) => [r.key, r.name, r.unit])).toEqual([["zone_temperature", "Zone temperature", "°C"], ["temperature_setpoint", "Setpoint", "°C"]]);
+  await expect(page.getByLabel("Data source name")).toHaveValue("Zone controller");
+  await page.getByRole("button", { name: "Save point map" }).click();
+  await expect(page).toHaveURL(base + "/" + id);
+  const saved = requests.find((r) => r.path.endsWith("/device-adapters"))?.body;
+  expect(saved.code).toBe("");
+  expect(saved.fixtures).toEqual([]);
+  expect(saved.artifact_uuid).toBe(zoneType);
+  expect(saved.source.type).toBe("opcua");
+  expect(saved.source.connection_uuid).toBe(conn);
+  expect(saved.source.point_map.equipment.map((e: any) => e.source_id)).toEqual(["L03-VAV-2", "Example Tower/L03/L03-VAV-1", "Example Tower/L02/L02-VAV-2"]);
+  expect(saved.source.point_map.equipment[2].missing).toEqual(["temperature_setpoint"]);
+  expect(saved.source.point_map.readings[0]).toMatchObject({ key: "zone_temperature", unit: "°C", scale: 1, offset: 0, address: { relative_path: [{ namespace_uri: ns, name: "zone_temperature" }] } });
+
+  await page.getByRole("tab", { name: /Review/ }).click();
+  await page.getByRole("button", { name: "Check the point map" }).click();
+  await expect(page.getByText("Passed")).toBeVisible();
+  await expect(page.getByText("5 of this organization's 10,000")).toBeVisible();
+  await expect(page.getByRole("table", { name: "Current values of L03-VAV-2" })).toContainText("20 °C");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(errors).toEqual([]);
 });

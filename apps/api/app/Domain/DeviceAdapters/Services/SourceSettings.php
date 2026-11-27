@@ -29,8 +29,8 @@ final class SourceSettings
             AdapterSourceType::Webhook => $this->webhook($source),
             AdapterSourceType::Poll => $this->poll($source),
             // Spec 038: an OPC UA data source reads through a saved connection with a point
-            // map, which a later change adds; until then only the connection exists.
-            AdapterSourceType::Opcua => abort(422, 'OPC UA data sources are set up from a connection, which is not available for data sources yet.'),
+            // map; PointMaps checks both against the organization when the adapter is saved.
+            AdapterSourceType::Opcua => ['type' => 'opcua', 'connection_uuid' => (string) ($source['connection_uuid'] ?? ''), 'point_map' => is_array($source['point_map'] ?? null) ? $source['point_map'] : null],
         };
     }
 

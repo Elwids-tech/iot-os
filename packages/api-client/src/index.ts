@@ -3049,6 +3049,10 @@ export class ApiClient {
   }
   readOpcuaNodes(org: string, id: string, nodes: string[]) { return this.data<{points: import("./adapters").OpcuaPoint[]}>(this.connectionPath(org, id, "/nodes/read"), "POST", {nodes}) }
   searchOpcuaNodes(org: string, id: string, text: string, root?: string | null) { return this.data<import("./adapters").OpcuaSearchResult>(this.connectionPath(org, id, "/nodes/search"), "POST", {text, ...(root ? {root} : {})}) }
+  /** Equipment like one mapped, by declared type, matching names or a tag pattern (spec 038). */
+  similarOpcuaEquipment(org: string, id: string, input: {equipment: {node?: string | null; path: import("./adapters").PointMapSegment[]}; points: {key: string; name?: string; pattern?: string}[]; by: "type" | "names" | "pattern"; root?: string | null}) { return this.data<{matches: import("./adapters").SimilarEquipment[]; truncated: boolean}>(this.connectionPath(org, id, "/nodes/similar"), "POST", input) }
+  suggestOpcuaReadings(org: string, id: string, points: {node: string; name: string; display_name?: string}[]) { return this.data<{readings: import("./adapters").SuggestedReading[]; refused: {node: string; name: string; reason: string}[]}>(this.connectionPath(org, id, "/point-map/suggest"), "POST", {points}) }
+  createPointMapDeviceType(org: string, input: {name: string; readings: {key: string; name: string; data_type: string; unit?: string | null}[]}) { return this.data<{artifact_uuid: string; profile_uuid: string; name: string; revision: number}>(this.adapterPath(org, undefined, "/point-map/device-type"), "POST", input) }
   adminAdapterPrivateRanges(organization: string) { return this.data<{private_ranges: string[]}>(`/api/v1/admin/organizations/${encodeURIComponent(organization)}/adapter-private-ranges`) }
   saveAdminAdapterPrivateRanges(organization: string, private_ranges: string[]) { return this.data<{private_ranges: string[]}>(`/api/v1/admin/organizations/${encodeURIComponent(organization)}/adapter-private-ranges`, "PUT", {private_ranges}) }
   adapterProposals(org: string,id: string) { return this.data<import("./adapters").AdapterProposal[]>(this.adapterPath(org,id,"/proposals")) }

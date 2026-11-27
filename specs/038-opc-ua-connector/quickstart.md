@@ -60,12 +60,18 @@ through the API.
 
 ## D. Choose readings (PR 4)
 
-1. Open one zone controller, mark it as equipment, tick zone temperature, setpoint,
-   damper position and occupancy, name the type "Zone controller".
-2. Ask for similar equipment. **Expect** 16 found by declared type.
-3. Review. **Expect** 16 devices, 4 readings, 64 points, a current value for each
-   reading, expected rows a day, no problems. Save.
-4. Repeat against `--style flat` with the pattern. **Expect** the same 16.
+1. Open one zone controller (`L03-VAV-2`), choose **Map this**, tick zone temperature,
+   temperature setpoint, damper position and occupancy, and use them.
+2. Ask for similar equipment by **Point names**. **Expect** the 14 zone boxes of the
+   standard building, none lacking a reading. (By **Declared type**, **expect** the 8
+   with reheat: the cooling-only and core boxes declare other types.)
+3. Create and publish the device type "Zone controller" from the readings, or choose it.
+   Save, open **Review** and check. **Expect** 14 devices, 4 readings, 56 points, a
+   current value for each reading, at least 16,128 rows a day, no problems.
+4. Restart the simulator with `--style flat`, map the `Example Tower tags` folder,
+   filter `L03_VAV_2.`, tick the same four tags. **Expect** the prefix `ET_L03_VAV_2`
+   and the same 14 found by tag pattern; rename the keys to the device type's and the
+   review passes the same way.
 
 ## E. Start collecting (PR 5)
 

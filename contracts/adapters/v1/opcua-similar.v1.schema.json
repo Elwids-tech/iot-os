@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-similar.v1.schema.json",
+  "title": "OPC UA similar equipment",
+  "description": "What /opcua/similar answers: equipment like the one mapped, found by declared type, matching point names or a tag pattern, each with the readings it lacks, and whether the scan stopped at its 20,000-node limit. Producer: services/adapters/lib/opcua/browse.cjs. Consumer: Connections in apps/api.",
+  "type": "object",
+  "properties": {
+    "matches": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "node_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 3,
+                "maxLength": 4096,
+                "pattern": "^(i|s|g|b)="
+              },
+              "namespace_uri": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 512
+              },
+              "path": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "namespace_uri": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 512
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  },
+                  "required": [
+                    "namespace_uri",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "node_id",
+              "namespace_uri",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        },
+        "required": [
+          "source_id",
+          "display_name",
+          "address",
+          "missing"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "matches",
+    "truncated"
+  ],
+  "additionalProperties": false
+}

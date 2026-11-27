@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iot-os.local/contracts/adapters/v1/opcua-check.v1.schema.json",
+  "title": "OPC UA point map check",
+  "description": "What /opcua/check answers: the review check of a point map (research R11). Each equipment's readings with a current value, status and problem; every problem a person must fix; and the totals. Bad quality is shown, never a problem. valid is true only without problems; the API adds the organization's point limit. Producer: services/adapters/lib/opcua/check.cjs. Consumer: AdapterService::test in apps/api.",
+  "type": "object",
+  "properties": {
+    "valid": {
+      "type": "boolean"
+    },
+    "equipment": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "readings": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "boolean",
+                    "string",
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": [
+                      "number",
+                      "boolean",
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "unit": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 32
+                },
+                "data_type": {
+                  "enum": [
+                    "number",
+                    "boolean",
+                    "state",
+                    "text",
+                    null
+                  ]
+                },
+                "quality": {
+                  "enum": [
+                    "good",
+                    "uncertain",
+                    "bad",
+                    null
+                  ]
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 128
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 512
+                },
+                "source_time": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "problem": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 512
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "unit",
+                "data_type",
+                "quality",
+                "status",
+                "reason",
+                "source_time",
+                "problem"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "source_id",
+          "display_name",
+          "readings"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "at": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "A JSON Pointer into the map, for a rule the map itself breaks."
+          },
+          "problem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "source_id",
+          "key",
+          "problem"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows_per_day": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "devices",
+        "readings",
+        "points",
+        "rows_per_day"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "valid",
+    "equipment",
+    "problems",
+    "totals"
+  ],
+  "additionalProperties": false
+}

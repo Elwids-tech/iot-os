@@ -95,11 +95,13 @@ import {
   PollSource,
 } from "./sources/PollSource";
 import { OpcuaConnection } from "./sources/OpcuaConnection";
+import { PointMapEditor } from "./pointmap/PointMapEditor";
+import { Review } from "./pointmap/Review";
 import { WebhookAuthentication, WebhookSecrets } from "./sources/WebhookSource";
 import {
   appendFixture,
   authLabels,
-  checklistSteps,
+  checklistStep,
   defaultSource,
   isMqtt,
   localInput,
@@ -328,7 +330,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
     if (!adapter) return "source";
     if (live) return "overview";
     const next = adapter.checklist?.find((item) => item.state !== "done");
-    return (next && checklistSteps[next.step]?.tab) || "source";
+    return (next && checklistStep(next.step, adapter.source.type)?.tab) || "source";
   });
   // A new adapter starts with the one question; its settings follow the answer.
   const [choosing, setChoosing] = useState(!adapter);
@@ -415,11 +417,14 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
     setBusy(true);
     setError(null);
     try {
-      const fixtures = JSON.parse(fixtureText);
+      const opcua = draft.source.type === "opcua";
+      const fixtures = opcua ? [] : JSON.parse(fixtureText);
       if (!Array.isArray(fixtures))
         throw new Error("Samples must be an array of fixtures.");
       const values = {
         ...draft,
+        // An OPC UA source has a point map in place of a decoder and samples (spec 038).
+        ...(opcua ? { code: "" } : {}),
         fixtures,
         source: sourceForSave(
           draft.source,
@@ -629,7 +634,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="devices">Devices</TabsTrigger>
               <TabsTrigger value="source">Source</TabsTrigger>
-              <TabsTrigger value="decoder">Decoder</TabsTrigger>
+              <TabsTrigger value="decoder">{draft.source.type === "opcua" ? "Point map" : "Decoder"}</TabsTrigger>
               <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </>
           ) : (
@@ -648,7 +653,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                       : undefined
                   }
                 />
-                {step.label}
+                {step.tab === "decoder" && draft.source.type === "opcua" ? "Review" : step.label}
               </TabsTrigger>
             ))
           )}
@@ -659,6 +664,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
         {adapter && !live && (
           <SetupNext
             checklist={adapter.checklist ?? []}
+            sourceType={adapter.source.type}
             onOpen={setTab}
             onAsk={canEdit ? ask : undefined}
           />
@@ -689,14 +695,44 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                 type="opcua"
                 onChange={canEdit ? () => setChoosing(true) : undefined}
               />
-              <Alert>
-                <AlertDescription>
-                  Connect to the server and look through what it offers here.
-                  Choosing which points to store, and saving this data source,
-                  arrive with point maps in the next release.
-                </AlertDescription>
-              </Alert>
-              <OpcuaConnection org={org} canEdit={canEdit} />
+              <OpcuaConnection
+                org={org}
+                canEdit={canEdit}
+                value={draft.source.connection_uuid}
+                onChange={(connection_uuid) => {
+                  if (draft.source.type !== "opcua" || connection_uuid === draft.source.connection_uuid) return;
+                  setSource({ type: "opcua", connection_uuid, point_map: null });
+                }}
+              >
+                {(connection) =>
+                  draft.source.type === "opcua" && (
+                    <>
+                      <PointMapEditor
+                        org={org}
+                        connection={connection.uuid}
+                        map={draft.source.point_map}
+                        onChange={(point_map) => setSource({ type: "opcua", connection_uuid: connection.uuid, point_map })}
+                        name={draft.name}
+                        onName={(name) => change({ name })}
+                        profiles={profiles.data}
+                        artifactUuid={draft.artifact_uuid}
+                        onArtifact={(artifact_uuid) => change({ artifact_uuid })}
+                        canEdit={canEdit}
+                      />
+                      {!!draft.source.point_map?.readings.length && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button disabled={busy || !canEdit || !draft.artifact_uuid || !draft.name.trim()} onClick={() => void save()}>
+                            Save point map
+                          </Button>
+                          <Button variant="outline" disabled={!adapter} onClick={() => setTab("decoder")}>
+                            Continue to review
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )
+                }
+              </OpcuaConnection>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -895,6 +931,22 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           )}
         </TabsContent>
         <TabsContent value="decoder">
+          {draft.source.type === "opcua" ? (
+            <Review
+              adapter={adapter}
+              map={draft.source.point_map ?? { version: 1, protocol: "opcua", rhythm_seconds: 300, readings: [], equipment: [] }}
+              dirty={dirty}
+              busy={busy}
+              canEdit={canEdit}
+              onSave={() => void save()}
+              onCheck={() =>
+                void run(
+                  () => api.testDeviceAdapter(org, adapter!.uuid, adapter!.draft_revision),
+                  "The point map was checked against the server.",
+                )
+              }
+            />
+          ) : (
           <div className="flex flex-col gap-4">
             <Panel>
               <PanelHeader>
@@ -1042,6 +1094,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             )}
             {adapter && <Samples org={org} adapter={adapter} onAdd={addFixture} />}
           </div>
+          )}
         </TabsContent>
         <TabsContent value="deploy">
           {adapter && (
@@ -1066,9 +1119,13 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                   />
                   <Alert>
                     <AlertDescription>
-                      {tested
-                        ? "Samples passed for this saved revision. Deploy to start discovery; review and activate each serial before its readings are stored."
-                        : "Save and pass sample tests for this exact revision before deployment."}
+                      {adapter.source.type === "opcua"
+                        ? tested
+                          ? "The point map passed its review and is saved. Collecting from an OPC UA server arrives in the next release."
+                          : "Save the point map and pass its review before deployment."
+                        : tested
+                          ? "Samples passed for this saved revision. Deploy to start discovery; review and activate each serial before its readings are stored."
+                          : "Save and pass sample tests for this exact revision before deployment."}
                     </AlertDescription>
                   </Alert>
                   {firstPoll && (
@@ -1090,6 +1147,8 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                       busy ||
                       pending ||
                       !canEdit ||
+                      // Collecting from OPC UA is spec 038's next pull request.
+                      adapter.source.type === "opcua" ||
                       (firstPoll && !!cursorStartError(cursorStart))
                     }
                     onClick={() =>
@@ -1310,7 +1369,10 @@ function sourceSummary(adapter: DeviceAdapter) {
     return `${source.url || "Vendor MQTT broker"}. Topics: ${source.topics.join(", ")}`;
   if (source.type === "webhook")
     return `HTTP webhook, ${authLabels[source.auth.mode].toLowerCase()}, at ${adapter.webhook?.ingest_url ?? "its ingest URL"}.`;
-  if (source.type === "opcua") return "An OPC UA server.";
+  if (source.type === "opcua")
+    return source.point_map
+      ? `An OPC UA server: ${source.point_map.readings.length} readings from ${source.point_map.equipment.length} devices.`
+      : "An OPC UA server.";
   const minutes = Math.round(source.interval_seconds / 60);
   return `Polls ${source.request.method} ${source.request.url} every ${minutes} min, up to ${source.page.max_pages} pages a run.`;
 }

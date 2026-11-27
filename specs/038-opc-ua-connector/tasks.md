@@ -147,22 +147,22 @@ surface yet.
 
 **Independent Test**: [quickstart D](quickstart.md#d-choose-readings-pr-4).
 
-- [ ] T047 [US3] Create the migration adding `adapter_connection_id` (nullable FK) to `device_adapters`
-- [ ] T048 [US3] Create apps/api/app/Domain/DeviceAdapters/Services/PointMaps.php: validation against contracts/pointmaps/v1, suggested keys, names, units and data types from server attributes, the point count against `adapters.opcua.max_points` (10,000), and expected rows a day from points and rhythm
-- [ ] T049 [US3] Extend AdapterService::fields in apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php to accept the `opcua` source: a connection and a point map, no code, no fixtures; store the map in the draft and in each revision's `definition.point_map` with the connection's non-secret settings, and its secrets in `secret_snapshot`
-- [ ] T050 [US3] Add `/opcua/similar` and `/opcua/check` to services/adapters/manager.cjs with schemas, fixtures and cases in contracts/adapters/v1/
-- [ ] T051 [US3] Make `POST device-adapters/{adapter}/test` run the review check for this source type (per equipment and reading a value, status and problem; totals; limit result), store it in `test_result`, and let deploy accept only the exact revision that passed (research R11)
-- [ ] T052 [US3] Add `POST device-adapters/{adapter}/point-map/suggest` and the `nodes/similar` route in apps/api/app/Domain/DeviceAdapters/Http/PointMapController.php and routes.php
-- [ ] T053 [US3] Allow a point map to target an existing published profile or create a new device type, reusing the adapter flow's profile drafting and publishing (apps/portal/src/adapters/ProfilePublishCard.tsx and its API)
-- [ ] T054 [US3] Create apps/api/tests/Feature/Domain/DeviceAdapters/PointMapTest.php: contract validation errors as field errors, suggestions, the limit, review check gating deploy, revision immutability, another organization refused
-- [ ] T055 [US3] Update the OpenAPI description and packages/api-client/src/adapters.ts with the point map types and routes
-- [ ] T056 [P] [US3] Create apps/portal/src/adapters/pointmap/EquipmentPicker.tsx (mark a node as equipment, tick points) and ReadingsTable.tsx (key, name, unit, scale, offset, sampling, deadband, with the defaults of FR-031)
-- [ ] T057 [P] [US3] Create apps/portal/src/adapters/pointmap/SimilarEquipment.tsx (by type, by names, by pattern; missing readings shown; remove any)
-- [ ] T058 [US3] Create apps/portal/src/adapters/pointmap/Review.tsx (devices, readings, points, expected rows a day, a current value per reading, every problem) and wire the steps into apps/portal/src/adapters/Routes.tsx and SetupSteps.tsx in place of Decode for this source type
-- [ ] T059 [P] [US3] Add Vitest tests for point map editing logic and a Playwright test with a mocked API for the editor and review
-- [ ] T060 [US3] Rebuild and run quickstart D on both naming styles; record the result (SC-006)
+- [x] T047 [US3] Create the migration adding `adapter_connection_id` (nullable FK) to `device_adapters` (landed with T030 in PR 3)
+- [x] T048 [US3] Create apps/api/app/Domain/DeviceAdapters/Services/PointMaps.php: validation against contracts/pointmaps/v1, suggested keys, names, units and data types from server attributes, the point count against `adapters.opcua.max_points` (10,000), and expected rows a day from points and rhythm
+- [x] T049 [US3] Extend AdapterService::fields in apps/api/app/Domain/DeviceAdapters/Services/AdapterService.php to accept the `opcua` source: a connection and a point map, no code, no fixtures; store the map in the draft and in each revision's `definition.point_map` with the connection's non-secret settings, and its secrets in `secret_snapshot`
+- [x] T050 [US3] Add `/opcua/similar` and `/opcua/check` to services/adapters/manager.cjs with schemas, fixtures and cases in contracts/adapters/v1/
+- [x] T051 [US3] Make `POST device-adapters/{adapter}/test` run the review check for this source type (per equipment and reading a value, status and problem; totals; limit result), store it in `test_result`, and let deploy accept only the exact revision that passed (research R11)
+- [x] T052 [US3] Add `POST adapter-connections/{connection}/point-map/suggest` (on the connection, so readings are suggested before a data source exists) and the `nodes/similar` route in apps/api/app/Domain/DeviceAdapters/Http/PointMapController.php and routes.php
+- [x] T053 [US3] Allow a point map to target an existing published profile or create a new device type, reusing the adapter flow's profile drafting and publishing (apps/portal/src/adapters/ProfilePublishCard.tsx and its API)
+- [x] T054 [US3] Create apps/api/tests/Feature/Domain/DeviceAdapters/PointMapTest.php: contract validation errors as field errors, suggestions, the limit, review check gating deploy, revision immutability, another organization refused
+- [x] T055 [US3] Update the OpenAPI description and packages/api-client/src/adapters.ts with the point map types and routes
+- [x] T056 [P] [US3] Create apps/portal/src/adapters/pointmap/EquipmentPicker.tsx (mark a node as equipment, tick points) and ReadingsTable.tsx (key, name, unit, scale, offset, sampling, deadband, with the defaults of FR-031)
+- [x] T057 [P] [US3] Create apps/portal/src/adapters/pointmap/SimilarEquipment.tsx (by type, by names, by pattern; missing readings shown; remove any)
+- [x] T058 [US3] Create apps/portal/src/adapters/pointmap/Review.tsx (devices, readings, points, expected rows a day, a current value per reading, every problem) and wire the steps into apps/portal/src/adapters/Routes.tsx and SetupSteps.tsx in place of Decode for this source type
+- [x] T059 [P] [US3] Add Vitest tests for point map editing logic and a Playwright test with a mocked API for the editor and review
+- [x] T060 [US3] Rebuild and run quickstart D on both naming styles; record the result (SC-006) (both styles: 14 devices, 4 readings, 56 points, review passed with a current value each; recorded in the pull request)
 
-**Checkpoint**: 14 zone controllers found and reviewed in both styles; nothing is collecting yet.
+**Checkpoint**: 14 zone controllers found and reviewed in both styles; nothing is collecting yet. (The standard building's 14 zone boxes declare three types, so declared type finds the 8 with reheat and point names or the tag pattern find all 14.)
 
 ---
 

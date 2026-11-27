@@ -293,7 +293,9 @@ async function similarTags(connection, equipment, points, limit) {
     }
     cursor = seen >= limit ? null : page.cursor;
   } while (cursor);
-  const found = [...prefixes.entries()].map(([prefix, present]) => {
+  // Like matching names: a prefix counts when it has at least half of the mapped points.
+  const enough = Math.max(1, Math.ceil(points.length / 2));
+  const found = [...prefixes.entries()].filter(([, present]) => present.size >= enough).map(([prefix, present]) => {
     const path = [...folderPath, { namespace_uri: equipment.namespace_uri, name: prefix }];
     return {
       source_id: pathText(path),

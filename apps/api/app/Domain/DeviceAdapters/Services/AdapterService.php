@@ -7,6 +7,7 @@ namespace App\Domain\DeviceAdapters\Services;
 use App\Domain\DeviceAdapters\Casts\FixtureList;
 use App\Domain\DeviceAdapters\Jobs\DeployAdapter;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
+use App\Domain\DeviceAdapters\Models\AdapterConnection;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
 use App\Domain\DeviceAdapters\Models\AdapterOperation;
 use App\Domain\DeviceAdapters\Models\AdapterRevision;
@@ -40,17 +41,24 @@ final class AdapterService
 
     public function fields(array $input): array
     {
+        // An OPC UA source has a point map in place of a decoder and samples (spec 038).
+        $opcua = ($input['source']['type'] ?? null) === 'opcua';
+        if ($opcua) {
+            $input['code'] ??= '';
+            $input['fixtures'] ??= [];
+        }
         $v = Validator::make($input, [
-            'request_uuid' => 'sometimes|uuid', 'name' => 'required|string|max:255', 'artifact_uuid' => 'required|uuid', 'code' => 'required|string|max:64000',
-            'fixtures' => 'present|array|max:10', 'fixtures.*.topic' => 'nullable|string|max:255', 'fixtures.*.payload' => 'nullable',
+            'request_uuid' => 'sometimes|uuid', 'name' => 'required|string|max:255', 'artifact_uuid' => 'required|uuid', 'code' => $opcua ? 'nullable|string|max:0' : 'required|string|max:64000',
+            'fixtures' => $opcua ? 'present|array|max:0' : 'present|array|max:10', 'fixtures.*.topic' => 'nullable|string|max:255', 'fixtures.*.payload' => 'nullable',
             'fixtures.*.payload_base64' => 'nullable|string|max:1398104', 'fixtures.*.expect_error' => 'sometimes|boolean', 'fixtures.*.expected' => 'sometimes|array',
             'fixtures.*.source' => 'sometimes|in:mqtt,webhook,poll', 'fixtures.*.received_at' => 'sometimes|nullable|date', 'fixtures.*.http' => 'sometimes|nullable|array', 'fixtures.*.poll' => 'sometimes|nullable|array', 'fixtures.*.truncated' => 'sometimes|boolean',
-            'source' => 'required|array', 'source.type' => 'required|in:platform,vendor,webhook,poll',
+            'source' => 'required|array', 'source.type' => 'required|in:platform,vendor,webhook,poll,opcua',
             'secrets' => 'sometimes|array:username,password,ca_certificate,api_key,token', 'secrets.username' => 'nullable|string|max:255', 'secrets.password' => 'nullable|string|max:4096', 'secrets.ca_certificate' => 'nullable|string|max:16384',
             'secrets.api_key' => 'nullable|string|max:4096', 'secrets.token' => 'nullable|string|max:8192',
         ])->validate();
         // Validated data keeps only keys with rules; the source settings validate their own shape.
         $v['source'] = app(SourceSettings::class)->normalize($input['source']);
+        $v['code'] ??= '';
         // Validation rebuilds the samples rule by rule and can reorder them (FixtureList).
         $v['fixtures'] = FixtureList::normalize($v['fixtures']);
         abort_if(strlen(json_encode($v['fixtures'])) > 6 * 1024 * 1024, 422, 'Test fixtures are too large.');
@@ -65,6 +73,9 @@ final class AdapterService
     {
         $v = $this->fields($values);
         $artifact = $this->artifact($organization->id, $v['artifact_uuid'])->ensureNotArchived();
+        if ($v['source']['type'] === 'opcua') {
+            $v['source'] = app(PointMaps::class)->source($organization, $v['source'], $artifact, $adapter);
+        }
         $saved = $this->persist($organization, $v, $actor, $adapter, $expected, $artifact);
         if ($saved->ingest_id) {
             app(WebhookRoutes::class)->syncLater($saved);
@@ -132,6 +143,9 @@ final class AdapterService
                 $secrets = ['password' => $previousType === $v['source']['type'] ? ($secrets['password'] ?? Str::random(48)) : Str::random(48)];
             } elseif ($v['source']['type'] === 'poll') {
                 $secrets = array_intersect_key($secrets, array_flip(['api_key', 'token', 'username', 'password', 'ca_certificate']));
+            } elseif ($v['source']['type'] === 'opcua') {
+                // The connection keeps its own secrets; each revision snapshots them below.
+                $secrets = [];
             } else {
                 $secrets = array_intersect_key($secrets, array_flip(['username', 'password', 'ca_certificate']));
             }
@@ -143,13 +157,27 @@ final class AdapterService
             // does the next save open a new numbered revision (ADR-055).
             $adapter->fill(['name' => $v['name'], 'device_profile_artifact_id' => $artifact->id, 'draft_revision' => ($adapter->draft_revision ?? 0) + 1, 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'secrets' => $secrets])->save();
             $definition = ['name' => $v['name'], 'code' => $v['code'], 'fixtures' => $v['fixtures'], 'source' => $v['source'], 'artifact_uuid' => $artifact->uuid, 'profile_hash' => $artifact->definition_hash];
+            $snapshot = $secrets;
+            if ($v['source']['type'] === 'opcua') {
+                // A revision carries the connection as it was saved: its settings in the
+                // definition (so a changed certificate makes a new revision) and its secrets
+                // in the encrypted snapshot (spec 038 T049).
+                $connection = AdapterConnection::where('organization_id', $organization->id)->where('uuid', $v['source']['connection_uuid'])->firstOrFail();
+                $payload = app(Connections::class)->payload($connection);
+                $definition['connection'] = $payload['connection'];
+                $snapshot = $payload['secrets'];
+                $adapter->adapter_connection_id = $connection->id;
+            } else {
+                $adapter->adapter_connection_id = null;
+            }
+            $adapter->save();
             $hash = hash('sha256', app(CanonicalJson::class)->encode($definition));
             if ($draft && ! $this->deployed($adapter, $draft)) {
                 // The same content keeps its test result; anything else must be tested again.
-                $draft->update(['content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $secrets,
+                $draft->update(['content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $snapshot,
                     ...($draft->content_hash === $hash ? [] : ['test_result' => null, 'tested_at' => null])]);
             } else {
-                $draft = AdapterRevision::create(['device_adapter_id' => $adapter->id, 'revision' => ($draft?->revision ?? 0) + 1, 'content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $secrets, 'created_by' => $actor]);
+                $draft = AdapterRevision::create(['device_adapter_id' => $adapter->id, 'revision' => ($draft?->revision ?? 0) + 1, 'content_hash' => $hash, 'definition' => $definition, 'secret_snapshot' => $snapshot, 'created_by' => $actor]);
             }
             DeviceAudit::record('device.adapter.draft.saved', $organization->id, $actor, $adapter->uuid, ['draft_revision' => $adapter->draft_revision, 'revision' => $draft->revision]);
 
@@ -194,7 +222,11 @@ final class AdapterService
         abort_unless($adapter->draft_revision === $expected, 409, 'Save and test the latest draft.');
         $revision = $this->current($adapter);
         $hash = $revision->content_hash;
-        $result = app(AdapterManager::class)->request('/test', ['code' => $revision->definition['code'], 'fixtures' => FixtureList::normalize($revision->definition['fixtures'] ?? []), 'profile' => $adapter->artifact->definition]);
+        $source = $revision->definition['source'];
+        // An OPC UA source is tested by its review check: every point found and read once.
+        $result = $source['type'] === 'opcua'
+            ? app(PointMaps::class)->check($adapter, $source)
+            : app(AdapterManager::class)->request('/test', ['code' => $revision->definition['code'], 'fixtures' => FixtureList::normalize($revision->definition['fixtures'] ?? []), 'profile' => $adapter->artifact->definition]);
         DB::transaction(function () use ($adapter, $revision, $result, $expected, $hash) {
             $locked = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->draft_revision === $expected && $revision->fresh()->content_hash === $hash, 409, 'The draft changed while tests ran.');
@@ -278,6 +310,7 @@ final class AdapterService
             }
             abort_if($locked->status === 'pending', 409, 'Wait for the current deployment.');
             abort_unless($revision->tested_at && ($revision->test_result['valid'] ?? false), 422, 'Test this exact revision before deployment.');
+            abort_if(($revision->definition['source']['type'] ?? null) === 'opcua', 422, 'Collecting from an OPC UA server arrives in the next release; the reviewed point map is saved.');
             $operation = AdapterOperation::create(['uuid' => $requestUuid ?? (string) Str::uuid(), 'organization_id' => $locked->organization_id, 'device_adapter_id' => $locked->id, 'revision_uuid' => $revision->uuid, 'action' => $action, 'status' => 'queued', 'created_by' => $actor]);
             $locked->update(['desired_revision_uuid' => $revision->uuid, 'status' => 'pending']);
             DeviceAudit::record('device.adapter.'.$action.'.requested', $locked->organization_id, $actor, $locked->uuid, ['operation_uuid' => $operation->uuid, 'revision_uuid' => $revision->uuid]);
