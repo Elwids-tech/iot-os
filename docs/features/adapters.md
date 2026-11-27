@@ -214,7 +214,9 @@ adapter's ⋯ menu once it is live, or the header **Assistant** on any adapter p
    inactive registered one, gets every profile reading the source has reported
    mapped and applied in one step. A reading it has not reported yet (a tracker
    without the IO harness never sends its inputs) is left out and joins when the
-   device's configuration is upgraded after it reports; a source that has reported
+   device's configuration is upgraded after it reports. On the device's
+   **Configuration** tab such a reading may stay unmapped too (a tracker with four probe
+   inputs and one probe fitted applies with one probe mapped); a source that has reported
    none of the profile's readings cannot be activated yet. Unknown serials and retained messages stay previews; nothing is stored as
    production telemetry until a device is activated. When the source has already
    reported, **Activate** asks whether its last report becomes the device's first

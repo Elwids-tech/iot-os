@@ -329,6 +329,16 @@ export function ConfigurationSection({
     [draft.mappings],
   )
   const mappedCount = parameters.filter((p) => mapped.has(p.uuid)).length
+  // An installed device's adapter announces only the readings its decoder has seen, so a
+  // reading this source has never reported (a second probe that is not fitted) may stay
+  // unmapped, as the API allows; it can be mapped once the source reports it.
+  const installed = device.installations?.some((i) => !i.ended_at) ?? false
+  const required = parameters.filter(
+    (p) =>
+      mapped.has(p.uuid) ||
+      !installed ||
+      (candidate?.metrics ?? []).some((m) => m.name === p.key),
+  ).length
   const commandLabels = parameters
     .filter((p) => mapped.get(p.uuid)?.command_metric)
     .map((p) => p.label)
@@ -442,8 +452,10 @@ export function ConfigurationSection({
         ? "Load the newer saved draft first"
         : candidate && draft.birth_revision !== candidate.birth_revision
           ? "Review the source's new metrics first"
-          : mappedCount < parameters.length
-            ? `Map all ${parameters.length} parameters first`
+          : mappedCount < required
+            ? required === parameters.length
+              ? `Map all ${parameters.length} parameters first`
+              : `Map the ${required} readings this source reports first`
             : !canActivate
               ? undefined
               : device.deployment_status === "pending"
@@ -461,7 +473,7 @@ export function ConfigurationSection({
     ],
     [
       "Mappings",
-      !mappedCount ? "muted" : mappedCount < parameters.length ? "warning" : "good",
+      !mappedCount ? "muted" : mappedCount < required ? "warning" : "good",
       autoMatched
         ? `${mappedCount} of ${parameters.length} matched automatically`
         : `${mappedCount} of ${parameters.length} mapped`,

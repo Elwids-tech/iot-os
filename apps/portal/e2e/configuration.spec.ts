@@ -120,7 +120,11 @@ type Call = { step: "save" | "validate" | "activate"; body: Record<string, any> 
 
 async function setup(
   page: Page,
-  { metrics = matching, problems }: { metrics?: typeof matching; problems?: Record<string, string[]> } = {},
+  {
+    metrics = matching,
+    problems,
+    installed = false,
+  }: { metrics?: typeof matching; problems?: Record<string, string[]>; installed?: boolean } = {},
 ) {
   const state = { errors: [] as string[], calls: [] as Call[] }
   page.on("pageerror", (error) => state.errors.push(error.message))
@@ -137,7 +141,14 @@ async function setup(
     },
   }
   const discovered = source(metrics)
-  let current: Record<string, any> = device
+  let current: Record<string, any> = installed
+    ? {
+        ...device,
+        installations: [
+          { uuid: "c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9", manufacturer_serial: "AIR-1", adapter_revision_uuid: null, started_at: ago(3600), ended_at: null },
+        ],
+      }
+    : device
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
       url = new URL(request.url()),
@@ -333,5 +344,18 @@ test("a partial match keeps the table open and saves a draft without applying", 
   await expect.poll(() => state.calls.map((c) => c.step)).toEqual(["save"])
   expect(state.calls[0].body.mappings).toHaveLength(3)
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled()
+  expect(state.errors).toEqual([])
+})
+
+test("an installed device may leave a reading its source never reported unmapped", async ({ page }) => {
+  // The adapter announces only what its decoder has seen, as for a tracker without a second probe.
+  const state = await setup(page, { metrics: matching.filter((m) => m.name !== "CO2"), installed: true })
+  await chooseProfile(page)
+  await page.getByRole("button", { name: "Suggest matching metrics" }).click()
+  await expect(page.getByRole("combobox", { name: "Source for CO2" })).toContainText("Choose a source metric")
+  await expect(page.getByRole("status").filter({ hasText: "parameters first" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Apply", exact: true }).click()
+  await expect.poll(() => state.calls.map((c) => c.step)).toEqual(["save", "validate", "activate"])
+  expect(state.calls[0].body.mappings).toHaveLength(3)
   expect(state.errors).toEqual([])
 })
