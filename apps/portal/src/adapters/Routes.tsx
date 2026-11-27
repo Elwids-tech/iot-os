@@ -580,10 +580,10 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             status={statusOf(adapter.status).label}
             revision={
               applied === null
-                ? `Draft ${adapter.draft_revision}`
+                ? `Draft ${adapter.revision.revision}`
                 : adapter.revision.uuid === adapter.applied_revision_uuid
                   ? `Revision ${applied}`
-                  : `Revision ${applied} live · draft ${adapter.draft_revision}`
+                  : `Revision ${applied} live · draft ${adapter.revision.revision}`
             }
             dirty={dirty}
           >
@@ -1032,7 +1032,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
             <div className="flex flex-col gap-4">
               <Panel>
                 <PanelHeader>
-                  <PanelTitle>Deploy draft {adapter.draft_revision}</PanelTitle>
+                  <PanelTitle>Deploy draft {adapter.revision.revision}</PanelTitle>
                   <PanelDescription>
                     The runtime switches once it acknowledges the deployment.
                   </PanelDescription>

@@ -115,8 +115,9 @@ final class DeviceAdapterTest extends TestCase
         $a = $this->tested();
         $input = $this->input();
         unset($input['request_uuid']);
+        $input['code'] .= "\n// edited";
         $url = $this->prefix.'/device-adapters/'.$a['uuid'];
-        $this->putJson($url, [...$input, 'draft_revision' => 1])->assertOk()->assertJsonPath('data.draft_revision', 2)->assertJsonPath('data.revision.test_result', null);
+        $this->putJson($url, [...$input, 'draft_revision' => 1])->assertOk()->assertJsonPath('data.draft_revision', 2)->assertJsonPath('data.revision.revision', 1)->assertJsonPath('data.revision.test_result', null);
         $this->putJson($url, [...$input, 'draft_revision' => 1])->assertConflict();
         $this->postJson($url.'/deploy', ['draft_revision' => 2, 'request_uuid' => (string) Str::uuid()])->assertUnprocessable();
     }

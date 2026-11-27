@@ -65,7 +65,7 @@ export function AdapterOverview({
     <div className="flex flex-col gap-4">
       {draftWaiting && (
         <Alert>
-          <AlertTitle>Draft {adapter.draft_revision} is not live yet</AlertTitle>
+          <AlertTitle>Draft {adapter.revision.revision} is not live yet</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span className="min-w-0 flex-1">
               {applied === null ? "Nothing is deployed." : `Devices still use revision ${applied}.`}{" "}
@@ -131,7 +131,7 @@ export function AdapterOverview({
               },
               {
                 label: "Revisions",
-                value: `Draft ${adapter.draft_revision} · ${applied === null ? "none live" : `revision ${applied} live`}`,
+                value: `Draft ${adapter.revision.revision} · ${applied === null ? "none live" : `revision ${applied} live`}`,
               },
             ]}
           />

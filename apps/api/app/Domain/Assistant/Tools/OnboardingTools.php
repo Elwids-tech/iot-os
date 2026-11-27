@@ -177,9 +177,9 @@ final class OnboardingTools implements Tool
     private function status(): array
     {
         $adapter = $this->adapter();
-        $current = $adapter->revisions()->where('revision', $adapter->draft_revision)->first();
+        $current = $adapter->revisions()->orderByDesc('revision')->first();
 
-        return ['adapter' => ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'status' => $adapter->status, 'source_type' => $adapter->source['type'] ?? null,
+        return ['adapter' => ['uuid' => $adapter->uuid, 'name' => $adapter->name, 'draft_revision' => $adapter->draft_revision, 'revision' => $current?->revision, 'status' => $adapter->status, 'source_type' => $adapter->source['type'] ?? null,
             'fixtures' => count($adapter->fixtures ?? []), 'fixture_limit' => OnboardingProposals::MAX_FIXTURES, 'samples_saved' => app(OnboardingProposals::class)->savedSamples($adapter), 'credentials_saved' => in_array($adapter->source['type'] ?? null, ['platform', 'webhook'], true) ? [] : collect($adapter->secrets ?? [])->filter(fn ($value) => filled($value))->keys()->values()->all()],
             ...app(AdapterDiagnostics::class)->summary($adapter), 'counts' => app(AdapterDiagnostics::class)->counts($adapter),
             'last_test' => $current?->test_result ? ['valid' => $current->test_result['valid'] ?? false, 'tested_at' => $current->tested_at?->toIso8601String(), 'errors' => collect($current->test_result['results'] ?? [])->pluck('error')->filter()->take(5)->values()->all()] : null,
