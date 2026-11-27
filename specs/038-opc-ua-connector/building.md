@@ -241,7 +241,8 @@ Plant rooms on the west half (x 0–24), car park on the east half (x 24–48).
 | Passenger lift | 4 | Lift |
 | Goods lift | 1 | Lift |
 
-40 points, 5 devices.
+40 points, 5 devices. The model file lists the lifts at the ground landing, as
+`G-LIFT-1` to `G-LIFT-5`.
 
 ## Point library
 
@@ -359,8 +360,8 @@ the simulator, as its controller would:
 
 | Loop | What it does |
 | --- | --- |
-| Zone box | Moves its damper, then its reheat valve, to hold the effective setpoint; widens the setpoint when the zone is unoccupied |
-| Air handling unit | Follows the floor schedule; holds supply air temperature with its valves and duct pressure with its fan; opens outdoor air with carbon dioxide; purges at night when outside is cool |
+| Zone box | Moves its damper, then its reheat valve, to hold the effective setpoint; widens the setpoint when the zone is unoccupied; raises its minimum airflow when carbon dioxide is high |
+| Air handling unit | Follows the floor schedule; holds supply air temperature with its valves and duct pressure with its fan; opens outdoor air with carbon dioxide; warms the floor up on recirculated air before occupied hours; raises supply air in cool weather when no zone wants cooling; keeps zones above their unoccupied heating setpoint at night; purges at night when outside is cool |
 | Chilled water plant | Starts and stops chillers with load, rotates the lead, runs the towers and pumps they need |
 | Heating plant | Starts boilers with load |
 | Car park ventilation | Runs fans faster as carbon monoxide rises |
@@ -393,15 +394,17 @@ place shows up where an operator would expect:
   Occupancy drives heat, carbon dioxide, lighting and lift trips.
 - **A zone's temperature** moves with the outdoor temperature, sunlight on its façade
   (less with the blinds down), people, lights and equipment, the neighbouring zones,
-  and the air its box delivers.
+  and the air its box delivers. Sunlight and half the internal gains warm the zone's
+  structure first, which gives the heat back slowly. Perimeter zones whose box cannot
+  heat have heating under the glazing, which has no points of its own.
 - **An air handling unit's coil load** is the sum of what its boxes ask for, plus the
   outdoor air it brings in.
 - **Chiller load** is the sum of the coil loads; chiller power follows load and the
   condenser water temperature, which follows the towers and the weather.
 - **Electricity** adds up: each sub-meter is the sum of what it feeds, the main meter
   is the sum of the feeders less solar output, and totals only rise.
-- **Water** follows occupancy; the tank level falls with use and rises when the
-  boosters' supply refills it.
+- **Water** follows occupancy; the boosters supply it from the tank, whose level falls
+  with use and rises when the mains refill it through the main water meter.
 
 The same seed gives the same day. The physics sits behind a small interface (step the
 clock, read values, apply a command), so a detailed building physics engine can replace
@@ -422,7 +425,7 @@ they are what the simulator, the 3D model and the expected hierarchy share.
 Equipment kinds: `AHU`, `VAV`, `FCU`, `CRAC`, `OAU`, `LTG`, `BLD`, `CH`, `CHP` (plant
 controller), `PCHWP`, `SCHWP`, `CWP`, `CT`, `BLR`, `HWP`, `HP` (heating plant), `DHW`,
 `CPV`, `CPF`, `EF`, `KEF`, `SPF`, `MM`, `EM`, `TX`, `ATS`, `GEN`, `UPS`, `PV`, `EVC`,
-`WM`, `TNK`, `SMP`, `FIRE`, `LIFT`, `WX`, `SEN`.
+`WM`, `TNK`, `SMP`, `FIRE`, `LIFT`, `WX`, `SEN`, and `BP` for the booster pumps.
 
 The two naming styles of the simulator are two spellings of the same keys:
 

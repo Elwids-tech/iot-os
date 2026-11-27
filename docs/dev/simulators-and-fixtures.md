@@ -266,6 +266,47 @@ twice) and `--gzip` (the signature covers the uncompressed body). Both scripts h
 unittest tests beside them, run with the other simulator tests by
 `python -m unittest discover -s tooling/simulators -p 'test_*.py'`.
 
+## Building management simulator (OPC UA)
+
+[`bms_server.py`](../../tooling/simulators/bms_server.py) serves Example Tower, an
+invented office tower, as an OPC UA server, for the OPC UA connector of
+[spec 038](../../specs/038-opc-ua-connector/spec.md). The building is defined once, in
+[`bms/buildings/example-tower.yaml`](../../tooling/simulators/bms/buildings/example-tower.yaml),
+and explained floor by floor in the
+[building plan](../../specs/038-opc-ua-connector/building.md). It runs its own simple
+physics and each piece of equipment's control loop
+([`bms/physics.py`](../../tooling/simulators/bms/physics.py),
+[`bms/controls.py`](../../tooling/simulators/bms/controls.py)), so values follow a
+seeded day and a written setpoint moves the zone.
+
+```sh
+.local/devices/python/bin/python tooling/simulators/bms_server.py --size standard --speed 60
+```
+
+| Option | Values | Default |
+| --- | --- | --- |
+| `--size` | `standard` (levels 2 and 3, the plant floor, the roof and the main meter: 706 points), `tower` (2,466), `large` (6,602) | `standard` |
+| `--speed` | simulated seconds a second | `1` |
+| `--seed`, `--season` | the day it runs; `summer`, `winter` or `mild` | `7`, `summer` |
+| `--writes` | `off` makes every point read only | `on` |
+| `--export-model` | print the building as JSON and stop | |
+| `--host`, `--port`, `--control-port` | | `127.0.0.1`, `4840`, `4841` |
+
+Browse `opc.tcp://localhost:4840/` with any OPC UA client: Example Campus, Example
+Tower, then a level, a zone and its equipment. Anonymous sessions read only. Writing a
+command point (a setpoint, a mode or a request) needs the `operator` sign-in, whose
+password is generated into `.local/devices/bms-simulator.json` at first start; a value
+outside the point's limits is refused with `BadOutOfRange`, the wrong type with
+`BadTypeMismatch`, and a sensor, status, alarm or total with `BadNotWritable`. The
+control port, on loopback only, answers `GET /state` and `POST /write`
+(`{"point": "L03-VAV-2.temperature_setpoint", "value": 21}`), which writes as the
+operator. The endpoint is unencrypted and offers anonymous and name-and-password
+sign-in only.
+
+`asyncua` (LGPL-3.0-or-later) and `PyYAML` (MIT) are in the requirements for this
+simulator only; nothing in a release uses them. Its tests run with the other simulator
+tests. A passing simulator run says nothing about a real building's server.
+
 ## Seeders
 
 | Seeder | What it creates | Notes |
