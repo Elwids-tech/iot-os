@@ -1,11 +1,12 @@
 // A temporary real-API fixture must already be waiting. Only this verifier gets
-// a human token, to issue/revoke the application's scoped machine credential.
+// a person's session, to issue/revoke the application's scoped machine credential.
 import {readFile,writeFile,mkdtemp,rm,chmod} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
+import {portalSession} from './lib/portal-session.mjs';
 import {get} from 'node:http';
 const require=createRequire(new URL('../apps/portal/package.json',import.meta.url));
 const {chromium,expect}=require('@playwright/test');
@@ -13,8 +14,8 @@ const AxeBuilder=require('@axe-core/playwright').default;
 const f=JSON.parse(await readFile('/tmp/iot-sdk-fixture.json','utf8'));
 const origin='http://localhost:8001', demo='http://localhost:5180';
 const base=origin+'/api/v1/organizations/'+f.organization;
-const headers={Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+f.adminToken};
-async function post(path,body={}) {const r=await fetch(base+path,{method:'POST',headers,body:JSON.stringify(body)});assert.ok(r.ok,`fixture management ${r.status}`);return (await r.json()).data;}
+const session=await portalSession(origin,f.admin);
+async function post(path,body={}) {const r=await session('POST',base+path,body);assert.ok(r.ok,`fixture management ${r.status}`);return (await r.json()).data;}
 const application=await post('/applications',{name:'Independent field application verifier',abilities:['telemetry:read','alerts:read'],device_uuids:[f.devices[0]]});
 const issued=await post('/applications/'+application.uuid+'/token',{revision:application.revision,abilities:['telemetry:read','alerts:read'],expires_in_days:1});
 const directory=await mkdtemp(join(tmpdir(),'iot-vertical-'));
@@ -44,7 +45,7 @@ try {
  await expect(page.getByText('Stored coordinates',{exact:true})).toBeVisible();
  await expect(page.getByText('51.500000',{exact:true})).toBeVisible();
  await expect(page.getByText('1 active',{exact:true})).toBeVisible();
- const html=await page.content();assert.ok(!html.includes(issued.token));assert.ok(!html.includes(f.adminToken));
+ const html=await page.content();assert.ok(!html.includes(issued.token));assert.ok(!html.includes(f.admin.password));
  assert.equal((await fetch(demo+'/?device=other')).status,404);
  assert.equal((await fetch(demo,{method:'POST'})).status,405);
  assert.equal(await new Promise((resolve,reject)=>get(demo,{headers:{Host:'untrusted.test'}},r=>{r.resume();resolve(r.statusCode)}).on('error',reject)),403);

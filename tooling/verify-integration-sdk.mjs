@@ -4,12 +4,14 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { portalSession } from './lib/portal-session.mjs'
 const { IotClient, IotApiError } = await import(process.env.IOT_SDK_MODULE ?? '../packages/integration-sdk/dist/index.js')
 const fixture = JSON.parse(await readFile('/tmp/iot-sdk-fixture.json', 'utf8'))
 const baseUrl = 'http://127.0.0.1:8001'
 const manage = `${baseUrl}/api/v1/organizations/${fixture.organization}/applications`
+const session = await portalSession(baseUrl, fixture.admin)
 async function control(url, body, method='POST', expected=201) {
-  const response=await fetch(url,{method,headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${fixture.adminToken}`},body:JSON.stringify(body),redirect:'error'})
+  const response=await session(method,url,body)
   assert.equal(response.status,expected,'Management HTTP status')
   return (await response.json()).data
 }

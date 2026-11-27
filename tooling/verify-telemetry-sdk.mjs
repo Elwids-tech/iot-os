@@ -1,12 +1,14 @@
 // Local HTTP verification against a temporary isolated synthetic fixture.
 import assert from 'node:assert/strict'
 import {readFile} from 'node:fs/promises'
+import {portalSession} from './lib/portal-session.mjs'
 const {IotClient, IotApiError}=await import(process.env.IOT_SDK_MODULE ?? '../packages/integration-sdk/dist/index.js')
 const fixture=JSON.parse(await readFile('/tmp/iot-sdk-fixture.json','utf8'))
 const origin='http://127.0.0.1:8001'
 const base=origin+'/api/v1/organizations/'+fixture.organization+'/applications'
+const session=await portalSession(origin,fixture.admin)
 async function manage(path,body){
- const response=await fetch(base+path,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+fixture.adminToken},body:JSON.stringify(body)})
+ const response=await session('POST',base+path,body)
  assert.equal(response.status,201)
  return (await response.json()).data
 }
