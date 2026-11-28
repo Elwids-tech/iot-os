@@ -1553,7 +1553,8 @@ test("an OPC UA server connects, has its certificate reviewed, and is browsed wi
   await expect(page.getByText("Review the server’s certificate")).toBeVisible();
   await expect(page.getByText(fingerprint).first()).toBeVisible();
   await page.getByRole("button", { name: "Trust this certificate" }).click();
-  expect(sent.find((r) => r.path.endsWith("/accept"))?.body).toEqual({ fingerprint });
+  // The route records the request after the click returns, so wait for it.
+  await expect.poll(() => sent.find((r) => r.path.endsWith("/accept"))?.body).toEqual({ fingerprint });
   await expect(page.getByRole("button", { name: "Trust this certificate" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Download (.der)" })).toHaveAttribute("href", /client-certificate\?format=der/);
 
