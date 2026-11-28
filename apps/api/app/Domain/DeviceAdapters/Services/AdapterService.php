@@ -396,7 +396,7 @@ final class AdapterService
             $paths[$e['source_id']] = [($e['display_name'] ?? '') !== '' ? $e['display_name'] : (end($segments) ?: $e['source_id']), array_slice($segments, 0, -1)];
         }
         $depth = array_fill_keys(array_keys($paths), 0);
-        for (;;) {
+        for (; ;) {
             $names = [];
             foreach ($paths as $id => [$display, $parents]) {
                 $names[$id] = implode(' / ', [...array_slice($parents, count($parents) - $depth[$id]), $display]);
