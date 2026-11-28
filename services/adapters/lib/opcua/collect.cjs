@@ -7,7 +7,7 @@
 // a steady device still reports. Points beyond the server's limits are read at the
 // rhythm only. Points the server refuses are listed with the reason.
 //
-// A result: { sourceDeviceId, observedAt, timestampSource: "source" | "server",
+// A result: { sourceDeviceId, observedAt, timestampSource: "source" | "server" | "receipt",
 //             metrics: [{ name, value, quality: "good" | "uncertain" | "bad", reason }] }
 const { EventEmitter } = require("node:events");
 const {
@@ -21,6 +21,8 @@ const { quality } = require("./quality.cjs");
 const { batches } = require("./nodes.cjs");
 
 const DEFAULT_SAMPLE_MS = 10_000;
+const CLOCK_AHEAD_MS = 5 * 60_000;
+const CLOCK_BEHIND_MS = 24 * 60 * 60_000;
 const FILTER_REFUSED = /BadFilterNotAllowed|BadMonitoredItemFilterUnsupported|BadMonitoredItemFilterInvalid|BadDeadbandFilterInvalid/;
 const TOO_MANY = /BadTooManyMonitoredItems|BadTooManyOperations/;
 
@@ -159,8 +161,19 @@ class Collector extends EventEmitter {
   _flush() {
     const results = [...this.pending.values()];
     this.pending.clear();
-    for (const result of results)
-      this.emit("result", { ...result, observedAt: result.observedAt.toISOString(), metrics: [...result.metrics.values()] });
+    const now = Date.now();
+    for (const result of results) {
+      // A time more than 5 minutes ahead or a day behind is a wrong clock, not when the
+      // value was seen: it is stored at receipt and labelled so (spec 038 T068).
+      const at = result.observedAt.getTime();
+      const wrong = !Number.isFinite(at) || at > now + CLOCK_AHEAD_MS || at < now - CLOCK_BEHIND_MS;
+      this.emit("result", {
+        ...result,
+        observedAt: (wrong ? new Date(now) : result.observedAt).toISOString(),
+        timestampSource: wrong ? "receipt" : result.timestampSource,
+        metrics: [...result.metrics.values()],
+      });
+    }
     return results.length;
   }
 

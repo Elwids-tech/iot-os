@@ -291,6 +291,10 @@ function LatestReadout({
                   </TableCell>
                   <TableCell title={r.diagnostic || undefined}>
                     <Status value={r.quality} />
+                    {/* Why a value is unknown or uncertain, as the source said it (spec 038). */}
+                    {r.quality !== "good" && r.diagnostic && (
+                      <p className="max-w-56 text-meta whitespace-normal text-muted-foreground">{r.diagnostic}</p>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <RelativeTime at={r.observed_at} />

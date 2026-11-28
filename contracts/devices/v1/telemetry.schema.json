@@ -79,6 +79,7 @@
           "quality": {
             "enum": [
               "good",
+              "uncertain",
               "invalid",
               "stale"
             ]
@@ -97,9 +98,14 @@
           "historical": {
             "type": "boolean"
           },
+          "source_bad": {
+            "type": "boolean",
+            "description": "The source reported the value as bad or null (spec 038): the reading is invalid with the source's reason, its value is unknown rather than the last known one, and it is not hearing from an adapter device."
+          },
           "timestamp_source": {
             "enum": [
               "source",
+              "server",
               "receipt",
               "corrected_future",
               "derived"

@@ -87,6 +87,16 @@ before building on them.
 - **Verify (PR 5)**: where the runtime decides "heard" for adapter devices, and whether
   an all-null DDATA counts today. If it does, this is a behaviour change for every
   adapter, to be stated in the pull request.
+- **Found (PR 5, 2026-11-27)**: an adapter device is heard in
+  `connectivityTracker.readings` (`services/runtime/internal/app/connectivity.go`), fed
+  by `observedTimes` in `application.go` with every reading that is not historical. A
+  null metric becomes an `invalid` reading that keeps its observed time, so an all-null
+  DDATA counted as hearing from the device, and also set its presence to online. Native
+  Sparkplug devices are heard by their packets (`heard`) and are unchanged.
+  **Changed**: a reading its source reported as bad or null carries `source_bad`;
+  `observedTimes` leaves those out for adapter devices, and a report of nothing but bad
+  values does not set the device online. Decoders cannot return null, so before OPC UA
+  no adapter sent all-null data; the change affects only connector sources in practice.
 
 ## R6. A reporting rhythm keeps steady devices online
 

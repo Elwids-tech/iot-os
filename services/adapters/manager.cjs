@@ -13,7 +13,7 @@ const { brokerUrl, secureLookup } = require("./lib/broker.cjs");
 const { flowNodes, replaceFlow } = require("./lib/flow.cjs");
 const poll = require("./lib/poll.cjs");
 const { hashToken } = require("./lib/webhook.cjs");
-const { Routes: OpcuaRoutes } = require("./lib/opcua/routes.cjs");
+const { Routes: OpcuaRoutes, settingsOf } = require("./lib/opcua/routes.cjs");
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const stateRoot = process.env.IOT_ADAPTER_STATE_DIR || "/state";
 const hostStateRoot = process.env.IOT_ADAPTER_HOST_STATE_DIR || stateRoot;
@@ -589,6 +589,13 @@ async function deploy(body) {
     const { api_key, token, username, password, ca_certificate, ...settings } = body.source;
     poll.validateSettings(settings, { allowPrivate: allowPrivate() });
     source = { ...settings, api_key, token, username, password, ca_certificate, managed: false };
+  } else if (body.source.type === "opcua") {
+    // Collected by the tenant runtime through the connection Laravel sends with the
+    // revision (spec 038 PR 5). The settings are checked here as browsing checks them.
+    const { connection, point_map, secrets, private_ranges, platform_ranges } = body.source;
+    settingsOf({ connection, secrets, private_ranges, platform_ranges }, { pkiRoot: path.join(stateRoot, "opcua-pki"), allowPrivate: allowPrivate() });
+    ensure(point_map && Array.isArray(point_map.readings) && point_map.readings.length && Array.isArray(point_map.equipment) && point_map.equipment.length, "A point map is required");
+    source = { type: "opcua", connection, point_map, secrets: secrets || {}, private_ranges: private_ranges || [], platform_ranges: platform_ranges || [] };
   } else if (body.source.type === "platform") {
     await provisionClient(
       body.tenant,

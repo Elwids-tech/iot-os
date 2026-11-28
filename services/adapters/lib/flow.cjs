@@ -13,6 +13,12 @@ function flowNodes(body, source, upstream, callbackUrl) {
   source = { ...source };
   upstream = { ...upstream };
   for (const field of secretFields) delete source[field];
+  // An OPC UA source keeps the connection's secrets as one credential (spec 038).
+  const opcua = source.type === "opcua";
+  if (opcua) {
+    sourceCredentials.opcua_secrets = JSON.stringify(source.secrets || {});
+    delete source.secrets;
+  }
   for (const field of ["username", "password", "ca_certificate"]) delete upstream[field];
   if (body.action === "pause") return [];
   return [
@@ -21,15 +27,17 @@ function flowNodes(body, source, upstream, callbackUrl) {
       id: nodeId("source"),
       z: tab,
       type: "iot-adapter-source",
-      name: { webhook: "Webhook source", poll: "HTTP polling source" }[source.type] || "MQTT source",
+      name: { webhook: "Webhook source", poll: "HTTP polling source", opcua: "OPC UA source" }[source.type] || "MQTT source",
       adapter_uuid: body.adapter_uuid,
       revision_uuid: body.revision_uuid,
       source,
       ...(source.type === "poll" ? { cursor: body.cursor || {} } : {}),
+      // No decoder: the source shapes its results by the device type itself.
+      ...(opcua ? { profile: body.profile } : {}),
       credentials: sourceCredentials,
-      wires: [[nodeId("decoder")], [nodeId("reporter")]],
+      wires: [[nodeId(opcua ? "publisher" : "decoder")], [nodeId("reporter")]],
     },
-    {
+    ...(opcua ? [] : [{
       id: nodeId("decoder"),
       z: tab,
       type: "iot-adapter-decoder",
@@ -38,7 +46,7 @@ function flowNodes(body, source, upstream, callbackUrl) {
       code: body.code,
       profile: body.profile,
       wires: [[nodeId("publisher")], [nodeId("reporter")]],
-    },
+    }]),
     {
       id: nodeId("publisher"),
       z: tab,

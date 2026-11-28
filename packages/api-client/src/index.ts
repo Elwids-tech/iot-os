@@ -3011,6 +3011,9 @@ export class ApiClient {
   /** The readings activating this source can keep: what it last reported, inside retention. Empty when there is nothing to keep. */
   adapterLastReport(org: string,id: string,candidate: string) { return this.data<import("./adapters").AdapterLastReport>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/last-report`)) }
   activateAdapterCandidate(org: string,id: string,candidate: string,input: {name: string;device_uuid?: string;keep_last_readings?: boolean}) { return this.data<{installation_uuid: string;device: Device}>(this.adapterPath(org,id,`/candidates/${encodeURIComponent(candidate)}/activate`), "POST", input) }
+  /** Activates up to 200 sources in one queued batch, with one redeployment (spec 038 T070). */
+  activateAdapterCandidates(org: string, id: string, sources: {candidate_uuid: string; name?: string}[]) { return this.data<import("./adapters").AdapterActivationBatch>(this.adapterPath(org,id,"/candidates/activate"), "POST", {sources}) }
+  adapterActivationBatch(org: string, id: string, batch: string) { return this.data<import("./adapters").AdapterActivationBatch>(this.adapterPath(org,id,`/candidates/activations/${encodeURIComponent(batch)}`)) }
   adapterCredentials(org: string,id: string) { return this.data<import("./adapters").AdapterCredential[]>(this.adapterPath(org,id,"/credentials")) }
   createAdapterCredential(org: string,id: string,name: string) { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,"/credentials"), "POST", {name}) }
   adapterConnectionKit(org: string,id: string,credential: string,action: "kit" | "rotate" = "kit") { return this.data<import("./adapters").AdapterKit>(this.adapterPath(org,id,`/credentials/${encodeURIComponent(credential)}/${action}`), "POST", {}) }

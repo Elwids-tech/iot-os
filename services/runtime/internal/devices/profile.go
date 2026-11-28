@@ -159,6 +159,9 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		r.TimestampSource = "receipt"
 		if metric.Timestamp != nil && metric.TimestampSource != "receipt" {
 			r.TimestampSource = "source"
+			if metric.TimestampSource == "server" {
+				r.TimestampSource = "server"
+			}
 		}
 		if observed.After(received.Add(5 * time.Minute)) {
 			r.ObservedAt = received
@@ -194,6 +197,17 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 		if metric.IsNull {
 			err = errors.New("source reported a null value")
 		}
+		// A value its source calls bad is unknown, with the source's reason (spec 038).
+		if metric.Quality == "bad" || (metric.IsNull && metric.QualityReason != "") {
+			r.SourceBad = true
+			reason := metric.QualityReason
+			if reason == "" {
+				reason = "source reported a bad value"
+			}
+			err = errors.New(reason)
+		} else if metric.IsNull {
+			r.SourceBad = true
+		}
 		if metric.Diagnostic != "" {
 			err = errors.New(metric.Diagnostic)
 		}
@@ -219,6 +233,13 @@ func ReadingsTraced(d Definition, p Profile, metrics []Metric, latest map[string
 			r.Value = nil
 			r.Quality = "invalid"
 			r.Diagnostic = err.Error()
+		} else if metric.Quality == "uncertain" {
+			// Stored with its value: the source vouches for it only in part.
+			r.Quality = "uncertain"
+			r.Diagnostic = metric.QualityReason
+			if r.Diagnostic == "" {
+				r.Diagnostic = "source reported an uncertain value"
+			}
 		}
 		if trace != nil {
 			*trace = append(*trace, ReadingTrace{ParameterUUID: parameter.UUID, Metric: mapping.Metric, Key: parameter.Key, Raw: metric.Value, Converted: converted, Conversion: mapping.IngressConversion, Unit: parameter.Unit, Quality: r.Quality, Diagnostic: r.Diagnostic})

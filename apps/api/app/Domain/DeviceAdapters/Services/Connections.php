@@ -163,6 +163,64 @@ final class Connections
         return $connection;
     }
 
+    // What the tenant runtime reports while collecting (spec 038 PR 5) --------------------------
+
+    /** The connection's state as a data source's runtime sees it. A paused connection stays paused. */
+    public function runtimeStatus(AdapterConnection $connection, array $event): void
+    {
+        if ($connection->state === 'paused') {
+            return;
+        }
+        $previous = $connection->status ?? [];
+        $reason = $event['reason'] ?? null;
+        $problems = $previous['problems'] ?? [];
+        if ($reason && ($connection->state !== $event['state'] || ($previous['reason'] ?? null) !== $reason)) {
+            $problems = array_slice(array_merge([['at' => $event['since'], 'reason' => $reason]], $problems), 0, 10);
+        }
+        // A certificate that changed stays stopped until a person accepts the new one.
+        $state = $connection->state === 'stopped' && ($previous['reason'] ?? null) === 'server_certificate_changed' && $event['state'] !== 'stopped' ? 'stopped' : $event['state'];
+        $connection->state = $state;
+        $connection->status = [
+            'since' => $event['since'], 'reason' => $state === 'stopped' ? ($previous['reason'] ?? $reason) : $reason, 'message' => $event['message'] ?? null,
+            'fix' => $event['fix'] ?? null,
+            'security' => $event['security'] ?? null, 'limits' => $event['limits'] ?? null, 'clock_difference_ms' => $event['clock_difference_ms'] ?? null,
+            'points_read' => $event['points_read'], 'points_bad' => $event['points_bad'], 'values_last_minute' => $event['values_last_minute'],
+            'checked_at' => now()->toIso8601String(), 'problems' => $problems,
+        ];
+        $connection->save();
+    }
+
+    /** Replaces one data source's refused and polled points, keeping when each was first seen. */
+    public function runtimeRefused(AdapterConnection $connection, string $adapterUuid, array $points, array $polled): void
+    {
+        DB::transaction(function () use ($connection, $adapterUuid, $points, $polled) {
+            $locked = AdapterConnection::whereKey($connection->id)->lockForUpdate()->firstOrFail();
+            $now = now()->toIso8601String();
+            $rows = collect($locked->refused_points ?? []);
+            $first = $rows->where('adapter_uuid', $adapterUuid)->mapWithKeys(fn ($r) => [$r['source_id'].'|'.$r['key'] => $r['first_seen']]);
+            $mine = collect([...array_map(fn ($p) => $p + ['polled' => false], $points), ...array_map(fn ($p) => $p + ['polled' => true], $polled)])
+                ->map(fn ($p) => ['adapter_uuid' => $adapterUuid, 'source_id' => $p['source_id'], 'key' => $p['key'], 'reason' => $p['reason'], 'polled' => $p['polled'],
+                    'first_seen' => $first[$p['source_id'].'|'.$p['key']] ?? $now, 'last_seen' => $now]);
+            $locked->refused_points = $rows->reject(fn ($r) => ($r['adapter_uuid'] ?? null) === $adapterUuid)->concat($mine)->take(2000)->values()->all();
+            $locked->save();
+        });
+    }
+
+    /** The server presented another certificate: collecting has stopped until it is accepted (FR-018). */
+    public function runtimeCertificate(AdapterConnection $connection, array $presented): void
+    {
+        if (($connection->pending_server_certificate['fingerprint'] ?? null) === $presented['fingerprint']) {
+            return;
+        }
+        $now = now()->toIso8601String();
+        $connection->pending_server_certificate = $presented;
+        $connection->state = 'stopped';
+        $connection->status = [...($connection->status ?? []), 'since' => $now, 'reason' => 'server_certificate_changed',
+            'problems' => array_slice(array_merge([['at' => $now, 'reason' => 'server_certificate_changed']], $connection->status['problems'] ?? []), 0, 10)];
+        $connection->save();
+        ActivityLog::record('device.adapter_connection.server_certificate_changed', $connection->organization_id, null, $connection->uuid, ['name' => $connection->name, 'fingerprint' => $presented['fingerprint'], 'subject' => $presented['subject'] ?? null]);
+    }
+
     // Testing and browsing ------------------------------------------------------------------
 
     /** Connect and sign in once: `connected`, or one reason with its fix. */

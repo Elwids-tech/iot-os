@@ -263,7 +263,7 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 	// time, it touches the chunks that can hold a match; as a cached generic plan it
 	// set up every chunk the retention keeps, on every reading: 1.6 ms a reading with
 	// a year of daily chunks.
-	checks := slices.ContainsFunc(t.Readings, func(r devices.Reading) bool { return r.Quality == "good" && r.TimestampSource == "source" })
+	checks := slices.ContainsFunc(t.Readings, func(r devices.Reading) bool { return stored(r) && r.TimestampSource == "source" })
 	if checks {
 		batch.Queue(`SET LOCAL plan_cache_mode = force_custom_plan`)
 	}
@@ -275,12 +275,12 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 		if e != nil {
 			return PersistOutcome{}, e
 		}
-		if reading.Quality == "good" && reading.TimestampSource != "source" {
+		if stored(reading) && reading.TimestampSource != "source" {
 			// Stamped at receipt: it cannot repeat an earlier sample, so there is nothing
 			// to look for.
 			batch.Queue(`INSERT INTO device_runtime.observations(event_uuid,organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,observed_at,reading)
    VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, t.UUID, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, reading.ObservedAt, raw)
-		} else if reading.Quality == "good" {
+		} else if stored(reading) {
 			// Devices re-send buffered samples after reconnecting, under a new
 			// telemetry UUID. A source-timestamped sample with the same observed
 			// time and value is the same measurement. Source clocks are at most
@@ -301,7 +301,7 @@ func (s *Store) PersistResultCounted(ctx context.Context, t devices.Telemetry) (
 		}
 		batch.Queue(`INSERT INTO device_runtime.latest(organization_uuid,device_uuid,configuration_uuid,parameter_uuid,received_at,reading) VALUES($1,$2,$3,$4,$5,$6)
    ON CONFLICT(device_uuid,configuration_uuid,parameter_uuid) DO UPDATE SET received_at=excluded.received_at,
-   reading=CASE WHEN excluded.reading->>'quality'='good' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
+   reading=CASE WHEN excluded.reading->>'quality' IN ('good','uncertain') OR excluded.reading->>'source_bad'='true' THEN excluded.reading ELSE excluded.reading || jsonb_build_object('value',device_runtime.latest.reading->'value','observed_at',device_runtime.latest.reading->'observed_at','last_valid_received_at',COALESCE(device_runtime.latest.reading->'last_valid_received_at',device_runtime.latest.reading->'received_at')) END
    WHERE device_runtime.latest.received_at<excluded.received_at`, t.Definition.OrganizationUUID, t.Definition.DeviceUUID, t.Definition.ConfigurationUUID, reading.ParameterUUID, reading.ReceivedAt, raw)
 		inserts = append(inserts, -1)
 	}
@@ -1385,3 +1385,7 @@ func BucketEnd(start time.Time, bucket string) time.Time {
 		return start.AddDate(1, 0, 0)
 	}
 }
+
+// stored says whether a reading is a data point: a good value, or an uncertain one,
+// which keeps its value and its quality (spec 038). The rest are diagnostics.
+func stored(r devices.Reading) bool { return r.Quality == "good" || r.Quality == "uncertain" }

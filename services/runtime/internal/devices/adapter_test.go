@@ -49,3 +49,34 @@ func TestReceiptStampedAdapterReadingsAreReceiptTimed(t *testing.T) {
 		t.Fatal("receipt-stamped metric was labelled", got[0].TimestampSource)
 	}
 }
+
+// Spec 038, research R4: a bad value is unknown with the source's reason, an uncertain
+// one keeps its value, and a server-confirmed time is labelled as the server's.
+func TestSourceQualityIsStoredTruthfully(t *testing.T) {
+	installation := "10000000-0000-4000-8000-000000000001"
+	revision := "20000000-0000-4000-8000-000000000001"
+	d := Definition{DeviceUUID: "zone", Adapter: &AdapterBinding{InstallationUUID: installation}, Mappings: []Mapping{
+		{ParameterUUID: "t", Metric: "zone_temperature", Datatype: "Double", ConversionMode: "none"},
+		{ParameterUUID: "s", Metric: "zone_setpoint", Datatype: "Double", ConversionMode: "none"},
+	}}
+	p := Profile{Parameters: []Parameter{
+		{UUID: "t", Key: "zone_temperature", Kind: "measurement", DataType: "number", ReportsState: true},
+		{UUID: "s", Key: "zone_setpoint", Kind: "measurement", DataType: "number", ReportsState: true},
+	}}
+	stamp := time.Now().Add(-time.Second).UTC()
+	metrics := []Metric{
+		{Name: "zone_temperature", Datatype: "Double", IsNull: true, Timestamp: &stamp, Quality: "bad", QualityReason: "No communication with the device", TimestampSource: "server", InstallationUUID: installation, AdapterRevisionUUID: revision},
+		{Name: "zone_setpoint", Datatype: "Double", Value: 21.5, Timestamp: &stamp, Quality: "uncertain", QualityReason: "Uncertain value (UncertainLastUsableValue)", InstallationUUID: installation, AdapterRevisionUUID: revision},
+	}
+	byKey := map[string]Reading{}
+	for _, r := range Readings(d, p, metrics, map[string]Reading{}, time.Now()) {
+		byKey[r.Key] = r
+	}
+	bad, uncertain := byKey["zone_temperature"], byKey["zone_setpoint"]
+	if bad.Quality != "invalid" || bad.Value != nil || bad.Diagnostic != "No communication with the device" || !bad.SourceBad || bad.TimestampSource != "server" {
+		t.Fatal("bad", bad)
+	}
+	if uncertain.Quality != "uncertain" || uncertain.Value != 21.5 || uncertain.Diagnostic != "Uncertain value (UncertainLastUsableValue)" || uncertain.SourceBad || uncertain.TimestampSource != "source" {
+		t.Fatal("uncertain", uncertain)
+	}
+}

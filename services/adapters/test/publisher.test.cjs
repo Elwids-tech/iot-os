@@ -19,7 +19,8 @@ require.cache[require.resolve("mqtt")] = {
       client.options = options;
       client.subscribe = () => {};
       client.publish = (topic, payload, _options, callback) => {
-        published.push({ topic, metrics: sparkplug.Payload.decode(payload).metrics.map((m) => m.name).sort() });
+        const decoded = sparkplug.Payload.decode(payload);
+        published.push({ topic, metrics: decoded.metrics.map((m) => m.name).sort(), historical: decoded.metrics.some((m) => m.isHistorical) });
         callback?.();
       };
       client.end = (_force, _options, done) => done?.();
@@ -118,4 +119,25 @@ test("a restarted publisher announces every known source on connect, rebirth and
     assert.deepEqual(announced(from), sources, trigger);
   }
   await new Promise((resolve) => after.handlers.close(false, resolve));
+});
+
+// Spec 038: an OPC UA source's rhythm read is stamped with the server's clock and its
+// change reports with the device's. A device clock a few seconds behind the server must
+// not turn the change that follows a rhythm read into history, or it never becomes the
+// current value (seen on the local stack after a server restart).
+test("a change report behind the last rhythm read is still the current value", async (t) => {
+  process.env.IOT_ADAPTER_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "publisher-"));
+  t.after(() => fs.rmSync(process.env.IOT_ADAPTER_DATA_DIR, { recursive: true, force: true }));
+  const types = nodes();
+  const publisher = new types["iot-adapter-publisher"]({ ...config, adapter_uuid: "30000000-0000-4000-8000-000000000021" });
+  await tick();
+  const at = (seconds, extra = {}) => ({ ...record("temperature"), observedAt: new Date(Date.UTC(2026, 10, 27, 9, 0, seconds)).toISOString(), ...extra });
+  const data = (from) => published.slice(from).filter((p) => p.topic.includes("/DDATA/")).map((p) => p.historical);
+  const from = published.length;
+  await feed(publisher, at(51, { timestampSource: "server" }));
+  await feed(publisher, at(47, { timestampSource: "source" }));
+  await feed(publisher, at(40, { timestampSource: "source" }));
+  await feed(publisher, at(30, { timestampSource: "server" }));
+  assert.deepEqual(data(from), [false, false, true, true]);
+  await new Promise((resolve) => publisher.handlers.close(false, resolve));
 });

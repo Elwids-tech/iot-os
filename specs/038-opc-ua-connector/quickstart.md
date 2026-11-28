@@ -75,9 +75,10 @@ through the API.
 
 ## E. Start collecting (PR 5)
 
-1. Deploy. **Expect** 16 waiting sources in the Devices tab and in Discovery.
-2. Select all and **Activate**. **Expect** 16 devices, each with 4 readings and units
-   within a minute.
+1. Deploy. **Expect** one waiting source per zone box of the map (14 in the standard
+   building) in the Devices tab and in Discovery.
+2. Select all and **Activate**. **Expect** a device for each, with its readings and
+   units, within a minute.
 3. Change a setpoint through the controls page. **Expect** it on the device page
    within 15 s (SC-002).
 4. `controller_offline` on one zone. **Expect** its readings unknown with "No

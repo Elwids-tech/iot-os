@@ -9,10 +9,11 @@ const Payload = protobuf.parse(schema).root.lookupType("Payload");
 const types = { Int64: 4, Double: 10, Boolean: 11, String: 12 };
 // Adapter metrics carry their provenance and, for results without a decoder
 // observedAt, `timestamp_source: receipt` so the runtime does not treat the receipt
-// time as the device's (spec 020, FR-050).
+// time as the device's (spec 020, FR-050), or `server` for a value a server confirmed
+// at that time (spec 038).
 function metric(name, datatype, value, timestamp, provenance, options = {}) {
   const result = { name, datatype: types[datatype], timestamp };
-  if (value == null) result.isNull = true;
+  if (value == null || options.quality === "bad") result.isNull = true;
   else
     result[
       {
@@ -32,9 +33,19 @@ function metric(name, datatype, value, timestamp, provenance, options = {}) {
       { type: 12, stringValue: provenance.adapter_revision_uuid },
     );
   }
-  if (options.receipt) {
+  if (options.receipt || options.server) {
     keys.push("timestamp_source");
-    values.push({ type: 12, stringValue: "receipt" });
+    values.push({ type: 12, stringValue: options.receipt ? "receipt" : "server" });
+  }
+  // A connector source's quality (spec 038, research R4): absent for good; a bad value
+  // is sent as null with its reason.
+  if (options.quality === "uncertain" || options.quality === "bad") {
+    keys.push("quality");
+    values.push({ type: 12, stringValue: options.quality });
+    if (options.reason) {
+      keys.push("quality_reason");
+      values.push({ type: 12, stringValue: [...String(options.reason)].slice(0, 120).join("") });
+    }
   }
   if (keys.length) result.properties = { keys, values };
   return result;

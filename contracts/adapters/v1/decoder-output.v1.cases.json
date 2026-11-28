@@ -96,9 +96,9 @@
     ]
   },
   {
-    "description": "a metric value of null",
+    "description": "a metric value of null that does not say it is bad",
     "valid": false,
-    "error": {"keyword": "type", "instance_location": "/metrics/0/value"},
+    "error": {"keyword": "required", "instance_location": "/metrics/0"},
     "data": {
       "sourceDeviceId": "SNS-2001",
       "metrics": [
@@ -199,8 +199,73 @@
     "data": {
       "sourceDeviceId": "SNS-2001",
       "metrics": [
-        {"name": "temperature_c", "value": 21.5, "unit": "degC", "quality": "good"},
+        {"name": "temperature_c", "value": 21.5, "unit": "degC", "confidence": 0.9},
         {"name": "moving", "value": false}
+      ]
+    }
+  },
+  {
+    "description": "a connector result: a bad value is null with its reason, an uncertain one keeps its value, and the time is the server's",
+    "valid": true,
+    "data": {
+      "sourceDeviceId": "Example Tower/L03-VAV-2",
+      "observedAt": "2026-11-27T09:00:00Z",
+      "timestampSource": "server",
+      "metrics": [
+        {
+          "name": "zone_temperature",
+          "value": null,
+          "quality": "bad",
+          "reason": "No communication with the device"
+        },
+        {
+          "name": "zone_setpoint",
+          "value": 21.5,
+          "quality": "uncertain",
+          "reason": "Uncertain value (UncertainLastUsableValue)"
+        },
+        {
+          "name": "occupancy",
+          "value": true,
+          "quality": "good",
+          "reason": null
+        }
+      ]
+    }
+  },
+  {
+    "description": "a quality outside good, uncertain and bad",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/metrics/0/quality"
+    },
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "metrics": [
+        {
+          "name": "temperature_c",
+          "value": 21.5,
+          "quality": "stale"
+        }
+      ]
+    }
+  },
+  {
+    "description": "a timestamp source outside source, server and receipt",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/timestampSource"
+    },
+    "data": {
+      "sourceDeviceId": "SNS-2001",
+      "timestampSource": "device",
+      "metrics": [
+        {
+          "name": "temperature_c",
+          "value": 21.5
+        }
       ]
     }
   }

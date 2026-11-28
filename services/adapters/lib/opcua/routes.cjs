@@ -40,6 +40,32 @@ function certificateInfo(der) {
   };
 }
 
+// The session settings of a connection as Laravel sends it: the connection, its secrets
+// and the organization's private ranges. Shared by the manager's routes and the tenant
+// runtime's source.
+function settingsOf(body, { pkiRoot, allowPrivate = false }) {
+  const c = body.connection || {};
+  ensure(UUID.test(String(c.uuid)), "A connection uuid is required");
+  ensure(typeof c.endpoint_url === "string" && c.endpoint_url.startsWith("opc.tcp://"), "An opc.tcp:// endpoint is required");
+  const secrets = body.secrets || {};
+  const platformRanges = body.platform_ranges || [];
+  const privateRanges = checkRanges(body.private_ranges || [], platformRanges);
+  const identity = c.identity || "anonymous";
+  return {
+    endpointUrl: c.endpoint_url,
+    security: { policy: c.security_policy || "None", mode: c.security_mode || "None" },
+    serverFingerprint: c.server_fingerprint || null,
+    auth: identity === "username" ? { type: "username", username: secrets.username, password: secrets.password }
+      : identity === "certificate" ? { type: "certificate", certificate: secrets.user_certificate, privateKey: secrets.user_private_key }
+        : { type: "anonymous" },
+    pki: secrets.client_certificate
+      ? { root: pkiRoot, connection: c.uuid, certificate: secrets.client_certificate, privateKey: secrets.client_private_key }
+      : null,
+    pkiRoot,
+    network: { allowPrivate, privateRanges, platformRanges },
+  };
+}
+
 class Routes {
   constructor({ pkiRoot = path.join(os.tmpdir(), "iot-os-opcua"), allowPrivate = () => false, idleMs = IDLE_MS } = {}) {
     this.pkiRoot = pkiRoot;
@@ -49,26 +75,7 @@ class Routes {
   }
 
   settings(body) {
-    const c = body.connection || {};
-    ensure(UUID.test(String(c.uuid)), "A connection uuid is required");
-    ensure(typeof c.endpoint_url === "string" && c.endpoint_url.startsWith("opc.tcp://"), "An opc.tcp:// endpoint is required");
-    const secrets = body.secrets || {};
-    const platformRanges = body.platform_ranges || [];
-    const privateRanges = checkRanges(body.private_ranges || [], platformRanges);
-    const identity = c.identity || "anonymous";
-    return {
-      endpointUrl: c.endpoint_url,
-      security: { policy: c.security_policy || "None", mode: c.security_mode || "None" },
-      serverFingerprint: c.server_fingerprint || null,
-      auth: identity === "username" ? { type: "username", username: secrets.username, password: secrets.password }
-        : identity === "certificate" ? { type: "certificate", certificate: secrets.user_certificate, privateKey: secrets.user_private_key }
-          : { type: "anonymous" },
-      pki: secrets.client_certificate
-        ? { root: this.pkiRoot, connection: c.uuid, certificate: secrets.client_certificate, privateKey: secrets.client_private_key }
-        : null,
-      pkiRoot: this.pkiRoot,
-      network: { allowPrivate: this.allowPrivate(), privateRanges, platformRanges },
-    };
+    return settingsOf(body, { pkiRoot: this.pkiRoot, allowPrivate: this.allowPrivate() });
   }
 
   // One session per connection, replaced when its settings change.
@@ -172,4 +179,4 @@ class Routes {
   }
 }
 
-module.exports = { Routes, certificateInfo };
+module.exports = { Routes, certificateInfo, settingsOf };

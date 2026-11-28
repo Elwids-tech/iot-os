@@ -267,6 +267,14 @@ final class AdapterService
         abort_unless($revision->tested_at && ($revision->test_result['valid'] ?? false), 422, 'This revision has not passed decoder tests.');
         $gateway = $this->gateway($adapter);
         $source = [...$revision->definition['source'], ...($revision->secret_snapshot ?? [])];
+        if ($revision->definition['source']['type'] === 'opcua') {
+            // The connection as this revision saved it, with its secrets, and the
+            // organization's private ranges as they are now (spec 038 PR 5).
+            $connection = AdapterConnection::findOrFail($adapter->adapter_connection_id);
+            $current = app(Connections::class)->payload($connection);
+            $source = ['type' => 'opcua', 'point_map' => $revision->definition['source']['point_map'], 'connection' => $revision->definition['connection'],
+                'secrets' => $revision->secret_snapshot ?? [], 'private_ranges' => $current['private_ranges'], 'platform_ranges' => $current['platform_ranges']];
+        }
         $artifact = $this->artifact($adapter->organization_id, $revision->definition['artifact_uuid']);
         if ($source['type'] === 'vendor' && $operation->action !== 'pause') {
             app(AdapterManager::class)->request('/connection-test', $source);
@@ -310,7 +318,10 @@ final class AdapterService
             }
             abort_if($locked->status === 'pending', 409, 'Wait for the current deployment.');
             abort_unless($revision->tested_at && ($revision->test_result['valid'] ?? false), 422, 'Test this exact revision before deployment.');
-            abort_if(($revision->definition['source']['type'] ?? null) === 'opcua', 422, 'Collecting from an OPC UA server arrives in the next release; the reviewed point map is saved.');
+            if (($revision->definition['source']['type'] ?? null) === 'opcua' && $action !== 'pause') {
+                $state = AdapterConnection::whereKey($locked->adapter_connection_id)->value('state');
+                abort_if($state === 'paused', 409, 'The connection is paused. Resume it before collecting.');
+            }
             $operation = AdapterOperation::create(['uuid' => $requestUuid ?? (string) Str::uuid(), 'organization_id' => $locked->organization_id, 'device_adapter_id' => $locked->id, 'revision_uuid' => $revision->uuid, 'action' => $action, 'status' => 'queued', 'created_by' => $actor]);
             $locked->update(['desired_revision_uuid' => $revision->uuid, 'status' => 'pending']);
             DeviceAudit::record('device.adapter.'.$action.'.requested', $locked->organization_id, $actor, $locked->uuid, ['operation_uuid' => $operation->uuid, 'revision_uuid' => $revision->uuid]);
@@ -319,7 +330,11 @@ final class AdapterService
         });
     }
 
-    public function activate(AdapterCandidate $candidate, ?string $deviceUuid, string $name, int $actor, bool $keepLastReadings = false): DeviceInstallation
+    /**
+     * Activates a source. $redeploy false leaves the redeployment to the caller, which
+     * activates several and redeploys once (spec 038, research R14).
+     */
+    public function activate(AdapterCandidate $candidate, ?string $deviceUuid, string $name, int $actor, bool $keepLastReadings = false, bool $redeploy = true): DeviceInstallation
     {
         if ($candidate->installation) {
             $this->ensureHere($candidate);
@@ -332,7 +347,7 @@ final class AdapterService
         $birth = DiscoveryCandidate::where('sparkplug_gateway_id', $adapter->sparkplug_gateway_id)->where('source_device_id', $candidate->sparkplug_device_id)->first();
         abort_unless($birth, 422, 'Wait for a live Sparkplug birth message. Retained previews cannot activate a device.');
 
-        return DB::transaction(function () use ($candidate, $adapter, $birth, $deviceUuid, $name, $actor, $keepLastReadings) {
+        return DB::transaction(function () use ($candidate, $adapter, $birth, $deviceUuid, $name, $actor, $keepLastReadings, $redeploy) {
             $adapter = DeviceAdapter::whereKey($adapter->id)->lockForUpdate()->firstOrFail();
             $candidate = AdapterCandidate::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
             if ($candidate->installation) {
@@ -355,11 +370,49 @@ final class AdapterService
             $device = $service->saveDraft($device, ['artifact_uuid' => $adapter->artifact->uuid, 'candidate_uuid' => $birth->uuid, 'birth_revision' => $birth->birth_revision, 'mappings' => $mappings], $device->draft_revision, $actor);
             $service->activate($device, $device->draft_revision, $actor);
             $candidate->update(['status' => 'activated']);
-            $operation = $this->operation($adapter->fresh(), 'deploy', $actor, $adapter->applied_revision_uuid);
-            DeployAdapter::dispatch($operation->id)->afterCommit();
+            if ($redeploy) {
+                $operation = $this->operation($adapter->fresh(), 'deploy', $actor, $adapter->applied_revision_uuid);
+                DeployAdapter::dispatch($operation->id)->afterCommit();
+            }
 
             return $installation;
         });
+    }
+
+    /**
+     * Each source's name for people: for an OPC UA data source its equipment's display
+     * name, with the names of its parents added until it is unique within the data source
+     * ("L03-Z2 / L03-VAV-2"); the path stays the source id (spec 038 T071). Other sources
+     * are named by their source id.
+     *
+     * @return array<string, string> source id => name
+     */
+    public static function sourceNames(DeviceAdapter $adapter): array
+    {
+        $equipment = ($adapter->source['type'] ?? null) === 'opcua' ? ($adapter->source['point_map']['equipment'] ?? []) : [];
+        $paths = [];
+        foreach ($equipment as $e) {
+            $segments = array_values(array_filter(explode('/', (string) $e['source_id']), 'strlen'));
+            $paths[$e['source_id']] = [($e['display_name'] ?? '') !== '' ? $e['display_name'] : (end($segments) ?: $e['source_id']), array_slice($segments, 0, -1)];
+        }
+        $depth = array_fill_keys(array_keys($paths), 0);
+        for (; ;) {
+            $names = [];
+            foreach ($paths as $id => [$display, $parents]) {
+                $names[$id] = implode(' / ', [...array_slice($parents, count($parents) - $depth[$id]), $display]);
+            }
+            $counts = array_count_values($names);
+            $changed = false;
+            foreach ($names as $id => $name) {
+                if ($counts[$name] > 1 && $depth[$id] < count($paths[$id][1])) {
+                    $depth[$id]++;
+                    $changed = true;
+                }
+            }
+            if (! $changed) {
+                return array_map('strval', $names);
+            }
+        }
     }
 
     /** A source in use in another organization names it and shows nothing of its device (spec 031). */

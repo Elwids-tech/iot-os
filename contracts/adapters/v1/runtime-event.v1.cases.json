@@ -668,5 +668,162 @@
       },
       "delivery_id": "30000000-0000-4000-8000-000000000011"
     }
+  },
+  {
+    "description": "an OPC UA sample keeps each value's quality: a bad value is null with its reason",
+    "valid": true,
+    "data": {
+      "kind": "sample",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "source_device_id": "Example Tower/L03-VAV-2",
+      "sparkplug_device_id": "src-42daec9bb3bf0000b075ec38b935688c",
+      "retained": false,
+      "received_at": "2026-11-27T09:00:01.000Z",
+      "preview": {
+        "sourceDeviceId": "Example Tower/L03-VAV-2",
+        "observedAt": "2026-11-27T09:00:00.000Z",
+        "timestampSource": "server",
+        "metrics": [
+          {
+            "name": "zone_temperature",
+            "value": null,
+            "datatype": "Double",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000031",
+            "unit": "°C",
+            "quality": "bad",
+            "reason": "No communication with the device"
+          },
+          {
+            "name": "occupancy",
+            "value": true,
+            "datatype": "Boolean",
+            "parameter_uuid": "30000000-0000-4000-8000-000000000032",
+            "unit": null,
+            "quality": "good",
+            "reason": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "description": "a connection that is collecting",
+    "valid": true,
+    "data": {
+      "kind": "connection_status",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "state": "connected",
+      "reason": null,
+      "message": null,
+      "since": "2026-11-27T08:55:00.000Z",
+      "security": {
+        "policy": "Basic256Sha256",
+        "mode": "SignAndEncrypt"
+      },
+      "points_read": 56,
+      "points_bad": 4,
+      "values_last_minute": 112,
+      "clock_difference_ms": -40,
+      "limits": {
+        "MaxMonitoredItemsPerCall": 1000,
+        "MaxNodesPerRead": null
+      }
+    }
+  },
+  {
+    "description": "a server that went away",
+    "valid": true,
+    "data": {
+      "kind": "connection_status",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "state": "unreachable",
+      "reason": "unreachable",
+      "message": "The server's address could not be reached",
+      "since": "2026-11-27T09:10:00.000Z",
+      "security": null,
+      "points_read": 0,
+      "points_bad": 0,
+      "values_last_minute": 0,
+      "clock_difference_ms": null,
+      "limits": null
+    }
+  },
+  {
+    "description": "a connection state the runtime does not report",
+    "valid": false,
+    "error": {
+      "keyword": "enum",
+      "instance_location": "/state"
+    },
+    "data": {
+      "kind": "connection_status",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "state": "awaiting_trust",
+      "reason": null,
+      "since": "2026-11-27T09:10:00.000Z",
+      "points_read": 0,
+      "points_bad": 0,
+      "values_last_minute": 0
+    }
+  },
+  {
+    "description": "refused and polled points",
+    "valid": true,
+    "data": {
+      "kind": "refused_points",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "revision_uuid": "30000000-0000-4000-8000-000000000003",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "points": [
+        {
+          "source_id": "Example Tower/L10-VAV-3",
+          "key": "zone_co2",
+          "reason": "Not found on the server"
+        }
+      ],
+      "polled": []
+    }
+  },
+  {
+    "description": "a changed server certificate",
+    "valid": true,
+    "data": {
+      "kind": "server_certificate",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "presented": {
+        "subject": "CN=Example Tower BMS, O=Example",
+        "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "valid_from": "2026-11-01T00:00:00.000Z",
+        "valid_to": "2027-11-01T00:00:00.000Z",
+        "application_uri": "urn:example:bms",
+        "der": "MIIB"
+      }
+    }
+  },
+  {
+    "description": "a certificate without its fingerprint",
+    "valid": false,
+    "error": {
+      "keyword": "required",
+      "instance_location": "/presented"
+    },
+    "data": {
+      "kind": "server_certificate",
+      "adapter_uuid": "30000000-0000-4000-8000-000000000001",
+      "connection_uuid": "30000000-0000-4000-8000-000000000021",
+      "presented": {
+        "subject": "CN=x",
+        "valid_from": null,
+        "valid_to": null,
+        "application_uri": null,
+        "der": "MIIB"
+      }
+    }
   }
 ]

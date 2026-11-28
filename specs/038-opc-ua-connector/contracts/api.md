@@ -47,7 +47,8 @@ errors are field errors under `source.point_map`, naming the reading or equipmen
 | `POST device-adapters/point-map/device-type` | A new device type with exactly the map's readings, published at once (needs DeviceProfile.create and publish) |
 | `POST device-adapters/{adapter}/test` | For this source type runs the review check: per equipment and reading a value, status and problem; totals of devices, readings, points and expected rows a day; limit result |
 | `POST device-adapters/{adapter}/deploy` | Unchanged; refused unless the exact revision passed its check (and, until PR 5, refused for this source type) |
-| `POST device-adapters/{adapter}/candidates/activate` | Batch: up to 200 candidate UUIDs; answers `202` with an operation, then a result per source |
+| `POST device-adapters/{adapter}/candidates/activate` | Batch: `sources` of up to 200 `{candidate_uuid, name?}` (a source without a name is named as in the candidate list); answers `202` with the batch `{uuid, status, total, results}` |
+| `GET device-adapters/{adapter}/candidates/activations/{batch}` | The batch, for the person who started it, for a day: `status` `queued`, `running`, `done` or `failed`, and per source `{candidate_uuid, outcome: activated \| already_active \| failed, message, device: {uuid, name}}`. One redeployment follows the batch |
 
 ## Agents (PR 7)
 

@@ -507,13 +507,15 @@ func (a *Application) packet(c devices.Connection, topic string, raw []byte) {
 			if !ok {
 				return
 			}
-			a.connectivity.readings(d.DeviceUUID, p.Topic.Kind == "DDATA", p.Received, observedTimes(readings))
+			times := observedTimes(readings, d.Adapter != nil)
+			a.connectivity.readings(d.DeviceUUID, p.Topic.Kind == "DDATA", p.Received, times)
 			a.mu.Lock()
 			review = a.reviewRequired[d.DeviceUUID]
 			a.mu.Unlock()
 			if review {
 				a.devicePresence(d, "unknown", "A source birth changed approved metrics. Review and activate a configuration to restore controls.", p.Received, p.Birth)
-			} else {
+			} else if d.Adapter == nil || !onlySourceBad(readings) {
+				// A report of nothing but bad values is not the device itself (research R5).
 				a.devicePresence(d, "online", "", p.Received, p.Birth)
 			}
 		}()
@@ -550,8 +552,10 @@ func (a *Application) handOn(d devices.Definition, profile devices.Profile, appl
 	}
 	for _, r := range readings {
 		if !r.Historical {
-			if r.Quality != "good" {
-				if previous, ok := latest[r.ParameterUUID]; ok {
+			// An uncertain value keeps its value; an invalid one shows the last known,
+			// unless its source said it is bad: then the value is unknown (spec 038).
+			if r.Quality != "good" && r.Quality != "uncertain" {
+				if previous, ok := latest[r.ParameterUUID]; ok && !r.SourceBad {
 					r.Value = previous.Value
 					r.ObservedAt = previous.ObservedAt
 				} else {
@@ -585,10 +589,31 @@ func (a *Application) handOn(d devices.Definition, profile devices.Profile, appl
 	return readings, true
 }
 
-// observedTimes are the observed times of readings not marked historical (D16).
-func observedTimes(readings []devices.Reading) []time.Time {
+// onlySourceBad says whether every current reading is one its source reported as bad.
+func onlySourceBad(readings []devices.Reading) bool {
+	current := 0
+	for _, r := range readings {
+		if r.Historical {
+			continue
+		}
+		current++
+		if !r.SourceBad {
+			return false
+		}
+	}
+	return current > 0
+}
+
+// observedTimes are the observed times of readings not marked historical (D16). For an
+// adapter device a reading its source reported as bad is left out: a server reporting
+// a dead controller's points as bad has not heard from the controller (spec 038,
+// research R5).
+func observedTimes(readings []devices.Reading, adapter bool) []time.Time {
 	times := []time.Time{}
 	for _, r := range readings {
+		if adapter && r.SourceBad {
+			continue
+		}
 		if !r.Historical && !r.ObservedAt.IsZero() {
 			times = append(times, r.ObservedAt)
 		}

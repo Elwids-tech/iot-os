@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://iot-os.local/contracts/adapters/v1/decoder-output.v1.schema.json",
   "title": "Decoder output",
-  "description": "What an adapter's decoder returns: one result or a list of 1 to 500 results. Producer: the adapter's decoder (user code). Consumer: validateResults in services/adapters/lib/decoder.cjs, which checks every result alone against the device profile and publishes it as Sparkplug; a result that fails does so alone with a diagnostic and never discards the others. Delivery: at least once with its input (decoder-input.v1). Deduplication key: messageId per adapter and source device, for 7 days. Results of one input are published oldest observation first, and a result older than the newest already published for its source device is historical. Read tolerantly: fields the schema does not list are ignored. Not expressible here: metric names must exist in the device profile and be unique within a result, each value must match the parameter's data_type, a unit must match the profile's, and observedAt may be at most 5 minutes in the future.",
+  "description": "What an adapter's decoder returns: one result or a list of 1 to 500 results. Producer: the adapter's decoder (user code). Consumer: validateResults in services/adapters/lib/decoder.cjs, which checks every result alone against the device profile and publishes it as Sparkplug; a result that fails does so alone with a diagnostic and never discards the others. Delivery: at least once with its input (decoder-input.v1). Deduplication key: messageId per adapter and source device, for 7 days. Results of one input are published oldest observation first, and a result older than the newest already published for its source device is historical. A connector source with no decoder (OPC UA, spec 038) emits the same shape with each metric's quality and the result's timestampSource. Read tolerantly: fields the schema does not list are ignored. Not expressible here: metric names must exist in the device profile and be unique within a result, each value must match the parameter's data_type, a unit must match the profile's, and observedAt may be at most 5 minutes in the future.",
   "oneOf": [
     {
       "$ref": "#/$defs/result"
@@ -44,10 +44,11 @@
                   "number",
                   "integer",
                   "boolean",
-                  "string"
+                  "string",
+                  "null"
                 ],
                 "maxLength": 16384,
-                "description": "Typed by the profile parameter's data_type: a finite number (an integer must be a safe integer), a boolean or a string."
+                "description": "Typed by the profile parameter's data_type: a finite number (an integer must be a safe integer), a boolean or a string. Null only for a value whose quality is bad."
               },
               "unit": {
                 "type": [
@@ -55,13 +56,53 @@
                   "null"
                 ],
                 "description": "When given it equals the profile parameter's unit."
+              },
+              "quality": {
+                "enum": [
+                  "good",
+                  "uncertain",
+                  "bad"
+                ],
+                "description": "How far the source vouches for the value; good when absent. A bad value is null and stored as invalid with the reason; an uncertain value is stored with its value and quality uncertain."
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300,
+                "description": "Why the value is uncertain or bad, in words a person reads, for example \"No communication with the device\"."
               }
             },
             "required": [
               "name",
               "value"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "value": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "quality": {
+                      "const": "bad"
+                    }
+                  },
+                  "required": [
+                    "quality"
+                  ]
+                }
+              }
+            ]
           }
         },
         "observedAt": {
@@ -73,6 +114,14 @@
           "type": "string",
           "maxLength": 128,
           "description": "Deduplicates per adapter and source device for 7 days."
+        },
+        "timestampSource": {
+          "enum": [
+            "source",
+            "server",
+            "receipt"
+          ],
+          "description": "What observedAt is: the device's own time (source, the default when observedAt is given), the time a server confirmed the value on a periodic read (server), or when the platform received it because the source's clock was out of bounds (receipt)."
         }
       },
       "required": [

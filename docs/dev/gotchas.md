@@ -408,6 +408,13 @@ Things that have cost time before. Add to this list when something surprises you
 
 ## Local stack
 
+- **The default cache is files inside each container.** The stack runs
+  `CACHE_STORE=file`, so a value the API puts in the cache is not there for a queue
+  worker, and the other way round; tests use `array` and never notice. The database
+  store does not fix it alone: the cache prefix follows `APP_NAME`, which the api
+  container sets and the worker containers do not, so the keys differ. State a request
+  and a job share (a batch of activations, spec 038) goes in a table, or in
+  `Cache::build([... 'driver' => 'database', 'prefix' => '<its own>'])`.
 - **Containers build from source with no bind mounts.** A source edit does
   nothing to the served app until you rebuild the affected service
   ([local setup](local-setup.md#rebuild-one-service)).

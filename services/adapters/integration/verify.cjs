@@ -444,6 +444,7 @@ async function publish(client, topic, payload) {
     console.log(
       "Verified: tenant topic isolation, invalid cross-tenant credentials, both broker paths, discovery gating, 12 L/min and 8,400 L, encrypted flow credentials, stale revisions, and Go Sparkplug ingestion.",
     );
+    await verifyOpcua(runtimeA, up, events, packets, callbackUrl, deploy);
   } finally {
     await Promise.allSettled(clients.map((c) => c.endAsync(true)));
     if (callback) callback.close();
@@ -457,6 +458,78 @@ async function publish(client, topic, payload) {
   console.error(error.message);
   process.exitCode = 1;
 });
+// Spec 038 PR 5: an OPC UA data source collected by a real tenant runtime from the
+// simulated building. Deploy, a birth per equipment, change and rhythm data once a source
+// is bound, a bad value as null with its quality, and a redeploy that keeps the sources.
+async function verifyOpcua(runtimeA, up, events, packets, callbackUrl, deploy) {
+  const { live, start } = require("../test/opcua-simulator.cjs");
+  if (live().skip) {
+    console.log("Skipped the OPC UA scenario: " + live().skip);
+    return;
+  }
+  const sim = await start();
+  try {
+    const map = JSON.parse(await fs.readFile(path.join(root, "contracts/pointmaps/v1/point-map.v1.fixture.json"), "utf8"));
+    for (const reading of map.readings) reading.report.sample_ms = 1000;
+    map.rhythm_seconds = 60;
+    const types = { number: "number", boolean: "boolean", state: "integer", text: "string" };
+    const body = {
+      adapter_uuid: "10000000-0000-4000-8000-000000000003",
+      revision_uuid: "20000000-0000-4000-8000-000000000003",
+      name: "Zone controllers",
+      tenant: { uuid: "30000000-0000-4000-8000-000000000001", runtime_token: "opcua-token" },
+      code: "",
+      profile: { parameters: map.readings.map((r) => ({ uuid: "p-" + r.key, key: r.key, data_type: types[r.data_type], unit: r.unit ?? null, reports_state: true })) },
+      bindings: [],
+    };
+    const source = {
+      type: "opcua",
+      connection: { uuid: "50000000-0000-4000-8000-000000000001", endpoint_url: sim.url, security_policy: "None", security_mode: "None", identity: "anonymous", server_fingerprint: null },
+      point_map: map,
+      secrets: {},
+      private_ranges: [],
+      platform_ranges: [],
+    };
+    const upstream = { ...up, edge_node_id: "edge-opcua" };
+    const id = (sourceId) => "src-" + crypto.createHash("sha256").update(sourceId).digest("hex").slice(0, 32);
+    const [box, core] = map.equipment.map((e) => e.source_id);
+    const mine = (kind, sourceId) => packets.filter((p) => p.topic === `spBv1.0/${upstream.group_id}/${kind}/${upstream.edge_node_id}/${id(sourceId)}`);
+    const decoded = (p) => Payload.decode(Buffer.from(p.payload_base64, "base64"));
+    const property = (metric, key) => {
+      const i = metric.properties?.keys.indexOf(key) ?? -1;
+      return i < 0 ? undefined : metric.properties.values[i].stringValue;
+    };
+    await deploy(runtimeA, body, source, upstream);
+    await until(() => mine("DBIRTH", box).length && mine("DBIRTH", core).length, "No birth for each equipment");
+    await until(() => events.some((e) => e.kind === "connection_status" && e.adapter_uuid === body.adapter_uuid && e.state === "connected"), "No connected status");
+    await until(() => events.some((e) => e.kind === "refused_points" && e.adapter_uuid === body.adapter_uuid), "No refused points report");
+    assert.equal(mine("DDATA", box).length, 0, "An unbound source stored readings");
+    assert.ok(events.some((e) => e.kind === "sample" && e.source_device_id === box && e.preview.metrics.every((m) => m.quality)), "No sample preview with quality");
+    // Bound: data flows, first the rhythm read with the server's time.
+    const installation = "40000000-0000-4000-8000-000000000003";
+    body.bindings = [{ source_device_id: box, installation_uuid: installation, virtual_device_uuid: "zone-device" }];
+    await deploy(runtimeA, body, source, upstream);
+    await until(() => mine("DDATA", box).some((p) => decoded(p).metrics.some((m) => property(m, "timestamp_source") === "server")), "No rhythm data with the server's time");
+    const first = decoded(mine("DDATA", box)[0]).metrics[0];
+    assert.equal(property(first, "installation_uuid"), installation);
+    assert.equal(mine("DDATA", core).length, 0, "The unbound equipment stored readings");
+    await sim.scenario("controller_offline", true, "L03-VAV-2");
+    try {
+      await until(() => mine("DDATA", box).some((p) => decoded(p).metrics.some((m) => m.name === "zone_temperature" && m.isNull && property(m, "quality") === "bad")), "No bad value as null");
+      const bad = mine("DDATA", box).map(decoded).flatMap((d) => d.metrics).find((m) => m.name === "zone_temperature" && m.isNull);
+      assert.equal(property(bad, "quality_reason"), "No communication with the device");
+    } finally {
+      await sim.scenario("controller_offline", false);
+    }
+    // A redeploy keeps both sources: the publisher births them again from its file.
+    const before = packets.length;
+    await deploy(runtimeA, { ...body, revision_uuid: "20000000-0000-4000-8000-000000000004" }, source, upstream);
+    await until(() => packets.slice(before).filter((p) => p.topic.includes("/DBIRTH/edge-opcua/")).length >= 2, "A redeploy lost a source");
+    console.log("Verified OPC UA: a birth per equipment, no data before binding, rhythm data with the server's time, a bad value as null with its reason, and sources kept across a redeploy.");
+  } finally {
+    await sim.stop();
+  }
+}
 function processEnv(name, fallback) {
   return process.env[name] || fallback;
 }

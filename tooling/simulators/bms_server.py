@@ -293,6 +293,10 @@ class BmsServer:
         else:
             await self._structured()
         self._intercept_writes()
+        # Every value is written before the server answers, so a client that connects at
+        # once (a connector after a restart) never reads the nodes' empty starting values
+        # as good readings.
+        await self.publish(self.physics.read())
         await s.start()
         self.started = True
         log.info('Serving %s (%s) at %s: %s', self.building.info['name'], self.style, self.endpoint, self.building.totals())

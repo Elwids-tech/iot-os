@@ -82,6 +82,7 @@ import { useDirtyContext, useUnsaved } from "../lib/unsaved";
 import { Confirm, RequestError } from "../components/forms";
 import { useDeviceOrganization } from "../devices/shared";
 import { AdapterDevices, AdapterCredentials } from "./connections";
+import { OpcuaDevices } from "./pointmap/Devices";
 import { Activity } from "./Activity";
 import { Samples } from "./Samples";
 import { AdapterOverview, connectionStatus } from "./Overview";
@@ -1121,7 +1122,7 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                     <AlertDescription>
                       {adapter.source.type === "opcua"
                         ? tested
-                          ? "The point map passed its review and is saved. Collecting from an OPC UA server arrives in the next release."
+                          ? "The point map passed its review. Deploy to start collecting; each equipment then waits in Devices until it is activated, and only activated devices store readings."
                           : "Save the point map and pass its review before deployment."
                         : tested
                           ? "Samples passed for this saved revision. Deploy to start discovery; review and activate each serial before its readings are stored."
@@ -1147,8 +1148,6 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
                       busy ||
                       pending ||
                       !canEdit ||
-                      // Collecting from OPC UA is spec 038's next pull request.
-                      adapter.source.type === "opcua" ||
                       (firstPoll && !!cursorStartError(cursorStart))
                     }
                     onClick={() =>
@@ -1267,7 +1266,13 @@ function Workbench({ adapter }: { adapter?: DeviceAdapter }) {
           )}
         </TabsContent>
         <TabsContent value="devices">
-          {adapter && (
+          {adapter && adapter.source.type === "opcua" ? (
+            <OpcuaDevices
+              org={org}
+              adapter={adapter}
+              canActivate={capabilities.activate && capabilities.manage && capabilities.connections}
+            />
+          ) : adapter && (
             <AdapterDevices
               org={org}
               adapter={adapter}

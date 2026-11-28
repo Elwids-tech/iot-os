@@ -67,11 +67,19 @@ final class DeviceAdapter extends DeviceModel
         return self::pollInterval($applied, $this->source);
     }
 
-    /** The poll interval of a running revision's definition, else of the saved source; null when it does not poll. */
+    /**
+     * The poll interval of a running revision's definition, else of the saved source; null
+     * when it does not poll. An OPC UA data source reads every point once per rhythm, so
+     * its rhythm is its poll interval for the automatic Offline after (spec 038 T069).
+     */
     public static function pollInterval(?array $appliedDefinition, ?array $source): ?int
     {
         $source = $appliedDefinition['source'] ?? $source;
 
-        return ($source['type'] ?? null) === 'poll' ? (int) ($source['interval_seconds'] ?? 300) : null;
+        return match ($source['type'] ?? null) {
+            'poll' => (int) ($source['interval_seconds'] ?? 300),
+            'opcua' => (int) ($source['point_map']['rhythm_seconds'] ?? 300),
+            default => null,
+        };
     }
 }

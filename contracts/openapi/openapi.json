@@ -22989,8 +22989,210 @@
         ],
         "x-audience": "organization",
         "x-organization-scoped": true,
-        "description": "The adapter's discovered sources, newest first, at most 100. A source whose device is in this organization embeds it in `device`; one in use in another organization of the billing account (a hosted device, spec 031) has `in_use_in` with that organization's name instead, and `device` and `installation_uuid` are null.",
+        "description": "The adapter's discovered sources, newest first, at most 100 (1,000 for an OPC UA data source, which lists every equipment of its map). `name` is what people call the source; for OPC UA its equipment's display name with parent names added until unique (spec 038). A source whose device is in this organization embeds it in `device`; one in use in another organization of the billing account (a hosted device, spec 031) has `in_use_in` with that organization's name instead, and `device` and `installation_uuid` are null.",
         "x-schema-status": "pending"
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/candidates/activate": {
+      "post": {
+        "operationId": "adapter.activateMany",
+        "summary": "Activate several sources",
+        "tags": [
+          "Adapter"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "candidate_uuid": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "candidate_uuid"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "sources"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The batch, queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AdapterActivationBatch"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "419": {
+            "$ref": "#/components/responses/CsrfExpired"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "x-rate-limits": [
+          {
+            "limit": 10,
+            "per": "minute",
+            "key": "user"
+          }
+        ],
+        "description": "Activates up to 200 sources of a running data source as one queued batch, each as a single activation would, then redeploys the data source once (spec 038, research R14). A source without a name is named as in the candidate list. Read the result of each source from the batch."
+      }
+    },
+    "/v1/organizations/{organization}/device-adapters/{adapter}/candidates/activations/{batch}": {
+      "get": {
+        "operationId": "adapter.activation",
+        "tags": [
+          "Adapter"
+        ],
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "path",
+            "required": true,
+            "description": "The organization UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "adapter",
+            "in": "path",
+            "required": true,
+            "description": "The adapter UUID. A value that does not match returns 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "batch",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A value that does not match returns 404."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch and its results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AdapterActivationBatch"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-audience": "organization",
+        "x-organization-scoped": true,
+        "summary": "Read a batch of activations",
+        "description": "A batch started by the same person in the last day, with a result for each source done so far."
       }
     },
     "/v1/organizations/{organization}/device-adapters/{adapter}/candidates/{candidate}/activate": {
@@ -45500,6 +45702,87 @@
           },
           "opaque": {
             "type": "boolean"
+          }
+        }
+      },
+      "AdapterActivationBatch": {
+        "type": "object",
+        "description": "A batch of source activations (spec 038 T070).",
+        "required": [
+          "uuid",
+          "status",
+          "total",
+          "results"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "total": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "candidate_uuid",
+                "outcome",
+                "message",
+                "device"
+              ],
+              "properties": {
+                "candidate_uuid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "activated",
+                    "already_active",
+                    "failed"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why the source was not activated."
+                },
+                "device": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "description": "The activated device.",
+                  "required": [
+                    "uuid",
+                    "name"
+                  ],
+                  "properties": {
+                    "uuid": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
