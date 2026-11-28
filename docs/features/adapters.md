@@ -155,6 +155,33 @@ under **Build → Device adapters** for users with `Device.manage`.
   30 days). **Reset cursor** and **Resume** redeploy the applied revision; reset is
   audited. Records fetched again are deduplicated by `messageId`.
 
+### OPC UA
+
+An OPC UA data source reads a building's server through a saved connection, with a
+reviewed point map instead of a decoder ([spec 038](../../specs/038-opc-ua-connector/spec.md),
+[ADR-052](../adr/ADR-052-server-connections-and-point-maps.md)). The flow is source, publisher and reporter.
+
+- The tenant runtime keeps one session per connection, shared by every data source that
+  reads through it, and rebuilds it after a failure with pauses from 1 second to 5
+  minutes. Each data source subscribes to its points (one subscription per sampling
+  interval, the deadband on the server when it can) and reads them all once per rhythm
+  (5 minutes by default), stamped with the server's time, so a steady device still
+  reports.
+- Each equipment of the map is one source, named by its display name with parent names
+  added until unique (**L03-Z2 / L03-VAV-2**), with its path as the source id. Nothing is
+  stored until it is activated; the Devices tab activates any number of them at once,
+  as one queued batch and one redeployment (`candidates/activate`, up to 200).
+- A value the server calls bad is published as null with `quality: bad` and the
+  server's reason, and stored as unknown with it; an uncertain value keeps its value
+  with `quality: uncertain` ([source quality](devices.md#measurements-and-history)). A
+  report of nothing but bad values is not hearing from the device, so a dead controller
+  goes offline by the normal rule. The automatic **Offline after** uses the rhythm as
+  its poll interval.
+- The runtime reports the connection's state and counts every minute, the points it
+  could not collect, and a server certificate that no longer matches the accepted one;
+  collecting through that connection then stops until a person accepts the new
+  certificate.
+
 ## User flow
 
 ![Device adapter onboarding journey](diagrams/device-integration-02-onboarding.png)
@@ -381,7 +408,8 @@ tenant containers and restart only those that were running
 Under `/api/v1/organizations/{organization}/device-adapters`
 ([routes](../../apps/api/app/Domain/DeviceAdapters/routes.php)): list, create,
 read, update and delete adapters; `test`, `connection-test`, `deploy`; `candidates` and
-`candidates/{c}/activate`; `credentials` with `kit`, `rotate` and `revoke`;
+`candidates/{c}/activate`, and `candidates/activate` with `candidates/activations/{batch}`
+for up to 200 sources at once; `credentials` with `kit`, `rotate` and `revoke`;
 `webhook`, `webhook/secrets` and `…/revoke`, `deliveries`; `fetch-now`, `poll-runs`,
 `cursor`, `resume`; assistant `proposals` and `decision`. Reads need `Device.view`,
 changes need `Device.manage`, and broker sources, webhook secrets, polling

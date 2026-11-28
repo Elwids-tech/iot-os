@@ -78,6 +78,7 @@
           "quality": {
             "enum": [
               "good",
+              "uncertain",
               "invalid",
               "stale"
             ]
@@ -99,6 +100,7 @@
           "timestamp_source": {
             "enum": [
               "source",
+              "server",
               "receipt",
               "corrected_future",
               "derived"

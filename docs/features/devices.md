@@ -517,6 +517,19 @@ requests ([Sparkplug reference](../reference/sparkplug.md)).
   valid value visible and expose invalid current quality separately. Retained
   values from a restored cache are not a current session; staleness also follows
   the profile's reporting hints.
+- **Source quality.** A connector source such as OPC UA
+  ([spec 038](../../specs/038-opc-ua-connector/spec.md)) says how far its server vouches
+  for each value, as the Sparkplug properties `quality` and `quality_reason`. A **bad**
+  value is stored as invalid with the server's reason ("No communication with the
+  device") and its current value is unknown, not the last valid one. An **uncertain**
+  value is stored with its value and the quality `uncertain`; charts and the device page
+  show it, labelled. Rules, calculations, commands and location treat only `good` as
+  usable, so an uncertain value never triggers or confirms anything; a rule that should
+  act on uncertain values is a later choice of the rule, not the default.
+- **Timestamp source.** `source` is the device's own time, `receipt` the platform's,
+  and `server` a time at which a server confirmed the value on its periodic read (an OPC
+  UA rhythm report). A source time more than 5 minutes ahead or a day behind is replaced
+  by the receipt time and labelled `receipt`.
 - **Values.** Scalars, booleans, strings and dates. Arbitrary Sparkplug datasets,
   templates and custom codecs are not supported. 64-bit integers outside
   JavaScript's safe range produce diagnostics.

@@ -112,8 +112,13 @@ type Metric struct {
 	IsNull              bool       `json:"is_null,omitempty"`
 	Diagnostic          string     `json:"diagnostic,omitempty"`
 	// TimestampSource is "receipt" when the publisher says Timestamp is when the
-	// platform received the message, not when the device observed it.
+	// platform received the message, not when the device observed it, and "server"
+	// when a server confirmed the value at Timestamp on a periodic read (spec 038).
 	TimestampSource string `json:"timestamp_source,omitempty"`
+	// Quality is the source's own word on the value: "" or "good", "uncertain" or
+	// "bad", with QualityReason in plain words (spec 038, research R4).
+	Quality       string `json:"quality,omitempty"`
+	QualityReason string `json:"quality_reason,omitempty"`
 }
 type Reading struct {
 	InstallationUUID    string     `json:"installation_uuid,omitempty"`
@@ -133,6 +138,10 @@ type Reading struct {
 	LastValidReceivedAt *time.Time `json:"last_valid_received_at,omitempty"`
 	Historical          bool       `json:"historical"`
 	CounterEvent        string     `json:"counter_event,omitempty"`
+	// SourceBad marks a reading its source reported as bad or null: its value is
+	// unknown, not the last known one, and it is not hearing from an adapter device
+	// (spec 038, research R4 and R5).
+	SourceBad bool `json:"source_bad,omitempty"`
 }
 type Event struct {
 	UUID       string          `json:"uuid"`

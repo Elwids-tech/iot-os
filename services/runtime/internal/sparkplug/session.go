@@ -256,9 +256,17 @@ func decodeMetric(m *pb.Payload_Metric, name string, datatype pb.DataType, fallb
 			case "timestamp_source":
 				// Adapters must stamp every metric; this marks the stamp as the
 				// platform's receipt time rather than the device's (spec 020).
-				if value.GetStringValue() == "receipt" {
-					metric.TimestampSource = "receipt"
+				// "server" marks a value a server confirmed at that time (spec 038).
+				if source := value.GetStringValue(); source == "receipt" || source == "server" {
+					metric.TimestampSource = source
 				}
+			case "quality":
+				// The source's quality: uncertain keeps its value; bad comes as null.
+				if q := value.GetStringValue(); q == "uncertain" || q == "bad" {
+					metric.Quality = q
+				}
+			case "quality_reason":
+				metric.QualityReason = truncate(value.GetStringValue(), 120)
 			}
 		}
 	}
@@ -478,4 +486,12 @@ func EncodeMetric(name, datatype string, value any) (*pb.Payload_Metric, error) 
 		return nil, errors.New("unsupported command datatype")
 	}
 	return m, nil
+}
+
+// truncate shortens s to at most n runes.
+func truncate(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }

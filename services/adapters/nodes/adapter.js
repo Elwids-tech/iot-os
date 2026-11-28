@@ -6,6 +6,7 @@ const sparkplug = require("../lib/sparkplug.cjs");
 const { brokerUrl, secureLookup } = require("../lib/broker.cjs");
 const { BirthStore, DedupLog, readJson, writeJson } = require("../lib/state.cjs");
 const poll = require("../lib/poll.cjs");
+const { Sources } = require("../lib/opcua/source.cjs");
 
 const DAY = 24 * 60 * 60 * 1000;
 const dataDir = () => process.env.IOT_ADAPTER_DATA_DIR || "/data";
@@ -32,6 +33,17 @@ function settle(msg, summary) {
   waiting.delete(msg._settle);
   callback({ published: 0, duplicates: 0, failed: 0, ...summary });
 }
+
+// The runtime's OPC UA connections: one session per connection, shared by the data
+// sources reading through it (spec 038, research R12).
+let opcuaSources;
+function sources() {
+  opcuaSources ??= new Sources({ pkiRoot: path.join(dataDir(), "opcua-pki"), allowPrivate });
+  return opcuaSources;
+}
+// Results waiting for the publisher, per data source. A source that runs ahead of an
+// unreachable platform broker drops changes past this; the rhythm reads them again.
+const OPCUA_IN_FLIGHT = 1000;
 
 // Whether an adapter's publisher is connected to the platform broker.
 const upstreams = new Map();
@@ -127,6 +139,7 @@ module.exports = function (RED) {
         { payload: { kind: "health", adapter_uuid: config.adapter_uuid, source_connected: connected, ...extra } },
       ]);
     if (source.type === "poll") return pollSource(node, config, source, health);
+    if (source.type === "opcua") return opcuaSource(node, config, source, health);
     mqttSource(node, config, source, health);
   }
 
@@ -222,6 +235,49 @@ module.exports = function (RED) {
       if (webhook && current.connected)
         current.publish(statusTopic, "offline", { qos: 1, retain: true }, () => current.end(false, {}, done));
       else current.end(false, {}, done);
+    });
+  }
+
+  // Collects a point map from an OPC UA server: no decoder, the results go straight to
+  // the publisher with each value's quality (spec 038 PR 5, research R3).
+  function opcuaSource(node, config, source, health) {
+    const adapter = config.adapter_uuid;
+    let secrets = {};
+    try {
+      secrets = JSON.parse(node.credentials.opcua_secrets || "{}");
+    } catch {}
+    const body = { connection: source.connection, secrets, private_ranges: source.private_ranges || [], platform_ranges: source.platform_ranges || [] };
+    const event = (payload) =>
+      node.send([null, { payload: { ...payload, adapter_uuid: adapter, revision_uuid: config.revision_uuid, ...(payload.kind === "diagnostic" ? {} : { connection_uuid: source.connection.uuid }) } }]);
+    let inFlight = 0;
+    let warned = false;
+    let stop = null;
+    try {
+      stop = sources().register(adapter, body, source.point_map, config.profile, {
+        result(decoded) {
+          if (inFlight >= OPCUA_IN_FLIGHT) {
+            if (!warned) event({ kind: "diagnostic", message: "The platform broker is not taking values; changes are dropped until it does, and the rhythm reads them again" });
+            warned = true;
+            return;
+          }
+          warned = false;
+          inFlight++;
+          const input = { source: "opcua", receivedAt: new Date().toISOString(), retained: false };
+          node.send([{ decoded: [decoded], inputs: [input], _settle: track(() => inFlight--) }, null]);
+          node.send([null, { payload: { kind: "count", adapter_uuid: adapter, counts: { decoded: 1 } } }]);
+        },
+        event,
+        health(connected) {
+          node.status(connected ? { fill: "green", shape: "dot", text: "Server connected" } : { fill: "red", shape: "ring", text: "Server not connected" });
+          health(connected);
+        },
+      });
+    } catch (error) {
+      node.status({ fill: "red", shape: "ring", text: "Connection settings refused" });
+      event({ kind: "diagnostic", message: `The connection settings were refused: ${String(error.message).slice(0, 200)}` });
+    }
+    node.on("close", (_, done) => {
+      Promise.resolve(stop?.()).catch(() => {}).finally(done);
     });
   }
 
@@ -519,9 +575,11 @@ module.exports = function (RED) {
         ? { installation_uuid: binding.installation_uuid, adapter_revision_uuid: config.revision_uuid }
         : undefined;
       // Without observedAt the reading is receipt-timed: Sparkplug still needs a
-      // timestamp, so the property tells the runtime it is the receipt (FR-050).
-      const receipt = !decoded.observedAt;
-      const timestamp = receipt ? Date.parse(input.receivedAt) : Date.parse(decoded.observedAt);
+      // timestamp, so the property tells the runtime it is the receipt (FR-050). A
+      // connector source says so itself, and marks a server-confirmed time (spec 038).
+      const receipt = !decoded.observedAt || decoded.timestampSource === "receipt";
+      const server = decoded.timestampSource === "server";
+      const timestamp = decoded.observedAt ? Date.parse(decoded.observedAt) : Date.parse(input.receivedAt);
       if (!receipt && config.retention_days && timestamp < Date.now() - config.retention_days * DAY) {
         summary.failed++;
         report({
@@ -542,12 +600,17 @@ module.exports = function (RED) {
         return;
       }
       // Older than what this source already published: history, not the latest
-      // value (FR-053).
-      const historical = newest[id] !== undefined && timestamp < newest[id];
-      if (!historical) newest[id] = timestamp;
+      // value (FR-053). A connector source's rhythm reads carry the server's clock and
+      // its change reports the device's; each is compared only with its own clock, so
+      // a device clock a few seconds behind the server never makes a change history
+      // (spec 038).
+      const clock = server ? id + ":server" : id;
+      const historical = newest[clock] !== undefined && timestamp < newest[clock];
+      if (!historical) newest[clock] = timestamp;
       if (historical) report({ kind: "count", counts: { historical: 1 } });
-      const options = { historical, receipt };
-      const metrics = decoded.metrics.map((m) => sparkplug.metric(m.name, m.datatype, m.value, timestamp, provenance, options));
+      const options = { historical, receipt, server };
+      const quality = (m) => ({ quality: m.quality, reason: m.reason });
+      const metrics = decoded.metrics.map((m) => sparkplug.metric(m.name, m.datatype, m.value, timestamp, provenance, { ...options, ...quality(m) }));
       const { input: _index, ...preview } = decoded;
       report({
         kind: "sample",
@@ -570,7 +633,7 @@ module.exports = function (RED) {
         if (!historical || !accumulated.has(metric.name))
           accumulated.set(
             metric.name,
-            sparkplug.metric(decoded.metrics[index].name, decoded.metrics[index].datatype, decoded.metrics[index].value, timestamp, provenance, { receipt }),
+            sparkplug.metric(decoded.metrics[index].name, decoded.metrics[index].datatype, decoded.metrics[index].value, timestamp, provenance, { receipt, server, ...quality(decoded.metrics[index]) }),
           );
       const birthMetrics = [...accumulated.values()];
       const names = JSON.stringify(birthMetrics.map((m) => [m.name, m.datatype]).sort((a, b) => a[0].localeCompare(b[0])));
@@ -695,7 +758,7 @@ module.exports = function (RED) {
         for (const [name, n] of Object.entries(p.counts || {})) if (n) counts[name] = (counts[name] || 0) + n;
         return done();
       }
-      if (p.kind === "poll_run") {
+      if (p.kind === "poll_run" || p.kind === "refused_points" || p.kind === "server_certificate") {
         reliable.push(p);
         reliable = reliable.slice(-100);
         await drain();
@@ -714,6 +777,8 @@ module.exports = function (RED) {
       const key =
         p.kind === "failure"
           ? "failure"
+          : p.kind === "connection_status"
+            ? "connection_status:" + p.state
           : p.kind + ":" + (p.source_device_id || ("source_connected" in p ? "source" : "upstream"));
       if (Date.now() - (last.get(key) || 0) < 2000 || pending >= 4) return done();
       last.set(key, Date.now());
@@ -734,7 +799,7 @@ module.exports = function (RED) {
     ca_certificate: { type: "password" },
   };
   RED.nodes.registerType("iot-adapter-source", Source, {
-    credentials: { ...connectionCredentials, api_key: { type: "password" }, token: { type: "password" } },
+    credentials: { ...connectionCredentials, api_key: { type: "password" }, token: { type: "password" }, opcua_secrets: { type: "password" } },
   });
   RED.nodes.registerType("iot-adapter-decoder", Decoder);
   RED.nodes.registerType("iot-adapter-publisher", Publisher, {

@@ -241,6 +241,15 @@ class RenumberTest(ServerTest):
         self.assertIsInstance(first.Identifier, int)  # small numbers travel as the compact FourByte encoding
         self.assertNotEqual(first, second)
 
+    async def test_a_client_reads_the_building_at_once_after_a_restart(self):
+        await self.bms.restart(0)
+        client = await self.client()
+        node = await (await self.zone(client)).get_child(f'{await client.get_namespace_index(NAMESPACE)}:zone_temperature')
+        value = await node.read_data_value()
+        await client.disconnect()
+        self.assertTrue(value.StatusCode.is_good())
+        self.assertGreater(value.Value.Value, 5)  # the zone's temperature, not the node's empty 0.0
+
 
 class FlatTest(ServerTest):
     options = {'style': 'flat'}

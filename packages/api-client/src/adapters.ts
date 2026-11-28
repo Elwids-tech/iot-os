@@ -220,11 +220,16 @@ export type AdapterProfile = {
 export type AdapterCandidate = {
   uuid: string;
   source_device_id: string;
+  /** What people call the source: for OPC UA its equipment's name, with parents added until unique (spec 038). */
+  name?: string;
   status: string;
   last_seen_at: string;
   preview: {
     sourceDeviceId: string;
-    metrics: { name: string; value: unknown; unit: string | null }[];
+    /** A connector source (OPC UA) says how far the server vouches for each value; a bad value is null. */
+    metrics: { name: string; value: unknown; unit: string | null; quality?: "good" | "uncertain" | "bad"; reason?: string | null }[];
+    observedAt?: string;
+    timestampSource?: "source" | "server" | "receipt";
     retained?: boolean;
   };
   installation_uuid: string | null;
@@ -553,4 +558,17 @@ export type PointMapCheck = {
   problems: { source_id: string | null; key: string | null; at?: string; problem: string }[];
   totals: { devices: number; readings: number; points: number; rows_per_day: number };
   limit: { max: number; used: number; adding: number; over: number };
+};
+
+/** A batch of source activations (spec 038 T070): a result for each source done so far. */
+export type AdapterActivationBatch = {
+  uuid: string;
+  status: "queued" | "running" | "done" | "failed";
+  total: number;
+  results: {
+    candidate_uuid: string;
+    outcome: "activated" | "already_active" | "failed";
+    message: string | null;
+    device: { uuid: string; name: string } | null;
+  }[];
 };

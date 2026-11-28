@@ -101,7 +101,9 @@ test("validated decoder results and the sample event's preview match decoder-out
   assert.equal(validateResults(fixture[1], PROFILE).results.length, 1);
   const { failures: partial } = validateResults([fixture[1], { sourceDeviceId: "TRK-1001", metrics: [{ name: "unknown", value: 1 }] }], PROFILE);
   assert.deepEqual(partial.map((f) => f.index), [1]);
-  for (const c of contract("decoder-output.v1").cases.filter((c) => c.valid)) {
+  // A connector result (quality, timestampSource) comes from a source, never a decoder.
+  const fromConnector = (c) => [].concat(c.data).some((r) => r.timestampSource || r.metrics.some((m) => "quality" in m));
+  for (const c of contract("decoder-output.v1").cases.filter((c) => c.valid && !fromConnector(c))) {
     const mapped = [].concat(c.data).map((r) => ({ ...r, metrics: r.metrics.filter((m) => PROFILE.parameters.some((p) => p.key === m.name)) }));
     assert.deepEqual(validateResults(mapped, PROFILE).failures, [], c.description);
   }
@@ -437,4 +439,44 @@ test("events the runtime nodes send match runtime-event.v1: a failure, outcome c
   assert.ok(emitted.some((e) => e.kind === "health" && e.source_state === "polling" && e.source_connected === true));
   assert.ok(emitted.some((e) => e.kind === "health" && e.source_state === "stopped" && e.source_connected === false));
   assert.deepEqual(keys(emitted.find((e) => e.kind === "health")), keys(golden.find((g) => g.kind === "health" && "source_state" in g)));
+});
+
+test("an OPC UA source's shaped results match decoder-output.v1 and the sample preview of runtime-event.v1", () => {
+  const { shape } = require("../lib/opcua/source.cjs");
+  const profile = {
+    parameters: [
+      { uuid: "30000000-0000-4000-8000-000000000031", key: "zone_temperature", kind: "measurement", data_type: "number", unit: "°C", reports_state: true },
+      { uuid: "30000000-0000-4000-8000-000000000032", key: "occupancy", kind: "state", data_type: "boolean", unit: null, reports_state: true },
+      { uuid: "30000000-0000-4000-8000-000000000033", key: "operating_state", kind: "state", data_type: "integer", unit: null, reports_state: true },
+    ],
+  };
+  const result = {
+    sourceDeviceId: "Example Tower/L03-VAV-2",
+    observedAt: "2026-11-27T09:00:00.000Z",
+    timestampSource: "server",
+    metrics: [
+      { name: "zone_temperature", value: null, quality: "bad", reason: "No communication with the device" },
+      { name: "occupancy", value: true, quality: "good", reason: null },
+      { name: "operating_state", value: "heating", quality: "good", reason: null },
+      { name: "not_in_the_device_type", value: 1, quality: "good", reason: null },
+    ],
+  };
+  const decoded = shape(result, profile);
+  const { datatype, parameter_uuid, unit, ...connector } = decoded.metrics[0];
+  assert.deepEqual([datatype, parameter_uuid, unit], ["Double", "30000000-0000-4000-8000-000000000031", "°C"]);
+  assertConforms("decoder-output.v1", { ...decoded, metrics: decoded.metrics.map(({ datatype, parameter_uuid, ...m }) => m) });
+  assert.deepEqual(connector, { name: "zone_temperature", value: null, quality: "bad", reason: "No communication with the device" });
+  // A value that does not fit its reading is sent as bad, never dropped; unknown keys are.
+  assert.deepEqual(decoded.metrics.map((m) => [m.name, m.quality]), [["zone_temperature", "bad"], ["occupancy", "good"], ["operating_state", "bad"]]);
+  const hash = crypto.createHash("sha256").update(decoded.sourceDeviceId).digest("hex");
+  assertConforms("runtime-event.v1", {
+    kind: "sample",
+    adapter_uuid: "30000000-0000-4000-8000-000000000001",
+    revision_uuid: "30000000-0000-4000-8000-000000000003",
+    source_device_id: decoded.sourceDeviceId,
+    sparkplug_device_id: "src-" + hash.slice(0, 32),
+    preview: decoded,
+    retained: false,
+    received_at: "2026-11-27T09:00:01.000Z",
+  });
 });

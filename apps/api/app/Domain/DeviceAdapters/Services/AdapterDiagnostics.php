@@ -159,8 +159,8 @@ final class AdapterDiagnostics
             }, 'detail' => $connection ? $connection->name : null],
             ['step' => 'samples', 'state' => $readings > 0 && $devices > 0 ? 'done' : 'todo', 'detail' => $readings > 0 ? "{$readings} ".str('reading')->plural($readings)." from {$devices} ".str('device')->plural($devices) : null],
             ['step' => 'decoder', 'state' => $test === null ? 'todo' : (($test['valid'] ?? false) ? 'done' : 'attention'), 'detail' => $test === null ? null : (($test['valid'] ?? false) ? 'Review passed' : "{$problems} ".str('problem')->plural($problems).' to fix')],
-            ['step' => 'deploy', 'state' => $deployed ? 'done' : ($adapter->status === 'pending' ? 'waiting' : ($adapter->status === 'failed' ? 'attention' : 'todo')), 'detail' => $deployed ? 'Running' : 'Collecting arrives in the next release'],
-            ['step' => 'activate', 'state' => $activated > 0 ? 'done' : ($waiting > 0 ? 'waiting' : 'todo'), 'detail' => $activated > 0 ? $activated.' '.str('device')->plural($activated).' active' : null],
+            ['step' => 'deploy', 'state' => $deployed ? 'done' : ($adapter->status === 'pending' ? 'waiting' : ($adapter->status === 'failed' ? 'attention' : 'todo')), 'detail' => $deployed ? 'Collecting' : null],
+            ['step' => 'activate', 'state' => $activated > 0 ? 'done' : ($waiting > 0 ? 'waiting' : 'todo'), 'detail' => $activated > 0 ? $activated.' '.str('device')->plural($activated).' active' : ($waiting > 0 ? $waiting.' '.str('source')->plural($waiting).' waiting' : null)],
         ];
     }
 

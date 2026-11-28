@@ -1680,3 +1680,50 @@ test("a point map is picked from one equipment, applied to similar ones, given a
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+test("an OPC UA data source's waiting equipment is activated together, with uncertain and unknown values shown", async ({ page }) => {
+  const ns = "urn:example:bms:example-tower";
+  const map = {
+    version: 1, protocol: "opcua", rhythm_seconds: 300,
+    readings: [{ key: "zone_temperature", name: "Zone temperature", data_type: "number", unit: "°C", scale: 1, offset: 0, report: { sample_ms: 10000, deadband: { kind: "none", value: 0 } }, address: { relative_path: [{ namespace_uri: ns, name: "zone_temperature" }] } }],
+    equipment: ["L03-VAV-2", "L03-VAV-7"].map((name) => ({ source_id: `Example Tower/L03/${name}`, display_name: name, address: { namespace_uri: ns, path: [{ namespace_uri: ns, name }] } })),
+  };
+  const { errors, requests } = await setup(page, false, "platform", { source: { type: "opcua", connection_uuid: "50000000-0000-4000-8000-000000000002", point_map: map } });
+  const source = (n: number, name: string, metric: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+    uuid: `70000000-0000-4000-8000-00000000000${n}`, source_device_id: `Example Tower/L03/${name}`, name, status: "discovered", last_seen_at: minutes(1),
+    preview: { sourceDeviceId: `Example Tower/L03/${name}`, timestampSource: "server", metrics: [{ name: "zone_temperature", unit: "°C", ...metric }] },
+    installation_uuid: null, device: null, in_use_in: null, ...extra,
+  });
+  let activated = false;
+  const sources = () => [
+    source(1, "L03-VAV-2", { value: null, quality: "bad", reason: "No communication with the device" }, activated ? { device: { uuid: device, name: "L03-VAV-2", lifecycle: "active" } } : {}),
+    source(2, "L03-VAV-7", { value: 21.4, quality: "uncertain", reason: "Uncertain value (UncertainLastUsableValue)" }, activated ? { device: { uuid: "40000000-0000-4000-8000-000000000002", name: "L03-VAV-7", lifecycle: "active" } } : {}),
+  ];
+  await page.route(`**/api/v1/organizations/*/device-adapters/${id}/candidates`, (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: sources() }) }),
+  );
+  const batch = "80000000-0000-4000-8000-000000000001";
+  const results = () => sources().map((s) => ({ candidate_uuid: s.uuid, outcome: "activated", message: null, device: { uuid: s.device?.uuid ?? device, name: s.name } }));
+  await page.route(`**/api/v1/organizations/*/device-adapters/${id}/candidates/activate`, (route) => {
+    requests.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
+    return route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ data: { uuid: batch, status: "queued", total: 2, results: [] } }) });
+  });
+  await page.route(`**/api/v1/organizations/*/device-adapters/${id}/candidates/activations/${batch}`, (route) => {
+    activated = true;
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: { uuid: batch, status: "done", total: 2, results: results() } }) });
+  });
+  await page.goto(`${base}/${id}`);
+  await page.getByRole("tab", { name: "Devices" }).click();
+  const table = page.getByRole("table", { name: "Equipment" });
+  await expect(table.getByText("Unknown", { exact: true })).toBeVisible();
+  await expect(table.getByText("Uncertain", { exact: true })).toBeVisible();
+  await expect(table.getByText("21.4 °C")).toBeVisible();
+  await page.getByRole("checkbox", { name: "Select all" }).check();
+  await page.getByRole("button", { name: "Activate 2" }).click();
+  await expect(page.getByText("2 devices activated.")).toBeVisible();
+  await expect(table.getByRole("link", { name: "L03-VAV-2" })).toHaveAttribute("href", `/organizations/${org}/devices/${device}/overview`);
+  expect(requests.find((r) => r.path.endsWith("/candidates/activate"))?.body).toEqual({ sources: sources().map((s) => ({ candidate_uuid: s.uuid })) });
+  expect(errors).toEqual([]);
+  await settled(page);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});

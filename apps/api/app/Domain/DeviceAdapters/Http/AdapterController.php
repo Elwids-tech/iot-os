@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Domain\DeviceAdapters\Http;
 
 use App\Domain\Assistant\Services\OnboardingProposals;
+use App\Domain\DeviceAdapters\Jobs\ActivateSources;
 use App\Domain\DeviceAdapters\Jobs\DeployAdapter;
 use App\Domain\DeviceAdapters\Models\AdapterCandidate;
+use App\Domain\DeviceAdapters\Models\AdapterConnection;
 use App\Domain\DeviceAdapters\Models\AdapterCredential;
 use App\Domain\DeviceAdapters\Models\AdapterProposal;
 use App\Domain\DeviceAdapters\Models\AdapterTenant;
@@ -16,6 +18,7 @@ use App\Domain\DeviceAdapters\Services\AdapterDiagnostics;
 use App\Domain\DeviceAdapters\Services\AdapterManager;
 use App\Domain\DeviceAdapters\Services\AdapterReports;
 use App\Domain\DeviceAdapters\Services\AdapterService;
+use App\Domain\DeviceAdapters\Services\Connections;
 use App\Domain\DeviceAdapters\Services\PollingService;
 use App\Domain\DeviceAdapters\Services\WebhookRoutes;
 use App\Domain\DeviceProfiles\Models\DeviceProfileArtifact;
@@ -29,6 +32,7 @@ use App\Domain\Devices\Services\DeviceView;
 use App\Domain\Shared\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -157,12 +161,16 @@ final class AdapterController
     {
         $this->authorize($r, $organization, $adapter, DevicePermission::VIEW);
 
+        $names = AdapterService::sourceNames($adapter);
+        // An OPC UA data source lists every equipment of its map (up to 1,000); others their newest 100.
+        $limit = ($adapter->source['type'] ?? null) === 'opcua' ? 1000 : 100;
+
         // A source in use in another organization names that organization and nothing of its device (spec 031).
-        return ['data' => $adapter->candidates()->with(['installation.device', ...array_map(fn (string $relation) => 'installation.device.'.$relation, DeviceView::CONNECTIVITY)])->latest('last_seen_at')->limit(100)->get()->map(function ($c) use ($adapter) {
+        return ['data' => $adapter->candidates()->with(['installation.device', ...array_map(fn (string $relation) => 'installation.device.'.$relation, DeviceView::CONNECTIVITY)])->latest('last_seen_at')->limit($limit)->get()->map(function ($c) use ($adapter, $names) {
             $device = $c->installation?->device;
             $elsewhere = $device !== null && $device->organization_id !== $adapter->organization_id;
 
-            return [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'installation_uuid' => $elsewhere ? null : $c->installation?->uuid,
+            return [...$c->only(['uuid', 'source_device_id', 'preview', 'status', 'last_seen_at']), 'name' => $names[$c->source_device_id] ?? $c->source_device_id, 'installation_uuid' => $elsewhere ? null : $c->installation?->uuid,
                 'device' => $device && ! $elsewhere ? DeviceView::device($device) : null, 'in_use_in' => $elsewhere ? DeviceView::inUseIn($device) : null];
         })];
     }
@@ -197,6 +205,37 @@ final class AdapterController
         $installation = $this->service->activate($candidate, $v['device_uuid'] ?? null, $v['name'], $r->user()->id, $v['keep_last_readings'] ?? false);
 
         return response()->json(['data' => ['installation_uuid' => $installation->uuid, 'device' => DeviceView::device($installation->device)]], 202);
+    }
+
+    /**
+     * Activates up to 200 sources in one queued batch with one redeployment (spec 038,
+     * research R14). Each source is named as given, or by its name in the candidate list.
+     */
+    public function activateMany(Request $r, Organization $organization, DeviceAdapter $adapter)
+    {
+        $this->authorize($r, $organization, $adapter);
+        $this->authorization->authorize($r->user(), DevicePermission::ACTIVATE, $organization);
+        $this->authorization->authorize($r->user(), DevicePermission::CONNECTIONS, $organization);
+        $v = $r->validate(['sources' => 'required|array|min:1|max:200', 'sources.*.candidate_uuid' => 'required|uuid|distinct', 'sources.*.name' => 'nullable|string|max:255']);
+        abort_unless($adapter->status === 'running' && $adapter->applied_revision_uuid, 422, 'Deploy the data source before activating devices.');
+        $names = AdapterService::sourceNames($adapter);
+        $candidates = $adapter->candidates()->whereIn('uuid', array_column($v['sources'], 'candidate_uuid'))->pluck('source_device_id', 'uuid');
+        $sources = array_map(fn ($s) => ['uuid' => $s['candidate_uuid'], 'name' => filled($s['name'] ?? null) ? $s['name'] : ($names[$candidates[$s['candidate_uuid']] ?? ''] ?? $candidates[$s['candidate_uuid']] ?? 'Device')], $v['sources']);
+        $batch = (string) Str::uuid();
+        $state = ['uuid' => $batch, 'adapter_uuid' => $adapter->uuid, 'created_by' => $r->user()->id, 'status' => 'queued', 'total' => count($sources), 'results' => []];
+        ActivateSources::store()->put(ActivateSources::key($batch), $state, ActivateSources::KEEP_SECONDS);
+        ActivateSources::dispatch($batch, $adapter->id, $sources, $r->user()->id);
+
+        return response()->json(['data' => Arr::except($state, ['adapter_uuid', 'created_by'])], 202);
+    }
+
+    public function activation(Request $r, Organization $organization, DeviceAdapter $adapter, string $batch): array
+    {
+        $this->authorize($r, $organization, $adapter);
+        $state = Str::isUuid($batch) ? ActivateSources::store()->get(ActivateSources::key($batch)) : null;
+        abort_unless($state && $state['adapter_uuid'] === $adapter->uuid && $state['created_by'] === $r->user()->id, 404);
+
+        return ['data' => Arr::except($state, ['adapter_uuid', 'created_by'])];
     }
 
     public function credentials(Request $r, Organization $organization, DeviceAdapter $adapter): array
@@ -276,11 +315,38 @@ final class AdapterController
         abort_unless(config('adapters.enabled') && strlen($r->getContent()) <= 1048576, 404);
         $tenant = AdapterTenant::where('uuid', $r->header('X-Adapter-Tenant'))->first();
         abort_unless($tenant && hash_equals($tenant->runtime_token, $r->bearerToken() ?? ''), 401);
-        $v = $r->validate(['adapter_uuid' => 'required|uuid', 'revision_uuid' => 'nullable|uuid', 'kind' => 'required|in:sample,health,diagnostic,poll_run,failure,outcomes', 'source_device_id' => 'required_if:kind,sample|string|max:128', 'sparkplug_device_id' => 'required_if:kind,sample|string|max:80', 'preview' => 'required_if:kind,sample|array', 'retained' => 'sometimes|boolean', 'source_connected' => 'sometimes|boolean', 'upstream_connected' => 'sometimes|boolean', 'source_state' => 'sometimes|in:polling,retrying,stopped',
-            'run_id' => 'required_if:kind,poll_run|string|max:64', 'started_at' => 'required_if:kind,poll_run|date', 'outcome' => 'required_if:kind,poll_run|in:ok,empty,partial,retrying,stopped', 'state' => 'required_if:kind,poll_run|in:polling,retrying,stopped',
-            'report_id' => 'required_if:kind,failure,outcomes|string|max:64', 'reason' => 'nullable|string|max:300', 'error' => 'nullable|string|max:300', 'input' => 'nullable|array', 'source' => 'sometimes|in:mqtt,webhook,poll', 'bucket' => 'required_if:kind,outcomes|date', 'counts' => 'required_if:kind,outcomes|array']);
+        $v = $r->validate(['adapter_uuid' => 'required|uuid', 'revision_uuid' => 'nullable|uuid', 'kind' => 'required|in:sample,health,diagnostic,poll_run,failure,outcomes,connection_status,refused_points,server_certificate', 'source_device_id' => 'required_if:kind,sample|string|max:128', 'sparkplug_device_id' => 'required_if:kind,sample|string|max:80', 'preview' => 'required_if:kind,sample|array', 'retained' => 'sometimes|boolean', 'source_connected' => 'sometimes|boolean', 'upstream_connected' => 'sometimes|boolean', 'source_state' => 'sometimes|in:polling,retrying,stopped',
+            'run_id' => 'required_if:kind,poll_run|string|max:64', 'started_at' => 'required_if:kind,poll_run|date', 'outcome' => 'required_if:kind,poll_run|in:ok,empty,partial,retrying,stopped', 'state' => ['required_if:kind,poll_run,connection_status', 'in:'.($r->input('kind') === 'connection_status' ? 'connected,unreachable,stopped' : 'polling,retrying,stopped')],
+            'report_id' => 'required_if:kind,failure,outcomes|string|max:64', 'reason' => 'nullable|string|max:300', 'error' => 'nullable|string|max:300', 'input' => 'nullable|array', 'source' => 'sometimes|in:mqtt,webhook,poll', 'bucket' => 'required_if:kind,outcomes|date', 'counts' => 'required_if:kind,outcomes|array',
+            // An OPC UA source (spec 038 PR 5): the connection it reads through, its state,
+            // the points it could not collect, and a server certificate that changed.
+            'connection_uuid' => 'required_if:kind,connection_status,refused_points,server_certificate|uuid',
+            'since' => 'required_if:kind,connection_status|date', 'message' => 'nullable|string|max:300', 'fix' => 'nullable|string|max:300', 'security' => 'nullable|array', 'limits' => 'nullable|array',
+            'points_read' => 'required_if:kind,connection_status|integer|min:0', 'points_bad' => 'required_if:kind,connection_status|integer|min:0', 'values_last_minute' => 'required_if:kind,connection_status|integer|min:0', 'clock_difference_ms' => 'nullable|integer',
+            'points' => 'present_if:kind,refused_points|array|max:1000', 'polled' => 'present_if:kind,refused_points|array|max:1000',
+            'points.*.source_id' => 'required|string|max:1024', 'points.*.key' => 'required|string|max:64', 'points.*.reason' => 'required|string|max:300',
+            'polled.*.source_id' => 'required|string|max:1024', 'polled.*.key' => 'required|string|max:64', 'polled.*.reason' => 'required|string|max:300',
+            'presented' => 'required_if:kind,server_certificate|array', 'presented.fingerprint' => 'required_with:presented|string|regex:/^[0-9a-f]{64}$/', 'presented.subject' => 'nullable|string|max:1024',
+            'presented.valid_from' => 'nullable|date', 'presented.valid_to' => 'nullable|date', 'presented.application_uri' => 'nullable|string|max:1024', 'presented.der' => 'required_with:presented|string|max:16384']);
         $adapter = DeviceAdapter::where('organization_id', $tenant->organization_id)->where('uuid', $v['adapter_uuid'])->firstOrFail();
         if (isset($v['revision_uuid']) && ! in_array($v['revision_uuid'], [$adapter->applied_revision_uuid, $adapter->desired_revision_uuid], true)) {
+            return response()->noContent();
+        }
+        if (in_array($v['kind'], ['connection_status', 'refused_points', 'server_certificate'], true)) {
+            $connection = $adapter->adapter_connection_id ? AdapterConnection::find($adapter->adapter_connection_id) : null;
+            if (! $connection || $connection->uuid !== $v['connection_uuid']) {
+                return response()->noContent();
+            }
+            $connections = app(Connections::class);
+            match ($v['kind']) {
+                'connection_status' => $connections->runtimeStatus($connection, $r->only(['state', 'reason', 'message', 'fix', 'since', 'security', 'limits', 'points_read', 'points_bad', 'values_last_minute', 'clock_difference_ms'])),
+                'refused_points' => $connections->runtimeRefused($connection, $adapter->uuid, $v['points'], $v['polled']),
+                'server_certificate' => $connections->runtimeCertificate($connection, $r->input('presented')),
+            };
+            if ($v['kind'] === 'connection_status') {
+                $adapter->update(['health' => [...($adapter->health ?? []), 'source_connected' => $r->input('state') === 'connected', 'checked_at' => now()->toIso8601String()]]);
+            }
+
             return response()->noContent();
         }
         if ($v['kind'] === 'sample') {
@@ -304,7 +370,9 @@ final class AdapterController
         } elseif ($v['kind'] === 'outcomes') {
             app(AdapterDiagnostics::class)->addCounts($adapter, 'runtime:'.$v['report_id'], $v['bucket'], array_map('intval', array_filter($v['counts'], 'is_numeric')));
         } else {
-            $adapter->update(['diagnostic' => 'A message failed decoding or profile validation. Test a representative sample to inspect the error.']);
+            // An OPC UA source has no decoder: its runtime says what went wrong itself.
+            $opcua = ($adapter->source['type'] ?? null) === 'opcua' && filled($v['message'] ?? null);
+            $adapter->update(['diagnostic' => $opcua ? $v['message'] : 'A message failed decoding or profile validation. Test a representative sample to inspect the error.']);
         }
 
         return response()->noContent();

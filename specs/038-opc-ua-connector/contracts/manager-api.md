@@ -52,8 +52,9 @@ A bad metric is sent with `is_null`.
 
 ## Runtime events (runtime-event v1, additive kinds)
 
-- `connection_status`: connection uuid, state, reason, since, security, points read,
-  points bad, values in the last minute, clock difference, server limits.
+- `connection_status`: connection uuid, state, reason with its message and fix, since,
+  security, points read, points bad, values in the last minute, clock difference,
+  server limits. Sent when the state changes and every minute.
 - `refused_points`: connection uuid, adapter uuid, a list of source id, reading key
   and reason (replaces the previous list for that adapter).
 - `server_certificate`: connection uuid and the certificate now presented, when it

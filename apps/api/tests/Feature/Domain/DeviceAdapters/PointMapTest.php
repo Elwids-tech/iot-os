@@ -195,10 +195,6 @@ final class PointMapTest extends TestCase
         $this->assertSame(['done', '2 readings from 2 devices'], [$checklist['samples']['state'], $checklist['samples']['detail']]);
         $this->assertSame(['done', 'Review passed'], [$checklist['decoder']['state'], $checklist['decoder']['detail']]);
         $this->assertSame('todo', $checklist['connect']['state']);
-        // Collecting is the next pull request; until then the reviewed map stays saved.
-        $this->postJson("{$base}/deploy", ['request_uuid' => (string) Str::uuid(), 'draft_revision' => $saved['draft_revision']])->assertUnprocessable()
-            ->assertJsonPath('message', 'Collecting from an OPC UA server arrives in the next release; the reviewed point map is saved.');
-
         // Any change needs the check again.
         $changed = $this->putJson($base, $this->body($connection, $artifact, $this->map(['rhythm_seconds' => 600]), ['draft_revision' => $saved['draft_revision']]))->assertOk()->json('data');
         $this->assertNull($changed['revision']['test_result']);
